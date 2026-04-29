@@ -1,40 +1,48 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_TOKEN_COOKIE_NAME } from "./lib/auth-session";
+import { AUTH_TOKEN_COOKIE_NAME, isClerkMode } from "./lib/auth-session";
 
-const isClerkEnabled = process.env.NEXT_PUBLIC_AUTH_PROVIDER === "clerk";
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
 
-/**
- * Next.js 16 proxy for route protection.
- *
- * - Clerk mode: Uses clerkMiddleware() to enforce authentication on /dashboard/* routes.
- * - Custom mode: Checks for the opengradhub_token cookie and redirects to / if absent.
- */
-
-function customAuthProxy(request: NextRequest) {
-  if (!request.nextUrl.pathname.startsWith("/dashboard")) {
-    return NextResponse.next();
+function getCustomLoginState(request: NextRequest) {
+  if (USE_MOCK) {
+    return true;
   }
 
-  const token = request.cookies.get(AUTH_TOKEN_COOKIE_NAME)?.value;
-
-  if (token) {
-    return NextResponse.next();
-  }
-
-  const loginUrl = new URL("/", request.url);
-  return NextResponse.redirect(loginUrl);
+  return Boolean(request.cookies.get(AUTH_TOKEN_COOKIE_NAME)?.value);
 }
 
-export default isClerkEnabled
+function handleRouteRedirects(request: NextRequest, isLoggedIn: boolean) {
+  const { pathname } = request.nextUrl;
+
+  if (pathname.startsWith("/dashboard") && !isLoggedIn) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  if (pathname === "/" && isLoggedIn) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  return null;
+}
+
+export default isClerkMode()
   ? clerkMiddleware(async (auth, req) => {
-      if (isProtectedRoute(req)) {
+      const isLoggedIn = USE_MOCK || Boolean(auth().userId);
+      const redirectResponse = handleRouteRedirects(req, isLoggedIn);
+
+      if (redirectResponse) {
+        return redirectResponse;
+      }
+
+      if (!USE_MOCK && isProtectedRoute(req)) {
         await auth.protect();
       }
     })
-  : customAuthProxy;
+  : (request: NextRequest) =>
+      handleRouteRedirects(request, getCustomLoginState(request)) ?? NextResponse.next();
 
 export const config = {
   matcher: [
