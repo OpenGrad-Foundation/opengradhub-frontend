@@ -5,6 +5,10 @@ import { useAuth } from "@clerk/nextjs";
 import { ApiError, fetchCurrentUser } from "@/lib/api";
 import { clearStoredAuthToken, getStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import type { CurrentUserResponse } from "@/lib/types";
+import { mockUser } from "@/lib/mockUser";
+import { roleDashboardPathByCode } from "@/lib/role-dashboard";
+
+const USE_MOCK = true;
 
 type UseCurrentUserState = {
   data: CurrentUserResponse | null;
@@ -37,6 +41,34 @@ export function useCurrentUser() {
     let isMounted = true;
 
     async function load() {
+      if (USE_MOCK) {
+        if (isMounted) {
+          const roleCode = mockUser.role;
+          const mockResponse: CurrentUserResponse = {
+            user: {
+              id: mockUser.id,
+              fullName: mockUser.name,
+              email: null,
+              rollNumber: null,
+              phone: null,
+              programme: mockUser.programme_type,
+              zone: null,
+              schoolName: null,
+              status: "ACTIVE",
+            },
+            role: {
+              code: roleCode,
+              name: roleCode.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+              dashboardPath: roleDashboardPathByCode[roleCode] ?? "/dashboard",
+            },
+            permissions: [],
+            modules: [],
+          };
+          setState({ data: mockResponse, error: null, isLoading: false });
+        }
+        return;
+      }
+
       let token: string | null = null;
 
       if (clerkMode) {

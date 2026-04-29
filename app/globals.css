@@ -1,6 +1,21 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand tokens — branding/styleguide.md */
+  --dark-teal: #034852;
+  --teal: #006d6c;
+  --light-teal: #209379;
+  --green: #0abe62;
+  --light-green: #a6db74;
+  --yellow: #ffde00;
+  --light-yellow: #ffde59;
+  --white: #ffffff;
+
+  /* Font stacks — Greycliff CF not present; Montserrat is the fallback */
+  --font-heading: 'Montserrat', sans-serif;
+  --font-body: 'Montserrat', sans-serif;
+
+  /* Legacy colour aliases used by dashboard pages */
   --color-deep-teal: #006d6c;
   --color-green: #0abe62;
   --color-sun: #ffde00;
@@ -18,8 +33,23 @@
 @theme inline {
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
-  --font-sans: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
-  --font-display: "Aptos Display", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+  --font-sans: 'Montserrat', sans-serif;
+  --font-display: 'Montserrat', sans-serif;
+}
+
+@keyframes floatIn {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 * {
@@ -37,7 +67,7 @@ body {
   min-height: 100vh;
   background: transparent;
   color: var(--color-foreground);
-  font-family: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: var(--font-body);
 }
 
 a,
