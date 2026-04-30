@@ -55,7 +55,7 @@ export function useCurrentUser() {
                 rollNumber: null,
                 phone: safeUser.phone,
                 programme: safeUser.programme_type,
-                zone: null,
+                zone: safeUser.zone,
                 schoolName: safeUser.school_id,
                 status: safeUser.status,
               },

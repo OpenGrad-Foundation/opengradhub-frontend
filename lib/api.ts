@@ -93,6 +93,7 @@ export type SafeUser = {
   role: string;
   programme_type: string | null;
   school_id: string | null;
+  zone: string | null;
   status: string;
   email: string | null;
   phone: string | null;
@@ -135,6 +136,119 @@ export async function getMe(id: string): Promise<SafeUser> {
   }
 
   return (await response.json()) as SafeUser;
+}
+
+// ── Analytics API ────────────────────────────────────────────
+
+export type AnalyticsStudent = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  role: string;
+  programme_type: string | null;
+  school_name: string | null;
+  zone: string | null;
+  status: string;
+  created_at: string;
+};
+
+export type AnalyticsSchool = {
+  id: string;
+  name: string;
+  district: string | null;
+  state: string | null;
+};
+
+export type AnalyticsStudentFilters = {
+  caller_role: string;
+  caller_id: string;
+  role?: string;
+  programme_type?: string;
+  status?: string;
+  school_id?: string;
+  zone?: string;
+  from?: string;
+  to?: string;
+};
+
+function buildAnalyticsParams(filters: AnalyticsStudentFilters) {
+  const params = new URLSearchParams({
+    caller_role: filters.caller_role,
+    caller_id: filters.caller_id,
+  });
+
+  if (filters.role) params.set("role", filters.role);
+  if (filters.programme_type) params.set("programme_type", filters.programme_type);
+  if (filters.status) params.set("status", filters.status);
+  if (filters.school_id) params.set("school_id", filters.school_id);
+  if (filters.zone) params.set("zone", filters.zone);
+  if (filters.from) params.set("from", filters.from);
+  if (filters.to) params.set("to", filters.to);
+
+  return params;
+}
+
+export async function getAnalyticsSchools(
+  callerRole: string,
+  callerId: string,
+): Promise<AnalyticsSchool[]> {
+  const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
+  const response = await fetch(`${API_BASE_URL}/analytics/schools?${params.toString()}`);
+
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch schools.", response.status);
+  }
+
+  return (await response.json()) as AnalyticsSchool[];
+}
+
+export async function getAnalyticsStudents(
+  filters: AnalyticsStudentFilters,
+): Promise<AnalyticsStudent[]> {
+  const params = buildAnalyticsParams(filters);
+  const response = await fetch(`${API_BASE_URL}/analytics/students?${params.toString()}`);
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+
+    throw new ApiError(
+      errorBody?.message ?? "Failed to fetch students.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as AnalyticsStudent[];
+}
+
+export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilters) {
+  const params = buildAnalyticsParams(filters);
+  const response = await fetch(
+    `${API_BASE_URL}/analytics/students/export?${params.toString()}`,
+  );
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+
+    throw new ApiError(
+      errorBody?.message ?? "Failed to export students.",
+      response.status,
+    );
+  }
+
+  const blob = await response.blob();
+  const header = response.headers.get("content-disposition");
+  let filename = "opengrad_export.csv";
+  if (header) {
+    const match = /filename="?([^";]+)"?/i.exec(header);
+    if (match?.[1]) filename = match[1];
+  }
+
+  return { blob, filename };
 }
 
 // ── Courses API ────────────────────────────────────────────────
