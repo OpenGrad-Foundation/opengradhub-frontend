@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { ApiError, fetchCurrentUser } from "@/lib/api";
+import { ApiError, fetchCurrentUser, getMe } from "@/lib/api";
 import { clearStoredAuthToken, getStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import type { CurrentUserResponse } from "@/lib/types";
 import { mockUser } from "@/lib/mockUser";
@@ -42,29 +42,41 @@ export function useCurrentUser() {
 
     async function load() {
       if (USE_MOCK) {
-        if (isMounted) {
-          const roleCode = mockUser.role;
-          const mockResponse: CurrentUserResponse = {
-            user: {
-              id: mockUser.id,
-              fullName: mockUser.name,
-              email: null,
-              rollNumber: null,
-              phone: null,
-              programme: mockUser.programme_type,
-              zone: null,
-              schoolName: null,
-              status: "ACTIVE",
-            },
-            role: {
-              code: roleCode,
-              name: roleCode.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-              dashboardPath: roleDashboardPathByCode[roleCode] ?? "/dashboard",
-            },
-            permissions: [],
-            modules: [],
-          };
-          setState({ data: mockResponse, error: null, isLoading: false });
+        try {
+          const safeUser = await getMe(mockUser.id);
+          if (isMounted) {
+            const roleCode = safeUser.role;
+            const roleName = roleCode.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            const mockResponse: CurrentUserResponse = {
+              user: {
+                id: safeUser.id,
+                fullName: safeUser.name,
+                email: safeUser.email,
+                rollNumber: null,
+                phone: safeUser.phone,
+                programme: safeUser.programme_type,
+                zone: null,
+                schoolName: safeUser.school_id,
+                status: safeUser.status,
+              },
+              role: {
+                code: roleCode,
+                name: roleName,
+                dashboardPath: roleDashboardPathByCode[roleCode] ?? "/dashboard",
+              },
+              permissions: [],
+              modules: [],
+            };
+            setState({ data: mockResponse, error: null, isLoading: false });
+          }
+        } catch (err) {
+          if (isMounted) {
+            setState({
+              data: null,
+              error: err instanceof Error ? err.message : "Failed to load mock user from API.",
+              isLoading: false,
+            });
+          }
         }
         return;
       }
