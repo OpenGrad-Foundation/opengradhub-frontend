@@ -94,10 +94,14 @@ export type SafeUser = {
   programme_type: string | null;
   school_id: string | null;
   zone: string | null;
+  state: string | null;
+  school_code: string | null;
   status: string;
   email: string | null;
+  roll_number: string | null;
   phone: string | null;
   created_at: string;
+  tempPassword?: string;
 };
 
 /**
@@ -381,11 +385,13 @@ export async function createResource(payload: {
  */
 export async function createUser(payload: {
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   role: string;
   programme_type?: string;
   school_id?: string;
+  state?: string;
+  school_code?: string;
 }): Promise<SafeUser> {
   const response = await fetch(`${API_BASE_URL}/users`, {
     method: "POST",
@@ -413,7 +419,7 @@ export async function createUser(payload: {
  */
 export async function bulkUploadUsers(
   file: File,
-): Promise<{ created: number; skipped: number; errors: string[] }> {
+): Promise<{ created: number; skipped: number; errors: string[]; credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }> }> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -438,6 +444,7 @@ export async function bulkUploadUsers(
     created: number;
     skipped: number;
     errors: string[];
+    credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }>;
   };
 }
 

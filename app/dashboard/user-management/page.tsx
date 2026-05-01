@@ -147,23 +147,35 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [role, setRole] = useState("STUDENT");
   const [programme, setProgramme] = useState("");
   const [schoolId, setSchoolId] = useState("");
+  const [state, setState] = useState("");
+  const [schoolCode, setSchoolCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createdUser, setCreatedUser] = useState<SafeUser | null>(null);
+
+  const isStudent = role === "STUDENT";
+  const isUgStudent = isStudent && programme === "UG";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      await createUser({
+      const user = await createUser({
         name: name.trim(),
-        email: email.trim(),
+        email: email.trim() || undefined,
         phone: phone.trim() || undefined,
         role,
-        programme_type: role === "STUDENT" && programme ? programme : undefined,
+        programme_type: isStudent && programme ? programme : undefined,
         school_id: schoolId.trim() || undefined,
+        state: isStudent && state ? state : undefined,
+        school_code: isStudent && schoolCode.trim() ? schoolCode.trim() : undefined,
       });
-      onCreated();
+      if (user.tempPassword) {
+        setCreatedUser(user);
+      } else {
+        onCreated();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create user.");
     } finally {
@@ -177,12 +189,27 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         <p style={labelStyle}>Add New User</p>
         <button onClick={onClose} style={closeBtnStyle}>✕</button>
       </div>
-      <form onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gap: "14px" }}>
-          <Row>
-            <Field label="Full Name *" id="user-name"><input id="user-name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} placeholder="Suraj Kumar" /></Field>
-            <Field label="Email *" id="user-email"><input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required style={inputStyle} placeholder="suraj@opengrad.org" /></Field>
-          </Row>
+
+      {createdUser ? (
+        <div>
+          <h3 style={{ ...titleStyle, fontSize: "18px" }}>Student Provisioned Successfully</h3>
+          <p style={{ marginTop: "12px", fontSize: "14px", color: "rgba(3,72,82,0.8)", lineHeight: 1.5 }}>
+            A temporary password has been generated since this student has no email address. <strong>Please securely share these credentials with the student.</strong> They will be forced to change this password on their first login.
+          </p>
+          <div style={{ background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.08)", padding: "16px", borderRadius: "12px", marginTop: "16px" }}>
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}><strong>Name:</strong> {createdUser.name}</p>
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px" }}><strong>Roll Number:</strong> <code style={{ background: "#fff", padding: "2px 6px", borderRadius: "4px" }}>{createdUser.roll_number}</code></p>
+            <p style={{ margin: 0, fontSize: "14px" }}><strong>Temporary Password:</strong> <code style={{ background: "#fff", padding: "2px 6px", borderRadius: "4px" }}>{createdUser.tempPassword}</code></p>
+          </div>
+          <button onClick={onCreated} style={{ ...primaryButton, width: "100%", marginTop: "24px" }}>Done</button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: "grid", gap: "14px" }}>
+            <Row>
+              <Field label="Full Name *" id="user-name"><input id="user-name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} placeholder="Suraj Kumar" /></Field>
+              <Field label={isUgStudent ? "Email" : "Email *"} id="user-email"><input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={!isUgStudent} style={inputStyle} placeholder="suraj@opengrad.org" /></Field>
+            </Row>
           <Row>
             <Field label="Phone" id="user-phone"><input id="user-phone" value={phone} onChange={(e) => setPhone(e.target.value)} style={inputStyle} placeholder="+91 9876543210" /></Field>
             <Field label="Role *" id="user-role">
@@ -191,25 +218,43 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
               </select>
             </Field>
           </Row>
-          {role === "STUDENT" && (
-            <Row>
-              <Field label="Programme Type" id="user-programme">
-                <select id="user-programme" value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
-                  <option value="">Select…</option>
-                  <option value="UG">UG</option>
-                  <option value="PG">PG</option>
-                  <option value="SCHOOL">School</option>
-                </select>
-              </Field>
-              <Field label="School Name" id="user-school"><input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="Optional" /></Field>
-            </Row>
+          {isStudent && (
+            <>
+              <Row>
+                <Field label="Programme Type" id="user-programme">
+                  <select id="user-programme" value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
+                    <option value="">Select…</option>
+                    <option value="UG">UG</option>
+                    <option value="PG">PG</option>
+                    <option value="SCHOOL">School</option>
+                  </select>
+                </Field>
+                <Field label="State" id="user-state">
+                  <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
+                    <option value="">Select…</option>
+                    <option value="KERALA">Kerala</option>
+                    <option value="KARNATAKA">Karnataka</option>
+                    <option value="TAMIL_NADU">Tamil Nadu</option>
+                  </select>
+                </Field>
+              </Row>
+              <Row>
+                <Field label="School Name" id="user-school">
+                  <input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="Optional" />
+                </Field>
+                <Field label="School Code" id="user-school-code">
+                  <input id="user-school-code" value={schoolCode} onChange={(e) => setSchoolCode(e.target.value)} style={inputStyle} placeholder="e.g. SCH-001" />
+                </Field>
+              </Row>
+            </>
           )}
         </div>
-        {error && <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>}
-        <button id="user-submit-btn" type="submit" disabled={submitting || !name.trim() || !email.trim()} style={{ ...primaryButton, marginTop: "20px", opacity: submitting ? 0.6 : 1 }}>
-          {submitting ? "Creating…" : "Create User"}
-        </button>
-      </form>
+          {error && <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>}
+          <button id="user-submit-btn" type="submit" disabled={submitting || !name.trim() || (!isUgStudent && !email.trim())} style={{ ...primaryButton, marginTop: "20px", opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? "Creating…" : "Create User"}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -219,7 +264,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
 
   async function handleUpload() {
     if (!file) return;
@@ -233,6 +278,21 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
     } finally {
       setUploading(false);
     }
+  }
+
+  function downloadCredentials() {
+    if (!result?.credentials || result.credentials.length === 0) return;
+    const csvContent = "Name,Roll Number,Temporary Password\n" + 
+      result.credentials.map(c => `"${c.name}","${c.rollNumber}","${c.tempPassword || ''}"`).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "opengrad_ug_credentials.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   return (
@@ -284,6 +344,19 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
+          )}
+          {result.credentials && result.credentials.some(c => c.tempPassword) && (
+            <div style={{ marginTop: "16px", padding: "12px", background: "rgba(10,190,98,0.08)", borderRadius: "8px" }}>
+              <p style={{ fontSize: "13px", color: "#034852", marginBottom: "8px", fontWeight: 600 }}>
+                Some UG students were created with temporary passwords.
+              </p>
+              <button 
+                onClick={downloadCredentials}
+                style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" }}
+              >
+                ↓ Download Credentials CSV
+              </button>
+            </div>
           )}
         </div>
       )}

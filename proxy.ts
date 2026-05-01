@@ -5,7 +5,7 @@ import { AUTH_TOKEN_COOKIE_NAME, isClerkMode } from "./lib/auth-session";
 
 // In Clerk mode real auth is enforced; in custom mode the mock bypasses it.
 const USE_MOCK = !isClerkMode();
-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+const isProtectedRoute = createRouteMatcher(["/dashboard(.*)", "/reset-password"]);
 
 function getCustomLoginState(request: NextRequest) {
   if (USE_MOCK) {
@@ -33,6 +33,7 @@ export default isClerkMode()
   ? clerkMiddleware(async (auth, req) => {
       const { userId } = await auth();
       const isLoggedIn = USE_MOCK || Boolean(userId);
+
       const redirectResponse = handleRouteRedirects(req, isLoggedIn);
 
       if (redirectResponse) {

@@ -164,7 +164,8 @@ function ClerkSignInForm({
           setError(finalizeError.message ?? "Could not activate session.");
           return;
         }
-        router.replace("/dashboard");
+        // Hard navigation so middleware sees the new Clerk session cookie
+        window.location.replace("/dashboard");
         return;
       }
 
