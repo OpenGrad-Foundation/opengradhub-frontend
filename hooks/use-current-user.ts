@@ -8,7 +8,7 @@ import type { CurrentUserResponse } from "@/lib/types";
 import { mockUser } from "@/lib/mockUser";
 import { roleDashboardPathByCode } from "@/lib/role-dashboard";
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 type UseCurrentUserState = {
   data: CurrentUserResponse | null;

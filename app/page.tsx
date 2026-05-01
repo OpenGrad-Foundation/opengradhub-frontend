@@ -134,7 +134,8 @@ function ClerkSignInForm({
   successMessage,
 }: SignInFormProps) {
   const router = useRouter();
-  const { signIn: clerkSignInResource } = useSignIn();
+  // Clerk v7 "Future" signal API: { signIn, errors, fetchStatus }
+  const { signIn } = useSignIn();
   const [identifier, setIdentifier] = useState(initialIdentifier);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -143,38 +144,36 @@ function ClerkSignInForm({
 
   async function handleSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!signIn) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      const createResult = await clerkSignInResource.create({
-        identifier,
-        password,
-      });
-
-      if (createResult.error) {
-        setError(createResult.error.message ?? "Sign-in failed.");
+      // create() initiates sign-in; status updates on the resource reactively
+      const { error: createError } = await signIn.create({ identifier, password });
+      if (createError) {
+        setError(createError.message ?? "Sign-in failed.");
         return;
       }
 
-      if (clerkSignInResource.status === "complete") {
-        const finalizeResult = await clerkSignInResource.finalize();
-
-        if (finalizeResult.error) {
-          setError(finalizeResult.error.message ?? "Could not activate session.");
+      if (signIn.status === "complete") {
+        // finalize() sets the new session as active
+        const { error: finalizeError } = await signIn.finalize();
+        if (finalizeError) {
+          setError(finalizeError.message ?? "Could not activate session.");
           return;
         }
-
         router.replace("/dashboard");
         return;
       }
 
       setError(
-        `Sign-in requires additional steps (status: ${clerkSignInResource.status}). Please contact an administrator.`,
+        `Sign-in requires additional steps (status: ${signIn.status}). Please contact an administrator.`,
       );
-    } catch {
-      setError("We could not sign you in right now.");
+    } catch (err: unknown) {
+      const clerkErrors = (err as { errors?: Array<{ message: string }> })?.errors;
+      setError(clerkErrors?.[0]?.message ?? "We could not sign you in right now.");
     } finally {
       setIsSubmitting(false);
     }
@@ -504,51 +503,49 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Sign in / Sign up tab toggle
-              - min-h-[44px] on each button: meets 44px touch target minimum
-              - aria-pressed: announces active tab to screen readers
-              - cursor-pointer: unambiguous clickable affordance
-          */}
-          <div
-            role="tablist"
-            aria-label="Authentication mode"
-            className="grid grid-cols-2 rounded-xl p-1.5 mb-8"
-            style={{
-              background: "rgba(0, 0, 0, 0.05)",
-              border: "1px solid rgba(0, 0, 0, 0.10)",
-            }}
-          >
-            <button
-              role="tab"
-              type="button"
-              aria-pressed={mode === "sign-in"}
-              aria-selected={mode === "sign-in"}
-              onClick={goToSignIn}
-              className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${
-                mode === "sign-in"
-                  ? "bg-[var(--teal)] text-white shadow-[0_4px_12px_rgba(0,109,108,0.28)]"
-                  : "text-black/70 hover:text-black"
-              }`}
-              style={{ fontFamily: "var(--font-heading)" }}
+          {/* Sign in / Sign up tab toggle — hidden in Clerk mode (users are created by SA) */}
+          {!clerkMode && (
+            <div
+              role="tablist"
+              aria-label="Authentication mode"
+              className="grid grid-cols-2 rounded-xl p-1.5 mb-8"
+              style={{
+                background: "rgba(0, 0, 0, 0.05)",
+                border: "1px solid rgba(0, 0, 0, 0.10)",
+              }}
             >
-              Sign in
-            </button>
-            <button
-              role="tab"
-              type="button"
-              aria-pressed={mode === "sign-up"}
-              aria-selected={mode === "sign-up"}
-              onClick={goToSignUp}
-              className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${
-                mode === "sign-up"
-                  ? "bg-[var(--teal)] text-white shadow-[0_4px_12px_rgba(0,109,108,0.28)]"
-                  : "text-black/70 hover:text-black"
-              }`}
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Sign up
-            </button>
-          </div>
+              <button
+                role="tab"
+                type="button"
+                aria-pressed={mode === "sign-in"}
+                aria-selected={mode === "sign-in"}
+                onClick={goToSignIn}
+                className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${
+                  mode === "sign-in"
+                    ? "bg-[var(--teal)] text-white shadow-[0_4px_12px_rgba(0,109,108,0.28)]"
+                    : "text-black/70 hover:text-black"
+                }`}
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Sign in
+              </button>
+              <button
+                role="tab"
+                type="button"
+                aria-pressed={mode === "sign-up"}
+                aria-selected={mode === "sign-up"}
+                onClick={goToSignUp}
+                className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${
+                  mode === "sign-up"
+                    ? "bg-[var(--teal)] text-white shadow-[0_4px_12px_rgba(0,109,108,0.28)]"
+                    : "text-black/70 hover:text-black"
+                }`}
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                Sign up
+              </button>
+            </div>
+          )}
 
           {/* ----------------------------------------------------------------
               Sign-in form
@@ -876,41 +873,40 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Footer contextual link
-              --teal (#006d6c) on white = 5.86:1 contrast ✓ passes WCAG AA
-              hover: --dark-teal (#034852) on white = 9.2:1 ✓
-          */}
-          <div className="text-center mt-8 text-[14px] text-black/70">
-            {mode === "sign-in" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={goToSignUp}
-                  className={`font-semibold cursor-pointer rounded transition-colors ml-1 ${focusRing}`}
-                  style={{ color: "var(--teal)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--dark-teal)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--teal)")}
-                >
-                  Apply now
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={goToSignIn}
-                  className={`font-semibold cursor-pointer rounded transition-colors ml-1 ${focusRing}`}
-                  style={{ color: "var(--teal)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--dark-teal)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--teal)")}
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </div>
+          {/* Footer mode-switch links — hidden in Clerk mode */}
+          {!clerkMode && (
+            <div className="text-center mt-8 text-[14px] text-black/70">
+              {mode === "sign-in" ? (
+                <>
+                  Don&apos;t have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={goToSignUp}
+                    className={`font-semibold cursor-pointer rounded transition-colors ml-1 ${focusRing}`}
+                    style={{ color: "var(--teal)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--dark-teal)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--teal)")}
+                  >
+                    Apply now
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={goToSignIn}
+                    className={`font-semibold cursor-pointer rounded transition-colors ml-1 ${focusRing}`}
+                    style={{ color: "var(--teal)" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "var(--dark-teal)")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "var(--teal)")}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

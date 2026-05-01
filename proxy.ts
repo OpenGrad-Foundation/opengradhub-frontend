@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { AUTH_TOKEN_COOKIE_NAME, isClerkMode } from "./lib/auth-session";
 
-const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK !== "false";
+// In Clerk mode real auth is enforced; in custom mode the mock bypasses it.
+const USE_MOCK = !isClerkMode();
 const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
 
 function getCustomLoginState(request: NextRequest) {
