@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getNavModules } from "@/lib/moduleAccess";
+import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/dashboard") {
@@ -16,11 +18,23 @@ function isActivePath(pathname: string, href: string) {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const clerk = useClerk();
   const { data } = useCurrentUser();
 
   const roleCode = data?.role?.code ?? "STUDENT";
   const programmeType = data?.user?.programme ?? null;
   const navModules = getNavModules(roleCode, programmeType);
+
+  async function handleSignOut() {
+    if (isClerkMode()) {
+      await clerk.signOut();
+      router.replace("/");
+    } else {
+      clearStoredAuthToken();
+      router.replace("/");
+    }
+  }
 
   return (
     <aside
@@ -63,6 +77,33 @@ export default function Sidebar() {
           })}
         </ul>
       </nav>
+
+      <div className="px-4 pb-6">
+        <button
+          id="sidebar-sign-out-btn"
+          type="button"
+          onClick={handleSignOut}
+          className="flex w-full items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/60 hover:bg-red-500/20 hover:text-white"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Sign Out
+        </button>
+      </div>
     </aside>
   );
 }
