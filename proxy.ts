@@ -30,7 +30,8 @@ function handleRouteRedirects(request: NextRequest, isLoggedIn: boolean) {
 
 export default isClerkMode()
   ? clerkMiddleware(async (auth, req) => {
-      const isLoggedIn = USE_MOCK || Boolean(auth().userId);
+      const { userId } = await auth();
+      const isLoggedIn = USE_MOCK || Boolean(userId);
       const redirectResponse = handleRouteRedirects(req, isLoggedIn);
 
       if (redirectResponse) {

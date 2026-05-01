@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
-import { isClerkMode } from "@/lib/auth-session";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -15,8 +14,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const clerkEnabled = isClerkMode();
-
   return (
     <html lang="en" className="h-full antialiased" suppressHydrationWarning>
       <head>
@@ -28,11 +25,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
-        {clerkEnabled ? (
-          <ClerkProvider>{children}</ClerkProvider>
-        ) : (
-          children
-        )}
+        <ClerkProvider>{children}</ClerkProvider>
       </body>
     </html>
   );
