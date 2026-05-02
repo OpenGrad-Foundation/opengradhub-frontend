@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { getNavModules } from "@/lib/moduleAccess";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 
@@ -27,6 +27,7 @@ export default function Sidebar() {
   const navModules = getNavModules(roleCode, programmeType);
 
   async function handleSignOut() {
+    clearUserCache();
     if (isClerkMode()) {
       await clerk.signOut();
       router.replace("/");
