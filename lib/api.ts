@@ -96,6 +96,7 @@ export type SafeUser = {
   zone: string | null;
   state: string | null;
   school_code: string | null;
+  district: string | null;
   status: string;
   email: string | null;
   roll_number: string | null;
@@ -265,15 +266,30 @@ export type Course = {
   cover_image_url: string | null;
   locking_mode: string;
   access_type: string;
+  status: string;
+  created_by: string;
   created_at: string;
+  lesson_count: number;
 };
 
 /**
- * Fetch all active courses. Optionally filter by programme type.
+ * Fetch courses. Mode is determined by params:
+ *   studentId   → enrolled courses for that student (ACTIVE only)
+ *   createdBy   → all courses created by that user, all statuses (PM view)
+ *   allStatuses → all courses regardless of status (SA view)
+ *   default     → ACTIVE courses only
  */
-export async function getCourses(programmeType?: string): Promise<Course[]> {
+export async function getCourses(
+  programmeType?: string,
+  studentId?: string,
+  createdBy?: string,
+  allStatuses?: boolean,
+): Promise<Course[]> {
   const url = new URL(`${API_BASE_URL}/courses`);
   if (programmeType) url.searchParams.set("programme_type", programmeType);
+  if (studentId) url.searchParams.set("student_id", studentId);
+  if (createdBy) url.searchParams.set("created_by", createdBy);
+  if (allStatuses) url.searchParams.set("all_statuses", "true");
 
   const response = await fetch(url.toString(), { cache: "no-store" });
 
@@ -285,14 +301,60 @@ export async function getCourses(programmeType?: string): Promise<Course[]> {
 }
 
 /**
+ * Enrol a student in a course.
+ */
+export async function assignCourse(
+  studentId: string,
+  courseId: string,
+  assignedBy: string,
+): Promise<{ id: string; student_id: string; course_id: string; enrolled_at: string }> {
+  const response = await fetch(`${API_BASE_URL}/enrolments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_id: studentId, course_id: courseId, assigned_by: assignedBy }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to assign course.", response.status);
+  }
+  return (await response.json()) as { id: string; student_id: string; course_id: string; enrolled_at: string };
+}
+
+/**
+ * Get all courses a student is enrolled in.
+ */
+export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
+  const response = await fetch(`${API_BASE_URL}/users/${studentId}/enrolments`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch enrolments.", response.status);
+  }
+  return (await response.json()) as Course[];
+}
+
+/**
  * Create a new course (DRAFT by default).
  */
+export async function getCourseById(id: string): Promise<Course> {
+  const response = await fetch(`${API_BASE_URL}/courses/${id}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to fetch course.", response.status);
+  }
+  return (await response.json()) as Course;
+}
+
 export async function createCourse(payload: {
   title: string;
   description?: string;
   programme_type: string;
   locking_mode?: string;
   access_type?: string;
+  cover_image_url?: string;
   created_by: string;
   role: string;
 }): Promise<Course> {
@@ -307,14 +369,131 @@ export async function createCourse(payload: {
     const errorBody = (await response
       .json()
       .catch(() => null)) as { message?: string } | null;
-
-    throw new ApiError(
-      errorBody?.message ?? "Failed to create course.",
-      response.status,
-    );
+    throw new ApiError(errorBody?.message ?? "Failed to create course.", response.status);
   }
 
   return (await response.json()) as Course;
+}
+
+export async function updateCourse(
+  id: string,
+  payload: {
+    title?: string;
+    description?: string;
+    programme_type?: string;
+    locking_mode?: string;
+    access_type?: string;
+    cover_image_url?: string;
+    status?: string;
+    caller_id: string;
+    caller_role: string;
+  },
+): Promise<Course> {
+  const response = await fetch(`${API_BASE_URL}/courses/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to update course.", response.status);
+  }
+
+  return (await response.json()) as Course;
+}
+
+// ── Course Content API (modules + lessons) ─────────────────────
+
+export type CourseLesson = {
+  id: string;
+  module_id: string;
+  title: string;
+  youtube_url: string;
+  duration_minutes: number | null;
+  notes_html: string | null;
+  order_index: number;
+};
+
+export type CourseModule = {
+  id: string;
+  course_id: string;
+  title: string;
+  order_index: number;
+  lessons: CourseLesson[];
+};
+
+export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
+  const r = await fetch(`${API_BASE_URL}/courses/${courseId}/modules`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to load modules.", r.status);
+  return (await r.json()) as CourseModule[];
+}
+
+export async function createModule(courseId: string, title: string): Promise<CourseModule> {
+  const r = await fetch(`${API_BASE_URL}/courses/${courseId}/modules`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }), cache: "no-store",
+  });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create module.", r.status); }
+  return (await r.json()) as CourseModule;
+}
+
+export async function reorderModules(courseId: string, ids: string[]): Promise<void> {
+  await fetch(`${API_BASE_URL}/courses/${courseId}/modules/reorder`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }), cache: "no-store",
+  });
+}
+
+export async function updateModule(moduleId: string, title: string): Promise<CourseModule> {
+  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }), cache: "no-store",
+  });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update module.", r.status); }
+  return (await r.json()) as CourseModule;
+}
+
+export async function deleteModule(moduleId: string): Promise<void> {
+  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}`, { method: "DELETE", cache: "no-store" });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete module.", r.status); }
+}
+
+export async function createLesson(
+  moduleId: string,
+  payload: { title: string; youtube_url: string; duration_minutes?: number; notes_html?: string },
+): Promise<CourseLesson> {
+  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}/lessons`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload), cache: "no-store",
+  });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create lesson.", r.status); }
+  return (await r.json()) as CourseLesson;
+}
+
+export async function reorderLessons(moduleId: string, ids: string[]): Promise<void> {
+  await fetch(`${API_BASE_URL}/modules/${moduleId}/lessons/reorder`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }), cache: "no-store",
+  });
+}
+
+export async function updateLesson(
+  lessonId: string,
+  payload: { title?: string; youtube_url?: string; duration_minutes?: number | null; notes_html?: string | null },
+): Promise<CourseLesson> {
+  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload), cache: "no-store",
+  });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update lesson.", r.status); }
+  return (await r.json()) as CourseLesson;
+}
+
+export async function deleteLesson(lessonId: string): Promise<void> {
+  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, { method: "DELETE", cache: "no-store" });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete lesson.", r.status); }
 }
 
 // ── Resources API ──────────────────────────────────────────────
@@ -392,6 +571,9 @@ export async function createUser(payload: {
   school_id?: string;
   state?: string;
   school_code?: string;
+  roll_number?: string;
+  district?: string;
+  password?: string;
 }): Promise<SafeUser> {
   const response = await fetch(`${API_BASE_URL}/users`, {
     method: "POST",

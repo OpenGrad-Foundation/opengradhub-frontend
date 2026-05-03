@@ -234,7 +234,6 @@ function CreateAnnouncementModal({
               <option value="">All Programmes</option>
               <option value="UG">UG Only</option>
               <option value="PG">PG Only</option>
-              <option value="SCHOOL">School Only</option>
             </select>
             <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)", marginTop: "6px" }}>If selected, students will only see this if their programme matches.</p>
           </div>

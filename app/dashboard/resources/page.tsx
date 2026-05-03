@@ -454,7 +454,6 @@ function CreateResourceForm({
               >
                 <option value="UG">UG</option>
                 <option value="PG">PG</option>
-                <option value="SCHOOL">School</option>
               </select>
             </div>
           </div>

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getCourses, createCourse, type Course } from "@/lib/api";
+import { getCourses, type Course } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Role guards ────────────────────────────────────────────────
@@ -15,6 +16,7 @@ const COURSES_ALLOWED_ROLES: RoleCode[] = [
 ];
 
 const COURSE_CREATE_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
+const COURSE_MANAGE_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -24,33 +26,40 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
 
   const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
+  const userId = data?.user?.id ?? null;
   const programmeType = data?.user?.programme ?? null;
   const isAllowed = COURSES_ALLOWED_ROLES.includes(roleCode);
   const canCreate = COURSE_CREATE_ROLES.includes(roleCode);
+  const canManage = COURSE_MANAGE_ROLES.includes(roleCode);
 
   const fetchCourses = useCallback(async () => {
+    if (!userId) return;
     setLoading(true);
     setError(null);
     try {
-      // Students only see courses matching their programme type
-      const filter =
-        roleCode === "STUDENT" && programmeType ? programmeType : undefined;
-      const data = await getCourses(filter);
-      setCourses(data);
+      if (roleCode === "STUDENT") {
+        setCourses(await getCourses(programmeType ?? undefined, userId));
+      } else if (roleCode === "PROGRAM_MANAGER") {
+        // PM sees their own courses (all statuses)
+        setCourses(await getCourses(undefined, undefined, userId));
+      } else if (roleCode === "SUPER_ADMIN") {
+        // SA sees all courses (all statuses)
+        setCourses(await getCourses(undefined, undefined, undefined, true));
+      } else {
+        // ZONAL_MANAGER and others: active courses only
+        setCourses(await getCourses());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load courses.");
     } finally {
       setLoading(false);
     }
-  }, [roleCode, programmeType]);
+  }, [roleCode, userId, programmeType]);
 
   useEffect(() => {
-    if (!userLoading && isAllowed) {
-      void fetchCourses();
-    }
+    if (!userLoading && isAllowed) void fetchCourses();
   }, [userLoading, isAllowed, fetchCourses]);
 
   // ── Role guard ─────────────────────────────────────────────
@@ -75,6 +84,13 @@ export default function CoursesPage() {
     );
   }
 
+  const subtitle =
+    roleCode === "STUDENT"
+      ? "Your enrolled courses"
+      : roleCode === "PROGRAM_MANAGER"
+      ? "Courses you have created"
+      : "All courses across programmes";
+
   return (
     <PageShell>
       {/* ── Header ──────────────────────────────────────────── */}
@@ -88,48 +104,16 @@ export default function CoursesPage() {
       >
         <div>
           <p style={labelStyle}>Learning</p>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
-            Courses
-          </h1>
-          <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-            {roleCode === "STUDENT"
-              ? `Showing ${programmeType ?? "all"} courses`
-              : "All active courses across programmes"}
-          </p>
+          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Courses</h1>
+          <p style={{ ...subtitleStyle, marginTop: "4px" }}>{subtitle}</p>
         </div>
 
         {canCreate && (
-          <button
-            id="new-course-btn"
-            onClick={() => setShowForm((prev) => !prev)}
-            style={primaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow =
-                "0 12px 20px rgba(10,190,98,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 16px rgba(10,190,98,0.2)";
-            }}
-          >
-            {showForm ? "✕ Cancel" : "+ New Course"}
-          </button>
+          <Link id="new-course-btn" href="/dashboard/courses/new" style={primaryButton}>
+            + New Course
+          </Link>
         )}
       </div>
-
-      {/* ── Create form ─────────────────────────────────────── */}
-      {showForm && data && (
-        <CreateCourseForm
-          userId={data.user.id}
-          roleCode={roleCode}
-          onCreated={() => {
-            setShowForm(false);
-            void fetchCourses();
-          }}
-        />
-      )}
 
       {/* ── Content ─────────────────────────────────────────── */}
       {loading ? (
@@ -143,10 +127,12 @@ export default function CoursesPage() {
         <div style={glassCard}>
           <p style={labelStyle}>No Courses</p>
           <p style={{ ...titleStyle, marginTop: "8px" }}>
-            No courses available yet.
+            {roleCode === "STUDENT" ? "No courses assigned yet." : "No courses found."}
           </p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
-            {canCreate
+            {roleCode === "STUDENT"
+              ? "Your administrator will enrol you in courses when they are ready."
+              : canCreate
               ? 'Click "New Course" to create one.'
               : "Check back soon — new courses are being added."}
           </p>
@@ -160,7 +146,7 @@ export default function CoursesPage() {
           }}
         >
           {courses.map((course) => (
-            <CourseCard key={course.id} course={course} />
+            <CourseCard key={course.id} course={course} canManage={canManage} />
           ))}
         </div>
       )}
@@ -170,7 +156,7 @@ export default function CoursesPage() {
 
 // ── Course Card ────────────────────────────────────────────────
 
-function CourseCard({ course }: { course: Course }) {
+function CourseCard({ course, canManage }: { course: Course; canManage: boolean }) {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -188,9 +174,10 @@ function CourseCard({ course }: { course: Course }) {
           ? "0 16px 48px rgba(10,190,98,0.12)"
           : "0 8px 32px rgba(0,0,0,0.07)",
         overflow: "hidden",
-        cursor: "pointer",
         transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
         transform: hovered ? "translateY(-4px)" : "translateY(0)",
+        display: "flex",
+        flexDirection: "column",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -198,7 +185,7 @@ function CourseCard({ course }: { course: Course }) {
       {/* Cover image */}
       <div
         style={{
-          height: "160px",
+          height: "148px",
           background: course.cover_image_url
             ? `url(${course.cover_image_url}) center/cover`
             : "linear-gradient(135deg, #006d6c 0%, #034852 100%)",
@@ -206,284 +193,124 @@ function CourseCard({ course }: { course: Course }) {
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
+          flexShrink: 0,
         }}
       >
         {!course.cover_image_url && (
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgba(255,255,255,0.4)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none"
+            stroke="rgba(255,255,255,0.35)" strokeWidth="1.5"
+            strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
         )}
 
-        {/* Locking mode badge */}
-        <span
-          style={{
-            position: "absolute",
-            top: "12px",
-            right: "12px",
-            padding: "4px 10px",
-            borderRadius: "100px",
-            fontSize: "10px",
-            fontWeight: 700,
-            letterSpacing: "0.08em",
-            background:
-              course.locking_mode === "SEQUENTIAL"
-                ? "rgba(255,222,0,0.9)"
-                : "rgba(10,190,98,0.9)",
-            color:
-              course.locking_mode === "SEQUENTIAL" ? "#034852" : "#ffffff",
-          }}
-        >
+        {/* Status badge (top-left) */}
+        <span style={{
+          position: "absolute", top: "12px", left: "12px",
+          padding: "4px 10px", borderRadius: "100px",
+          fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
+          ...statusBadgeStyle(course.status),
+        }}>
+          {course.status}
+        </span>
+
+        {/* Locking mode badge (top-right) */}
+        <span style={{
+          position: "absolute", top: "12px", right: "12px",
+          padding: "4px 10px", borderRadius: "100px",
+          fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
+          background: course.locking_mode === "SEQUENTIAL"
+            ? "rgba(255,222,0,0.9)" : "rgba(10,190,98,0.9)",
+          color: course.locking_mode === "SEQUENTIAL" ? "#034852" : "#ffffff",
+        }}>
           {course.locking_mode}
         </span>
       </div>
 
       {/* Card body */}
-      <div style={{ padding: "20px 24px 24px" }}>
-        {/* Programme badge */}
-        <span
-          style={{
-            display: "inline-block",
-            padding: "3px 10px",
-            borderRadius: "100px",
-            fontSize: "10px",
-            fontWeight: 700,
-            letterSpacing: "0.1em",
-            background: "rgba(32,147,121,0.12)",
-            color: "#209379",
-            marginBottom: "10px",
-          }}
-        >
-          {course.programme_type}
-        </span>
-
-        {/* Access type badge */}
-        <span
-          style={{
-            display: "inline-block",
-            padding: "3px 10px",
-            borderRadius: "100px",
-            fontSize: "10px",
-            fontWeight: 700,
-            letterSpacing: "0.1em",
-            background:
-              course.access_type === "PAID"
-                ? "rgba(255,222,0,0.15)"
-                : "rgba(10,190,98,0.08)",
+      <div style={{ padding: "18px 22px 20px", flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Programme + access badges */}
+        <div style={{ display: "flex", gap: "6px", marginBottom: "10px", flexWrap: "wrap" }}>
+          <span style={{
+            display: "inline-block", padding: "3px 10px", borderRadius: "100px",
+            fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em",
+            background: "rgba(32,147,121,0.12)", color: "#209379",
+          }}>
+            {course.programme_type}
+          </span>
+          <span style={{
+            display: "inline-block", padding: "3px 10px", borderRadius: "100px",
+            fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em",
+            background: course.access_type === "PAID"
+              ? "rgba(255,222,0,0.15)" : "rgba(10,190,98,0.08)",
             color: course.access_type === "PAID" ? "#b38f00" : "#0abe62",
-            marginBottom: "10px",
-            marginLeft: "6px",
-          }}
-        >
-          {course.access_type}
-        </span>
+          }}>
+            {course.access_type}
+          </span>
+        </div>
 
-        <h3
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "17px",
-            fontWeight: 700,
-            color: "#034852",
-            margin: "0 0 8px",
-            lineHeight: 1.3,
-          }}
-        >
+        <h3 style={{
+          fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700,
+          color: "#034852", margin: "0 0 6px", lineHeight: 1.3,
+        }}>
           {course.title}
         </h3>
 
         {course.description && (
-          <p
-            style={{
-              fontSize: "13px",
-              color: "rgba(3,72,82,0.6)",
-              lineHeight: 1.6,
-              margin: 0,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
+          <p style={{
+            fontSize: "13px", color: "rgba(3,72,82,0.6)", lineHeight: 1.6,
+            margin: "0 0 12px",
+            display: "-webkit-box", WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical", overflow: "hidden",
+          }}>
             {course.description}
           </p>
+        )}
+
+        {/* Lesson count */}
+        <p style={{
+          fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "auto 0 0",
+          paddingTop: "8px",
+        }}>
+          {course.lesson_count} lesson{course.lesson_count !== 1 ? "s" : ""}
+        </p>
+
+        {/* Manager actions */}
+        {canManage && (
+          <div style={{ display: "flex", gap: "8px", marginTop: "14px" }}>
+            <Link
+              href={`/dashboard/courses/${course.id}/edit`}
+              style={outlineButton}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Edit
+            </Link>
+            <Link
+              href={`/dashboard/courses/${course.id}/builder`}
+              style={outlineButtonGreen}
+              onClick={(e) => e.stopPropagation()}
+            >
+              Builder
+            </Link>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// ── Create Course Form ─────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────
 
-function CreateCourseForm({
-  userId,
-  roleCode,
-  onCreated,
-}: {
-  userId: string;
-  roleCode: string;
-  onCreated: () => void;
-}) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [programmeType, setProgrammeType] = useState("UG");
-  const [lockingMode, setLockingMode] = useState("OPEN");
-  const [accessType, setAccessType] = useState("FREE");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      await createCourse({
-        title: title.trim(),
-        description: description.trim() || undefined,
-        programme_type: programmeType,
-        locking_mode: lockingMode,
-        access_type: accessType,
-        created_by: userId,
-        role: roleCode,
-      });
-      onCreated();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create course."
-      );
-    } finally {
-      setSubmitting(false);
-    }
+function statusBadgeStyle(status: string): React.CSSProperties {
+  switch (status) {
+    case "ACTIVE":
+      return { background: "rgba(10,190,98,0.85)", color: "#ffffff" };
+    case "ARCHIVED":
+      return { background: "rgba(100,100,100,0.7)", color: "#ffffff" };
+    default: // DRAFT
+      return { background: "rgba(255,222,0,0.9)", color: "#034852" };
   }
-
-  return (
-    <div
-      style={{
-        ...glassCard,
-        marginBottom: "28px",
-        animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards",
-        opacity: 0,
-        transform: "translateY(12px)",
-      }}
-    >
-      <p style={labelStyle}>Create New Course</p>
-
-      <form onSubmit={handleSubmit} style={{ marginTop: "16px" }}>
-        <div style={{ display: "grid", gap: "16px" }}>
-          {/* Title */}
-          <div>
-            <label style={formLabelStyle}>Title *</label>
-            <input
-              id="course-title-input"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Introduction to Data Science"
-              required
-              style={formInputStyle}
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <label style={formLabelStyle}>Description</label>
-            <textarea
-              id="course-desc-input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Brief course description..."
-              rows={3}
-              style={{ ...formInputStyle, resize: "vertical" as const }}
-            />
-          </div>
-
-          {/* Row: Programme / Locking / Access */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr",
-              gap: "12px",
-            }}
-          >
-            <div>
-              <label style={formLabelStyle}>Programme</label>
-              <select
-                id="course-programme-select"
-                value={programmeType}
-                onChange={(e) => setProgrammeType(e.target.value)}
-                style={formInputStyle}
-              >
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
-                <option value="SCHOOL">School</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={formLabelStyle}>Locking Mode</label>
-              <select
-                id="course-locking-select"
-                value={lockingMode}
-                onChange={(e) => setLockingMode(e.target.value)}
-                style={formInputStyle}
-              >
-                <option value="OPEN">Open</option>
-                <option value="SEQUENTIAL">Sequential</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={formLabelStyle}>Access</label>
-              <select
-                id="course-access-select"
-                value={accessType}
-                onChange={(e) => setAccessType(e.target.value)}
-                style={formInputStyle}
-              >
-                <option value="FREE">Free</option>
-                <option value="PAID">Paid</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <p
-            style={{
-              marginTop: "12px",
-              fontSize: "13px",
-              color: "#e53e3e",
-              fontWeight: 600,
-            }}
-          >
-            {error}
-          </p>
-        )}
-
-        <button
-          id="course-submit-btn"
-          type="submit"
-          disabled={submitting || !title.trim()}
-          style={{
-            ...primaryButton,
-            marginTop: "20px",
-            opacity: submitting || !title.trim() ? 0.6 : 1,
-            cursor: submitting || !title.trim() ? "not-allowed" : "pointer",
-          }}
-        >
-          {submitting ? "Creating…" : "Create Course"}
-        </button>
-      </form>
-    </div>
-  );
 }
 
 // ── Shared sub-components ──────────────────────────────────────
@@ -494,29 +321,13 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div
-      style={{
-        minHeight: "40vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
+    <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={glassCard}>
         <p style={labelStyle}>Loading</p>
-        <p
-          style={{
-            marginTop: "12px",
-            fontSize: "22px",
-            fontWeight: 700,
-            color: "#034852",
-          }}
-        >
+        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>
           Fetching courses
         </p>
-        <p style={{ ...subtitleStyle, marginTop: "8px" }}>
-          Loading your course catalogue&hellip;
-        </p>
+        <p style={{ ...subtitleStyle, marginTop: "8px" }}>Loading your course catalogue&hellip;</p>
       </div>
     </div>
   );
@@ -536,59 +347,39 @@ const glassCard: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.28em",
-  color: "#209379",
+  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
+  letterSpacing: "0.28em", color: "#209379",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-heading)",
-  fontSize: "22px",
-  fontWeight: 700,
-  color: "#034852",
+  fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852",
 };
 
 const subtitleStyle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "rgba(3,72,82,0.6)",
+  fontSize: "14px", color: "rgba(3,72,82,0.6)",
 };
 
 const primaryButton: React.CSSProperties = {
-  padding: "12px 24px",
-  border: "none",
-  borderRadius: "12px",
+  padding: "12px 24px", border: "none", borderRadius: "12px",
   background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#ffffff",
-  fontFamily: "var(--font-heading)",
-  fontWeight: 700,
-  fontSize: "14px",
-  cursor: "pointer",
+  color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700,
+  fontSize: "14px", cursor: "pointer",
   boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
   transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
-  whiteSpace: "nowrap",
+  whiteSpace: "nowrap", textDecoration: "none", display: "inline-block",
 };
 
-const formLabelStyle: React.CSSProperties = {
-  display: "block",
-  fontSize: "11px",
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "rgba(3,72,82,0.7)",
-  marginBottom: "6px",
+const outlineButton: React.CSSProperties = {
+  flex: 1, padding: "8px 0", textAlign: "center",
+  border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px",
+  background: "transparent", color: "#034852",
+  fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "12px",
+  cursor: "pointer", textDecoration: "none",
+  transition: "all 180ms ease",
 };
 
-const formInputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "12px 16px",
-  background: "rgba(0,0,0,0.04)",
-  border: "1px solid rgba(0,0,0,0.12)",
-  borderRadius: "12px",
-  color: "#034852",
-  fontFamily: "var(--font-body)",
-  fontSize: "14px",
-  outline: "none",
-  transition: "border-color 200ms, box-shadow 200ms",
+const outlineButtonGreen: React.CSSProperties = {
+  ...outlineButton,
+  border: "1.5px solid rgba(10,190,98,0.4)",
+  color: "#0abe62",
 };
