@@ -612,20 +612,25 @@ function AssignCourseModal({
           backdropFilter: "blur(4px)", zIndex: 50,
         }}
       />
-      {/* Modal */}
+      {/* Modal Wrapper */}
       <div style={{
         position: "fixed", top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
         width: "min(480px, 92vw)",
-        background: "rgba(255,255,255,0.96)",
-        backdropFilter: "blur(24px)",
-        border: "1px solid rgba(255,255,255,0.3)",
-        borderRadius: "24px",
-        padding: "32px",
-        boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
         zIndex: 51,
-        animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
       }}>
+        {/* Modal Inner */}
+        <div style={{
+          background: "rgba(255,255,255,0.96)",
+          backdropFilter: "blur(24px)",
+          border: "1px solid rgba(255,255,255,0.3)",
+          borderRadius: "24px",
+          padding: "32px",
+          boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+          opacity: 0,
+          transform: "translateY(12px)",
+          animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
+        }}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
@@ -744,6 +749,7 @@ function AssignCourseModal({
             </div>
           </>
         )}
+        </div>
       </div>
     </>
   );
