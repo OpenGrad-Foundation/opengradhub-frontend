@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getCourses, type Course } from "@/lib/api";
+import { getCourses, getStudentCourses, type Course, type StudentCourse } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Role guards ────────────────────────────────────────────────
@@ -24,6 +24,7 @@ export default function CoursesPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
 
   const [courses, setCourses] = useState<Course[]>([]);
+  const [studentCourses, setStudentCourses] = useState<StudentCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +41,7 @@ export default function CoursesPage() {
     setError(null);
     try {
       if (roleCode === "STUDENT") {
-        setCourses(await getCourses(programmeType ?? undefined, userId));
+        setStudentCourses(await getStudentCourses(userId));
       } else if (roleCode === "PROGRAM_MANAGER") {
         // PM sees their own courses (all statuses)
         setCourses(await getCourses(undefined, undefined, userId));
@@ -123,28 +124,30 @@ export default function CoursesPage() {
           <p style={labelStyle}>Error</p>
           <p style={{ ...titleStyle, marginTop: "8px" }}>{error}</p>
         </div>
-      ) : courses.length === 0 ? (
+      ) : roleCode === "STUDENT" && studentCourses.length === 0 ? (
         <div style={glassCard}>
           <p style={labelStyle}>No Courses</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>
-            {roleCode === "STUDENT" ? "No courses assigned yet." : "No courses found."}
-          </p>
+          <p style={{ ...titleStyle, marginTop: "8px" }}>No courses assigned yet.</p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
-            {roleCode === "STUDENT"
-              ? "Your administrator will enrol you in courses when they are ready."
-              : canCreate
-              ? 'Click "New Course" to create one.'
-              : "Check back soon — new courses are being added."}
+            Your administrator will enrol you in courses when they are ready.
           </p>
         </div>
+      ) : roleCode !== "STUDENT" && courses.length === 0 ? (
+        <div style={glassCard}>
+          <p style={labelStyle}>No Courses</p>
+          <p style={{ ...titleStyle, marginTop: "8px" }}>No courses found.</p>
+          <p style={{ ...subtitleStyle, marginTop: "8px" }}>
+            {canCreate ? 'Click "New Course" to create one.' : "Check back soon."}
+          </p>
+        </div>
+      ) : roleCode === "STUDENT" ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "24px" }}>
+          {studentCourses.map((course) => (
+            <StudentCourseCard key={course.id} course={course} />
+          ))}
+        </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "24px",
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "24px" }}>
           {courses.map((course) => (
             <CourseCard key={course.id} course={course} canManage={canManage} />
           ))}
@@ -311,6 +314,102 @@ function statusBadgeStyle(status: string): React.CSSProperties {
     default: // DRAFT
       return { background: "rgba(255,222,0,0.9)", color: "#034852" };
   }
+}
+
+// ── Student Course Card (with progress bar) ────────────────────
+
+function StudentCourseCard({ course }: { course: StudentCourse }) {
+  const [hovered, setHovered] = useState(false);
+  const pct = course.completion_percent;
+
+  return (
+    <Link
+      href={`/dashboard/courses/${course.id}`}
+      style={{ textDecoration: "none" }}
+    >
+      <div
+        style={{
+          background: "rgba(255,255,255,0.7)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: hovered ? "1px solid rgba(10,190,98,0.4)" : "1px solid rgba(255,255,255,0.4)",
+          borderRadius: "24px",
+          boxShadow: hovered ? "0 16px 48px rgba(10,190,98,0.12)" : "0 8px 32px rgba(0,0,0,0.07)",
+          overflow: "hidden",
+          transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
+          transform: hovered ? "translateY(-4px)" : "translateY(0)",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* Cover */}
+        <div style={{
+          height: "140px",
+          background: course.cover_image_url
+            ? `url(${course.cover_image_url}) center/cover`
+            : "linear-gradient(135deg, #006d6c 0%, #034852 100%)",
+          position: "relative",
+          flexShrink: 0,
+        }}>
+          {/* Completion badge */}
+          <span style={{
+            position: "absolute", top: "12px", right: "12px",
+            padding: "4px 10px", borderRadius: "100px",
+            fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em",
+            background: pct === 100 ? "rgba(10,190,98,0.9)" : "rgba(3,72,82,0.75)",
+            color: "#fff",
+          }}>
+            {pct === 100 ? "✓ Complete" : `${pct}%`}
+          </span>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: "18px 20px 20px", display: "flex", flexDirection: "column", flex: 1 }}>
+          <span style={{
+            display: "inline-block", padding: "3px 9px", borderRadius: "100px",
+            fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em",
+            background: "rgba(32,147,121,0.12)", color: "#209379",
+            marginBottom: "8px", alignSelf: "flex-start",
+          }}>
+            {course.programme_type}
+          </span>
+
+          <h3 style={{
+            fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700,
+            color: "#034852", margin: "0 0 10px", lineHeight: 1.3,
+          }}>
+            {course.title}
+          </h3>
+
+          {/* Progress bar */}
+          <div style={{ marginTop: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", fontWeight: 600 }}>
+                {course.completed_lessons} / {course.total_lessons} lessons
+              </span>
+              <span style={{ fontSize: "11px", color: pct === 100 ? "#0abe62" : "rgba(3,72,82,0.55)", fontWeight: 700 }}>
+                {pct}%
+              </span>
+            </div>
+            <div style={{ height: "6px", borderRadius: "3px", background: "rgba(3,72,82,0.1)", overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${pct}%`,
+                borderRadius: "3px",
+                background: pct === 100
+                  ? "#0abe62"
+                  : "linear-gradient(90deg, #0abe62 0%, #209379 100%)",
+                transition: "width 600ms cubic-bezier(0.16,1,0.3,1)",
+              }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 // ── Shared sub-components ──────────────────────────────────────

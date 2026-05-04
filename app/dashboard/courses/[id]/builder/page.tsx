@@ -227,6 +227,7 @@ function ModuleList({
         >
           <ModuleItem
             module={mod}
+            courseId={courseId}
             setModules={setModules}
             onOpenSlideOver={onOpenSlideOver}
             setGlobalError={setGlobalError}
@@ -263,11 +264,13 @@ function ModuleList({
 
 function ModuleItem({
   module,
+  courseId,
   setModules,
   onOpenSlideOver,
   setGlobalError,
 }: {
   module: CourseModule;
+  courseId: string;
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (e: string | null) => void;
@@ -403,12 +406,20 @@ function ModuleItem({
         </div>
       ))}
 
-      <button
-        onClick={() => onOpenSlideOver(module.id)}
-        style={{ ...ghostBtn, width: "100%", justifyContent: "center", padding: "10px", marginTop: "4px", fontSize: "13px" }}
-      >
-        + Add Lesson
-      </button>
+      <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+        <button
+          onClick={() => onOpenSlideOver(module.id)}
+          style={{ ...ghostBtn, flex: 1, justifyContent: "center", padding: "10px", fontSize: "13px" }}
+        >
+          + Add Lesson
+        </button>
+        <Link
+          href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
+          style={{ ...ghostBtn, flex: 1, justifyContent: "center", padding: "10px", fontSize: "13px", textDecoration: "none", display: "flex", alignItems: "center", color: "#209379", borderColor: "rgba(32,147,121,0.3)" }}
+        >
+          + Add Module Test
+        </Link>
+      </div>
     </div>
   );
 }
@@ -606,7 +617,7 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-function publishingBtn(status: string) { return status === "ARCHIVED"; }
+function publishingBtn(_status: string) { return false; }
 
 // ── Styles ─────────────────────────────────────────────────────
 

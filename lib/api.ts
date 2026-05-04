@@ -334,6 +334,45 @@ export async function getStudentEnrolments(studentId: string): Promise<Course[]>
   return (await response.json()) as Course[];
 }
 
+export type StudentCourse = Course & {
+  total_lessons: number;
+  completed_lessons: number;
+  completion_percent: number;
+};
+
+export async function getStudentCourses(studentId: string): Promise<StudentCourse[]> {
+  const r = await fetch(`${API_BASE_URL}/students/${studentId}/courses`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch student courses.", r.status);
+  return (await r.json()) as StudentCourse[];
+}
+
+export type LessonWithProgress = {
+  id: string;
+  module_id: string;
+  title: string;
+  youtube_url: string;
+  duration_minutes: number | null;
+  notes_html: string | null;
+  order_index: number;
+  is_complete: boolean;
+};
+
+export type ModuleWithProgress = {
+  id: string;
+  course_id: string;
+  title: string;
+  order_index: number;
+  lessons: LessonWithProgress[];
+};
+
+export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
+  url.searchParams.set("student_id", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
+  return (await r.json()) as ModuleWithProgress[];
+}
+
 /**
  * Create a new course (DRAFT by default).
  */
@@ -402,6 +441,461 @@ export async function updateCourse(
   }
 
   return (await response.json()) as Course;
+}
+
+// ── Questions / Test Bank API ──────────────────────────────────
+
+export type QuestionOption = {
+  id: string;
+  option_text: string;
+  is_correct: boolean;
+};
+
+export type Question = {
+  id: string;
+  quiz_id: string | null;
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  content_html: string;
+  correct_answer: string | null;
+  tolerance: number | null;
+  programme_type: string | null;
+  subject: string | null;
+  topic: string | null;
+  difficulty: string | null;
+  created_by: string | null;
+  options: QuestionOption[];
+  children: Question[];
+};
+
+export type CreateOptionPayload = { option_text: string; is_correct: boolean };
+
+export type CreateChildPayload = {
+  question_type: "MCQ" | "FILL" | "NUMERICAL";
+  content_html: string;
+  correct_answer?: string;
+  tolerance?: number;
+  options?: CreateOptionPayload[];
+};
+
+export type CreateQuestionPayload = {
+  quiz_id?: string;
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  content_html: string;
+  correct_answer?: string;
+  tolerance?: number;
+  programme_type?: string;
+  subject?: string;
+  topic?: string;
+  difficulty?: string;
+  created_by?: string;
+  options?: CreateOptionPayload[];
+  children?: CreateChildPayload[];
+};
+
+export type QuestionFilters = {
+  bank?: boolean;
+  question_type?: string;
+  programme_type?: string;
+  subject?: string;
+  topic?: string;
+  difficulty?: string;
+};
+
+export async function getQuestions(filters: QuestionFilters = {}): Promise<Question[]> {
+  const url = new URL(`${API_BASE_URL}/questions`);
+  if (filters.bank) url.searchParams.set("bank", "true");
+  if (filters.question_type) url.searchParams.set("question_type", filters.question_type);
+  if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
+  if (filters.subject) url.searchParams.set("subject", filters.subject);
+  if (filters.topic) url.searchParams.set("topic", filters.topic);
+  if (filters.difficulty) url.searchParams.set("difficulty", filters.difficulty);
+  const response = await fetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
+  return (await response.json()) as Question[];
+}
+
+export async function createQuestion(payload: CreateQuestionPayload): Promise<Question> {
+  const response = await fetch(`${API_BASE_URL}/questions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create question.", response.status);
+  }
+  return (await response.json()) as Question;
+}
+
+export async function updateQuestion(
+  id: string,
+  payload: {
+    content_html?: string;
+    correct_answer?: string;
+    tolerance?: number | null;
+    programme_type?: string;
+    subject?: string;
+    topic?: string;
+    difficulty?: string;
+    options?: CreateOptionPayload[];
+  },
+): Promise<Question> {
+  const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update question.", response.status);
+  }
+  return (await response.json()) as Question;
+}
+
+export async function deleteQuestion(id: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete question.", response.status);
+  }
+}
+
+// ── Assignments API ────────────────────────────────────────────
+
+export type Assignment = {
+  id: string;
+  title: string;
+  instructions_html: string | null;
+  attachment_url: string | null;
+  due_at: string;
+  course_id: string | null;
+  course_title: string | null;
+  created_by: string | null;
+  created_at: string;
+  submission_status: string | null;
+};
+
+export type Submission = {
+  id: string;
+  assignment_id: string;
+  student_id: string;
+  student_name: string | null;
+  student_roll: string | null;
+  response_text: string | null;
+  file_urls: string[];
+  status: string;
+  submitted_at: string | null;
+  is_late: boolean;
+  score: number | null;
+  feedback: string | null;
+  graded_by: string | null;
+  graded_at: string | null;
+};
+
+export async function getAssignments(callerId: string, callerRole: string): Promise<Assignment[]> {
+  const url = new URL(`${API_BASE_URL}/assignments`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch assignments.", r.status);
+  return (await r.json()) as Assignment[];
+}
+
+export async function getAssignmentById(id: string, studentId?: string): Promise<Assignment> {
+  const url = new URL(`${API_BASE_URL}/assignments/${id}`);
+  if (studentId) url.searchParams.set("student_id", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch assignment.", r.status);
+  }
+  return (await r.json()) as Assignment;
+}
+
+export async function createAssignment(payload: {
+  title: string;
+  instructions_html?: string;
+  attachment_url?: string;
+  due_at: string;
+  course_id?: string;
+  caller_id: string;
+  caller_role: string;
+}): Promise<Assignment> {
+  const r = await fetch(`${API_BASE_URL}/assignments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create assignment.", r.status);
+  }
+  return (await r.json()) as Assignment;
+}
+
+export async function submitAssignment(
+  assignmentId: string,
+  payload: { student_id: string; response_text?: string; file_urls?: string[] },
+): Promise<Submission> {
+  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to submit assignment.", r.status);
+  }
+  return (await r.json()) as Submission;
+}
+
+export async function getSubmissions(assignmentId: string): Promise<Submission[]> {
+  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch submissions.", r.status);
+  return (await r.json()) as Submission[];
+}
+
+export async function patchSubmission(
+  assignmentId: string,
+  submissionId: string,
+  payload: { score?: number; feedback?: string; status?: string; graded_by?: string },
+): Promise<Submission> {
+  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions/${submissionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update submission.", r.status);
+  }
+  return (await r.json()) as Submission;
+}
+
+// ── Quizzes API ────────────────────────────────────────────────
+
+export type Quiz = {
+  id: string;
+  module_id: string | null;
+  title: string;
+  duration_minutes: number | null;
+  max_attempts: number | null;
+  pass_threshold_percent: number | null;
+  shuffle_questions: boolean;
+  show_answers_after: boolean;
+  quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
+  published: boolean;
+  created_by: string | null;
+  created_at: string;
+  questions: Question[];
+};
+
+export type CreateQuizPayload = {
+  module_id?: string;
+  title: string;
+  duration_minutes?: number;
+  max_attempts?: number;
+  pass_threshold_percent?: number;
+  shuffle_questions?: boolean;
+  show_answers_after?: boolean;
+  quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
+  created_by?: string;
+};
+
+export async function getQuizzes(params: { module_id?: string; quiz_type?: string } = {}): Promise<Omit<Quiz, "questions">[]> {
+  const url = new URL(`${API_BASE_URL}/quizzes`);
+  if (params.module_id) url.searchParams.set("module_id", params.module_id);
+  if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
+  return (await r.json()) as Omit<Quiz, "questions">[];
+}
+
+export async function getQuizById(id: string): Promise<Quiz> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${id}`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
+  const r = await fetch(`${API_BASE_URL}/quizzes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+export async function updateQuiz(
+  id: string,
+  payload: {
+    title?: string;
+    duration_minutes?: number | null;
+    max_attempts?: number | null;
+    pass_threshold_percent?: number | null;
+    shuffle_questions?: boolean;
+    show_answers_after?: boolean;
+  },
+): Promise<Quiz> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+export async function addQuizQuestion(
+  quizId: string,
+  payload: CreateQuestionPayload,
+): Promise<Question> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add question.", r.status);
+  }
+  return (await r.json()) as Question;
+}
+
+export async function addQuizQuestionFromBank(
+  quizId: string,
+  questionId: string,
+): Promise<Question> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/from-bank`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question_id: questionId }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to copy from bank.", r.status);
+  }
+  return (await r.json()) as Question;
+}
+
+export async function reorderQuizQuestions(quizId: string, ids: string[]): Promise<void> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+    cache: "no-store",
+  });
+  if (!r.ok) throw new ApiError("Failed to reorder questions.", r.status);
+}
+
+export async function removeQuizQuestion(quizId: string, questionId: string): Promise<void> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/${questionId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) throw new ApiError("Failed to remove question.", r.status);
+}
+
+export async function publishQuiz(quizId: string): Promise<Quiz> {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/publish`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to publish quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+// ── Lesson detail + progress ───────────────────────────────────
+
+export type LessonDetail = {
+  id: string;
+  title: string;
+  module_id: string;
+  module_name: string;
+  course_id: string;
+  course_title: string;
+  duration_minutes: number | null;
+  notes_html: string | null;
+  /** Extracted server-side — the raw YouTube URL is never returned. */
+  video_id: string;
+  order_index: number;
+  module_quiz_id: string | null;
+  prev_lesson_id: string | null;
+  next_lesson_id: string | null;
+};
+
+export async function getLessonById(lessonId: string): Promise<LessonDetail> {
+  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch lesson.", r.status);
+  }
+  return (await r.json()) as LessonDetail;
+}
+
+export async function patchLessonProgress(payload: {
+  student_id: string;
+  lesson_id: string;
+  watched_percent: number;
+}): Promise<{ id: string; is_complete: boolean; watched_percent: number }> {
+  const r = await fetch(`${API_BASE_URL}/lesson-progress`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update progress.", r.status);
+  }
+  return (await r.json()) as { id: string; is_complete: boolean; watched_percent: number };
+}
+
+export type QuizAttempt = {
+  id: string;
+  quiz_id: string;
+  student_id: string;
+  attempt_number: number;
+  score: number | null;
+  max_score: number | null;
+  started_at: string;
+  submitted_at: string | null;
+  is_complete: boolean;
+  passed: boolean | null;
+};
+
+export async function getQuizAttempts(quizId: string, studentId: string): Promise<QuizAttempt[]> {
+  const url = new URL(`${API_BASE_URL}/quiz-attempts`);
+  url.searchParams.set("quiz_id", quizId);
+  url.searchParams.set("student_id", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  return (await r.json()) as QuizAttempt[];
 }
 
 // ── Course Content API (modules + lessons) ─────────────────────
