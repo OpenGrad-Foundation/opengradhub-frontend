@@ -1,6 +1,7 @@
 "use client";
 
 import { useCurrentUser } from "@/hooks/use-current-user";
+import NextLiveClassHero from "@/app/dashboard/_components/NextLiveClassHero";
 import FellowWidgets from "@/components/widgets/fellow-widgets";
 import FundingPartnerWidgets from "@/components/widgets/funding-partner-widgets";
 import GovernmentWidgets from "@/components/widgets/government-widgets";
@@ -168,6 +169,11 @@ export default function DashboardPage() {
           {roleName}
         </div>
       </div>
+
+      {/* Next live class hero — students only */}
+      {roleCode === "STUDENT" && data.user.id && (
+        <NextLiveClassHero studentId={data.user.id} />
+      )}
 
       {widgetsByRole[roleCode] ?? <StudentWidgets programmeType={programmeType} />}
     </div>

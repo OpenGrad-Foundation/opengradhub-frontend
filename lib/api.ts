@@ -565,6 +565,120 @@ export async function deleteQuestion(id: string): Promise<void> {
   }
 }
 
+// ── Live Classes API ───────────────────────────────────────────
+
+export type LiveClass = {
+  id: string;
+  title: string;
+  description: string | null;
+  scheduled_at: string;
+  duration_minutes: number;
+  course_id: string | null;
+  course_title: string | null;
+  programme_type: string | null;
+  created_by: string | null;
+  created_at: string;
+  attendee_count: number;
+};
+
+export async function getLiveClasses(callerId: string, callerRole: string): Promise<LiveClass[]> {
+  const url = new URL(`${API_BASE_URL}/live-classes`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
+  return (await r.json()) as LiveClass[];
+}
+
+export async function getNextLiveClass(studentId: string): Promise<LiveClass | null> {
+  const url = new URL(`${API_BASE_URL}/live-classes/next`);
+  url.searchParams.set("studentId", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) return null;
+  const data = await r.json() as LiveClass | null;
+  return data ?? null;
+}
+
+export async function joinLiveClass(
+  liveClassId: string,
+  studentId: string,
+): Promise<{ meeting_url: string; live_class_id: string }> {
+  const r = await fetch(`${API_BASE_URL}/live-classes/${liveClassId}/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_id: studentId }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to join live class.", r.status);
+  }
+  return (await r.json()) as { meeting_url: string; live_class_id: string };
+}
+
+export async function createLiveClass(payload: {
+  title: string;
+  description?: string;
+  scheduled_at: string;
+  duration_minutes: number;
+  meeting_url: string;
+  course_id?: string;
+  programme_type?: string;
+  caller_id: string;
+  caller_role: string;
+}): Promise<LiveClass> {
+  const r = await fetch(`${API_BASE_URL}/live-classes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create live class.", r.status);
+  }
+  return (await r.json()) as LiveClass;
+}
+
+// ── Notifications API ──────────────────────────────────────────
+
+export type Notification = {
+  id: string;
+  recipient_id: string;
+  type: string;
+  title: string;
+  body: string;
+  channel: "IN_APP" | "EMAIL" | "WHATSAPP";
+  is_read: boolean;
+  triggered_at: string;
+};
+
+export async function getNotifications(recipientId: string): Promise<Notification[]> {
+  const url = new URL(`${API_BASE_URL}/notifications`);
+  url.searchParams.set("recipientId", recipientId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) return [];
+  return (await r.json()) as Notification[];
+}
+
+export async function getUnreadCount(recipientId: string): Promise<number> {
+  const url = new URL(`${API_BASE_URL}/notifications/unread-count`);
+  url.searchParams.set("recipientId", recipientId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) return 0;
+  const data = await r.json() as { count: number };
+  return data.count;
+}
+
+export async function markAllNotificationsRead(recipientId: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient_id: recipientId }),
+    cache: "no-store",
+  });
+}
+
 // ── Assignments API ────────────────────────────────────────────
 
 export type Assignment = {
@@ -1127,7 +1241,11 @@ export async function bulkUploadUsers(
 /**
  * Download CSV template for bulk user upload.
  */
-export function getUserTemplateUrl(): string {
+export function getUserTemplateUrl(role?: string): string {
+  if (role && role.trim()) {
+    const params = new URLSearchParams({ role: role.trim() });
+    return `${API_BASE_URL}/users/export/template?${params.toString()}`;
+  }
   return `${API_BASE_URL}/users/export/template`;
 }
 

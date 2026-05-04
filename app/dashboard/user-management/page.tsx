@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getUsers,
@@ -699,6 +700,62 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
+  const [templateRole, setTemplateRole] = useState<string>("COMMON");
+  const [preview, setPreview] = useState<{ headers: string[]; rows: Array<Record<string, string>> } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      setPreviewError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError(null);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (cancelled) return;
+      const text = typeof reader.result === "string" ? reader.result : "";
+      try {
+        const parsed = Papa.parse<Record<string, string>>(text, {
+          header: true,
+          preview: 50,
+          skipEmptyLines: true,
+          transform: (v) => (typeof v === "string" ? v.trim() : String(v ?? "")),
+        });
+
+        if (parsed.errors && parsed.errors.length > 0) {
+          const first = parsed.errors[0];
+          setPreviewError(first.message || "Invalid CSV format.");
+          return;
+        }
+
+        const headers = (parsed.meta.fields ?? []).filter(Boolean);
+        const rows = (parsed.data ?? []).filter((r) => r && Object.keys(r).length > 0);
+
+        if (headers.length === 0) {
+          setPreviewError("Could not detect CSV headers. Please use the downloaded template.");
+          return;
+        }
+
+        setPreview({ headers, rows: rows.slice(0, 25) });
+      } catch {
+        setPreviewError("Failed to parse CSV. Please use the downloaded template.");
+      }
+    };
+    reader.onerror = () => {
+      if (cancelled) return;
+      setPreviewError("Could not read the file.");
+    };
+
+    reader.readAsText(file);
+    return () => {
+      cancelled = true;
+    };
+  }, [file]);
 
   async function handleUpload() {
     if (!file) return;
@@ -738,13 +795,37 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
       {/* Template download */}
       <a
-        href={getUserTemplateUrl()}
-        download="opengrad_users_template.csv"
+        href={getUserTemplateUrl(templateRole === "COMMON" ? undefined : templateRole)}
+        download={
+          templateRole === "COMMON"
+            ? "opengrad_users_template_common.csv"
+            : `opengrad_users_template_${templateRole.toLowerCase()}.csv`
+        }
         id="download-template-btn"
         style={{ ...primaryButton, display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "10px 20px", background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
       >
         ↓ Download Template CSV
       </a>
+
+      <div style={{ marginTop: "14px" }}>
+        <label style={formLabelStyle}>Template Type</label>
+        <select
+          id="bulk-template-role"
+          value={templateRole}
+          onChange={(e) => setTemplateRole(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="COMMON">Common (all roles)</option>
+          {ALL_ROLES.map((r) => (
+            <option key={r.code} value={r.code}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <p style={{ margin: "8px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)", lineHeight: 1.5 }}>
+          Role templates hide irrelevant columns, but uploads can still mix roles as long as each row includes a valid <strong>role</strong>.
+        </p>
+      </div>
 
       {/* File input */}
       <div style={{ marginTop: "20px" }}>
@@ -757,6 +838,138 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           style={{ ...inputStyle, padding: "10px" }}
         />
       </div>
+
+      {/* Preview */}
+      {(previewError || preview) && (
+        <div style={{ marginTop: "14px" }}>
+          <p style={formLabelStyle}>Preview</p>
+          {previewError ? (
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: "10px",
+                background: "rgba(3,72,82,0.06)",
+                border: "1px solid rgba(3,72,82,0.14)",
+                color: "#034852",
+                fontSize: "12px",
+                fontWeight: 600,
+                lineHeight: 1.5,
+              }}
+            >
+              {previewError}
+            </div>
+          ) : (
+            <div
+              style={{
+                maxHeight: "190px",
+                overflow: "auto",
+                borderRadius: "12px",
+                border: "1px solid rgba(3,72,82,0.10)",
+                background: "rgba(255,255,255,0.55)",
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontFamily: "var(--font-body)",
+                  fontSize: "12px",
+                  minWidth: "720px",
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "rgba(3,72,82,0.06)", textAlign: "left" }}>
+                    {preview!.headers.slice(0, 10).map((h) => (
+                      <th
+                        key={h}
+                        style={{
+                          padding: "10px 10px",
+                          borderBottom: "1px solid rgba(3,72,82,0.08)",
+                          color: "rgba(3,72,82,0.75)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em",
+                          fontSize: "10px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    ))}
+                    {preview!.headers.length > 10 && (
+                      <th
+                        style={{
+                          padding: "10px 10px",
+                          borderBottom: "1px solid rgba(3,72,82,0.08)",
+                          color: "rgba(3,72,82,0.45)",
+                          fontSize: "10px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        +{preview!.headers.length - 10} more
+                      </th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview!.rows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={Math.min(preview!.headers.length, 11)}
+                        style={{ padding: "12px", color: "rgba(3,72,82,0.6)" }}
+                      >
+                        No data rows detected.
+                      </td>
+                    </tr>
+                  ) : (
+                    preview!.rows.map((row, idx) => (
+                      <tr
+                        key={idx}
+                        style={{ background: idx % 2 === 0 ? "rgba(255,255,255,0.65)" : "rgba(3,72,82,0.03)" }}
+                      >
+                        {preview!.headers.slice(0, 10).map((h) => (
+                          <td
+                            key={h}
+                            style={{
+                              padding: "9px 10px",
+                              borderBottom: "1px solid rgba(3,72,82,0.06)",
+                              color: "#034852",
+                              maxWidth: "240px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={(row?.[h] ?? "").toString()}
+                          >
+                            {(row?.[h] ?? "").toString()}
+                          </td>
+                        ))}
+                        {preview!.headers.length > 10 && (
+                          <td
+                            style={{
+                              padding: "9px 10px",
+                              borderBottom: "1px solid rgba(3,72,82,0.06)",
+                              color: "rgba(3,72,82,0.45)",
+                              fontSize: "11px",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            …
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {preview && (
+            <p style={{ margin: "8px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)", lineHeight: 1.5 }}>
+              Showing {preview.rows.length} row{preview.rows.length !== 1 ? "s" : ""} and up to 10 columns.
+            </p>
+          )}
+        </div>
+      )}
 
       <button
         id="bulk-submit-btn"

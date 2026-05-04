@@ -4,6 +4,8 @@ export type ModuleKey =
   | "assessments"
   | "test_bank"
   | "assignments"
+  | "live_classes"
+  | "calendar"
   | "resources"
   | "doubts"
   | "announcements"
@@ -33,6 +35,8 @@ export const MODULE_META: Record<ModuleKey, Omit<ModuleMeta, "key">> = {
   assessments:      { label: "Assessments",       href: "/dashboard/assessments" },
   test_bank:        { label: "Question Bank",     href: "/dashboard/test-bank" },
   assignments:      { label: "Assignments",       href: "/dashboard/assignments" },
+  live_classes:     { label: "Live Classes",      href: "/dashboard/live-classes" },
+  calendar:         { label: "Calendar",          href: "/dashboard/calendar" },
   resources:        { label: "Resources",         href: "/dashboard/resources" },
   doubts:           { label: "Doubts",            href: "/dashboard/doubts" },
   announcements:    { label: "Announcements",     href: "/dashboard/announcements" },
@@ -47,23 +51,26 @@ export const MODULE_META: Record<ModuleKey, Omit<ModuleMeta, "key">> = {
 export const ROLE_MODULES: Record<RoleCode, ModuleKey[]> = {
   SUPER_ADMIN: [
     "dashboard", "courses", "assessments", "test_bank", "assignments",
-    "resources", "doubts", "announcements", "analytics", "student_export",
-    "user_management", "role_management",
+    "live_classes", "calendar", "resources", "doubts", "announcements",
+    "analytics", "student_export", "user_management", "role_management",
   ],
   PROGRAM_MANAGER: [
     "dashboard", "courses", "assessments", "test_bank", "assignments",
-    "resources", "doubts", "announcements", "analytics", "student_export",
+    "live_classes", "calendar", "resources", "doubts", "announcements",
+    "analytics", "student_export",
   ],
   ZONAL_MANAGER: [
     "dashboard", "courses", "assessments", "assignments",
-    "resources", "announcements", "analytics", "student_export",
+    "live_classes", "calendar", "resources", "announcements", "analytics", "student_export",
   ],
   FELLOW: [
-    "dashboard", "assignments", "announcements", "analytics", "student_export",
+    "dashboard", "assignments", "live_classes", "calendar",
+    "announcements", "analytics", "student_export",
   ],
   STUDENT: [
     // assessments added at runtime when programme_type === "PG"
-    "dashboard", "courses", "assignments", "resources", "doubts", "announcements",
+    "dashboard", "courses", "assignments", "live_classes", "calendar",
+    "resources", "doubts", "announcements",
   ],
   GOVERNMENT: [
     "dashboard", "announcements", "analytics",
