@@ -99,15 +99,21 @@ export default function CourseOverviewPage() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {modules.map((mod) => (
-            <ModuleSection
-              key={mod.id}
-              module={mod}
-              courseId={courseId}
-              isSequential={isSequential}
-              roleCode={roleCode}
-            />
-          ))}
+          {modules.map((mod, modIdx) => {
+            const prevMod = modIdx > 0 ? modules[modIdx - 1] : null;
+            const prevModuleComplete = !prevMod || (prevMod.lessons.length > 0 && prevMod.lessons.every(l => l.is_complete));
+            return (
+              <ModuleSection
+                key={mod.id}
+                module={mod}
+                courseId={courseId}
+                isSequential={isSequential}
+                roleCode={roleCode}
+                prevModuleComplete={prevModuleComplete}
+                prevModuleTitle={prevMod?.title ?? ""}
+              />
+            );
+          })}
         </div>
       )}
     </div>
@@ -116,21 +122,27 @@ export default function CourseOverviewPage() {
 
 // ── Module Section ─────────────────────────────────────────────
 
-function ModuleSection({ module, courseId, isSequential, roleCode }: {
+function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleComplete, prevModuleTitle }: {
   module: ModuleWithProgress;
   courseId: string;
   isSequential: boolean;
   roleCode: RoleCode;
+  prevModuleComplete: boolean;
+  prevModuleTitle: string;
 }) {
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
   const allDone = total > 0 && done === total;
+  const isModuleLocked = isSequential && roleCode === "STUDENT" && !prevModuleComplete;
 
   return (
-    <div style={glassCard}>
+    <div style={{ ...glassCard, opacity: isModuleLocked ? 0.7 : 1 }}>
       {/* Module header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-        <h2 style={{ ...S.heading, fontSize: "17px", margin: 0 }}>{module.title}</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <h2 style={{ ...S.heading, fontSize: "17px", margin: 0 }}>{module.title}</h2>
+          {isModuleLocked && <span style={{ fontSize: "14px" }}>🔒</span>}
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ fontSize: "12px", color: allDone ? "#0abe62" : "rgba(3,72,82,0.5)", fontWeight: 600 }}>
             {done} / {total} complete
@@ -138,6 +150,16 @@ function ModuleSection({ module, courseId, isSequential, roleCode }: {
           {allDone && <span style={{ fontSize: "14px" }}>✓</span>}
         </div>
       </div>
+
+      {isModuleLocked && (
+        <div style={{
+          padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
+          background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
+          fontSize: "12px", color: "rgba(3,72,82,0.5)", textAlign: "center",
+        }}>
+          🔒 Complete &ldquo;{prevModuleTitle}&rdquo; to unlock this module
+        </div>
+      )}
 
       {/* Lessons */}
       {module.lessons.length === 0 ? (
@@ -154,6 +176,8 @@ function ModuleSection({ module, courseId, isSequential, roleCode }: {
               isSequential={isSequential}
               isLast={idx === module.lessons.length - 1}
               roleCode={roleCode}
+              isModuleLocked={isModuleLocked}
+              prevModuleTitle={prevModuleTitle}
             />
           ))}
         </div>
@@ -164,7 +188,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode }: {
 
 // ── Lesson Row ─────────────────────────────────────────────────
 
-function LessonRow({ lesson, index, module, courseId, isSequential, isLast, roleCode }: {
+function LessonRow({ lesson, index, module, courseId, isSequential, isLast, roleCode, isModuleLocked, prevModuleTitle }: {
   lesson: LessonWithProgress;
   index: number;
   module: ModuleWithProgress;
@@ -172,13 +196,19 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
   isSequential: boolean;
   isLast: boolean;
   roleCode: RoleCode;
+  isModuleLocked: boolean;
+  prevModuleTitle: string;
 }) {
   const [tooltip, setTooltip] = useState(false);
 
-  // Lock logic: in SEQUENTIAL mode, a lesson is locked if any prior lesson is incomplete
   const isStudent = roleCode === "STUDENT";
-  const isLocked = isStudent && isSequential && index > 0 && !module.lessons[index - 1].is_complete;
-  const blockingLesson = isLocked ? module.lessons[index - 1] : null;
+  // Locked if the whole module is blocked by previous module, OR if prior lesson within module is incomplete
+  const isLocked = isStudent && isSequential && (isModuleLocked || (index > 0 && !module.lessons[index - 1].is_complete));
+  const lockTooltip = isModuleLocked
+    ? `Complete "${prevModuleTitle}" module to unlock`
+    : index > 0 && !module.lessons[index - 1].is_complete
+      ? `Complete "${module.lessons[index - 1].title}" to unlock`
+      : null;
 
   const content = (
     <div
@@ -227,7 +257,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
       )}
 
       {/* Tooltip */}
-      {tooltip && blockingLesson && (
+      {tooltip && lockTooltip && (
         <div style={{
           position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
           transform: "translateX(-50%)",
@@ -236,7 +266,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
           pointerEvents: "none", zIndex: 10,
           boxShadow: "0 4px 12px rgba(3,72,82,0.3)",
         }}>
-          Complete "{blockingLesson.title}" to unlock
+          {lockTooltip}
         </div>
       )}
     </div>

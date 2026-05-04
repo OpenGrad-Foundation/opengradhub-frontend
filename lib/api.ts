@@ -961,6 +961,10 @@ export type LessonDetail = {
   module_quiz_id: string | null;
   prev_lesson_id: string | null;
   next_lesson_id: string | null;
+  /** Whether this student has already completed the lesson (watched ≥ 80%). */
+  is_complete?: boolean;
+  /** Percentage watched in the most recent session, if returned by the API. */
+  watched_percent?: number;
 };
 
 export async function getLessonById(lessonId: string): Promise<LessonDetail> {
@@ -1030,6 +1034,7 @@ export type CourseModule = {
   title: string;
   order_index: number;
   lessons: CourseLesson[];
+  module_quiz: { id: string; title: string; published: boolean } | null;
 };
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {

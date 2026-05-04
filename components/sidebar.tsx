@@ -39,7 +39,7 @@ export default function Sidebar() {
 
   return (
     <aside
-      className="flex min-h-screen w-[260px] flex-col bg-[var(--dark-teal)] text-white"
+      className="sticky top-0 flex h-dvh w-[260px] shrink-0 flex-col bg-[var(--dark-teal)] text-white"
       style={{ fontFamily: "var(--font-body)" }}
     >
       <div className="px-6 pb-4 pt-6">
@@ -55,7 +55,7 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-4 pb-6">
+      <nav className="flex-1 overflow-y-auto px-4 pb-6">
         <ul className="space-y-1">
           {navModules.map((module) => {
             const isActive = isActivePath(pathname, module.href);

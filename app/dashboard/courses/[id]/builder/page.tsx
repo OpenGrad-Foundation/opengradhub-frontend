@@ -379,6 +379,45 @@ function ModuleItem({
         )}
       </div>
 
+      {/* Module test indicator */}
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "-6px 0 14px", paddingLeft: "28px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)" }}>
+          Module Test
+        </span>
+        {module.module_quiz ? (
+          <>
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "#034852" }}>
+              {module.module_quiz.title}
+            </span>
+            <span style={{
+              padding: "2px 8px",
+              borderRadius: "999px",
+              fontSize: "10px",
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              background: module.module_quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
+              color: module.module_quiz.published ? "#0abe62" : "#956f00",
+            }}>
+              {module.module_quiz.published ? "Published" : "Unpublished"}
+            </span>
+            {!module.module_quiz.published && (
+              <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>
+                (won’t show to students)
+              </span>
+            )}
+            <Link
+              href={`/dashboard/quiz-builder/${module.module_quiz.id}?course_id=${courseId}`}
+              style={{ fontSize: "12px", fontWeight: 700, color: "#209379", textDecoration: "none" }}
+              title="Edit module test"
+            >
+              Edit →
+            </Link>
+          </>
+        ) : (
+          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>None</span>
+        )}
+      </div>
+
       {deleteError && <div style={{ ...errorBox, marginBottom: "12px" }}>{deleteError}</div>}
 
       {/* Lessons */}
@@ -417,7 +456,7 @@ function ModuleItem({
           href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
           style={{ ...ghostBtn, flex: 1, justifyContent: "center", padding: "10px", fontSize: "13px", textDecoration: "none", display: "flex", alignItems: "center", color: "#209379", borderColor: "rgba(32,147,121,0.3)" }}
         >
-          + Add Module Test
+          {module.module_quiz ? "+ New Module Test" : "+ Add Module Test"}
         </Link>
       </div>
     </div>

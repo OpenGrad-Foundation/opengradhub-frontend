@@ -195,6 +195,17 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const isUgStudent = isStudent && programme === "UG";
   const roleSelected = role !== "";
 
+  const pwRules = {
+    length:    manualPassword.trim().length >= 8,
+    uppercase: /[A-Z]/.test(manualPassword),
+    lowercase: /[a-z]/.test(manualPassword),
+    number:    /[0-9]/.test(manualPassword),
+  };
+  const isManualPasswordValid = passwordMode === "manual"
+    ? Object.values(pwRules).every(Boolean)
+    : true;
+  const showPwRules = passwordMode === "manual" && manualPassword.length > 0;
+
   function handleRoleChange(newRole: string) {
     setRole(newRole);
     setProgramme("");
@@ -398,18 +409,41 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </p>
                   )}
                   {passwordMode === "manual" && (
-                    <input
-                      id="user-password"
-                      type="text"
-                      value={manualPassword}
-                      onChange={(e) => setManualPassword(e.target.value)}
-                      placeholder="Enter password"
-                      style={{
-                        ...inputStyle,
-                        fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace",
-                        letterSpacing: "0.04em",
-                      }}
-                    />
+                    <>
+                      <input
+                        id="user-password"
+                        type="text"
+                        value={manualPassword}
+                        onChange={(e) => setManualPassword(e.target.value)}
+                        placeholder="e.g. OpenGrad@2025"
+                        style={{
+                          ...inputStyle,
+                          fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace",
+                          letterSpacing: "0.04em",
+                          borderColor: showPwRules && !isManualPasswordValid ? "#e53e3e" : undefined,
+                        }}
+                      />
+                      {showPwRules && (
+                        <div style={{ marginTop: "8px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                          {([
+                            { key: "length",    label: "8+ chars" },
+                            { key: "uppercase", label: "Uppercase" },
+                            { key: "lowercase", label: "Lowercase" },
+                            { key: "number",    label: "Number" },
+                          ] as const).map(({ key, label }) => (
+                            <span key={key} style={{
+                              fontSize: "11px", fontWeight: 600, padding: "3px 9px",
+                              borderRadius: "100px",
+                              background: pwRules[key] ? "rgba(10,190,98,0.12)" : "rgba(229,62,62,0.10)",
+                              color: pwRules[key] ? "#0abe62" : "#e53e3e",
+                              border: `1px solid ${pwRules[key] ? "rgba(10,190,98,0.25)" : "rgba(229,62,62,0.2)"}`,
+                            }}>
+                              {pwRules[key] ? "✓" : "✗"} {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
@@ -420,7 +454,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <button
             id="user-submit-btn"
             type="submit"
-            disabled={!roleSelected || submitting || !name.trim() || (!isUgStudent && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim())}
+            disabled={!roleSelected || submitting || !name.trim() || (!isUgStudent && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim()) || !isManualPasswordValid}
             style={{ ...primaryButton, marginTop: "20px", opacity: (!roleSelected || submitting) ? 0.5 : 1 }}
           >
             {submitting ? "Creating…" : "Create User"}
@@ -532,6 +566,7 @@ function AssignCourseModal({
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -550,11 +585,18 @@ function AssignCourseModal({
     if (!selectedCourseId) return;
     setSubmitting(true);
     setError(null);
+    setIsAlreadyEnrolled(false);
     try {
       await assignCourse(student.id, selectedCourseId, assignedBy);
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign course.");
+      // 409 Conflict = already enrolled — show a soft warning, not a red error
+      const status = err instanceof Error && "status" in err ? (err as { status: number }).status : 0;
+      if (status === 409) {
+        setIsAlreadyEnrolled(true);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to assign course.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -670,6 +712,19 @@ function AssignCourseModal({
                 })
               )}
             </div>
+
+            {isAlreadyEnrolled && (
+              <div style={{
+                display: "flex", alignItems: "flex-start", gap: "8px",
+                padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
+                background: "rgba(255,222,0,0.12)", border: "1px solid rgba(255,222,0,0.4)",
+              }}>
+                <span style={{ fontSize: "15px", flexShrink: 0 }}>⚠️</span>
+                <p style={{ fontSize: "13px", color: "#7a5f00", fontWeight: 600, margin: 0 }}>
+                  This student is already enrolled in that course.
+                </p>
+              </div>
+            )}
 
             {error && (
               <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>

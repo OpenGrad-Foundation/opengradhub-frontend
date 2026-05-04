@@ -6,11 +6,13 @@ import { useParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getLessonById,
+  getCourseById,
   patchLessonProgress,
   getQuizAttempts,
   type LessonDetail,
   type QuizAttempt,
 } from "@/lib/api";
+import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── YouTube IFrame API type declarations ───────────────────────
 // (Minimal — only what we use. Avoids a third-party @types package.)
@@ -47,17 +49,26 @@ export default function LessonPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const studentId = userData?.user?.id ?? "";
+  const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
-  const [lesson, setLesson]       = useState<LessonDetail | null>(null);
-  const [attempts, setAttempts]   = useState<QuizAttempt[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
+  const [lesson, setLesson]           = useState<LessonDetail | null>(null);
+  const [attempts, setAttempts]       = useState<QuizAttempt[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [lockingMode, setLockingMode] = useState<string>("FREE");
+  const [isComplete, setIsComplete]   = useState(false);
 
   // Progress tracking state
   const [watchedPct, setWatchedPct] = useState(0);
-  const completionFiredRef          = useRef(false);  // never fire twice per session
-  const playerRef                   = useRef<YTPlayer | null>(null);
-  const pollTimerRef                = useRef<ReturnType<typeof setInterval> | null>(null);
+  const completionFiredRef = useRef(false);
+  const playerRef          = useRef<YTPlayer | null>(null);
+  const pollTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Refs so memoised callbacks always read the latest values without going stale
+  const studentIdRef = useRef(studentId);
+  const lessonIdRef  = useRef(lessonId as string);
+  useEffect(() => { studentIdRef.current = studentId; }, [studentId]);
+  useEffect(() => { lessonIdRef.current  = lessonId as string; }, [lessonId]);
 
   // ── Data load ─────────────────────────────────────────────────
 
@@ -67,10 +78,14 @@ export default function LessonPage() {
     getLessonById(lessonId)
       .then(async (l) => {
         setLesson(l);
-        if (l.module_quiz_id && studentId) {
-          const a = await getQuizAttempts(l.module_quiz_id, studentId).catch(() => []);
-          setAttempts(a);
-        }
+        // Initialise completion from the lesson payload if the API returns it
+        if (l.is_complete) setIsComplete(true);
+        const [course, quizAttempts] = await Promise.all([
+          getCourseById(l.course_id).catch(() => null),
+          l.module_quiz_id && studentId ? getQuizAttempts(l.module_quiz_id, studentId).catch(() => []) : Promise.resolve([]),
+        ]);
+        if (course) setLockingMode(course.locking_mode ?? "FREE");
+        setAttempts(quizAttempts as QuizAttempt[]);
       })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load lesson."))
       .finally(() => setLoading(false));
@@ -163,18 +178,16 @@ export default function LessonPage() {
   }
 
   function recordProgress(pct: number) {
-    if (!studentId || !lessonId) return;
-    // Always persist progress; completion flag fires only once per session
-    const alreadyComplete = completionFiredRef.current;
-    if (pct >= 80 && !alreadyComplete) {
+    // Read from refs so this is safe to call from any stale closure
+    const sid = studentIdRef.current;
+    const lid = lessonIdRef.current;
+    if (!sid || !lid) return;
+    if (pct >= 80 && !completionFiredRef.current) {
       completionFiredRef.current = true;
     }
-    // Fire in background — don't await, don't block the player
-    void patchLessonProgress({
-      student_id: studentId,
-      lesson_id:  lessonId,
-      watched_percent: pct,
-    });
+    patchLessonProgress({ student_id: sid, lesson_id: lid, watched_percent: pct })
+      .then(result => { if (result.is_complete) setIsComplete(true); })
+      .catch(() => { /* ignore */ });
   }
 
   // ── Render ─────────────────────────────────────────────────────
@@ -193,7 +206,12 @@ export default function LessonPage() {
     );
   }
 
-  const isUnlocked = watchedPct >= 80 || completionFiredRef.current;
+  // watchedPct drives re-renders; isComplete persists across renders and sessions
+  const isUnlocked = isComplete || watchedPct >= 80;
+  const isSequentialCourse = lockingMode === "SEQUENTIAL";
+  const isStudent = roleCode === "STUDENT";
+  // In sequential mode, students must complete this lesson before navigating to the next
+  const nextLessonLocked = isStudent && isSequentialCourse && !isUnlocked;
 
   return (
     <div>
@@ -213,10 +231,20 @@ export default function LessonPage() {
         <div>
           {/* 16:9 video container — src built from video_id only, never the raw URL */}
           <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: "16px", overflow: "hidden", background: "#000", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
-            <div
-              id="yt-player"
-              style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
-            />
+            {/* Force the iframe the YT API injects to fill the container.
+                The API sets width="640" height="390" as HTML attributes; this CSS overrides them. */}
+            <style>{`
+              #yt-player,
+              #yt-player iframe {
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                border: none;
+              }
+            `}</style>
+            <div id="yt-player" />
           </div>
 
           {/* Progress bar */}
@@ -337,12 +365,23 @@ export default function LessonPage() {
               </Link>
             )}
             {lesson.next_lesson_id && (
-              <Link
-                href={`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`}
-                style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
-              >
-                Next Lesson →
-              </Link>
+              nextLessonLocked ? (
+                <div style={{
+                  padding: "10px 14px", borderRadius: "10px",
+                  background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
+                  fontSize: "13px", color: "rgba(3,72,82,0.45)", textAlign: "center",
+                  cursor: "not-allowed",
+                }}>
+                  🔒 Watch 80% to unlock Next Lesson
+                </div>
+              ) : (
+                <Link
+                  href={`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`}
+                  style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
+                >
+                  Next Lesson →
+                </Link>
+              )
             )}
             <Link
               href={`/dashboard/courses/${courseId}`}
