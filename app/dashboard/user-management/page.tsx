@@ -10,8 +10,11 @@ import {
   getUserTemplateUrl,
   getCourses,
   assignCourse,
+  getBundles,
+  enrolStudentInBundle,
   type SafeUser,
   type Course,
+  type Bundle,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
@@ -35,6 +38,7 @@ export default function UserManagementPage() {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [assignStudent, setAssignStudent] = useState<SafeUser | null>(null);
+  const [assignBundleStudent, setAssignBundleStudent] = useState<SafeUser | null>(null);
   const currentUserId = data?.user?.id ?? "";
 
   const fetchUsers = useCallback(async () => {
@@ -117,6 +121,16 @@ export default function UserManagementPage() {
         />
       )}
 
+      {/* ── Assign Bundle Modal ───────────────────────────── */}
+      {assignBundleStudent && (
+        <AssignBundleModal
+          student={assignBundleStudent}
+          assignedBy={currentUserId}
+          callerRole={roleCode}
+          onClose={() => setAssignBundleStudent(null)}
+        />
+      )}
+
       {/* ── Users Table ───────────────────────────────────── */}
       {loading ? (
         <LoadingState />
@@ -144,18 +158,32 @@ export default function UserManagementPage() {
                     <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td style={tdStyle}>
                       {u.role === "STUDENT" && (
-                        <button
-                          onClick={() => setAssignStudent(u)}
-                          style={{
-                            padding: "5px 12px", border: "1.5px solid rgba(10,190,98,0.4)",
-                            borderRadius: "8px", background: "transparent",
-                            color: "#0abe62", fontFamily: "var(--font-body)",
-                            fontSize: "11px", fontWeight: 700, cursor: "pointer",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Assign Course
-                        </button>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                          <button
+                            onClick={() => setAssignStudent(u)}
+                            style={{
+                              padding: "5px 12px", border: "1.5px solid rgba(10,190,98,0.4)",
+                              borderRadius: "8px", background: "transparent",
+                              color: "#0abe62", fontFamily: "var(--font-body)",
+                              fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Assign Course
+                          </button>
+                          <button
+                            onClick={() => setAssignBundleStudent(u)}
+                            style={{
+                              padding: "5px 12px", border: "1.5px solid rgba(32,147,121,0.4)",
+                              borderRadius: "8px", background: "transparent",
+                              color: "#209379", fontFamily: "var(--font-body)",
+                              fontSize: "11px", fontWeight: 700, cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            Assign Bundle
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -749,6 +777,204 @@ function AssignCourseModal({
             </div>
           </>
         )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Assign Bundle Modal ────────────────────────────────────────
+
+function AssignBundleModal({
+  student,
+  assignedBy,
+  callerRole,
+  onClose,
+}: {
+  student: SafeUser;
+  assignedBy: string;
+  callerRole: string;
+  onClose: () => void;
+}) {
+  const [bundles, setBundles] = useState<Bundle[]>([]);
+  const [enrolledBundles, setEnrolledBundles] = useState<Bundle[]>([]);
+  const [bundlesLoading, setBundlesLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedBundleId, setSelectedBundleId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    setBundlesLoading(true);
+    Promise.all([getBundles(), getBundles(student.id)])
+      .then(([all, enrolled]) => {
+        setEnrolledBundles(enrolled);
+        const enrolledIds = new Set(enrolled.map((b) => b.id));
+        setBundles(all.filter((b) => !enrolledIds.has(b.id)));
+      })
+      .catch(() => { setBundles([]); setEnrolledBundles([]); })
+      .finally(() => setBundlesLoading(false));
+  }, [student.id]);
+
+  const filtered = bundles.filter((b) =>
+    b.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  async function handleAssign() {
+    if (!selectedBundleId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await enrolStudentInBundle(selectedBundleId, student.id, assignedBy, callerRole);
+      setSuccessMsg(`Enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
+      setSuccess(true);
+    } catch (err) {
+      const status = err instanceof Error && "status" in err ? (err as { status: number }).status : 0;
+      if (status === 409) {
+        setError("Student is already enrolled in this bundle.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to assign bundle.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", backdropFilter: "blur(4px)", zIndex: 50 }}
+      />
+      {/* Modal wrapper */}
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
+        <div style={{
+          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+          border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
+          boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+          opacity: 0, transform: "translateY(12px)",
+          animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
+        }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+            <div>
+              <p style={labelStyle}>Assign Bundle</p>
+              <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>{student.name}</h3>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
+              </p>
+            </div>
+            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          </div>
+
+          {success ? (
+            <div>
+              <div style={{
+                background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
+                borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
+              }}>
+                <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
+                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+                  Bundle assigned successfully
+                </p>
+                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>{successMsg}</p>
+              </div>
+              <button onClick={onClose} style={{ ...primaryButton, width: "100%" }}>Done</button>
+            </div>
+          ) : (
+            <>
+              {/* Currently enrolled bundles */}
+              {enrolledBundles.length > 0 && (
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={{ ...labelStyle, marginBottom: "8px" }}>Currently enrolled bundles</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {enrolledBundles.map((b) => (
+                      <div key={b.id} style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "8px 12px", borderRadius: "10px",
+                        background: "rgba(10,190,98,0.06)", border: "1px solid rgba(10,190,98,0.2)",
+                      }}>
+                        <div>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{b.name}</p>
+                          <p style={{ margin: "1px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            {b.course_count} course{b.course_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <span style={{ fontSize: "13px", color: "#0abe62", fontWeight: 700 }}>✓ Enrolled</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ height: "1px", background: "rgba(3,72,82,0.08)", margin: "16px 0" }} />
+                </div>
+              )}
+
+              {/* Bundle search */}
+              <input
+                type="text"
+                autoFocus={enrolledBundles.length === 0}
+                placeholder="Search bundles…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "12px" }}
+              />
+
+              {/* Bundle list */}
+              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", marginBottom: "16px" }}>
+                {bundlesLoading ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading bundles…</p>
+                ) : filtered.length === 0 ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                    {search ? "No bundles match your search." : "No bundles available to assign."}
+                  </p>
+                ) : (
+                  filtered.map((bundle) => {
+                    const active = selectedBundleId === bundle.id;
+                    return (
+                      <div
+                        key={bundle.id}
+                        onClick={() => { setSelectedBundleId(bundle.id); setError(null); }}
+                        style={{
+                          padding: "12px 16px", cursor: "pointer",
+                          background: active ? "rgba(10,190,98,0.08)" : "transparent",
+                          borderLeft: active ? "3px solid #0abe62" : "3px solid transparent",
+                          transition: "all 150ms ease",
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{bundle.name}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            {bundle.course_count} course{bundle.course_count !== 1 ? "s" : ""} · {bundle.student_count} student{bundle.student_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        {active && <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {error && (
+                <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+              )}
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleAssign()}
+                  disabled={!selectedBundleId || submitting}
+                  style={{ ...primaryButton, flex: 2, opacity: (!selectedBundleId || submitting) ? 0.5 : 1 }}
+                >
+                  {submitting ? "Assigning…" : "Confirm Assignment"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </>

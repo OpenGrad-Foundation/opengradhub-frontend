@@ -198,9 +198,13 @@ export default function QuizBuilderPage() {
     <div style={{ position: "relative" }}>
       {/* ── Header ────────────────────────────────────────── */}
       <div style={{ marginBottom: "28px" }}>
-        <Link href={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+        {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
+        <a
+          href={backHref}
+          style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}
+        >
           ← {courseId ? "Back to Course Builder" : "Back to Question Bank"}
-        </Link>
+        </a>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px" }}>
           <div>
             <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Test" : "Global Test"}</p>

@@ -199,8 +199,9 @@ export function QuestionSlideOver({
 
     if (!content.trim()) { setFormError("Question content is required."); return; }
     if (qType === "MCQ") {
-      if (options.filter(o => o.option_text.trim()).length < 2) { setFormError("Provide at least 2 options."); return; }
-      if (!options.some(o => o.is_correct)) { setFormError("Mark at least one option as correct."); return; }
+      const filledOptions = options.filter(o => o.option_text.trim());
+      if (filledOptions.length < 2) { setFormError("Provide at least 2 options."); return; }
+      if (!filledOptions.some(o => o.is_correct)) { setFormError("Mark at least one filled-in option as correct."); return; }
     }
     if ((qType === "FILL" || qType === "NUMERICAL") && !correctAnswer.trim()) {
       setFormError("Correct answer is required."); return;
@@ -323,7 +324,7 @@ export function QuestionSlideOver({
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {options.map((opt, i) => (
                   <div key={opt._key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <input type="radio" name="correct-option" checked={opt.is_correct} onChange={() => setOptionCorrect(opt._key)} style={{ accentColor: "#0abe62", width: "16px", height: "16px", flexShrink: 0 }} title="Mark as correct" />
+                    <input type="radio" name="correct-option" value={String(opt._key)} checked={opt.is_correct} onChange={() => setOptionCorrect(opt._key)} onClick={() => setOptionCorrect(opt._key)} style={{ accentColor: "#0abe62", width: "16px", height: "16px", flexShrink: 0, cursor: "pointer" }} title="Mark as correct" />
                     <input value={opt.option_text} onChange={e => setOptionText(opt._key, e.target.value)} style={{ ...S.input, flex: 1 }} placeholder={`Option ${i + 1}`} />
                     {options.length > 2 && (
                       <button type="button" onClick={() => removeOption(opt._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "16px", padding: "0 4px" }}>✕</button>
@@ -375,7 +376,7 @@ export function QuestionSlideOver({
                         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                           {child.options.map((opt, oi) => (
                             <div key={opt._key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <input type="radio" name={`child-${child._key}-correct`} checked={opt.is_correct} onChange={() => setChildOptCorrect(child._key, opt._key)} style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0 }} />
+                              <input type="radio" name={`child-${child._key}-correct`} value={String(opt._key)} checked={opt.is_correct} onChange={() => setChildOptCorrect(child._key, opt._key)} onClick={() => setChildOptCorrect(child._key, opt._key)} style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0, cursor: "pointer" }} />
                               <input value={opt.option_text} onChange={e => setChildOptText(child._key, opt._key, e.target.value)} style={{ ...S.input, fontSize: "13px" }} placeholder={`Option ${oi + 1}`} />
                             </div>
                           ))}

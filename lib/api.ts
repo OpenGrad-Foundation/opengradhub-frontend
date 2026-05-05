@@ -1373,3 +1373,156 @@ export async function submitDoubt(payload: {
 
   return (await response.json()) as Doubt;
 }
+
+// ── Bundles API ───────────────────────────────────────────────
+
+export type Bundle = {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  course_count: number;
+  student_count: number;
+};
+
+export type BundleCourse = {
+  id: string;
+  title: string;
+  programme_type: string;
+  status: string;
+  order_index: number;
+};
+
+export type BundleEnrolledStudent = {
+  id: string;
+  name: string;
+  email: string;
+  roll_number: string | null;
+  enrolled_at: string;
+};
+
+export type BundleDetail = {
+  id: string;
+  name: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+  courses: BundleCourse[];
+  enrolled_students: BundleEnrolledStudent[];
+};
+
+export async function getBundles(studentId?: string): Promise<Bundle[]> {
+  const url = new URL(`${API_BASE_URL}/bundles`);
+  if (studentId) url.searchParams.set("student_id", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch bundles.", r.status);
+  return (await r.json()) as Bundle[];
+}
+
+export async function getBundleById(id: string): Promise<BundleDetail> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${id}`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch bundle.", r.status);
+  }
+  return (await r.json()) as BundleDetail;
+}
+
+export async function createBundle(payload: {
+  name: string;
+  description?: string;
+  caller_id: string;
+  caller_role: string;
+}): Promise<Bundle> {
+  const r = await fetch(`${API_BASE_URL}/bundles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create bundle.", r.status);
+  }
+  return (await r.json()) as Bundle;
+}
+
+export async function addCourseToBundle(
+  bundleId: string,
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ added: boolean; students_enrolled: number }> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/courses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ course_id: courseId, caller_id: callerId, caller_role: callerRole }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add course to bundle.", r.status);
+  }
+  return (await r.json()) as { added: boolean; students_enrolled: number };
+}
+
+export async function removeCourseFromBundle(
+  bundleId: string,
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ removed: boolean }> {
+  const r = await fetch(
+    `${API_BASE_URL}/bundles/${bundleId}/courses/${courseId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    { method: "DELETE", cache: "no-store" },
+  );
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove course from bundle.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
+export async function reorderBundleCourses(
+  bundleId: string,
+  ids: string[],
+  callerId: string,
+  callerRole: string,
+): Promise<void> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/courses/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, caller_id: callerId, caller_role: callerRole }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to reorder courses.", r.status);
+  }
+}
+
+export async function enrolStudentInBundle(
+  bundleId: string,
+  studentId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ enrolled: boolean; courses_enrolled: number }> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_id: studentId, caller_id: callerId, caller_role: callerRole }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to enrol student in bundle.", r.status);
+  }
+  return (await r.json()) as { enrolled: boolean; courses_enrolled: number };
+}
+
+export async function getBundleEnrolledStudents(bundleId: string): Promise<BundleEnrolledStudent[]> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r.status);
+  return (await r.json()) as BundleEnrolledStudent[];
+}

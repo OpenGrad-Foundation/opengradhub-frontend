@@ -1,6 +1,7 @@
 export type ModuleKey =
   | "dashboard"
   | "courses"
+  | "bundles"
   | "assessments"
   | "test_bank"
   | "assignments"
@@ -32,6 +33,7 @@ export type ModuleMeta = {
 export const MODULE_META: Record<ModuleKey, Omit<ModuleMeta, "key">> = {
   dashboard:        { label: "Dashboard",        href: "/dashboard" },
   courses:          { label: "Courses",           href: "/dashboard/courses" },
+  bundles:          { label: "Course Bundles",    href: "/dashboard/bundles" },
   assessments:      { label: "Assessments",       href: "/dashboard/assessments" },
   test_bank:        { label: "Question Bank",     href: "/dashboard/test-bank" },
   assignments:      { label: "Assignments",       href: "/dashboard/assignments" },
@@ -50,12 +52,12 @@ export const MODULE_META: Record<ModuleKey, Omit<ModuleMeta, "key">> = {
 // STUDENT assessments is conditionally added when programme_type === "PG"
 export const ROLE_MODULES: Record<RoleCode, ModuleKey[]> = {
   SUPER_ADMIN: [
-    "dashboard", "courses", "assessments", "test_bank", "assignments",
+    "dashboard", "courses", "bundles", "assessments", "test_bank", "assignments",
     "live_classes", "calendar", "resources", "doubts", "announcements",
     "analytics", "student_export", "user_management", "role_management",
   ],
   PROGRAM_MANAGER: [
-    "dashboard", "courses", "assessments", "test_bank", "assignments",
+    "dashboard", "courses", "bundles", "assessments", "test_bank", "assignments",
     "live_classes", "calendar", "resources", "doubts", "announcements",
     "analytics", "student_export",
   ],
