@@ -8,7 +8,7 @@ import {
   getQuizById,
   updateQuiz,
   addQuizQuestion,
-  addQuizQuestionFromBank,
+  attachQuizQuestion,
   reorderQuizQuestions,
   removeQuizQuestion,
   publishQuiz,
@@ -397,7 +397,11 @@ function QuizQuestionRow({
       {/* Actions */}
       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
         <button style={S.outlineBtn} onClick={onEdit}>Edit</button>
-        <button style={{ ...S.outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }} onClick={onRemove}>Remove</button>
+        <button
+          title="Removes from this quiz. Question stays in the bank."
+          style={{ ...S.outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }}
+          onClick={onRemove}
+        >Remove</button>
       </div>
     </div>
   );
@@ -415,7 +419,7 @@ function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClos
 
   useEffect(() => {
     setLoadingBank(true);
-    getQuestions({ bank: true })
+    getQuestions()
       .then(setBankQs)
       .catch(() => setBankQs([]))
       .finally(() => setLoadingBank(false));
@@ -427,17 +431,17 @@ function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClos
     (q.topic ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
-  async function handleCopy() {
+  async function handleAttach() {
     if (selected.size === 0) return;
     setCopying(true);
     setErr(null);
     try {
       for (const qId of selected) {
-        await addQuizQuestionFromBank(quizId, qId);
+        await attachQuizQuestion(quizId, qId);
       }
       onPicked();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Copy failed.");
+      setErr(e instanceof Error ? e.message : "Attach failed.");
       setCopying(false);
     }
   }
@@ -522,11 +526,11 @@ function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClos
         <div style={{ display: "flex", gap: "10px", marginTop: "16px", flexShrink: 0 }}>
           <button onClick={onClose} style={{ ...S.primaryBtn, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>Cancel</button>
           <button
-            onClick={() => void handleCopy()}
+            onClick={() => void handleAttach()}
             disabled={selected.size === 0 || copying}
             style={{ ...S.primaryBtn, flex: 2, opacity: selected.size === 0 || copying ? 0.5 : 1 }}
           >
-            {copying ? "Copying…" : `Copy ${selected.size > 0 ? selected.size + " " : ""}Question${selected.size !== 1 ? "s" : ""} to Quiz`}
+            {copying ? "Adding…" : `Add ${selected.size > 0 ? selected.size + " " : ""}Question${selected.size !== 1 ? "s" : ""} to Quiz`}
           </button>
         </div>
       </div>

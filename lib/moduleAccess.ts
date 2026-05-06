@@ -13,7 +13,8 @@ export type ModuleKey =
   | "analytics"
   | "student_export"
   | "user_management"
-  | "role_management";
+  | "role_management"
+  | "bulk_assign";
 
 export type RoleCode =
   | "SUPER_ADMIN"
@@ -46,6 +47,7 @@ export const MODULE_META: Record<ModuleKey, Omit<ModuleMeta, "key">> = {
   student_export:   { label: "Student Export",    href: "/dashboard/student-export" },
   user_management:  { label: "User Management",   href: "/dashboard/user-management" },
   role_management:  { label: "Role Management",   href: "/dashboard/role-management" },
+  bulk_assign:      { label: "Bulk Assign",        href: "/dashboard/bulk-manage" },
 };
 
 // Default sidebar modules per role — from context/RBAC_MODULES.md
@@ -54,12 +56,12 @@ export const ROLE_MODULES: Record<RoleCode, ModuleKey[]> = {
   SUPER_ADMIN: [
     "dashboard", "courses", "bundles", "assessments", "test_bank", "assignments",
     "live_classes", "calendar", "resources", "doubts", "announcements",
-    "analytics", "student_export", "user_management", "role_management",
+    "analytics", "student_export", "user_management", "role_management", "bulk_assign",
   ],
   PROGRAM_MANAGER: [
     "dashboard", "courses", "bundles", "assessments", "test_bank", "assignments",
     "live_classes", "calendar", "resources", "doubts", "announcements",
-    "analytics", "student_export",
+    "analytics", "student_export", "bulk_assign",
   ],
   ZONAL_MANAGER: [
     "dashboard", "courses", "assessments", "assignments",

@@ -256,6 +256,116 @@ export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilt
   return { blob, filename };
 }
 
+// ── Analytics Dashboard API ───────────────────────────────────
+
+export type AdminStats = {
+  total_active_users: number;
+  active_courses: number;
+  avg_completion_rate: number;
+  pending_approvals: number;
+  top_districts: { district: string; count: number }[];
+  programme_distribution: { programme: string; count: number }[];
+};
+
+export type ManagerCourseRow = {
+  id: string;
+  title: string;
+  status: string;
+  programme_type: string;
+  enrolment_count: number;
+  avg_completion: number;
+  avg_quiz_score: number;
+};
+
+export type ManagerStudentRow = {
+  id: string;
+  name: string;
+  completion_pct: number;
+  last_score: number | null;
+  assignment_status: string;
+};
+
+export type QuizDistributionRow = {
+  id: string;
+  title: string;
+  buckets: { label: string; count: number }[];
+};
+
+export type FellowSchoolCard = {
+  id: string;
+  name: string;
+  district: string | null;
+  state: string | null;
+  enrolled_students: number;
+  avg_completion: number;
+  badge: "ACTIVE" | "NEEDS_ATTENTION";
+};
+
+export type SchoolDetail = {
+  school_id: string;
+  school_name: string;
+  enrolled_students: number;
+  avg_completion: number;
+  at_risk_count: number;
+  courses: { id: string; title: string }[];
+  section_scores: { section: string; avg_score: number }[];
+  score_distribution: { label: string; count: number }[];
+};
+
+export async function getAdminAnalytics(
+  callerRole: string,
+  callerId: string,
+): Promise<AdminStats> {
+  const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
+  const res = await fetch(`${API_BASE_URL}/analytics/admin?${params.toString()}`);
+  if (!res.ok) throw new ApiError("Failed to fetch admin analytics.", res.status);
+  return (await res.json()) as AdminStats;
+}
+
+export async function getManagerAnalytics(
+  callerId: string,
+  courseId?: string,
+): Promise<
+  | { view: "courses"; courses: ManagerCourseRow[] }
+  | { view: "students"; students: ManagerStudentRow[]; quiz_distribution: QuizDistributionRow[] }
+> {
+  const params = new URLSearchParams({ caller_id: callerId });
+  if (courseId) params.set("course_id", courseId);
+  const res = await fetch(`${API_BASE_URL}/analytics/manager?${params.toString()}`);
+  if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res.status);
+  return res.json() as Promise<
+    | { view: "courses"; courses: ManagerCourseRow[] }
+    | { view: "students"; students: ManagerStudentRow[]; quiz_distribution: QuizDistributionRow[] }
+  >;
+}
+
+export async function getFellowAnalytics(
+  callerId: string,
+  callerRole: string,
+): Promise<FellowSchoolCard[]> {
+  const params = new URLSearchParams({ caller_id: callerId, caller_role: callerRole });
+  const res = await fetch(`${API_BASE_URL}/analytics/fellow?${params.toString()}`);
+  if (!res.ok) throw new ApiError("Failed to fetch fellow analytics.", res.status);
+  return (await res.json()) as FellowSchoolCard[];
+}
+
+export async function getSchoolDetail(
+  callerId: string,
+  callerRole: string,
+  schoolId: string,
+  courseId?: string,
+): Promise<SchoolDetail> {
+  const params = new URLSearchParams({
+    caller_id: callerId,
+    caller_role: callerRole,
+    school_id: schoolId,
+  });
+  if (courseId) params.set("course_id", courseId);
+  const res = await fetch(`${API_BASE_URL}/analytics/fellow/school?${params.toString()}`);
+  if (!res.ok) throw new ApiError("Failed to fetch school detail.", res.status);
+  return (await res.json()) as SchoolDetail;
+}
+
 // ── Courses API ────────────────────────────────────────────────
 
 export type Course = {
@@ -493,22 +603,26 @@ export type CreateQuestionPayload = {
 };
 
 export type QuestionFilters = {
-  bank?: boolean;
   question_type?: string;
   programme_type?: string;
   subject?: string;
   topic?: string;
   difficulty?: string;
+  /** Return only questions attached to this quiz. */
+  quiz_id?: string;
+  /** Full-text search on content_html. */
+  search?: string;
 };
 
 export async function getQuestions(filters: QuestionFilters = {}): Promise<Question[]> {
   const url = new URL(`${API_BASE_URL}/questions`);
-  if (filters.bank) url.searchParams.set("bank", "true");
   if (filters.question_type) url.searchParams.set("question_type", filters.question_type);
   if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
   if (filters.subject) url.searchParams.set("subject", filters.subject);
   if (filters.topic) url.searchParams.set("topic", filters.topic);
   if (filters.difficulty) url.searchParams.set("difficulty", filters.difficulty);
+  if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
+  if (filters.search) url.searchParams.set("search", filters.search);
   const response = await fetch(url.toString(), { cache: "no-store" });
   if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
   return (await response.json()) as Question[];
@@ -897,11 +1011,11 @@ export async function addQuizQuestion(
   return (await r.json()) as Question;
 }
 
-export async function addQuizQuestionFromBank(
+export async function attachQuizQuestion(
   quizId: string,
   questionId: string,
 ): Promise<Question> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/from-bank`, {
+  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/attach`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question_id: questionId }),
@@ -909,7 +1023,7 @@ export async function addQuizQuestionFromBank(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to copy from bank.", r.status);
+    throw new ApiError(err?.message ?? "Failed to attach question.", r.status);
   }
   return (await r.json()) as Question;
 }
@@ -1402,6 +1516,16 @@ export type BundleEnrolledStudent = {
   enrolled_at: string;
 };
 
+export type BundleTest = {
+  id: string;
+  title: string;
+  question_count: number;
+  published: boolean;
+  duration_minutes: number | null;
+  max_attempts: number | null;
+  order_index: number;
+};
+
 export type BundleDetail = {
   id: string;
   name: string;
@@ -1410,6 +1534,7 @@ export type BundleDetail = {
   created_at: string;
   courses: BundleCourse[];
   enrolled_students: BundleEnrolledStudent[];
+  tests: BundleTest[];
 };
 
 export async function getBundles(studentId?: string): Promise<Bundle[]> {
@@ -1525,4 +1650,145 @@ export async function getBundleEnrolledStudents(bundleId: string): Promise<Bundl
   const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r.status);
   return (await r.json()) as BundleEnrolledStudent[];
+}
+
+export async function addTestToBundle(
+  bundleId: string,
+  quizId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ added: boolean }> {
+  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/tests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quiz_id: quizId, caller_id: callerId, caller_role: callerRole }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add test to bundle.", r.status);
+  }
+  return (await r.json()) as { added: boolean };
+}
+
+export async function removeTestFromBundle(
+  bundleId: string,
+  quizId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ removed: boolean }> {
+  const r = await fetch(
+    `${API_BASE_URL}/bundles/${bundleId}/tests/${quizId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    { method: "DELETE", cache: "no-store" },
+  );
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove test from bundle.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
+export async function getAvailableQuizzes(studentId: string): Promise<Omit<Quiz, "questions">[]> {
+  const url = new URL(`${API_BASE_URL}/quizzes/available`);
+  url.searchParams.set("student_id", studentId);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r.status);
+  return (await r.json()) as Omit<Quiz, "questions">[];
+}
+
+// ── Bulk Assign API ────────────────────────────────────────────
+
+export type StudentForBulk = {
+  id: string;
+  name: string;
+  roll_number: string | null;
+  programme_type: string | null;
+  state: string | null;
+  district: string | null;
+  school_name: string | null;
+};
+
+export type StudentFilters = {
+  state?: string;
+  district?: string;
+  school_id?: string;
+  programme_type?: string;
+  search?: string;
+};
+
+export async function getStudentsForBulk(
+  filters: StudentFilters,
+): Promise<StudentForBulk[]> {
+  const url = new URL(`${API_BASE_URL}/users/students`);
+  if (filters.state)          url.searchParams.set("state",          filters.state);
+  if (filters.district)       url.searchParams.set("district",       filters.district);
+  if (filters.school_id)      url.searchParams.set("school_id",      filters.school_id);
+  if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
+  if (filters.search)         url.searchParams.set("search",         filters.search);
+
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
+  }
+  return (await r.json()) as StudentForBulk[];
+}
+
+export type EnrolledItems = {
+  courses: { id: string; title: string; programme_type: string; lesson_count: number }[];
+  bundles: { id: string; name: string; course_count: number }[];
+};
+
+export async function getEnrolledItemsForStudents(
+  studentIds: string[],
+): Promise<EnrolledItems> {
+  if (!studentIds.length) return { courses: [], bundles: [] };
+  const url = new URL(`${API_BASE_URL}/enrolments/enrolled-items`);
+  url.searchParams.set("student_ids", studentIds.join(","));
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch enrolled items.", r.status);
+  }
+  return (await r.json()) as EnrolledItems;
+}
+
+export async function bulkRemove(payload: {
+  student_ids: string[];
+  course_ids?: string[];
+  bundle_ids?: string[];
+  caller_id: string;
+  caller_role: string;
+}): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
+  const r = await fetch(`${API_BASE_URL}/enrolments/bulk`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to bulk remove.", r.status);
+  }
+  return (await r.json()) as { removed_courses: number; removed_bundles: number; not_enrolled: number };
+}
+
+export async function bulkEnrol(payload: {
+  student_ids: string[];
+  course_ids?: string[];
+  bundle_ids?: string[];
+  caller_id: string;
+  caller_role: string;
+}): Promise<{ enrolled_courses: number; enrolled_bundles: number; skipped: number }> {
+  const r = await fetch(`${API_BASE_URL}/enrolments/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to bulk enrol.", r.status);
+  }
+  return (await r.json()) as { enrolled_courses: number; enrolled_bundles: number; skipped: number };
 }

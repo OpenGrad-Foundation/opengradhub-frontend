@@ -43,7 +43,6 @@ export default function TestBankPage() {
     setError(null);
     try {
       setQuestions(await getQuestions({
-        bank: true,
         question_type:   filterType    || undefined,
         programme_type:  filterProg    || undefined,
         subject:         filterSubject || undefined,

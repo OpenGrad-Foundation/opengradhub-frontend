@@ -10,12 +10,17 @@ import {
   removeCourseFromBundle,
   reorderBundleCourses,
   enrolStudentInBundle,
+  addTestToBundle,
+  removeTestFromBundle,
   getCourses,
+  getQuizzes,
   getUsers,
   type BundleDetail,
   type BundleCourse,
+  type BundleTest,
   type BundleEnrolledStudent,
   type Course,
+  type Quiz,
   type SafeUser,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
@@ -37,6 +42,7 @@ export default function BundleDetailPage() {
   // Modal toggles
   const [addCourseOpen, setAddCourseOpen] = useState(false);
   const [assignStudentOpen, setAssignStudentOpen] = useState(false);
+  const [addTestOpen, setAddTestOpen] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<string | null>(null);
@@ -93,6 +99,7 @@ export default function BundleDetailPage() {
         <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
           <Chip icon="📚" value={bundle.courses.length} label="course" />
           <Chip icon="👤" value={bundle.enrolled_students.length} label="student" />
+          <Chip icon="📝" value={bundle.tests.length} label="test" />
         </div>
       </div>
 
@@ -133,6 +140,26 @@ export default function BundleDetailPage() {
         <StudentTable students={bundle.enrolled_students} />
       </Section>
 
+      {/* ── Section 3: Tests ─────────────────────────────────── */}
+      <Section
+        title="Tests in this Bundle"
+        subtitle="Published global tests attached to this bundle. Enrolled students can see and take these from their Assessments page."
+        action={
+          <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
+            + Add Test
+          </button>
+        }
+      >
+        <TestList
+          bundleId={bundleId}
+          tests={bundle.tests}
+          callerId={callerId}
+          callerRole={roleCode}
+          onRemoved={() => { void reload(); }}
+          setGlobalError={setGlobalError}
+        />
+      </Section>
+
       {/* ── Modals ───────────────────────────────────────────── */}
       {addCourseOpen && (
         <AddCourseModal
@@ -154,6 +181,17 @@ export default function BundleDetailPage() {
           callerRole={roleCode}
           onClose={() => setAssignStudentOpen(false)}
           onAssigned={(msg) => { setAssignStudentOpen(false); void reload(); showToast(msg); }}
+        />
+      )}
+
+      {addTestOpen && (
+        <AddTestModal
+          bundleId={bundleId}
+          existingTestIds={bundle.tests.map((t) => t.id)}
+          callerId={callerId}
+          callerRole={roleCode}
+          onClose={() => setAddTestOpen(false)}
+          onAdded={(msg) => { setAddTestOpen(false); void reload(); showToast(msg); }}
         />
       )}
 
@@ -332,31 +370,38 @@ function AddCourseModal({
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const [allCourses,    setAllCourses]    = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<Course | null>(null);
-  const [confirming, setConfirming] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [search,        setSearch]        = useState("");
+  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
+  const [confirming,    setConfirming]    = useState(false);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [progress,      setProgress]      = useState("");
+  const [error,         setError]         = useState<string | null>(null);
 
   useEffect(() => {
     getCourses(undefined, undefined, undefined, true)
-      .then((data) => setCourses(data.filter((c) => c.status === "ACTIVE" && !existingCourseIds.includes(c.id))))
-      .catch(() => setCourses([]))
+      .then((data) => setAllCourses(data.filter((c) => c.status === "ACTIVE")))
+      .catch(() => setAllCourses([]))
       .finally(() => setLoadingCourses(false));
-  }, [existingCourseIds]);
+  }, []);
 
-  const filtered = courses.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
-
-  function handleSelect(course: Course) {
-    setSelected(course);
-    setConfirming(false);
+  function toggleCourse(id: string) {
+    if (existingCourseIds.includes(id)) return;
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
     setError(null);
   }
 
+  const filtered       = allCourses.filter((c) => c.title.toLowerCase().includes(search.toLowerCase()));
+  const selectedCourses = allCourses.filter((c) => selectedIds.has(c.id));
+  const nSelected      = selectedIds.size;
+
   function handleConfirmClick() {
-    if (!selected) return;
+    if (nSelected === 0) return;
     if (enrolledStudentCount > 0) {
       setConfirming(true);
     } else {
@@ -365,41 +410,46 @@ function AddCourseModal({
   }
 
   async function doAdd() {
-    if (!selected) return;
     setSubmitting(true);
     setError(null);
+    let totalStudentsEnrolled = 0;
+    const courseList = allCourses.filter((c) => selectedIds.has(c.id));
     try {
-      const result = await addCourseToBundle(bundleId, selected.id, callerId, callerRole);
-      const msg = result.students_enrolled > 0
-        ? `"${selected.title}" added and ${result.students_enrolled} student${result.students_enrolled !== 1 ? "s" : ""} enrolled.`
-        : `"${selected.title}" added to bundle.`;
+      for (let i = 0; i < courseList.length; i++) {
+        const c = courseList[i];
+        setProgress(`Adding ${i + 1} of ${courseList.length}…`);
+        const result = await addCourseToBundle(bundleId, c.id, callerId, callerRole);
+        totalStudentsEnrolled += result.students_enrolled;
+      }
+      const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
+      const msg = totalStudentsEnrolled > 0
+        ? `${noun} added and ${totalStudentsEnrolled} student${totalStudentsEnrolled !== 1 ? "s" : ""} enrolled.`
+        : `${noun} added to bundle.`;
       onAdded(msg);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add course.");
       setConfirming(false);
     } finally {
       setSubmitting(false);
+      setProgress("");
     }
   }
 
   return (
-    <Modal onClose={onClose} title="Add Course to Bundle">
-      {confirming && selected ? (
+    <Modal onClose={!submitting ? onClose : undefined} title="Add Courses to Bundle">
+      {confirming ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={{
-            background: "rgba(255,222,0,0.1)", border: "1px solid rgba(255,222,0,0.4)",
-            borderRadius: "12px", padding: "16px",
-          }}>
+          <div style={{ background: "rgba(255,222,0,0.1)", border: "1px solid rgba(255,222,0,0.4)", borderRadius: "12px", padding: "16px" }}>
             <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#7a5f00" }}>
-              ⚠️ Adding this course will automatically enrol{" "}
-              <strong>{enrolledStudentCount} existing student{enrolledStudentCount !== 1 ? "s" : ""}</strong> in "{selected.title}". Continue?
+              ⚠️ Adding {nSelected === 1 ? "this course" : `these ${nSelected} courses`} will automatically enrol{" "}
+              <strong>{enrolledStudentCount} existing student{enrolledStudentCount !== 1 ? "s" : ""}</strong>. Continue?
             </p>
           </div>
           {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>}
           <div style={{ display: "flex", gap: "10px" }}>
-            <button onClick={() => setConfirming(false)} style={ghostBtnSm}>Go Back</button>
+            <button onClick={() => setConfirming(false)} style={ghostBtnSm} disabled={submitting}>Go Back</button>
             <button onClick={() => void doAdd()} disabled={submitting} style={{ ...primaryBtnSm, opacity: submitting ? 0.6 : 1 }}>
-              {submitting ? "Adding…" : "Yes, Add Course"}
+              {submitting ? (progress || "Adding…") : `Yes, Add ${nSelected} Course${nSelected !== 1 ? "s" : ""}`}
             </button>
           </div>
         </div>
@@ -411,9 +461,11 @@ function AddCourseModal({
             placeholder="Search courses…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            style={{ ...inputSt, marginBottom: "12px" }}
+            style={{ ...inputSt, marginBottom: "10px" }}
           />
-          <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
+
+          {/* Course list with checkboxes */}
+          <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
             {loadingCourses ? (
               <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading courses…</p>
             ) : filtered.length === 0 ? (
@@ -421,39 +473,63 @@ function AddCourseModal({
                 {search ? "No matching courses." : "No active courses available."}
               </p>
             ) : filtered.map((c) => {
-              const active = selected?.id === c.id;
+              const alreadyAdded = existingCourseIds.includes(c.id);
+              const checked      = selectedIds.has(c.id);
               return (
-                <div
+                <label
                   key={c.id}
-                  onClick={() => handleSelect(c)}
                   style={{
-                    padding: "12px 16px", cursor: "pointer",
-                    background: active ? "rgba(10,190,98,0.07)" : "transparent",
-                    borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
-                    transition: "all 130ms ease",
-                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "10px 14px", cursor: alreadyAdded ? "default" : "pointer",
+                    borderBottom: "1px solid rgba(3,72,82,0.05)",
+                    background: checked ? "rgba(10,190,98,0.07)" : "transparent",
+                    opacity: alreadyAdded ? 0.45 : 1,
+                    transition: "background 100ms",
                   }}
                 >
-                  <div>
-                    <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{c.title}</p>
-                    <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={alreadyAdded}
+                    onChange={() => toggleCourse(c.id)}
+                    style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0 }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {c.title}
+                      {alreadyAdded && <span style={{ fontWeight: 400, color: "rgba(3,72,82,0.5)", marginLeft: "6px" }}>already in bundle</span>}
+                    </span>
+                    <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
                       {c.programme_type} · {c.lesson_count} lesson{c.lesson_count !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}
-                </div>
+                    </span>
+                  </span>
+                </label>
               );
             })}
           </div>
-          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+
+          {/* Selected tags */}
+          {selectedCourses.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+              {selectedCourses.map((c) => (
+                <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 10px", borderRadius: "100px", background: "rgba(10,190,98,0.1)", border: "1px solid rgba(10,190,98,0.25)", fontSize: "12px", fontWeight: 600, color: "#034852" }}>
+                  {c.title}
+                  <button onClick={() => toggleCourse(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "14px", lineHeight: 1, padding: "0 2px", fontWeight: 700 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
+
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
             <button
               onClick={handleConfirmClick}
-              disabled={!selected}
-              style={{ ...primaryBtnSm, opacity: !selected ? 0.45 : 1 }}
+              disabled={nSelected === 0}
+              style={{ ...primaryBtnSm, opacity: nSelected === 0 ? 0.45 : 1 }}
             >
-              Add Course
+              {nSelected === 0 ? "Add Courses" : `Add ${nSelected} Course${nSelected !== 1 ? "s" : ""}`}
             </button>
           </div>
         </>
@@ -565,6 +641,181 @@ function AssignStudentModal({
   );
 }
 
+// ── Test list ─────────────────────────────────────────────────────────────────
+
+function TestList({
+  bundleId, tests, callerId, callerRole, onRemoved, setGlobalError,
+}: {
+  bundleId: string;
+  tests: BundleTest[];
+  callerId: string;
+  callerRole: string;
+  onRemoved: () => void;
+  setGlobalError: (e: string | null) => void;
+}) {
+  async function handleRemove(quizId: string, title: string) {
+    if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
+    try {
+      await removeTestFromBundle(bundleId, quizId, callerId, callerRole);
+      onRemoved();
+    } catch (e) {
+      setGlobalError(e instanceof Error ? e.message : "Failed to remove test.");
+    }
+  }
+
+  if (tests.length === 0) {
+    return (
+      <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
+        No tests yet. Click "+ Add Test" to attach a global test.
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {tests.map((test) => (
+        <div
+          key={test.id}
+          style={{
+            display: "flex", alignItems: "center", gap: "10px",
+            padding: "12px 14px", borderRadius: "12px",
+            background: "rgba(3,72,82,0.025)",
+            border: "1px solid rgba(3,72,82,0.07)",
+          }}
+        >
+          <span style={{ fontSize: "16px", flexShrink: 0 }}>📝</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {test.title}
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+              {test.question_count} question{test.question_count !== 1 ? "s" : ""}
+              {test.duration_minutes != null && ` · ${test.duration_minutes} min`}
+              {test.max_attempts != null && ` · max ${test.max_attempts} attempt${test.max_attempts !== 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <span style={{
+            padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
+            background: test.published ? "rgba(10,190,98,0.1)" : "rgba(255,222,0,0.2)",
+            color: test.published ? "#0abe62" : "#956f00",
+          }}>
+            {test.published ? "Published" : "Draft"}
+          </span>
+          <button
+            onClick={() => void handleRemove(test.id, test.title)}
+            style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
+            title="Remove from bundle"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Add Test Modal ────────────────────────────────────────────────────────────
+
+function AddTestModal({
+  bundleId, existingTestIds, callerId, callerRole, onClose, onAdded,
+}: {
+  bundleId: string;
+  existingTestIds: string[];
+  callerId: string;
+  callerRole: string;
+  onClose: () => void;
+  onAdded: (msg: string) => void;
+}) {
+  const [quizzes, setQuizzes] = useState<Omit<Quiz, "questions">[]>([]);
+  const [loadingQuizzes, setLoadingQuizzes] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Omit<Quiz, "questions"> | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getQuizzes({ quiz_type: "GLOBAL_TEST" })
+      .then((data) => setQuizzes(
+        data.filter((q) => q.published && !existingTestIds.includes(q.id))
+      ))
+      .catch(() => setQuizzes([]))
+      .finally(() => setLoadingQuizzes(false));
+  }, [existingTestIds]);
+
+  const filtered = quizzes.filter((q) => q.title.toLowerCase().includes(search.toLowerCase()));
+
+  async function handleAdd() {
+    if (!selected) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await addTestToBundle(bundleId, selected.id, callerId, callerRole);
+      onAdded(`"${selected.title}" added to bundle.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add test.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal onClose={onClose} title="Add Test to Bundle">
+      <input
+        autoFocus
+        type="text"
+        placeholder="Search published global tests…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ ...inputSt, marginBottom: "12px" }}
+      />
+      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
+        {loadingQuizzes ? (
+          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading tests…</p>
+        ) : filtered.length === 0 ? (
+          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+            {search ? "No matching tests." : "No published global tests available."}
+          </p>
+        ) : filtered.map((q) => {
+          const active = selected?.id === q.id;
+          return (
+            <div
+              key={q.id}
+              onClick={() => { setSelected(q); setError(null); }}
+              style={{
+                padding: "12px 16px", cursor: "pointer",
+                background: active ? "rgba(10,190,98,0.07)" : "transparent",
+                borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
+                transition: "all 130ms ease",
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}
+            >
+              <div>
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{q.title}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                  {q.duration_minutes != null ? `${q.duration_minutes} min` : "No time limit"}
+                  {q.max_attempts != null && ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}`}
+                </p>
+              </div>
+              {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}
+            </div>
+          );
+        })}
+      </div>
+      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      <div style={{ display: "flex", gap: "10px" }}>
+        <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
+        <button
+          onClick={() => void handleAdd()}
+          disabled={!selected || submitting}
+          style={{ ...primaryBtnSm, opacity: (!selected || submitting) ? 0.45 : 1 }}
+        >
+          {submitting ? "Adding…" : "Add Test"}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // ── Shared components ─────────────────────────────────────────────────────────
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -588,11 +839,11 @@ function Section({ title, subtitle, action, children }: {
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, children }: { title: string; onClose?: () => void; children: React.ReactNode }) {
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(480px, 92vw)", zIndex: 51 }}>
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
           background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
           borderRadius: "24px", padding: "32px",
@@ -603,7 +854,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h3 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h3>
-            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.45)", cursor: "pointer", padding: "4px 8px" }}>✕</button>
+            {onClose && <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.45)", cursor: "pointer", padding: "4px 8px" }}>✕</button>}
           </div>
           {children}
         </div>
