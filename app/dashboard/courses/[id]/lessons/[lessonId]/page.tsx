@@ -28,6 +28,7 @@ declare global {
           events?: {
             onReady?: (e: { target: YTPlayer }) => void;
             onStateChange?: (e: { data: number; target: YTPlayer }) => void;
+            onError?: (e: { data: number; target: YTPlayer }) => void;
           };
         },
       ) => YTPlayer;
@@ -40,6 +41,7 @@ declare global {
 interface YTPlayer {
   getCurrentTime(): number;
   getDuration(): number;
+  getPlayerState(): number;
   destroy(): void;
 }
 
@@ -59,10 +61,13 @@ export default function LessonPage() {
   const [isComplete, setIsComplete]   = useState(false);
 
   // Progress tracking state
-  const [watchedPct, setWatchedPct] = useState(0);
-  const completionFiredRef = useRef(false);
-  const playerRef          = useRef<YTPlayer | null>(null);
-  const pollTimerRef       = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [watchedPct, setWatchedPct]   = useState(0);
+  const [playerError, setPlayerError] = useState(false);   // Fix 5
+  const completionFiredRef   = useRef(false);
+  const playerRef            = useRef<YTPlayer | null>(null);
+  const pollTimerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reinitAttemptsRef    = useRef(0);                  // Fix 2
+  const videoIdRef           = useRef<string>("");         // Fix 2
 
   // Refs so memoised callbacks always read the latest values without going stale
   const studentIdRef = useRef(studentId);
@@ -94,6 +99,8 @@ export default function LessonPage() {
   // ── YouTube IFrame API ─────────────────────────────────────────
 
   const initPlayer = useCallback((videoId: string) => {
+    videoIdRef.current = videoId;
+
     // Destroy any previous player
     if (playerRef.current) {
       try { playerRef.current.destroy(); } catch { /* ignore */ }
@@ -119,12 +126,32 @@ export default function LessonPage() {
             recordProgress(100);
           }
         },
+        // Fix 2: re-initialise on player error, up to 3 attempts
+        onError: (e) => {
+          console.error("[YT Player] error code:", e.data);
+          stopPoll();
+          reinitAttemptsRef.current += 1;
+          if (reinitAttemptsRef.current >= 3) {
+            setPlayerError(true);
+            return;
+          }
+          if (playerRef.current) {
+            try { playerRef.current.destroy(); } catch { /* ignore */ }
+            playerRef.current = null;
+          }
+          setTimeout(() => {
+            if (videoIdRef.current) initPlayer(videoIdRef.current);
+          }, 1000);
+        },
       },
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!lesson?.video_id) return;
+
+    // Fix 4: guard against double-init (React StrictMode / fast re-render)
+    if (playerRef.current) return;
 
     if (window.YT?.Player) {
       // API already loaded
@@ -155,13 +182,28 @@ export default function LessonPage() {
     };
   }, [lesson?.video_id, initPlayer]);
 
+  // Fix 3: pause polling when tab is hidden, resume when visible
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        stopPoll();
+      } else {
+        const p = playerRef.current;
+        if (p && p.getPlayerState() === 1) startPoll();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Progress polling ───────────────────────────────────────────
 
   function startPoll() {
     if (pollTimerRef.current) return;
     pollTimerRef.current = setInterval(() => {
       const p = playerRef.current;
-      if (!p) return;
+      // Fix 1: never call getCurrentTime/getDuration unless player is PLAYING (state = 1)
+      if (!p || p.getPlayerState() !== 1) return;
       const duration = p.getDuration();
       if (!duration) return;
       const pct = Math.round((p.getCurrentTime() / duration) * 100);
@@ -246,6 +288,17 @@ export default function LessonPage() {
             `}</style>
             <div id="yt-player" />
           </div>
+
+          {/* Fix 5: visible error state after 3 failed re-init attempts */}
+          {playerError && (
+            <div style={{
+              marginTop: "10px", padding: "10px 14px", borderRadius: "10px",
+              background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
+              fontSize: "13px", color: "#c53030", fontWeight: 500, textAlign: "center",
+            }}>
+              Video failed to load. Reload the page to try again.
+            </div>
+          )}
 
           {/* Progress bar */}
           <div style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "10px" }}>

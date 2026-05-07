@@ -127,19 +127,6 @@ function AnnouncementCard({ announcement }: { announcement: Announcement }) {
         {announcement.body}
       </p>
 
-      {/* Target Roles Badges */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {announcement.target_roles.map((role) => (
-          <span key={role} style={{ padding: "4px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", background: "rgba(32,147,121,0.08)", color: "#209379" }}>
-            {role.replace(/_/g, " ")}
-          </span>
-        ))}
-        {announcement.programme_type && (
-          <span style={{ padding: "4px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.05em", background: "rgba(10,190,98,0.1)", color: "#0abe62" }}>
-            {announcement.programme_type}
-          </span>
-        )}
-      </div>
     </div>
   );
 }

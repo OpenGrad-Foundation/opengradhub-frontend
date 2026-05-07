@@ -101,7 +101,6 @@ export default function CourseOverviewPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {modules.map((mod, modIdx) => {
             const prevMod = modIdx > 0 ? modules[modIdx - 1] : null;
-            const prevModuleComplete = !prevMod || (prevMod.lessons.length > 0 && prevMod.lessons.every(l => l.is_complete));
             return (
               <ModuleSection
                 key={mod.id}
@@ -109,7 +108,6 @@ export default function CourseOverviewPage() {
                 courseId={courseId}
                 isSequential={isSequential}
                 roleCode={roleCode}
-                prevModuleComplete={prevModuleComplete}
                 prevModuleTitle={prevMod?.title ?? ""}
               />
             );
@@ -122,18 +120,18 @@ export default function CourseOverviewPage() {
 
 // ── Module Section ─────────────────────────────────────────────
 
-function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleComplete, prevModuleTitle }: {
+function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTitle }: {
   module: ModuleWithProgress;
   courseId: string;
   isSequential: boolean;
   roleCode: RoleCode;
-  prevModuleComplete: boolean;
   prevModuleTitle: string;
 }) {
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
-  const allDone = total > 0 && done === total;
-  const isModuleLocked = isSequential && roleCode === "STUDENT" && !prevModuleComplete;
+  // is_module_complete from backend (lessons + quiz)
+  const allDone = module.is_module_complete;
+  const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
 
   return (
     <div style={{ ...glassCard, opacity: isModuleLocked ? 0.7 : 1 }}>

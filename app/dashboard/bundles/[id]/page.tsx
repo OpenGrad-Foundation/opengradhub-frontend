@@ -10,6 +10,7 @@ import {
   removeCourseFromBundle,
   reorderBundleCourses,
   enrolStudentInBundle,
+  removeStudentFromBundle,
   addTestToBundle,
   removeTestFromBundle,
   getCourses,
@@ -137,7 +138,14 @@ export default function BundleDetailPage() {
           </button>
         }
       >
-        <StudentTable students={bundle.enrolled_students} />
+        <StudentTable
+          bundleId={bundleId}
+          students={bundle.enrolled_students}
+          callerId={callerId}
+          callerRole={roleCode}
+          onRemoved={() => { void reload(); }}
+          setGlobalError={setGlobalError}
+        />
       </Section>
 
       {/* ── Section 3: Tests ─────────────────────────────────── */}
@@ -324,7 +332,26 @@ function CourseList({
 
 // ── Student table ─────────────────────────────────────────────────────────────
 
-function StudentTable({ students }: { students: BundleEnrolledStudent[] }) {
+function StudentTable({
+  bundleId, students, callerId, callerRole, onRemoved, setGlobalError,
+}: {
+  bundleId: string;
+  students: BundleEnrolledStudent[];
+  callerId: string;
+  callerRole: string;
+  onRemoved: () => void;
+  setGlobalError: (e: string | null) => void;
+}) {
+  async function handleRemove(studentId: string, studentName: string) {
+    if (!confirm(`Remove ${studentName} from this bundle? They will lose access to courses not assigned elsewhere.`)) return;
+    try {
+      await removeStudentFromBundle(bundleId, studentId, callerId, callerRole);
+      onRemoved();
+    } catch (e) {
+      setGlobalError(e instanceof Error ? e.message : "Failed to remove student.");
+    }
+  }
+
   if (students.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
@@ -337,7 +364,7 @@ function StudentTable({ students }: { students: BundleEnrolledStudent[] }) {
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
         <thead>
           <tr style={{ background: "rgba(32,147,121,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
-            {["Name", "Roll Number", "Email", "Enrolled"].map((h) => (
+            {["Name", "Roll Number", "Email", "Enrolled", ""].map((h) => (
               <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
             ))}
           </tr>
@@ -349,6 +376,15 @@ function StudentTable({ students }: { students: BundleEnrolledStudent[] }) {
               <td style={tdSt}>{s.roll_number ?? "—"}</td>
               <td style={tdSt}>{s.email || "—"}</td>
               <td style={tdSt}>{new Date(s.enrolled_at).toLocaleDateString()}</td>
+              <td style={{ ...tdSt, textAlign: "right" }}>
+                <button
+                  onClick={() => void handleRemove(s.id, s.name)}
+                  style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
+                  title={`Remove ${s.name} from bundle`}
+                >
+                  Remove
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

@@ -473,6 +473,8 @@ export type ModuleWithProgress = {
   title: string;
   order_index: number;
   lessons: LessonWithProgress[];
+  is_module_complete: boolean;
+  is_locked: boolean;
 };
 
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
@@ -869,7 +871,7 @@ export async function createAssignment(payload: {
 
 export async function submitAssignment(
   assignmentId: string,
-  payload: { student_id: string; response_text?: string; file_urls?: string[] },
+  payload: { student_id: string; caller_role: string; response_text?: string; file_urls?: string[] },
 ): Promise<Submission> {
   const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
     method: "POST",
@@ -1650,6 +1652,23 @@ export async function getBundleEnrolledStudents(bundleId: string): Promise<Bundl
   const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r.status);
   return (await r.json()) as BundleEnrolledStudent[];
+}
+
+export async function removeStudentFromBundle(
+  bundleId: string,
+  studentId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<{ removed: boolean }> {
+  const r = await fetch(
+    `${API_BASE_URL}/bundles/${bundleId}/enrol/${studentId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    { method: "DELETE", cache: "no-store" },
+  );
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove student from bundle.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
 }
 
 export async function addTestToBundle(

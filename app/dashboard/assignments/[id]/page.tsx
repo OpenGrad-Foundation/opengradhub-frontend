@@ -17,6 +17,8 @@ export default function AssignmentDetailPage() {
   const { id: assignmentId } = useParams<{ id: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const studentId = userData?.user?.id ?? "";
+  const roleCode = (userData?.role?.code ?? "") as string;
+  const isStudent = roleCode === "STUDENT";
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -115,15 +117,16 @@ export default function AssignmentDetailPage() {
       </div>
 
       {/* Graded result */}
-      {isGraded && (
+      {isGraded && isStudent && (
         <GradedResult assignmentId={assignmentId} studentId={studentId} />
       )}
 
-      {/* Submission form — hidden once GRADED */}
-      {!isGraded && (
+      {/* Submission form — only for students, hidden once GRADED */}
+      {!isGraded && isStudent && (
         <SubmissionForm
           assignmentId={assignmentId}
           studentId={studentId}
+          callerRole={roleCode}
           isResubmit={isSubmitted}
           onSubmitted={onSubmitted}
         />
@@ -190,11 +193,13 @@ const MAX_FILES = 3;
 function SubmissionForm({
   assignmentId,
   studentId,
+  callerRole,
   isResubmit,
   onSubmitted,
 }: {
   assignmentId: string;
   studentId: string;
+  callerRole: string;
   isResubmit: boolean;
   onSubmitted: (s: Submission) => void;
 }) {
@@ -241,6 +246,7 @@ function SubmissionForm({
       const fileUrls = files.map(f => f.name);
       const sub = await submitAssignment(assignmentId, {
         student_id:    studentId,
+        caller_role:   callerRole,
         response_text: responseText.trim() || undefined,
         file_urls:     fileUrls,
       });
