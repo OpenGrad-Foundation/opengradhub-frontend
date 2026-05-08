@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  --color-deep-teal: #006d6c;
+  --color-green: #0abe62;
+  --color-sun: #ffde00;
+  --color-ink: #034852;
+  --color-green-deep: #209379;
+  --color-green-muted: #a6db74;
+  --color-sun-soft: #ffde59;
+  --color-background: #034852;
+  --color-foreground: #f7fff8;
+  --color-panel: #f7fff8;
+  --color-mint-soft: #eef9e1;
+  --color-aqua: #8ef0c5;
+}
+
+@theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --font-sans: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  --font-display: "Aptos Display", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(255, 222, 0, 0.12), transparent 28%),
+    radial-gradient(circle at bottom right, rgba(10, 190, 98, 0.12), transparent 32%),
+    var(--color-background);
+}
+
+body {
+  min-height: 100vh;
+  background: transparent;
+  color: var(--color-foreground);
+  font-family: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+a,
+button,
+input {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.font-display {
+  font-family: "Aptos Display", "Segoe UI Variable Display", "Trebuchet MS", sans-serif;
+}
+
+.dashboard-card {
+  border: 1px solid color-mix(in srgb, var(--color-green-muted) 35%, white 65%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(238, 249, 225, 0.92));
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+}
+
+.dashboard-card-label {
+  color: var(--color-green-deep);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.dashboard-card-title {
+  color: var(--color-deep-teal);
+  font-family: var(--font-display), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin-top: 0.65rem;
+}
+
+.dashboard-card-copy {
+  color: rgba(3, 72, 82, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  margin-top: 0.65rem;
+}
+
+.dashboard-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dashboard-meta-row span {
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.dashboard-meta-row strong {
+  color: white;
+  font-weight: 600;
+  text-align: right;
+}
