@@ -1,5 +1,4 @@
-import Sidebar from "@/components/sidebar";
-import DashboardTopbar from "@/app/dashboard/_components/DashboardTopbar";
+import DashboardShell from "@/components/dashboard-shell";
 import { isClerkMode } from "@/lib/auth-session";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
@@ -25,13 +24,5 @@ export default async function DashboardLayout({
     }
   }
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex flex-1 flex-col min-w-0">
-        <DashboardTopbar />
-        <main className="flex-1 px-6 py-6 sm:px-8 sm:py-8 bg-gray-50">{children}</main>
-      </div>
-    </div>
-  );
+  return <DashboardShell>{children}</DashboardShell>;
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Menu } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import NotificationBell from "@/components/NotificationBell";
 
@@ -26,7 +27,11 @@ function initials(name: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function DashboardTopbar() {
+export default function DashboardTopbar({
+  onMenuClick,
+}: {
+  onMenuClick?: () => void;
+}) {
   const { data } = useCurrentUser();
 
   const userId   = data?.user?.id      ?? "";
@@ -38,8 +43,16 @@ export default function DashboardTopbar() {
 
   return (
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 sm:px-8 sticky top-0 z-20 shadow-sm">
-      {/* Left — reserved for future breadcrumbs */}
-      <div />
+      {/* Left — hamburger on mobile */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        className="lg:hidden -ml-1 rounded-md p-2 text-gray-500 hover:bg-gray-100"
+        aria-label="Open sidebar"
+      >
+        <Menu size={20} />
+      </button>
+      <div className="hidden lg:block" />
 
       {/* Right — role badge + notification bell + avatar */}
       <div className="flex items-center gap-3">

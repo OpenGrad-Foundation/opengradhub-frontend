@@ -22,6 +22,7 @@ import {
   Shield,
   UserPlus,
   LogOut,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
@@ -60,7 +61,7 @@ function isActivePath(pathname: string, href: string) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const clerk = useClerk();
@@ -82,10 +83,10 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="sticky top-0 flex h-dvh w-64 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm">
-      {/* Logo */}
-      <div className="px-6 pb-4 pt-6 border-b border-gray-100">
-        <Link href="/dashboard" className="inline-flex items-center">
+    <aside className="flex h-full min-h-dvh w-64 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm">
+      {/* Logo + mobile close */}
+      <div className="px-6 pb-4 pt-6 border-b border-gray-100 flex items-center justify-between">
+        <Link href="/dashboard" className="inline-flex items-center" onClick={onClose}>
           <Image
             src="/logo.png"
             alt="OpenGrad"
@@ -95,6 +96,16 @@ export default function Sidebar() {
             priority
           />
         </Link>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden -mr-1 rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+            aria-label="Close sidebar"
+          >
+            <X size={20} />
+          </button>
+        )}
       </div>
 
       {/* Nav */}

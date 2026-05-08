@@ -41,7 +41,7 @@ export default function AssignmentsPage() {
   return (
     <div>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
           <p style={S.label}>Learning</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
@@ -76,6 +76,7 @@ export default function AssignmentsPage() {
         </div>
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+          <div className="overflow-x-auto">
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
             <thead>
               <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
@@ -90,6 +91,7 @@ export default function AssignmentsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

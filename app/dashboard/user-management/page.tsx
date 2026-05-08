@@ -78,7 +78,7 @@ export default function UserManagementPage() {
   return (
     <div>
       {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
         <div>
           <p style={labelStyle}>Administration</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>User Management</h1>
@@ -86,7 +86,7 @@ export default function UserManagementPage() {
             {users.length} user{users.length !== 1 ? "s" : ""} registered
           </p>
         </div>
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+        <div className="flex flex-wrap gap-3">
           <button
             id="add-user-btn"
             style={primaryButton}

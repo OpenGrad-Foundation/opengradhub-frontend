@@ -90,7 +90,7 @@ export default function TestBankPage() {
   return (
     <div style={{ position: "relative" }}>
       {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
           <p style={labelStyle}>Assessments</p>
           <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
@@ -98,7 +98,7 @@ export default function TestBankPage() {
             Reusable questions not yet attached to any quiz · {questions.length} question{questions.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div style={{ display: "flex", gap: "10px" }}>
+        <div className="flex flex-wrap gap-2.5">
           <Link href="/dashboard/quiz-builder/new" style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)", textDecoration: "none" }}>
             + New Global Test
           </Link>
@@ -176,7 +176,8 @@ function QuestionRow({ question, isLast, onEdit, onDelete }: { question: Questio
   return (
     <div style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)" }}>
       <div
-        style={{ display: "flex", alignItems: "flex-start", gap: "14px", padding: "16px 24px", cursor: hasChildren ? "pointer" : "default" }}
+        className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3.5 px-6 py-4"
+        style={{ cursor: hasChildren ? "pointer" : "default" }}
         onClick={() => hasChildren && setExpanded(e => !e)}
       >
         <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
@@ -193,7 +194,7 @@ function QuestionRow({ question, isLast, onEdit, onDelete }: { question: Questio
             {hasChildren && <Tag>{question.children.length} sub-questions {expanded ? "▲" : "▼"}</Tag>}
           </div>
         </div>
-        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto" onClick={e => e.stopPropagation()}>
           <button style={outlineBtn} onClick={onEdit}>Edit</button>
           <button style={{ ...outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }} onClick={onDelete}>Delete</button>
         </div>

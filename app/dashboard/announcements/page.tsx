@@ -51,7 +51,7 @@ export default function AnnouncementsPage() {
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div>
           <p style={labelStyle}>Updates</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Announcements</h1>
@@ -114,7 +114,7 @@ function AnnouncementCard({ announcement }: { announcement: Announcement }) {
       {/* Green left accent border */}
       <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "4px", background: "var(--green, #0abe62)" }} />
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginBottom: "16px" }}>
+      <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-start mb-4">
         <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "20px", fontWeight: 700, color: "#034852", margin: 0, lineHeight: 1.3 }}>
           {announcement.title}
         </h3>

@@ -90,7 +90,7 @@ export default function AdminAnalytics({ callerId, callerRole, programmeFilter }
       </div>
 
       {/* Charts row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-5">
         {/* Bar: top districts */}
         <div style={card}>
           <p
