@@ -146,9 +146,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)", backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: "24px", padding: "32px", boxShadow: "0 32px 64px rgba(0,0,0,0.08)",
+  background: "#ffffff",
+  borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
 };
 const S = {
   label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,

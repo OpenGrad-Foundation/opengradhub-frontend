@@ -103,13 +103,11 @@ function LoadingCard() {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
   borderRadius: "24px",
   padding: "40px 48px",
-  boxShadow: "0 32px 64px rgba(0,0,0,0.08)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
 };
 
 const label: React.CSSProperties = {

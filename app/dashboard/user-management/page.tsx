@@ -671,11 +671,10 @@ function AssignCourseModal({
         {/* Modal Inner */}
         <div style={{
           background: "rgba(255,255,255,0.96)",
-          backdropFilter: "blur(24px)",
           border: "1px solid rgba(255,255,255,0.3)",
           borderRadius: "24px",
           padding: "32px",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
           opacity: 0,
           transform: "translateY(12px)",
           animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
@@ -873,9 +872,9 @@ function AssignBundleModal({
       {/* Modal wrapper */}
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
-          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+          background: "#ffffff",
           border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
         }}>
@@ -1412,7 +1411,7 @@ function BulkAssignPanel({
           <div onClick={() => !assigning && setShowConfirm(false)}
             style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px,92vw)", zIndex: 51 }}>
-            <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 24px 56px rgba(0,0,0,0.18)" }}>
+            <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 8px 24px rgba(0,0,0,0.14)" }}>
               <p style={labelStyle}>Confirm Assignment</p>
               <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "rgba(3,72,82,0.7)", margin: "12px 0 6px" }}>
                 You are about to assign:
@@ -1929,14 +1928,12 @@ function hoverOut(e: React.MouseEvent<HTMLButtonElement>) {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
   borderRadius: "24px",
   padding: "32px",
   textAlign: "center",
-  boxShadow: "0 32px 64px rgba(0,0,0,0.1)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
 };
 
 const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };

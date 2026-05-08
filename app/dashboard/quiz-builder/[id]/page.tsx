@@ -455,10 +455,10 @@ function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClos
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         width: "min(560px, 94vw)", maxHeight: "80vh",
-        background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+        background: "#ffffff",
         border: "1px solid rgba(255,255,255,0.3)",
         borderRadius: "24px", padding: "28px",
-        boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+        boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
         zIndex: 51, display: "flex", flexDirection: "column",
       }}>
         {/* Header */}
@@ -574,9 +574,8 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)", backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)", border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: "24px", padding: "28px 32px", boxShadow: "0 32px 64px rgba(0,0,0,0.08)",
+  background: "#ffffff",
+  borderRadius: "24px", padding: "28px 32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
 };
 
 const S = {

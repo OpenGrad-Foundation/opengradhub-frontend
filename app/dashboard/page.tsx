@@ -25,13 +25,12 @@ export default function DashboardPage() {
         justifyContent: "center",
       }}>
         <div style={{
-          background: "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(24px)",
-          border: "1px solid rgba(255,255,255,0.15)",
+          background: "#ffffff",
+          border: "1px solid rgba(3,72,82,0.08)",
           borderRadius: "24px",
           padding: "40px 48px",
           textAlign: "center",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.1)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
         }}>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62" }}>
             Loading
@@ -57,13 +56,12 @@ export default function DashboardPage() {
         justifyContent: "center",
       }}>
         <div style={{
-          background: "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(24px)",
-          border: "1px solid rgba(255,255,255,0.15)",
+          background: "#ffffff",
+          border: "1px solid rgba(3,72,82,0.08)",
           borderRadius: "24px",
           padding: "40px 48px",
           textAlign: "center",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.1)",
+          boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
           maxWidth: "480px",
         }}>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62" }}>
@@ -110,65 +108,25 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* Welcome card */}
-      <div style={{
-        background: "rgba(255,255,255,0.7)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        border: "1px solid rgba(255,255,255,0.4)",
-        borderRadius: "24px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.07)",
-        padding: "32px 36px",
-        marginBottom: "28px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "16px",
-      }}>
-        <div>
-          <p style={{
-            fontSize: "11px",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.28em",
-            color: "#209379",
-            marginBottom: "8px",
-          }}>
+      {/* Welcome hero */}
+      <section className="mb-6 overflow-hidden rounded-[2rem] bg-gradient-to-r from-[#034852] via-[#006d6c] to-[#209379] p-6 text-white shadow-xl shadow-teal-950/10 md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl space-y-3">
+            <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-teal-100/80">
+              {roleName}
+            </p>
+            <h1
+              className="text-3xl font-bold tracking-tight md:text-4xl"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
+              Welcome back, {userName} 👋
+            </h1>
+          </div>
+          <div className="shrink-0 rounded-2xl bg-white/10 px-5 py-3 text-sm font-semibold text-white/90 ring-1 ring-white/20">
             {roleName}
-          </p>
-          <h1 style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "28px",
-            fontWeight: 700,
-            color: "#034852",
-            margin: 0,
-          }}>
-            Welcome back, {userName}
-          </h1>
-          <p style={{
-            marginTop: "6px",
-            fontSize: "14px",
-            color: "rgba(3,72,82,0.6)",
-          }}>
-            {roleName}
-          </p>
+          </div>
         </div>
-
-        {/* Role badge pill */}
-        <div style={{
-          flexShrink: 0,
-          padding: "8px 18px",
-          background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-          borderRadius: "100px",
-          color: "#ffffff",
-          fontSize: "12px",
-          fontWeight: 700,
-          letterSpacing: "0.05em",
-          whiteSpace: "nowrap",
-        }}>
-          {roleName}
-        </div>
-      </div>
+      </section>
 
       {/* Next live class hero — students only */}
       {roleCode === "STUDENT" && data.user.id && (

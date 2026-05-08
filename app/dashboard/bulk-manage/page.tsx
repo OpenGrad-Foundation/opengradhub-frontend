@@ -282,7 +282,7 @@ export default function BulkManagePage() {
         <h1 style={{ ...headingStyle, fontSize: "28px", margin: "4px 0 12px" }}>Bulk Manage</h1>
 
         {/* Mode toggle */}
-        <div style={{ display: "inline-flex", borderRadius: "12px", border: "1.5px solid rgba(3,72,82,0.15)", overflow: "hidden", background: "rgba(255,255,255,0.7)" }}>
+        <div style={{ display: "inline-flex", borderRadius: "12px", border: "1.5px solid rgba(3,72,82,0.15)", overflow: "hidden", background: "#ffffff" }}>
           {(["assign", "remove"] as Mode[]).map((m) => (
             <button key={m} onClick={() => switchMode(m)} style={{
               padding: "9px 24px", border: "none", cursor: "pointer",
@@ -575,7 +575,7 @@ export default function BulkManagePage() {
       {showModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(3,72,82,0.35)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
           onClick={(e) => { if (e.target === e.currentTarget && !acting) setShowModal(false); }}>
-          <div style={{ background: "#fff", borderRadius: "20px", padding: "32px 36px", maxWidth: "500px", width: "100%", boxShadow: "0 24px 64px rgba(0,0,0,0.18)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "32px 36px", maxWidth: "500px", width: "100%", boxShadow: "0 8px 24px rgba(0,0,0,0.14)" }}>
             <p style={labelStyle}>
               {mode === "assign" ? "Confirm Assignment" : "Confirm Removal"}
             </p>
@@ -645,8 +645,6 @@ function LoadingShell() {
 
 const glassCard: React.CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: "20px",
   padding: "28px 32px",

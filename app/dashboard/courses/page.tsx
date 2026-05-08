@@ -166,16 +166,14 @@ function CourseCard({ course, canManage }: { course: Course; canManage: boolean 
     <div
       id={`course-card-${course.id}`}
       style={{
-        background: "rgba(255,255,255,0.7)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        background: "#ffffff",
         border: hovered
           ? "1px solid rgba(10,190,98,0.4)"
           : "1px solid rgba(255,255,255,0.4)",
         borderRadius: "24px",
         boxShadow: hovered
           ? "0 16px 48px rgba(10,190,98,0.12)"
-          : "0 8px 32px rgba(0,0,0,0.07)",
+          : "0 2px 8px rgba(0,0,0,0.05)",
         overflow: "hidden",
         transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
         transform: hovered ? "translateY(-4px)" : "translateY(0)",
@@ -329,12 +327,10 @@ function StudentCourseCard({ course }: { course: StudentCourse }) {
     >
       <div
         style={{
-          background: "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          background: "#ffffff",
           border: hovered ? "1px solid rgba(10,190,98,0.4)" : "1px solid rgba(255,255,255,0.4)",
           borderRadius: "24px",
-          boxShadow: hovered ? "0 16px 48px rgba(10,190,98,0.12)" : "0 8px 32px rgba(0,0,0,0.07)",
+          boxShadow: hovered ? "0 16px 48px rgba(10,190,98,0.12)" : "0 2px 8px rgba(0,0,0,0.05)",
           overflow: "hidden",
           transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
           transform: hovered ? "translateY(-4px)" : "translateY(0)",
@@ -435,14 +431,12 @@ function LoadingState() {
 // ── Style constants ────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
-  border: "1px solid rgba(255,255,255,0.15)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
   borderRadius: "24px",
   padding: "40px 48px",
   textAlign: "center",
-  boxShadow: "0 32px 64px rgba(0,0,0,0.1)",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
 };
 
 const labelStyle: React.CSSProperties = {

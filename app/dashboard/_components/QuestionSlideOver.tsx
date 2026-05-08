@@ -268,7 +268,7 @@ export function QuestionSlideOver({
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }} />
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 100vw)",
-        background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+        background: "#ffffff",
         borderLeft: "1px solid rgba(3,72,82,0.1)",
         boxShadow: "-24px 0 64px rgba(3,72,82,0.12)",
         zIndex: 41, overflowY: "auto", display: "flex", flexDirection: "column",

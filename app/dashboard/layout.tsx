@@ -26,22 +26,11 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="relative min-h-screen bg-white">
-      <div
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(circle at top right, rgba(0,109,108,0.08), transparent 40%), radial-gradient(circle at bottom left, rgba(10,190,98,0.08), transparent 40%)",
-        }}
-      />
-
-      <div className="relative z-10 flex min-h-screen items-start">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Slim topbar with notification bell */}
-          <DashboardTopbar />
-          <main className="flex-1 px-8 py-8">{children}</main>
-        </div>
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-1 flex-col min-w-0">
+        <DashboardTopbar />
+        <main className="flex-1 px-6 py-6 sm:px-8 sm:py-8 bg-gray-50">{children}</main>
       </div>
     </div>
   );

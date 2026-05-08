@@ -26,9 +26,7 @@ const BRAND = {
 };
 
 const card: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
+  background: "#ffffff",
   border: "1px solid rgba(255,255,255,0.4)",
   borderRadius: "20px",
   boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
@@ -200,9 +198,7 @@ function StatCard({
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.7)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
+        background: "#ffffff",
         border: "1px solid rgba(255,255,255,0.4)",
         borderRadius: "20px",
         boxShadow: "0 4px 24px rgba(0,0,0,0.06)",

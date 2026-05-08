@@ -125,8 +125,6 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 
 const glassCard: React.CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: "20px",
   padding: "32px",
@@ -153,7 +151,7 @@ const primaryBtn: React.CSSProperties = {
 const ghostBtn: React.CSSProperties = {
   flex: 1, padding: "12px 18px",
   border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "12px",
-  background: "rgba(255,255,255,0.7)", color: "#034852",
+  background: "#ffffff", color: "#034852",
   fontFamily: "var(--font-heading)", fontWeight: 600,
   fontSize: "14px", cursor: "pointer", textAlign: "center",
 };

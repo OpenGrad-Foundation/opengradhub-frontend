@@ -61,16 +61,13 @@
 }
 
 html {
-  background:
-    radial-gradient(circle at top left, rgba(255, 222, 0, 0.12), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(10, 190, 98, 0.12), transparent 32%),
-    var(--color-background);
+  background: #f8fafb;
 }
 
 body {
   min-height: 100vh;
   background: transparent;
-  color: var(--color-foreground);
+  color: var(--dark-teal);
   font-family: var(--font-body);
 }
 

@@ -60,9 +60,8 @@ export default function AnalyticsPage() {
       >
         <div
           style={{
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(24px)",
-            border: "1px solid rgba(255,255,255,0.15)",
+            background: "#ffffff",
+            border: "1px solid rgba(3,72,82,0.08)",
             borderRadius: "24px",
             padding: "40px 48px",
             textAlign: "center",
@@ -108,12 +107,10 @@ export default function AnalyticsPage() {
       {/* Page header */}
       <div
         style={{
-          background: "rgba(255,255,255,0.7)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          background: "#ffffff",
           border: "1px solid rgba(255,255,255,0.4)",
           borderRadius: "24px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.07)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
           padding: "28px 36px",
           marginBottom: "24px",
           display: "flex",
@@ -190,12 +187,10 @@ export default function AnalyticsPage() {
       {!isSA && !isPM && !isFellowOrZM && (
         <div
           style={{
-            background: "rgba(255,255,255,0.7)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
+            background: "#ffffff",
             border: "1px solid rgba(255,255,255,0.4)",
             borderRadius: "24px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.07)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
             padding: "48px 36px",
             textAlign: "center",
           }}

@@ -147,8 +147,6 @@ function LoadingCard() {
 
 const glassCard: React.CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: "20px",
   padding: "32px",

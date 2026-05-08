@@ -4,17 +4,61 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
+import {
+  LayoutDashboard,
+  BookOpen,
+  Package,
+  ClipboardList,
+  Database,
+  FileText,
+  Video,
+  Calendar,
+  FolderOpen,
+  HelpCircle,
+  Bell,
+  BarChart2,
+  Download,
+  Users,
+  Shield,
+  UserPlus,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { getNavModules } from "@/lib/moduleAccess";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
+
+// ── Icon map ────────────────────────────────────────────────────────────────
+
+const MODULE_ICONS: Record<string, LucideIcon> = {
+  dashboard:       LayoutDashboard,
+  courses:         BookOpen,
+  bundles:         Package,
+  assessments:     ClipboardList,
+  test_bank:       Database,
+  assignments:     FileText,
+  live_classes:    Video,
+  calendar:        Calendar,
+  resources:       FolderOpen,
+  doubts:          HelpCircle,
+  announcements:   Bell,
+  analytics:       BarChart2,
+  student_export:  Download,
+  user_management: Users,
+  role_management: Shield,
+  bulk_assign:     UserPlus,
+};
+
+// ── Active path helper ───────────────────────────────────────────────────────
 
 function isActivePath(pathname: string, href: string) {
   if (href === "/dashboard") {
     return pathname === href;
   }
-
   return pathname.startsWith(href);
 }
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -38,39 +82,46 @@ export default function Sidebar() {
   }
 
   return (
-    <aside
-      className="sticky top-0 flex h-dvh w-[260px] shrink-0 flex-col bg-[var(--dark-teal)] text-white"
-      style={{ fontFamily: "var(--font-body)" }}
-    >
-      <div className="px-6 pb-4 pt-6">
+    <aside className="sticky top-0 flex h-dvh w-64 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm">
+      {/* Logo */}
+      <div className="px-6 pb-4 pt-6 border-b border-gray-100">
         <Link href="/dashboard" className="inline-flex items-center">
           <Image
             src="/logo.png"
             alt="OpenGrad"
-            width={160}
-            height={48}
-            className="h-12 w-auto"
+            width={140}
+            height={40}
+            className="h-10 w-auto"
             priority
           />
         </Link>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-4 pb-6">
-        <ul className="space-y-1">
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-0.5">
           {navModules.map((module) => {
             const isActive = isActivePath(pathname, module.href);
+            const Icon = MODULE_ICONS[module.key];
 
             return (
               <li key={module.key}>
                 <Link
                   href={module.href}
                   className={
-                    "flex items-center gap-3 rounded-r-xl border-l-4 px-4 py-2 text-sm font-medium transition " +
+                    "relative flex items-center gap-3 rounded-lg border-l-[3px] px-4 py-2.5 text-sm font-medium transition-colors " +
                     (isActive
-                      ? "border-[var(--green)] bg-white/10 text-white"
-                      : "border-transparent text-white/70 hover:bg-white/10 hover:text-white")
+                      ? "border-[var(--teal)] bg-teal-50 text-[var(--teal)]"
+                      : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
                   }
                 >
+                  {Icon && (
+                    <Icon
+                      size={18}
+                      className={isActive ? "text-[var(--teal)]" : "text-gray-400"}
+                      aria-hidden="true"
+                    />
+                  )}
                   {module.label}
                 </Link>
               </li>
@@ -79,29 +130,15 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      <div className="px-4 pb-6">
+      {/* Sign out */}
+      <div className="px-3 pb-5 pt-3 border-t border-gray-100">
         <button
           id="sidebar-sign-out-btn"
           type="button"
           onClick={handleSignOut}
-          className="flex w-full items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-red-400/60 hover:bg-red-500/20 hover:text-white"
+          className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-            <polyline points="16 17 21 12 16 7" />
-            <line x1="21" y1="12" x2="9" y2="12" />
-          </svg>
+          <LogOut size={16} aria-hidden="true" />
           Sign Out
         </button>
       </div>

@@ -881,9 +881,9 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
-          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+          background: "#ffffff",
           borderRadius: "24px", padding: "32px",
-          boxShadow: "0 32px 64px rgba(0,0,0,0.18)",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
           border: "1px solid rgba(255,255,255,0.3)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
@@ -925,8 +925,6 @@ function LoadingCard() {
 
 const glassCard: React.CSSProperties = {
   background: "rgba(255,255,255,0.75)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: "20px",
   padding: "28px 32px",
@@ -960,7 +958,7 @@ const primaryBtnSm: React.CSSProperties = {
 const ghostBtnSm: React.CSSProperties = {
   flex: 1, padding: "11px 14px",
   border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "12px",
-  background: "rgba(255,255,255,0.7)", color: "#034852",
+  background: "#ffffff", color: "#034852",
   fontFamily: "var(--font-heading)", fontWeight: 600,
   fontSize: "14px", cursor: "pointer", textAlign: "center",
 };

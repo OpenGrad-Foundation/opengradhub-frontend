@@ -424,13 +424,11 @@ function formatDate(value: string) {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.7)",
-  backdropFilter: "blur(24px)",
-  WebkitBackdropFilter: "blur(24px)",
+  background: "#ffffff",
   border: "1px solid rgba(255,255,255,0.3)",
   borderRadius: "24px",
   padding: "36px",
-  boxShadow: "0 16px 40px rgba(0,0,0,0.06)",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
 const labelStyle: React.CSSProperties = {
