@@ -34,7 +34,7 @@ export default function AssessmentsPage() {
   useEffect(() => {
     if (userLoading || !isStudent || !studentId) return;
     setLoading(true);
-    getAvailableQuizzes(studentId)
+    getAvailableQuizzes()
       .then(async (qs) => {
         setQuizzes(qs);
         // Fetch attempt counts for each quiz in parallel
@@ -42,7 +42,7 @@ export default function AssessmentsPage() {
         await Promise.all(
           qs.map(async (q) => {
             try {
-              const attempts = await getQuizAttempts(q.id, studentId);
+              const attempts = await getQuizAttempts(q.id);
               counts[q.id] = attempts.filter((a) => a.is_complete).length;
             } catch {
               counts[q.id] = 0;

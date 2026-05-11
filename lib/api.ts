@@ -10,15 +10,27 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 // ── Auth token store ───────────────────────────────────────────────────────────
-// Set once by useCurrentUser after Clerk/custom auth resolves. All API calls
-// then pick it up automatically without needing to thread it as a parameter.
+// For Clerk mode: a getter fn is registered so every apiFetch call gets a fresh
+// token (Clerk caches internally, so this is cheap). This avoids the race where
+// sessionStorage cache hit sets isLoading=false synchronously but the async
+// getToken() call hasn't completed yet, causing API calls to go out token-less.
+// For custom auth mode: setApiAuthToken is called with the stored JWT.
 let _apiToken: string | null = null;
+let _tokenGetter: (() => Promise<string | null>) | null = null;
 
 export function setApiAuthToken(token: string): void {
   _apiToken = token;
 }
 
-function authHeader(): Record<string, string> {
+export function setApiTokenGetter(getter: () => Promise<string | null>): void {
+  _tokenGetter = getter;
+}
+
+async function resolveAuthHeader(): Promise<Record<string, string>> {
+  if (_tokenGetter) {
+    const token = await _tokenGetter();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
   return _apiToken ? { Authorization: `Bearer ${_apiToken}` } : {};
 }
 
@@ -27,8 +39,9 @@ function authHeader(): Record<string, string> {
  * Explicit `Authorization` headers in `init` take precedence over the stored token.
  */
 async function apiFetch(input: string | URL, init?: RequestInit): Promise<Response> {
+  const authHdr = await resolveAuthHeader();
   const headers: Record<string, string> = {
-    ...authHeader(),
+    ...authHdr,
     ...(init?.headers as Record<string, string> | undefined ?? {}),
   };
   return fetch(typeof input === "string" ? input : input.toString(), {
@@ -1360,13 +1373,66 @@ export type QuizAttempt = {
   passed: boolean | null;
 };
 
-export async function getQuizAttempts(quizId: string, studentId: string): Promise<QuizAttempt[]> {
+export async function getQuizAttempts(quizId: string, studentId?: string): Promise<QuizAttempt[]> {
   const url = new URL(`${API_BASE_URL}/quiz-attempts`);
   url.searchParams.set("quiz_id", quizId);
-  url.searchParams.set("student_id", studentId);
+  if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
   return (await r.json()) as QuizAttempt[];
+}
+
+export type QuizAttemptQuestion = {
+  snapshot_id: string;
+  question_type: string;
+  content_html: string;
+  correct_answer: string | null;
+  tolerance: number | null;
+  options: { id: string; option_text: string }[];
+  children: {
+    snapshot_id: string;
+    question_type: string;
+    content_html: string;
+    correct_answer: string | null;
+    tolerance: number | null;
+    options: { id: string; option_text: string }[];
+  }[];
+};
+
+export type StartedAttempt = {
+  attempt_id: string;
+  attempt_number: number;
+  started_at: string;
+  questions: QuizAttemptQuestion[];
+};
+
+export async function startQuizAttempt(quizId: string): Promise<StartedAttempt> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quiz_id: quizId }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to start quiz attempt.", r.status);
+  }
+  return (await r.json()) as StartedAttempt;
+}
+
+export async function submitQuizAttempt(
+  attemptId: string,
+  answers: { snapshot_id: string; student_answer: string | null }[],
+): Promise<{ attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string }> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/submit`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to submit quiz attempt.", r.status);
+  }
+  return await r.json() as { attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string };
 }
 
 // ── Course Content API (modules + lessons) ─────────────────────
@@ -1983,10 +2049,8 @@ export async function removeTestFromBundle(
   return (await r.json()) as { removed: boolean };
 }
 
-export async function getAvailableQuizzes(studentId: string): Promise<Omit<Quiz, "questions">[]> {
-  const url = new URL(`${API_BASE_URL}/quizzes/available`);
-  url.searchParams.set("student_id", studentId);
-  const r = await apiFetch(url.toString(), { cache: "no-store" });
+export async function getAvailableQuizzes(): Promise<Omit<Quiz, "questions">[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/available`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
 }

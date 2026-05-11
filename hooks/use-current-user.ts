@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { ApiError, fetchCurrentUser, getMe, setApiAuthToken } from "@/lib/api";
+import { ApiError, fetchCurrentUser, getMe, setApiAuthToken, setApiTokenGetter } from "@/lib/api";
 import { clearStoredAuthToken, getStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import type { CurrentUserResponse } from "@/lib/types";
 import { mockUser } from "@/lib/mockUser";
@@ -90,6 +90,14 @@ export function useCurrentUser() {
   // Clerk hooks must always be called (React rules of hooks), but we only use
   // the value when clerkMode is true.
   const clerkAuth = useAuth();
+
+  // Register the Clerk token getter immediately on every render (not in useEffect).
+  // This ensures apiFetch always calls clerkAuth.getToken() for a fresh token,
+  // even when sessionStorage cache sets isLoading=false before the async getToken()
+  // resolves. Clerk caches getToken() internally so this is cheap.
+  if (clerkMode) {
+    setApiTokenGetter(() => clerkAuth.getToken());
+  }
 
   useEffect(() => {
     // Cache hit: render immediately from sessionStorage, then revalidate in the
