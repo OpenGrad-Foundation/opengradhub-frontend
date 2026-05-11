@@ -9,6 +9,34 @@ import type {
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
+// ── Auth token store ───────────────────────────────────────────────────────────
+// Set once by useCurrentUser after Clerk/custom auth resolves. All API calls
+// then pick it up automatically without needing to thread it as a parameter.
+let _apiToken: string | null = null;
+
+export function setApiAuthToken(token: string): void {
+  _apiToken = token;
+}
+
+function authHeader(): Record<string, string> {
+  return _apiToken ? { Authorization: `Bearer ${_apiToken}` } : {};
+}
+
+/**
+ * Drop-in replacement for `fetch` that injects the current auth token.
+ * Explicit `Authorization` headers in `init` take precedence over the stored token.
+ */
+async function apiFetch(input: string | URL, init?: RequestInit): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...authHeader(),
+    ...(init?.headers as Record<string, string> | undefined ?? {}),
+  };
+  return fetch(typeof input === "string" ? input : input.toString(), {
+    ...init,
+    headers,
+  });
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -26,7 +54,7 @@ export class ApiError extends Error {
  *                in Clerk mode this is the Clerk session token from useAuth().getToken().
  */
 export async function fetchCurrentUser(token: string) {
-  const response = await fetch(`${API_BASE_URL}/users/me`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -62,7 +90,7 @@ async function postJson<TResponse>(
   path: string,
   payload: SignInPayload | SignUpPayload,
 ) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await apiFetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -112,7 +140,7 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
   const url = new URL(`${API_BASE_URL}/users`);
   if (role) url.searchParams.set("role", role);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch users.", response.status);
@@ -125,7 +153,7 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
  * Fetch a single user by ID (mock-friendly — no auth required).
  */
 export async function getMe(id: string): Promise<SafeUser> {
-  const response = await fetch(`${API_BASE_URL}/users/me?id=${encodeURIComponent(id)}`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/me?id=${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
 
@@ -199,7 +227,7 @@ export async function getAnalyticsSchools(
   callerId: string,
 ): Promise<AnalyticsSchool[]> {
   const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
-  const response = await fetch(`${API_BASE_URL}/analytics/schools?${params.toString()}`);
+  const response = await apiFetch(`${API_BASE_URL}/analytics/schools?${params.toString()}`);
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch schools.", response.status);
@@ -212,7 +240,7 @@ export async function getAnalyticsStudents(
   filters: AnalyticsStudentFilters,
 ): Promise<AnalyticsStudent[]> {
   const params = buildAnalyticsParams(filters);
-  const response = await fetch(`${API_BASE_URL}/analytics/students?${params.toString()}`);
+  const response = await apiFetch(`${API_BASE_URL}/analytics/students?${params.toString()}`);
 
   if (!response.ok) {
     const errorBody = (await response
@@ -230,7 +258,7 @@ export async function getAnalyticsStudents(
 
 export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilters) {
   const params = buildAnalyticsParams(filters);
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/analytics/students/export?${params.toString()}`,
   );
 
@@ -317,7 +345,7 @@ export async function getAdminAnalytics(
   callerId: string,
 ): Promise<AdminStats> {
   const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
-  const res = await fetch(`${API_BASE_URL}/analytics/admin?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE_URL}/analytics/admin?${params.toString()}`);
   if (!res.ok) throw new ApiError("Failed to fetch admin analytics.", res.status);
   return (await res.json()) as AdminStats;
 }
@@ -331,7 +359,7 @@ export async function getManagerAnalytics(
 > {
   const params = new URLSearchParams({ caller_id: callerId });
   if (courseId) params.set("course_id", courseId);
-  const res = await fetch(`${API_BASE_URL}/analytics/manager?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE_URL}/analytics/manager?${params.toString()}`);
   if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res.status);
   return res.json() as Promise<
     | { view: "courses"; courses: ManagerCourseRow[] }
@@ -344,7 +372,7 @@ export async function getFellowAnalytics(
   callerRole: string,
 ): Promise<FellowSchoolCard[]> {
   const params = new URLSearchParams({ caller_id: callerId, caller_role: callerRole });
-  const res = await fetch(`${API_BASE_URL}/analytics/fellow?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE_URL}/analytics/fellow?${params.toString()}`);
   if (!res.ok) throw new ApiError("Failed to fetch fellow analytics.", res.status);
   return (await res.json()) as FellowSchoolCard[];
 }
@@ -361,7 +389,7 @@ export async function getSchoolDetail(
     school_id: schoolId,
   });
   if (courseId) params.set("course_id", courseId);
-  const res = await fetch(`${API_BASE_URL}/analytics/fellow/school?${params.toString()}`);
+  const res = await apiFetch(`${API_BASE_URL}/analytics/fellow/school?${params.toString()}`);
   if (!res.ok) throw new ApiError("Failed to fetch school detail.", res.status);
   return (await res.json()) as SchoolDetail;
 }
@@ -435,7 +463,7 @@ export async function getCourses(
   const url = new URL(`${API_BASE_URL}/courses`);
   appendCourseListParams(url, { programmeType, studentId, createdBy, allStatuses });
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch courses.", response.status);
@@ -450,7 +478,7 @@ export async function getCoursesPage(
   const url = new URL(`${API_BASE_URL}/courses`);
   appendCourseListParams(url, params, true);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -468,7 +496,7 @@ export async function assignCourse(
   courseId: string,
   assignedBy: string,
 ): Promise<{ id: string; student_id: string; course_id: string; enrolled_at: string }> {
-  const response = await fetch(`${API_BASE_URL}/enrolments`, {
+  const response = await apiFetch(`${API_BASE_URL}/enrolments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ student_id: studentId, course_id: courseId, assigned_by: assignedBy }),
@@ -485,7 +513,7 @@ export async function assignCourse(
  * Get all courses a student is enrolled in.
  */
 export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
-  const response = await fetch(`${API_BASE_URL}/users/${studentId}/enrolments`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/${studentId}/enrolments`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -565,7 +593,7 @@ export type CourseManagementAnalytics = {
 };
 
 export async function getStudentCourses(studentId: string): Promise<StudentCourse[]> {
-  const r = await fetch(`${API_BASE_URL}/students/${studentId}/courses`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/students/${studentId}/courses`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch student courses.", r.status);
   return (await r.json()) as StudentCourse[];
 }
@@ -578,7 +606,7 @@ export async function getCourseManagementSummary(
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-summary`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(e?.message ?? "Failed to fetch course management summary.", r.status);
@@ -608,7 +636,7 @@ export async function getCourseManagementStudents(
   if (params.sort) url.searchParams.set("sort", params.sort);
   if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
   if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(e?.message ?? "Failed to fetch course management students.", r.status);
@@ -625,7 +653,7 @@ export async function getCourseManagementStudentDetail(
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-students/${studentId}`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(e?.message ?? "Failed to fetch student detail.", r.status);
@@ -641,7 +669,7 @@ export async function getCourseManagementCurriculum(
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-curriculum`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(e?.message ?? "Failed to fetch course management curriculum.", r.status);
@@ -657,7 +685,7 @@ export async function getCourseManagementAnalytics(
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-analytics`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(e?.message ?? "Failed to fetch course management analytics.", r.status);
@@ -689,7 +717,7 @@ export type ModuleWithProgress = {
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
   url.searchParams.set("student_id", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
   return (await r.json()) as ModuleWithProgress[];
 }
@@ -698,7 +726,7 @@ export async function getCourseOverview(courseId: string, studentId: string): Pr
  * Create a new course (DRAFT by default).
  */
 export async function getCourseById(id: string): Promise<Course> {
-  const response = await fetch(`${API_BASE_URL}/courses/${id}`, {
+  const response = await apiFetch(`${API_BASE_URL}/courses/${id}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -718,7 +746,7 @@ export async function createCourse(payload: {
   created_by: string;
   role: string;
 }): Promise<Course> {
-  const response = await fetch(`${API_BASE_URL}/courses`, {
+  const response = await apiFetch(`${API_BASE_URL}/courses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -749,7 +777,7 @@ export async function updateCourse(
     caller_role: string;
   },
 ): Promise<Course> {
-  const response = await fetch(`${API_BASE_URL}/courses/${id}`, {
+  const response = await apiFetch(`${API_BASE_URL}/courses/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -834,13 +862,13 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.difficulty) url.searchParams.set("difficulty", filters.difficulty);
   if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
   if (filters.search) url.searchParams.set("search", filters.search);
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
   if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
   return (await response.json()) as Question[];
 }
 
 export async function createQuestion(payload: CreateQuestionPayload): Promise<Question> {
-  const response = await fetch(`${API_BASE_URL}/questions`, {
+  const response = await apiFetch(`${API_BASE_URL}/questions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -866,7 +894,7 @@ export async function updateQuestion(
     options?: CreateOptionPayload[];
   },
 ): Promise<Question> {
-  const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
+  const response = await apiFetch(`${API_BASE_URL}/questions/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -880,7 +908,7 @@ export async function updateQuestion(
 }
 
 export async function deleteQuestion(id: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/questions/${id}`, {
+  const response = await apiFetch(`${API_BASE_URL}/questions/${id}`, {
     method: "DELETE",
     cache: "no-store",
   });
@@ -910,7 +938,7 @@ export async function getLiveClasses(callerId: string, callerRole: string): Prom
   const url = new URL(`${API_BASE_URL}/live-classes`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
   return (await r.json()) as LiveClass[];
 }
@@ -918,7 +946,7 @@ export async function getLiveClasses(callerId: string, callerRole: string): Prom
 export async function getNextLiveClass(studentId: string): Promise<LiveClass | null> {
   const url = new URL(`${API_BASE_URL}/live-classes/next`);
   url.searchParams.set("studentId", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) return null;
   const data = await r.json() as LiveClass | null;
   return data ?? null;
@@ -928,7 +956,7 @@ export async function joinLiveClass(
   liveClassId: string,
   studentId: string,
 ): Promise<{ meeting_url: string; live_class_id: string }> {
-  const r = await fetch(`${API_BASE_URL}/live-classes/${liveClassId}/join`, {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/${liveClassId}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ student_id: studentId }),
@@ -952,7 +980,7 @@ export async function createLiveClass(payload: {
   caller_id: string;
   caller_role: string;
 }): Promise<LiveClass> {
-  const r = await fetch(`${API_BASE_URL}/live-classes`, {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -981,7 +1009,7 @@ export type Notification = {
 export async function getNotifications(recipientId: string): Promise<Notification[]> {
   const url = new URL(`${API_BASE_URL}/notifications`);
   url.searchParams.set("recipientId", recipientId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) return [];
   return (await r.json()) as Notification[];
 }
@@ -989,14 +1017,14 @@ export async function getNotifications(recipientId: string): Promise<Notificatio
 export async function getUnreadCount(recipientId: string): Promise<number> {
   const url = new URL(`${API_BASE_URL}/notifications/unread-count`);
   url.searchParams.set("recipientId", recipientId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) return 0;
   const data = await r.json() as { count: number };
   return data.count;
 }
 
 export async function markAllNotificationsRead(recipientId: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+  await apiFetch(`${API_BASE_URL}/notifications/mark-all-read`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ recipient_id: recipientId }),
@@ -1040,7 +1068,7 @@ export async function getAssignments(callerId: string, callerRole: string): Prom
   const url = new URL(`${API_BASE_URL}/assignments`);
   url.searchParams.set("caller_id", callerId);
   url.searchParams.set("caller_role", callerRole);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch assignments.", r.status);
   return (await r.json()) as Assignment[];
 }
@@ -1048,7 +1076,7 @@ export async function getAssignments(callerId: string, callerRole: string): Prom
 export async function getAssignmentById(id: string, studentId?: string): Promise<Assignment> {
   const url = new URL(`${API_BASE_URL}/assignments/${id}`);
   if (studentId) url.searchParams.set("student_id", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch assignment.", r.status);
@@ -1065,7 +1093,7 @@ export async function createAssignment(payload: {
   caller_id: string;
   caller_role: string;
 }): Promise<Assignment> {
-  const r = await fetch(`${API_BASE_URL}/assignments`, {
+  const r = await apiFetch(`${API_BASE_URL}/assignments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1082,7 +1110,7 @@ export async function submitAssignment(
   assignmentId: string,
   payload: { student_id: string; caller_role: string; response_text?: string; file_urls?: string[] },
 ): Promise<Submission> {
-  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
+  const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1096,7 +1124,7 @@ export async function submitAssignment(
 }
 
 export async function getSubmissions(assignmentId: string): Promise<Submission[]> {
-  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch submissions.", r.status);
   return (await r.json()) as Submission[];
 }
@@ -1106,7 +1134,7 @@ export async function patchSubmission(
   submissionId: string,
   payload: { score?: number; feedback?: string; status?: string; graded_by?: string },
 ): Promise<Submission> {
-  const r = await fetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions/${submissionId}`, {
+  const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions/${submissionId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1153,13 +1181,13 @@ export async function getQuizzes(params: { module_id?: string; quiz_type?: strin
   const url = new URL(`${API_BASE_URL}/quizzes`);
   if (params.module_id) url.searchParams.set("module_id", params.module_id);
   if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
 }
 
 export async function getQuizById(id: string): Promise<Quiz> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${id}`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch quiz.", r.status);
@@ -1168,7 +1196,7 @@ export async function getQuizById(id: string): Promise<Quiz> {
 }
 
 export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
-  const r = await fetch(`${API_BASE_URL}/quizzes`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1192,7 +1220,7 @@ export async function updateQuiz(
     show_answers_after?: boolean;
   },
 ): Promise<Quiz> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${id}`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1209,7 +1237,7 @@ export async function addQuizQuestion(
   quizId: string,
   payload: CreateQuestionPayload,
 ): Promise<Question> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/questions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1226,7 +1254,7 @@ export async function attachQuizQuestion(
   quizId: string,
   questionId: string,
 ): Promise<Question> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/attach`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/questions/attach`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question_id: questionId }),
@@ -1240,7 +1268,7 @@ export async function attachQuizQuestion(
 }
 
 export async function reorderQuizQuestions(quizId: string, ids: string[]): Promise<void> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/reorder`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/questions/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
@@ -1250,7 +1278,7 @@ export async function reorderQuizQuestions(quizId: string, ids: string[]): Promi
 }
 
 export async function removeQuizQuestion(quizId: string, questionId: string): Promise<void> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/questions/${questionId}`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/questions/${questionId}`, {
     method: "DELETE",
     cache: "no-store",
   });
@@ -1258,7 +1286,7 @@ export async function removeQuizQuestion(quizId: string, questionId: string): Pr
 }
 
 export async function publishQuiz(quizId: string): Promise<Quiz> {
-  const r = await fetch(`${API_BASE_URL}/quizzes/${quizId}/publish`, {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/publish`, {
     method: "POST",
     cache: "no-store",
   });
@@ -1293,7 +1321,7 @@ export type LessonDetail = {
 };
 
 export async function getLessonById(lessonId: string): Promise<LessonDetail> {
-  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/lessons/${lessonId}`, { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch lesson.", r.status);
@@ -1306,7 +1334,7 @@ export async function patchLessonProgress(payload: {
   lesson_id: string;
   watched_percent: number;
 }): Promise<{ id: string; is_complete: boolean; watched_percent: number }> {
-  const r = await fetch(`${API_BASE_URL}/lesson-progress`, {
+  const r = await apiFetch(`${API_BASE_URL}/lesson-progress`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1336,7 +1364,7 @@ export async function getQuizAttempts(quizId: string, studentId: string): Promis
   const url = new URL(`${API_BASE_URL}/quiz-attempts`);
   url.searchParams.set("quiz_id", quizId);
   url.searchParams.set("student_id", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
   return (await r.json()) as QuizAttempt[];
 }
@@ -1363,13 +1391,13 @@ export type CourseModule = {
 };
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
-  const r = await fetch(`${API_BASE_URL}/courses/${courseId}/modules`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to load modules.", r.status);
   return (await r.json()) as CourseModule[];
 }
 
 export async function createModule(courseId: string, title: string): Promise<CourseModule> {
-  const r = await fetch(`${API_BASE_URL}/courses/${courseId}/modules`, {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }), cache: "no-store",
   });
@@ -1378,14 +1406,14 @@ export async function createModule(courseId: string, title: string): Promise<Cou
 }
 
 export async function reorderModules(courseId: string, ids: string[]): Promise<void> {
-  await fetch(`${API_BASE_URL}/courses/${courseId}/modules/reorder`, {
+  await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules/reorder`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }), cache: "no-store",
   });
 }
 
 export async function updateModule(moduleId: string, title: string): Promise<CourseModule> {
-  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}`, {
+  const r = await apiFetch(`${API_BASE_URL}/modules/${moduleId}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }), cache: "no-store",
   });
@@ -1394,7 +1422,7 @@ export async function updateModule(moduleId: string, title: string): Promise<Cou
 }
 
 export async function deleteModule(moduleId: string): Promise<void> {
-  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}`, { method: "DELETE", cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/modules/${moduleId}`, { method: "DELETE", cache: "no-store" });
   if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete module.", r.status); }
 }
 
@@ -1402,7 +1430,7 @@ export async function createLesson(
   moduleId: string,
   payload: { title: string; youtube_url: string; duration_minutes?: number; notes_html?: string },
 ): Promise<CourseLesson> {
-  const r = await fetch(`${API_BASE_URL}/modules/${moduleId}/lessons`, {
+  const r = await apiFetch(`${API_BASE_URL}/modules/${moduleId}/lessons`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload), cache: "no-store",
   });
@@ -1411,7 +1439,7 @@ export async function createLesson(
 }
 
 export async function reorderLessons(moduleId: string, ids: string[]): Promise<void> {
-  await fetch(`${API_BASE_URL}/modules/${moduleId}/lessons/reorder`, {
+  await apiFetch(`${API_BASE_URL}/modules/${moduleId}/lessons/reorder`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }), cache: "no-store",
   });
@@ -1421,7 +1449,7 @@ export async function updateLesson(
   lessonId: string,
   payload: { title?: string; youtube_url?: string; duration_minutes?: number | null; notes_html?: string | null },
 ): Promise<CourseLesson> {
-  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, {
+  const r = await apiFetch(`${API_BASE_URL}/lessons/${lessonId}`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload), cache: "no-store",
   });
@@ -1430,7 +1458,7 @@ export async function updateLesson(
 }
 
 export async function deleteLesson(lessonId: string): Promise<void> {
-  const r = await fetch(`${API_BASE_URL}/lessons/${lessonId}`, { method: "DELETE", cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/lessons/${lessonId}`, { method: "DELETE", cache: "no-store" });
   if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete lesson.", r.status); }
 }
 
@@ -1453,7 +1481,7 @@ export async function getResources(programmeType?: string): Promise<Resource[]> 
   const url = new URL(`${API_BASE_URL}/resources`);
   if (programmeType) url.searchParams.set("programme_type", programmeType);
 
-  const response = await fetch(url.toString(), { cache: "no-store" });
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch resources.", response.status);
@@ -1474,7 +1502,7 @@ export async function createResource(payload: {
   uploaded_by: string;
   role: string;
 }): Promise<Resource> {
-  const response = await fetch(`${API_BASE_URL}/resources`, {
+  const response = await apiFetch(`${API_BASE_URL}/resources`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1513,7 +1541,7 @@ export async function createUser(payload: {
   district?: string;
   password?: string;
 }): Promise<SafeUser> {
-  const response = await fetch(`${API_BASE_URL}/users`, {
+  const response = await apiFetch(`${API_BASE_URL}/users`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1549,7 +1577,7 @@ export async function updateUser(
   },
   callerRole: string,
 ): Promise<SafeUser> {
-  const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...payload, caller_role: callerRole }),
@@ -1563,7 +1591,7 @@ export async function updateUser(
 }
 
 export async function deleteUser(userId: string, callerRole: string): Promise<void> {
-  const response = await fetch(
+  const response = await apiFetch(
     `${API_BASE_URL}/users/${userId}?caller_role=${encodeURIComponent(callerRole)}`,
     { method: "DELETE", cache: "no-store" },
   );
@@ -1582,7 +1610,7 @@ export async function bulkUploadUsers(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/users/bulk`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/bulk`, {
     method: "POST",
     body: formData,
     cache: "no-store",
@@ -1635,7 +1663,7 @@ export async function getAnnouncements(role?: string): Promise<Announcement[]> {
 
   const url = `${API_BASE_URL}/announcements${params.toString() ? `?${params.toString()}` : ""}`;
 
-  const response = await fetch(url, {
+  const response = await apiFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
     cache: "no-store",
@@ -1656,7 +1684,7 @@ export async function createAnnouncement(payload: {
   created_by: string;
   role: string;
 }): Promise<Announcement> {
-  const response = await fetch(`${API_BASE_URL}/announcements`, {
+  const response = await apiFetch(`${API_BASE_URL}/announcements`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1698,7 +1726,7 @@ export async function getDoubts(role: string, studentId?: string): Promise<Doubt
   const params = new URLSearchParams({ role });
   if (studentId) params.set("student_id", studentId);
 
-  const response = await fetch(`${API_BASE_URL}/doubts?${params.toString()}`, {
+  const response = await apiFetch(`${API_BASE_URL}/doubts?${params.toString()}`, {
     cache: "no-store",
   });
 
@@ -1718,7 +1746,7 @@ export async function submitDoubt(payload: {
   body: string;
   role: string;
 }): Promise<Doubt> {
-  const response = await fetch(`${API_BASE_URL}/doubts`, {
+  const response = await apiFetch(`${API_BASE_URL}/doubts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1790,13 +1818,13 @@ export type BundleDetail = {
 export async function getBundles(studentId?: string): Promise<Bundle[]> {
   const url = new URL(`${API_BASE_URL}/bundles`);
   if (studentId) url.searchParams.set("student_id", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch bundles.", r.status);
   return (await r.json()) as Bundle[];
 }
 
 export async function getBundleById(id: string): Promise<BundleDetail> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${id}`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${id}`, { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch bundle.", r.status);
@@ -1810,7 +1838,7 @@ export async function createBundle(payload: {
   caller_id: string;
   caller_role: string;
 }): Promise<Bundle> {
-  const r = await fetch(`${API_BASE_URL}/bundles`, {
+  const r = await apiFetch(`${API_BASE_URL}/bundles`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -1829,7 +1857,7 @@ export async function addCourseToBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ added: boolean; students_enrolled: number }> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/courses`, {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/courses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ course_id: courseId, caller_id: callerId, caller_role: callerRole }),
@@ -1848,7 +1876,7 @@ export async function removeCourseFromBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ removed: boolean }> {
-  const r = await fetch(
+  const r = await apiFetch(
     `${API_BASE_URL}/bundles/${bundleId}/courses/${courseId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
     { method: "DELETE", cache: "no-store" },
   );
@@ -1865,7 +1893,7 @@ export async function reorderBundleCourses(
   callerId: string,
   callerRole: string,
 ): Promise<void> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/courses/reorder`, {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/courses/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids, caller_id: callerId, caller_role: callerRole }),
@@ -1883,7 +1911,7 @@ export async function enrolStudentInBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ enrolled: boolean; courses_enrolled: number }> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ student_id: studentId, caller_id: callerId, caller_role: callerRole }),
@@ -1897,7 +1925,7 @@ export async function enrolStudentInBundle(
 }
 
 export async function getBundleEnrolledStudents(bundleId: string): Promise<BundleEnrolledStudent[]> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, { cache: "no-store" });
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r.status);
   return (await r.json()) as BundleEnrolledStudent[];
 }
@@ -1908,7 +1936,7 @@ export async function removeStudentFromBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ removed: boolean }> {
-  const r = await fetch(
+  const r = await apiFetch(
     `${API_BASE_URL}/bundles/${bundleId}/enrol/${studentId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
     { method: "DELETE", cache: "no-store" },
   );
@@ -1925,7 +1953,7 @@ export async function addTestToBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ added: boolean }> {
-  const r = await fetch(`${API_BASE_URL}/bundles/${bundleId}/tests`, {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/tests`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ quiz_id: quizId, caller_id: callerId, caller_role: callerRole }),
@@ -1944,7 +1972,7 @@ export async function removeTestFromBundle(
   callerId: string,
   callerRole: string,
 ): Promise<{ removed: boolean }> {
-  const r = await fetch(
+  const r = await apiFetch(
     `${API_BASE_URL}/bundles/${bundleId}/tests/${quizId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
     { method: "DELETE", cache: "no-store" },
   );
@@ -1958,7 +1986,7 @@ export async function removeTestFromBundle(
 export async function getAvailableQuizzes(studentId: string): Promise<Omit<Quiz, "questions">[]> {
   const url = new URL(`${API_BASE_URL}/quizzes/available`);
   url.searchParams.set("student_id", studentId);
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
 }
@@ -1993,7 +2021,7 @@ export async function getStudentsForBulk(
   if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
   if (filters.search)         url.searchParams.set("search",         filters.search);
 
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
@@ -2012,7 +2040,7 @@ export async function getEnrolledItemsForStudents(
   if (!studentIds.length) return { courses: [], bundles: [] };
   const url = new URL(`${API_BASE_URL}/enrolments/enrolled-items`);
   url.searchParams.set("student_ids", studentIds.join(","));
-  const r = await fetch(url.toString(), { cache: "no-store" });
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch enrolled items.", r.status);
@@ -2027,7 +2055,7 @@ export async function bulkRemove(payload: {
   caller_id: string;
   caller_role: string;
 }): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
-  const r = await fetch(`${API_BASE_URL}/enrolments/bulk`, {
+  const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -2047,7 +2075,7 @@ export async function bulkEnrol(payload: {
   caller_id: string;
   caller_role: string;
 }): Promise<{ enrolled_courses: number; enrolled_bundles: number; skipped: number }> {
-  const r = await fetch(`${API_BASE_URL}/enrolments/bulk`, {
+  const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

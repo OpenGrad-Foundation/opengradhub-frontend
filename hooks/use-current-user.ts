@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { ApiError, fetchCurrentUser, getMe } from "@/lib/api";
+import { ApiError, fetchCurrentUser, getMe, setApiAuthToken } from "@/lib/api";
 import { clearStoredAuthToken, getStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import type { CurrentUserResponse } from "@/lib/types";
 import { mockUser } from "@/lib/mockUser";
@@ -158,6 +158,9 @@ export function useCurrentUser() {
         // Custom mode: read from localStorage/cookie
         token = getStoredAuthToken();
       }
+
+      // Store token so all subsequent apiFetch calls include the Authorization header.
+      if (token) setApiAuthToken(token);
 
       if (!token) {
         // On background revalidation a missing token means the session expired
