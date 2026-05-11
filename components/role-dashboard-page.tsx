@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DashboardShell } from "@/components/dashboard-shell";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { roleCodeBySlug } from "@/lib/role-dashboard";
 
@@ -19,9 +18,13 @@ export function RoleDashboardPage({ roleSlug }: RoleDashboardPageProps) {
       return;
     }
 
-    if (data.role.dashboardPath !== `/dashboard/${roleSlug}`) {
-      router.replace(data.role.dashboardPath);
-    }
+    const expectedRolePath = `/dashboard/${roleSlug}`;
+    const targetPath =
+      data.role.dashboardPath === expectedRolePath
+        ? "/dashboard"
+        : data.role.dashboardPath;
+
+    router.replace(targetPath);
   }, [data, roleSlug, router]);
 
   if (isLoading) {
@@ -67,5 +70,5 @@ export function RoleDashboardPage({ roleSlug }: RoleDashboardPageProps) {
     );
   }
 
-  return <DashboardShell data={data} />;
+  return null;
 }

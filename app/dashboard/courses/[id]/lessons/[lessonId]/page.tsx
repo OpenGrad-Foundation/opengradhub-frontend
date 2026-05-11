@@ -78,8 +78,8 @@ function ensureYouTubeIframeApi(): Promise<void> {
 
   window.__openGradYoutubeIframeApiPromise = new Promise<void>((resolve, reject) => {
     let settled = false;
-    let pollTimer: ReturnType<typeof window.setInterval> | null = null;
-    let timeoutTimer: ReturnType<typeof window.setTimeout> | null = null;
+    let pollTimer: number | null = null;
+    let timeoutTimer: number | null = null;
     const handleError = () => fail();
     const existingScript = document.getElementById(YT_API_SCRIPT_ID) as HTMLScriptElement | null;
     const script = existingScript ?? document.createElement("script");

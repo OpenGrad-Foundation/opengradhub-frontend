@@ -49,8 +49,26 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div style={card}>
+    <form onSubmit={handleSubmit} className="course-mgmt-form">
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 640px) {
+          .course-mgmt-form-card {
+            padding: 20px 20px !important;
+            border-radius: 16px !important;
+            gap: 18px !important;
+          }
+          .course-mgmt-form-flex-row {
+            flex-direction: column !important;
+            gap: 10px !important;
+          }
+          .course-mgmt-form-flex-row button,
+          .course-mgmt-form-flex-row label {
+            width: 100% !important;
+            flex: none !important;
+          }
+        }
+      ` }} />
+      <div className="course-mgmt-form-card" style={card}>
 
         {/* ── Title ─────────────────────────────────────────── */}
         <Section label="Title *">
@@ -78,7 +96,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
 
         {/* ── Programme Type ────────────────────────────────── */}
         <Section label="Programme Type">
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             {(["UG", "PG"] as const).map((p) => (
               <ToggleChip
                 key={p}
@@ -114,7 +132,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
 
         {/* ── Locking Mode ──────────────────────────────────── */}
         <Section label="Locking Mode">
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <ToggleChip
               label="Open"
               sublabel="Students can take any lesson in any order"
@@ -132,7 +150,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
 
         {/* ── Access Type ───────────────────────────────────── */}
         <Section label="Access Type">
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <RadioCard
               id="access-free"
               label="Free"

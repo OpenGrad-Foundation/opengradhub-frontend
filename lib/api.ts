@@ -382,6 +382,43 @@ export type Course = {
   lesson_count: number;
 };
 
+export type CourseListParams = {
+  programmeType?: string;
+  studentId?: string;
+  createdBy?: string;
+  allStatuses?: boolean;
+  search?: string;
+  status?: string;
+  accessType?: string;
+  lockingMode?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type PaginatedCoursesResponse = {
+  items: Course[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+function appendCourseListParams(url: URL, params: CourseListParams, paginate = false) {
+  if (params.programmeType) url.searchParams.set("programme_type", params.programmeType);
+  if (params.studentId) url.searchParams.set("student_id", params.studentId);
+  if (params.createdBy) url.searchParams.set("created_by", params.createdBy);
+  if (params.allStatuses) url.searchParams.set("all_statuses", "true");
+  if (params.search) url.searchParams.set("search", params.search);
+  if (params.status) url.searchParams.set("status", params.status);
+  if (params.accessType) url.searchParams.set("access_type", params.accessType);
+  if (params.lockingMode) url.searchParams.set("locking_mode", params.lockingMode);
+  if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
+  if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
+  if (paginate) url.searchParams.set("paginate", "true");
+}
+
 /**
  * Fetch courses. Mode is determined by params:
  *   studentId   → enrolled courses for that student (ACTIVE only)
@@ -396,10 +433,7 @@ export async function getCourses(
   allStatuses?: boolean,
 ): Promise<Course[]> {
   const url = new URL(`${API_BASE_URL}/courses`);
-  if (programmeType) url.searchParams.set("programme_type", programmeType);
-  if (studentId) url.searchParams.set("student_id", studentId);
-  if (createdBy) url.searchParams.set("created_by", createdBy);
-  if (allStatuses) url.searchParams.set("all_statuses", "true");
+  appendCourseListParams(url, { programmeType, studentId, createdBy, allStatuses });
 
   const response = await fetch(url.toString(), { cache: "no-store" });
 
@@ -408,6 +442,22 @@ export async function getCourses(
   }
 
   return (await response.json()) as Course[];
+}
+
+export async function getCoursesPage(
+  params: CourseListParams = {},
+): Promise<PaginatedCoursesResponse> {
+  const url = new URL(`${API_BASE_URL}/courses`);
+  appendCourseListParams(url, params, true);
+
+  const response = await fetch(url.toString(), { cache: "no-store" });
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to fetch course catalogue.", response.status);
+  }
+
+  return (await response.json()) as PaginatedCoursesResponse;
 }
 
 /**
@@ -450,10 +500,169 @@ export type StudentCourse = Course & {
   completion_percent: number;
 };
 
+export type CourseManagementActivity = {
+  type: "LESSON_COMPLETED" | "QUIZ_SUBMITTED" | "ASSIGNMENT_SUBMITTED" | "ENROLLED";
+  student_name: string;
+  label: string;
+  happened_at: string;
+};
+
+export type CourseManagementModuleSummary = {
+  id: string;
+  title: string;
+  order_index: number;
+  lesson_count: number;
+  module_quiz: { id: string; title: string; published: boolean } | null;
+  avg_completion_percent: number;
+};
+
+export type CourseManagementSummary = {
+  course: Course;
+  metrics: {
+    enrolled_students: number;
+    average_completion_percent: number;
+    average_quiz_score_percent: number;
+    assignment_submission_rate_percent: number;
+    at_risk_students: number;
+  };
+  recent_activity: CourseManagementActivity[];
+  module_progress: CourseManagementModuleSummary[];
+};
+
+export type CourseManagementStudentRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  enrolled_at: string;
+  progress_percent: number;
+  completed_lessons: number;
+  total_lessons: number;
+  average_quiz_score_percent: number | null;
+  assignment_status: string;
+  last_active_at: string | null;
+};
+
+export type CourseManagementStudentDetail = CourseManagementStudentRow & {
+  lessons: { id: string; title: string; module_title: string; is_complete: boolean; completed_at: string | null }[];
+  quiz_attempts: { id: string; title: string; score_percent: number | null; passed: boolean | null; submitted_at: string | null }[];
+  assignments: { id: string; title: string; status: string; score: number | null; submitted_at: string | null }[];
+};
+
+export type CourseManagementStudentsResponse = {
+  items: CourseManagementStudentRow[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+export type CourseManagementAnalytics = {
+  enrollment_trend: { date: string; enrolled_students: number }[];
+  progress_distribution: { label: string; count: number }[];
+  quiz_score_distribution: { label: string; count: number }[];
+};
+
 export async function getStudentCourses(studentId: string): Promise<StudentCourse[]> {
   const r = await fetch(`${API_BASE_URL}/students/${studentId}/courses`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch student courses.", r.status);
   return (await r.json()) as StudentCourse[];
+}
+
+export async function getCourseManagementSummary(
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<CourseManagementSummary> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-summary`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch course management summary.", r.status);
+  }
+  return (await r.json()) as CourseManagementSummary;
+}
+
+export async function getCourseManagementStudents(
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+  params: {
+    search?: string;
+    status?: string;
+    progressBucket?: string;
+    sort?: string;
+    page?: number;
+    pageSize?: number;
+  } = {},
+): Promise<CourseManagementStudentsResponse> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-students`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  if (params.search) url.searchParams.set("search", params.search);
+  if (params.status) url.searchParams.set("status", params.status);
+  if (params.progressBucket) url.searchParams.set("progress_bucket", params.progressBucket);
+  if (params.sort) url.searchParams.set("sort", params.sort);
+  if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
+  if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch course management students.", r.status);
+  }
+  return (await r.json()) as CourseManagementStudentsResponse;
+}
+
+export async function getCourseManagementStudentDetail(
+  courseId: string,
+  studentId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<CourseManagementStudentDetail> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-students/${studentId}`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch student detail.", r.status);
+  }
+  return (await r.json()) as CourseManagementStudentDetail;
+}
+
+export async function getCourseManagementCurriculum(
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<CourseManagementModuleSummary[]> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-curriculum`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch course management curriculum.", r.status);
+  }
+  return (await r.json()) as CourseManagementModuleSummary[];
+}
+
+export async function getCourseManagementAnalytics(
+  courseId: string,
+  callerId: string,
+  callerRole: string,
+): Promise<CourseManagementAnalytics> {
+  const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-analytics`);
+  url.searchParams.set("caller_id", callerId);
+  url.searchParams.set("caller_role", callerRole);
+  const r = await fetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch course management analytics.", r.status);
+  }
+  return (await r.json()) as CourseManagementAnalytics;
 }
 
 export type LessonWithProgress = {
@@ -1323,6 +1532,45 @@ export async function createUser(payload: {
   }
 
   return (await response.json()) as SafeUser;
+}
+
+export async function updateUser(
+  userId: string,
+  payload: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    programme_type?: string;
+    school_id?: string;
+    state?: string;
+    school_code?: string;
+    roll_number?: string;
+    district?: string;
+  },
+  callerRole: string,
+): Promise<SafeUser> {
+  const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, caller_role: callerRole }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to update user.", response.status);
+  }
+  return (await response.json()) as SafeUser;
+}
+
+export async function deleteUser(userId: string, callerRole: string): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/users/${userId}?caller_role=${encodeURIComponent(callerRole)}`,
+    { method: "DELETE", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
+  }
 }
 
 /**
