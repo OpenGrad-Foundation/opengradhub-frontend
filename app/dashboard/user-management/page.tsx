@@ -20,6 +20,7 @@ import {
   type StudentForBulk,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -43,6 +44,7 @@ export default function UserManagementPage() {
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [assignStudent, setAssignStudent] = useState<SafeUser | null>(null);
   const [assignBundleStudent, setAssignBundleStudent] = useState<SafeUser | null>(null);
+  const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const currentUserId = data?.user?.id ?? "";
 
   const fetchUsers = useCallback(async () => {
@@ -152,6 +154,26 @@ export default function UserManagementPage() {
         />
       )}
 
+      {/* ── User Detail Panel ─────────────────────────────── */}
+      {selectedUser && (
+        <UserDetailPanel
+          user={selectedUser}
+          callerId={currentUserId}
+          callerRole={roleCode}
+          onClose={() => setSelectedUser(null)}
+          onUpdated={(updated) => {
+            setSelectedUser(updated);
+            setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+          }}
+          onDeleted={() => {
+            setSelectedUser(null);
+            void fetchUsers();
+          }}
+          onAssignCourse={(u) => setAssignStudent(u)}
+          onAssignBundle={(u) => setAssignBundleStudent(u)}
+        />
+      )}
+
       {/* ── Users Table ───────────────────────────────────── */}
       {loading ? (
         <LoadingState />
@@ -163,52 +185,50 @@ export default function UserManagementPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
-                  {["Name", "Email", "Role", "Programme", "Status", "Created", "Actions"].map((h) => (
+                  {["Name", "Email", "Role", "Programme", "Status", "Created", ""].map((h) => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)" }}>
-                    <td style={tdStyle}><strong style={{ color: "#034852" }}>{u.name}</strong></td>
-                    <td style={tdStyle}>{u.email ?? "—"}</td>
-                    <td style={tdStyle}><RoleBadge role={u.role} /></td>
-                    <td style={tdStyle}>{u.programme_type ?? "—"}</td>
-                    <td style={tdStyle}><StatusBadge status={u.status} /></td>
-                    <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
-                    <td style={tdStyle}>
-                      {u.role === "STUDENT" && (
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                          <button
-                            onClick={() => setAssignStudent(u)}
-                            style={{
-                              padding: "5px 12px", border: "1.5px solid rgba(10,190,98,0.4)",
-                              borderRadius: "8px", background: "transparent",
-                              color: "#0abe62", fontFamily: "var(--font-body)",
-                              fontSize: "11px", fontWeight: 700, cursor: "pointer",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Assign Course
-                          </button>
-                          <button
-                            onClick={() => setAssignBundleStudent(u)}
-                            style={{
-                              padding: "5px 12px", border: "1.5px solid rgba(32,147,121,0.4)",
-                              borderRadius: "8px", background: "transparent",
-                              color: "#209379", fontFamily: "var(--font-body)",
-                              fontSize: "11px", fontWeight: 700, cursor: "pointer",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Assign Bundle
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const isSelected = selectedUser?.id === u.id;
+                  return (
+                    <tr
+                      key={u.id}
+                      onClick={() => setSelectedUser(u)}
+                      style={{
+                        borderBottom: "1px solid rgba(3,72,82,0.05)",
+                        cursor: "pointer",
+                        background: isSelected ? "rgba(10,190,98,0.05)" : "transparent",
+                        transition: "background 150ms",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(0,0,0,0.02)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLTableRowElement).style.background = isSelected
+                          ? "rgba(10,190,98,0.05)"
+                          : "transparent";
+                      }}
+                    >
+                      <td style={tdStyle}><strong style={{ color: "#034852" }}>{u.name}</strong></td>
+                      <td style={tdStyle}>{u.email ?? "—"}</td>
+                      <td style={tdStyle}><RoleBadge role={u.role} /></td>
+                      <td style={tdStyle}>{u.programme_type ?? "—"}</td>
+                      <td style={tdStyle}><StatusBadge status={u.status} /></td>
+                      <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        <span style={{
+                          fontSize: "11px", fontWeight: 600, color: "#209379",
+                          opacity: isSelected ? 1 : 0.5,
+                        }}>
+                          {isSelected ? "Open ›" : "Manage →"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
