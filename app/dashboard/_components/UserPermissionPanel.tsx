@@ -12,6 +12,7 @@ import {
   deleteOverride,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
+import { clearUserCache } from "@/hooks/use-current-user";
 
 interface UserPermissionPanelProps {
   user: SafeUser;
@@ -32,6 +33,7 @@ export function UserPermissionPanel({
   onRoleChanged,
 }: UserPermissionPanelProps) {
   const [overrides, setOverrides] = useState<Override[]>([]);
+  const [effective, setEffective] = useState<null | { permissions: string[]; modules: any[] }>(null);
   const [loading, setLoading] = useState(true);
   const [selectedModule, setSelectedModule] = useState("dashboard");
   const [pendingChanges, setPendingChanges] = useState<Record<string, PendingAction>>({});
@@ -48,9 +50,19 @@ export function UserPermissionPanel({
   const loadOverrides = useCallback(async () => {
     setLoading(true);
     try {
-      setOverrides(await fetchOverrides(user.id, callerRole));
-    } catch {
+      const [ovs, eff] = await Promise.all([
+        fetchOverrides(user.id, callerRole),
+        // fetchEffectivePermissions may throw if callerRole isn't allowed —
+        // wrap to return null on error so UI remains usable.
+        import("@/app/dashboard/role-management/role-management.utils").then((m) =>
+          m.fetchEffectivePermissions(user.id, callerRole).catch(() => null),
+        ),
+      ]);
+      setOverrides(ovs);
+      setEffective(eff);
+    } catch (err) {
       setOverrides([]);
+      setEffective(null);
     } finally {
       setLoading(false);
     }
@@ -72,9 +84,16 @@ export function UserPermissionPanel({
     if (pending === "ALLOW") return "ALLOW";
     if (pending === "DENY") return "DENY";
     if (pending === "CLEAR") return "NONE";
+    // Explicit saved override takes precedence
     const saved = overrides.find((o) => o.permission_code === permCode);
-    if (!saved) return "NONE";
-    return saved.effect;
+    if (saved) return saved.effect as PermState;
+
+    // Otherwise, consult effective permissions (role grants + user allows)
+    if (effective && Array.isArray(effective.permissions) && effective.permissions.includes(permCode)) {
+      return "ALLOW";
+    }
+
+    return "NONE";
   }
 
   function setPending(permCode: string, action: PendingAction) {
@@ -129,6 +148,27 @@ export function UserPermissionPanel({
       const fresh = await fetchOverrides(user.id, callerRole);
       setOverrides(fresh);
       setPendingChanges({});
+      // If we edited the currently-logged-in user's permissions, clear the
+      // client-side cached profile so the UI (sidebar/navigation) reflects
+      // the updated effective modules/permissions immediately.
+      if (user.id === callerId) {
+        try {
+          clearUserCache();
+          // Hard reload to force re-fetch of the current user profile.
+          window.location.reload();
+        } catch {
+          // ignore
+        }
+      } else {
+        // Refresh effective permissions for non-current users
+        try {
+          const m = await import("@/app/dashboard/role-management/role-management.utils");
+          const eff = await m.fetchEffectivePermissions(user.id, callerRole).catch(() => null);
+          setEffective(eff);
+        } catch {
+          // ignore
+        }
+      }
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "Save failed.");
     } finally {
@@ -142,6 +182,16 @@ export function UserPermissionPanel({
     setRoleErr(null);
     try {
       await patchRole(user.id, newRole, callerRole);
+      // If we changed the currently-logged-in user's role, clear cache and reload
+      if (user.id === callerId) {
+        try {
+          clearUserCache();
+          window.location.reload();
+          return; // reload will interrupt flow
+        } catch {
+          // ignore and fall through to normal behavior
+        }
+      }
       onRoleChanged();
       setRoleEditing(false);
     } catch (e) {

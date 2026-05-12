@@ -29,7 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
-import { getNavModules } from "@/lib/moduleAccess";
+import { getNavModules, MODULE_META, type ModuleKey } from "@/lib/moduleAccess";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 
 // ── Icon map ────────────────────────────────────────────────────────────────
@@ -72,7 +72,17 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
 
   const roleCode = data?.role?.code ?? "STUDENT";
   const programmeType = data?.user?.programme ?? null;
-  const navModules = getNavModules(roleCode, programmeType);
+  // Prefer server-provided module list (includes role defaults + overrides)
+  const navModules = (() => {
+    if (data?.modules && Array.isArray(data.modules) && data.modules.length > 0) {
+      return data.modules.map((m: any) => {
+        const key = m.code as ModuleKey;
+        const meta = MODULE_META[key] ?? { label: m.name, href: `/dashboard/${m.code}` };
+        return { key, label: meta.label, href: meta.href };
+      });
+    }
+    return getNavModules(roleCode, programmeType);
+  })();
 
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);

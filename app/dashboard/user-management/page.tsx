@@ -35,6 +35,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const permissions = data?.permissions ?? [];
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,18 +61,21 @@ export default function UserManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (!userLoading && roleCode === "SUPER_ADMIN") void fetchUsers();
-  }, [userLoading, roleCode, fetchUsers]);
+    const canView = (permissions.includes('user_management.view') || roleCode === 'SUPER_ADMIN');
+    if (!userLoading && canView) void fetchUsers();
+  }, [userLoading, roleCode, permissions, fetchUsers]);
 
   // ── Guard ──────────────────────────────────────────────────
   if (userLoading) return <LoadingState />;
 
-  if (roleCode !== "SUPER_ADMIN") {
+  const canView = (permissions.includes('user_management.view') || roleCode === 'SUPER_ADMIN');
+
+  if (!canView) {
     return (
       <div style={glassCard}>
         <p style={labelStyle}>Access Denied</p>
         <p style={{ ...titleStyle, marginTop: "12px" }}>
-          User Management is available to Super Admins only.
+          User Management is available to users with the {"user_management.view"} permission.
         </p>
       </div>
     );
@@ -89,30 +93,34 @@ export default function UserManagementPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button
-            id="add-user-btn"
-            style={primaryButton}
-            onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            + Add User
-          </button>
-          <button
-            id="bulk-upload-btn"
-            style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
-            onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            ↑ Bulk Upload
-          </button>
-          <button
-            id="bulk-assign-btn"
-            style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
-            onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            ⚡ Bulk Assign
-          </button>
+          { (permissions.includes('user_management.create') || roleCode === 'SUPER_ADMIN') && (
+            <>
+              <button
+                id="add-user-btn"
+                style={primaryButton}
+                onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                + Add User
+              </button>
+              <button
+                id="bulk-upload-btn"
+                style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
+                onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                ↑ Bulk Upload
+              </button>
+              <button
+                id="bulk-assign-btn"
+                style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
+                onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                ⚡ Bulk Assign
+              </button>
+            </>
+          )}
         </div>
       </div>
 

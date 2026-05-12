@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/api";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 export const VALID_ROLES = [
@@ -32,7 +34,7 @@ export type Override = {
 };
 
 export async function patchRole(userId: string, role: string, callerRole: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/users/${userId}/role`, {
+  const res = await apiFetch(`${API_BASE}/users/${userId}/role`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ role, caller_role: callerRole }),
@@ -44,12 +46,26 @@ export async function patchRole(userId: string, role: string, callerRole: string
 }
 
 export async function fetchOverrides(userId: string, callerRole: string): Promise<Override[]> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/users/${userId}/overrides?caller_role=${callerRole}`,
     { cache: "no-store" },
   );
   if (!res.ok) throw new Error("Failed to fetch overrides.");
   return res.json() as Promise<Override[]>;
+}
+
+export type EffectivePermissions = {
+  permissions: string[];
+  modules: Array<{
+    code: string;
+    name: string;
+    permissions: Array<{ code: string; name: string; grantedBy: string }>;
+  }>;
+};
+export async function fetchEffectivePermissions(userId: string, callerRole: string): Promise<EffectivePermissions> {
+  const res = await apiFetch(`${API_BASE}/users/${userId}/effective?caller_role=${callerRole}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch effective permissions.");
+  return res.json() as Promise<EffectivePermissions>;
 }
 
 export async function addOverride(
@@ -59,7 +75,7 @@ export async function addOverride(
   setBy: string,
   callerRole: string,
 ): Promise<Override[]> {
-  const res = await fetch(`${API_BASE}/users/${userId}/overrides`, {
+  const res = await apiFetch(`${API_BASE}/users/${userId}/overrides`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -81,7 +97,7 @@ export async function deleteOverride(
   permissionId: string,
   callerRole: string,
 ): Promise<void> {
-  const res = await fetch(
+  const res = await apiFetch(
     `${API_BASE}/users/${userId}/overrides/${permissionId}?caller_role=${callerRole}`,
     { method: "DELETE" },
   );

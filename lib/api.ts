@@ -38,7 +38,7 @@ async function resolveAuthHeader(): Promise<Record<string, string>> {
  * Drop-in replacement for `fetch` that injects the current auth token.
  * Explicit `Authorization` headers in `init` take precedence over the stored token.
  */
-async function apiFetch(input: string | URL, init?: RequestInit): Promise<Response> {
+export async function apiFetch(input: string | URL, init?: RequestInit): Promise<Response> {
   const authHdr = await resolveAuthHeader();
   const headers: Record<string, string> = {
     ...authHdr,
