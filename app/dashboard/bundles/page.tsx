@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermission } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getBundles, type Bundle } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 export default function BundlesPage() {
-  const { data, isLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const { isLoading } = useCurrentUser();
+  const canCreate = usePermission(PERM.bundles.create);
 
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,17 +26,6 @@ export default function BundlesPage() {
 
   if (isLoading) return <LoadingCard />;
 
-  if (!ALLOWED.includes(roleCode)) {
-    return (
-      <div style={glassCard}>
-        <p style={label}>Access Denied</p>
-        <p style={{ ...heading, marginTop: "12px", fontSize: "18px" }}>
-          Course Bundles are managed by Super Admins and Program Managers.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ maxWidth: "960px" }}>
       {/* ── Header ─────────────────────────────────────────────── */}
@@ -47,9 +35,11 @@ export default function BundlesPage() {
           <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Course Bundles</h1>
           <p style={sub}>Group courses together and assign them to students in one action.</p>
         </div>
-        <Link href="/dashboard/bundles/new" style={primaryBtn}>
-          + New Bundle
-        </Link>
+        {canCreate && (
+          <Link href="/dashboard/bundles/new" style={primaryBtn}>
+            + New Bundle
+          </Link>
+        )}
       </div>
 
       {/* ── Content ────────────────────────────────────────────── */}
@@ -64,9 +54,11 @@ export default function BundlesPage() {
           <p style={{ fontSize: "36px", marginBottom: "12px" }}>📦</p>
           <p style={label}>No bundles yet</p>
           <p style={{ ...sub, marginTop: "8px" }}>Create your first bundle to start grouping courses.</p>
-          <Link href="/dashboard/bundles/new" style={{ ...primaryBtn, marginTop: "20px", display: "inline-block" }}>
-            + Create Bundle
-          </Link>
+          {canCreate && (
+            <Link href="/dashboard/bundles/new" style={{ ...primaryBtn, marginTop: "20px", display: "inline-block" }}>
+              + Create Bundle
+            </Link>
+          )}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "20px" }}>

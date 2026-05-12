@@ -55,9 +55,7 @@ const td: React.CSSProperties = {
   borderBottom: "1px solid rgba(3,72,82,0.05)",
 };
 
-type Props = { callerId: string };
-
-export default function ManagerAnalytics({ callerId }: Props) {
+export default function ManagerAnalytics() {
   const [courses, setCourses] = useState<ManagerCourseRow[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<ManagerCourseRow | null>(null);
   const [students, setStudents] = useState<ManagerStudentRow[]>([]);
@@ -68,18 +66,18 @@ export default function ManagerAnalytics({ callerId }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    getManagerAnalytics(callerId)
+    getManagerAnalytics()
       .then((data) => {
         if (data.view === "courses") setCourses(data.courses);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
       .finally(() => setLoading(false));
-  }, [callerId]);
+  }, []);
 
   function handleCourseClick(course: ManagerCourseRow) {
     setSelectedCourse(course);
     setDrillLoading(true);
-    getManagerAnalytics(callerId, course.id)
+    getManagerAnalytics(course.id)
       .then((data) => {
         if (data.view === "students") {
           setStudents(data.students);

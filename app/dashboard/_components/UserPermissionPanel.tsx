@@ -3,21 +3,20 @@
 import { useEffect, useState, useCallback } from "react";
 import type { SafeUser } from "@/lib/api";
 import {
-  MODULES,
-  ACTIONS,
-  VALID_ROLES,
-  type Override,
+  fetchCatalogue,
   fetchOverrides,
+  fetchEffectivePermissions,
   addOverride,
   deleteOverride,
   patchRole,
+  type Override,
+  type CatalogueModule,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { clearUserCache } from "@/hooks/use-current-user";
 
 interface UserPermissionPanelProps {
   user: SafeUser;
   callerId: string;
-  callerRole: string;
   onClose: () => void;
   onRoleChanged: () => void;
 }
@@ -25,13 +24,19 @@ interface UserPermissionPanelProps {
 type PermState = "ALLOW" | "DENY" | "NONE";
 type PendingAction = "ALLOW" | "DENY" | "CLEAR";
 
+// `courses.create` → `create`
+function actionOf(permCode: string): string {
+  return permCode.includes(".") ? permCode.slice(permCode.indexOf(".") + 1) : permCode;
+}
+
 export function UserPermissionPanel({
   user,
   callerId,
-  callerRole,
   onClose,
   onRoleChanged,
 }: UserPermissionPanelProps) {
+  const [modules, setModules] = useState<CatalogueModule[]>([]);
+  const [roleOptions, setRoleOptions] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Override[]>([]);
   const [effective, setEffective] = useState<null | { permissions: string[]; modules: any[] }>(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +44,7 @@ export function UserPermissionPanel({
   const [pendingChanges, setPendingChanges] = useState<Record<string, PendingAction>>({});
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [saveOk, setSaveOk] = useState(false);
   const [roleEditing, setRoleEditing] = useState(false);
   const [newRole, setNewRole] = useState(user.role);
   const [roleSaving, setRoleSaving] = useState(false);
@@ -47,26 +53,47 @@ export function UserPermissionPanel({
 
   const dirty = Object.keys(pendingChanges).length > 0;
 
+  // Load the module/permission catalogue once.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCatalogue()
+      .then((cat) => {
+        if (cancelled) return;
+        setModules(cat.modules);
+        setRoleOptions(cat.roles.map((r) => r.code));
+        if (cat.modules.length > 0 && !cat.modules.some((m) => m.code === "dashboard")) {
+          setSelectedModule(cat.modules[0].code);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setModules([]);
+          setRoleOptions([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const loadOverrides = useCallback(async () => {
     setLoading(true);
     try {
       const [ovs, eff] = await Promise.all([
-        fetchOverrides(user.id, callerRole),
-        // fetchEffectivePermissions may throw if callerRole isn't allowed —
-        // wrap to return null on error so UI remains usable.
-        import("@/app/dashboard/role-management/role-management.utils").then((m) =>
-          m.fetchEffectivePermissions(user.id, callerRole).catch(() => null),
-        ),
+        fetchOverrides(user.id),
+        // May throw if the caller lacks role_management.view — return null so
+        // the UI stays usable.
+        fetchEffectivePermissions(user.id).catch(() => null),
       ]);
       setOverrides(ovs);
       setEffective(eff);
-    } catch (err) {
+    } catch {
       setOverrides([]);
       setEffective(null);
     } finally {
       setLoading(false);
     }
-  }, [user.id, callerRole]);
+  }, [user.id]);
 
   useEffect(() => {
     void loadOverrides();
@@ -136,16 +163,17 @@ export function UserPermissionPanel({
   async function handleSave() {
     setSaving(true);
     setSaveErr(null);
+    setSaveOk(false);
     try {
       for (const [permCode, action] of Object.entries(pendingChanges)) {
         if (action === "ALLOW" || action === "DENY") {
-          await addOverride(user.id, permCode, action, callerId, callerRole);
+          await addOverride(user.id, permCode, action, callerId);
         } else {
           const existing = overrides.find((o) => o.permission_code === permCode);
-          if (existing) await deleteOverride(user.id, existing.id, callerRole);
+          if (existing) await deleteOverride(user.id, existing.id);
         }
       }
-      const fresh = await fetchOverrides(user.id, callerRole);
+      const fresh = await fetchOverrides(user.id);
       setOverrides(fresh);
       setPendingChanges({});
       // If we edited the currently-logged-in user's permissions, clear the
@@ -162,12 +190,12 @@ export function UserPermissionPanel({
       } else {
         // Refresh effective permissions for non-current users
         try {
-          const m = await import("@/app/dashboard/role-management/role-management.utils");
-          const eff = await m.fetchEffectivePermissions(user.id, callerRole).catch(() => null);
+          const eff = await fetchEffectivePermissions(user.id).catch(() => null);
           setEffective(eff);
         } catch {
           // ignore
         }
+        setSaveOk(true);
       }
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : "Save failed.");
@@ -181,7 +209,7 @@ export function UserPermissionPanel({
     setRoleSaving(true);
     setRoleErr(null);
     try {
-      await patchRole(user.id, newRole, callerRole);
+      await patchRole(user.id, newRole);
       // If we changed the currently-logged-in user's role, clear cache and reload
       if (user.id === callerId) {
         try {
@@ -209,7 +237,9 @@ export function UserPermissionPanel({
     }
   }
 
-  const selectedModuleName = MODULES.find((m) => m.code === selectedModule)?.name ?? selectedModule;
+  const selectedMod = modules.find((m) => m.code === selectedModule);
+  const selectedModuleName = selectedMod?.name ?? selectedModule;
+  const selectedActions = selectedMod?.permissions.map((p) => actionOf(p.code)) ?? [];
   const pendingCount = Object.keys(pendingChanges).length;
 
   return (
@@ -275,7 +305,7 @@ export function UserPermissionPanel({
                 onChange={(e) => setNewRole(e.target.value)}
                 style={{ ...S.input, flex: 1, minWidth: 0, padding: "7px 12px", fontSize: "13px" }}
               >
-                {VALID_ROLES.map((r) => (
+                {roleOptions.map((r) => (
                   <option key={r} value={r}>{r.replace(/_/g, " ")}</option>
                 ))}
               </select>
@@ -318,9 +348,9 @@ export function UserPermissionPanel({
             padding: "8px 0",
           }}>
             <p style={{ ...S.label, padding: "8px 16px 4px", fontSize: "9px" }}>Modules</p>
-            {MODULES.map((mod) => {
+            {modules.map((mod) => {
               const active = selectedModule === mod.code;
-              const hasPending = ACTIONS.some((a) => pendingChanges[`${mod.code}.${a}`]);
+              const hasPending = mod.permissions.some((p) => pendingChanges[p.code]);
               return (
                 <button
                   key={mod.code}
@@ -366,7 +396,7 @@ export function UserPermissionPanel({
                   Toggles grant explicit access. Use Deny to block role defaults.
                 </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                  {ACTIONS.map((action) => {
+                  {selectedActions.map((action) => {
                     const permCode = `${selectedModule}.${action}`;
                     const state = getPermState(permCode);
                     const isPending = Boolean(pendingChanges[permCode]);
@@ -398,6 +428,11 @@ export function UserPermissionPanel({
         }}>
           {saveErr && (
             <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{saveErr}</p>
+          )}
+          {saveOk && (
+            <p style={{ fontSize: "12px", color: "#0abe62", fontWeight: 600, margin: 0 }}>
+              Saved. Changes take effect on the user&apos;s next page refresh.
+            </p>
           )}
           {confirmClose && (
             <div style={{

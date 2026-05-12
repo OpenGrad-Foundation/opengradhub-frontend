@@ -13,9 +13,7 @@ const BRAND = {
   yellow: "#ffde00",
 };
 
-type Props = { callerId: string; callerRole: string };
-
-export default function FellowAnalytics({ callerId, callerRole }: Props) {
+export default function FellowAnalytics() {
   const [schools, setSchools] = useState<FellowSchoolCard[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,17 +21,15 @@ export default function FellowAnalytics({ callerId, callerRole }: Props) {
 
   useEffect(() => {
     setLoading(true);
-    getFellowAnalytics(callerId, callerRole)
+    getFellowAnalytics()
       .then(setSchools)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
       .finally(() => setLoading(false));
-  }, [callerId, callerRole]);
+  }, []);
 
   if (selectedSchoolId) {
     return (
       <SchoolDetail
-        callerId={callerId}
-        callerRole={callerRole}
         schoolId={selectedSchoolId}
         onBack={() => setSelectedSchoolId(null)}
       />

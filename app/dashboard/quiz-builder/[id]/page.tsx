@@ -16,15 +16,14 @@ import {
   type Quiz,
   type Question,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   QuestionSlideOver,
   stripHtml,
   typeBadge,
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
-
-const ALLOWED_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -36,7 +35,7 @@ export default function QuizBuilderPage() {
   const courseId   = searchParams.get("course_id") ?? "";
 
   const { data: userData, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (userData?.role?.code ?? "") as RoleCode;
+  const { has, isLoading: permLoading } = usePermissions();
   const userId   = userData?.user?.id ?? "";
 
   const [quiz, setQuiz]       = useState<Quiz | null>(null);
@@ -92,13 +91,13 @@ export default function QuizBuilderPage() {
     }
   }, [userLoading, reload]);
 
-  if (userLoading || loading) return <LoadingState />;
+  if (userLoading || loading || permLoading) return <LoadingState />;
 
-  if (!ALLOWED_ROLES.includes(roleCode)) {
+  if (!has(PERM.test_bank.edit)) {
     return (
       <div style={glassCard}>
         <p style={S.label}>Access Denied</p>
-        <p style={{ ...S.heading, marginTop: "12px" }}>Quiz Builder is for Super Admins and Program Managers only.</p>
+        <p style={{ ...S.heading, marginTop: "12px" }}>You don&apos;t have permission to edit quizzes.</p>
       </div>
     );
   }

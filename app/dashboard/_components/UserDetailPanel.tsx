@@ -100,7 +100,7 @@ export function UserDetailPanel({
     setRoleSaving(true);
     setRoleErr(null);
     try {
-      await patchRole(user.id, newRole, callerRole);
+      await patchRole(user.id, newRole);
       setRoleEditing(false);
       onUpdated({ ...user, role: newRole });
     } catch (e) {

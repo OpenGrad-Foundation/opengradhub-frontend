@@ -4,16 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
 
 type Target = "course" | "programme";
 
 export default function NewLiveClassPage() {
   const router = useRouter();
   const { data, isLoading } = useCurrentUser();
+  const { has, isLoading: permLoading } = usePermissions();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId   = data?.user?.id ?? "";
 
@@ -35,12 +36,12 @@ export default function NewLiveClassPage() {
       .catch(() => {});
   }, []);
 
-  if (isLoading) return null;
-  if (!ALLOWED.includes(roleCode)) {
+  if (isLoading || permLoading) return null;
+  if (!has(PERM.live_classes.create)) {
     return (
       <div style={glassCard}>
         <p style={S.label}>Access Denied</p>
-        <p style={{ ...S.heading, marginTop: "12px" }}>Only managers can schedule live classes.</p>
+        <p style={{ ...S.heading, marginTop: "12px" }}>You don&apos;t have permission to schedule live classes.</p>
       </div>
     );
   }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useCurrentUser } from "@/hooks/use-current-user";
 import dynamic from "next/dynamic";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 
 const AdminAnalytics = dynamic(
   () => import("./_components/AdminAnalytics"),
@@ -17,17 +18,8 @@ const FellowAnalytics = dynamic(
   { ssr: false, loading: () => <LoadingPlaceholder /> },
 );
 
-const ALLOWED_ROLES = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "FELLOW",
-  "GOVERNMENT",
-  "FUNDING_PARTNER",
-];
-
 export default function AnalyticsPage() {
-  const { data, isLoading } = useCurrentUser();
+  const { has, isLoading } = usePermissions();
   const [programmeFilter, setProgrammeFilter] = useState("");
 
   if (isLoading) {
@@ -45,62 +37,11 @@ export default function AnalyticsPage() {
     );
   }
 
-  const roleCode = data?.role?.code ?? "";
-  const userId = data?.user?.id ?? "";
-
-  if (!ALLOWED_ROLES.includes(roleCode)) {
-    return (
-      <div
-        style={{
-          minHeight: "60vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            background: "#ffffff",
-            border: "1px solid rgba(3,72,82,0.08)",
-            borderRadius: "24px",
-            padding: "40px 48px",
-            textAlign: "center",
-            maxWidth: "440px",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.3em",
-              color: "#0abe62",
-            }}
-          >
-            Access Denied
-          </p>
-          <p
-            style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}
-          >
-            No access to Analytics
-          </p>
-          <p
-            style={{
-              marginTop: "8px",
-              fontSize: "14px",
-              color: "rgba(3,72,82,0.6)",
-            }}
-          >
-            Your role does not have permission to view this module.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const isSA = roleCode === "SUPER_ADMIN";
-  const isPM = roleCode === "PROGRAM_MANAGER";
-  const isFellowOrZM = roleCode === "FELLOW" || roleCode === "ZONAL_MANAGER";
+  // Which dashboard variant the caller sees is driven by their analytics
+  // permissions (route access itself is gated by `analytics.view` upstream).
+  const showAdmin = has(PERM.analytics.view_admin);
+  const showManager = !showAdmin && has(PERM.analytics.view_manager);
+  const showFellow = !showAdmin && !showManager && has(PERM.analytics.view_fellow);
 
   return (
     <div>
@@ -142,16 +83,16 @@ export default function AnalyticsPage() {
               margin: 0,
             }}
           >
-            {isSA
+            {showAdmin
               ? "Analytics Hub"
-              : isPM
+              : showManager
                 ? "Course Performance"
                 : "School Dashboard"}
           </h1>
         </div>
 
-        {/* Programme Type filter — SA only */}
-        {isSA && (
+        {/* Programme Type filter — admin view only */}
+        {showAdmin && (
           <select
             value={programmeFilter}
             onChange={(e) => setProgrammeFilter(e.target.value)}
@@ -174,17 +115,11 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      {/* Role-based content */}
-      {isSA && (
-        <AdminAnalytics
-          callerId={userId}
-          callerRole={roleCode}
-          programmeFilter={programmeFilter}
-        />
-      )}
-      {isPM && <ManagerAnalytics callerId={userId} />}
-      {isFellowOrZM && <FellowAnalytics callerId={userId} callerRole={roleCode} />}
-      {!isSA && !isPM && !isFellowOrZM && (
+      {/* Permission-driven content */}
+      {showAdmin && <AdminAnalytics programmeFilter={programmeFilter} />}
+      {showManager && <ManagerAnalytics />}
+      {showFellow && <FellowAnalytics />}
+      {!showAdmin && !showManager && !showFellow && (
         <div
           style={{
             background: "#ffffff",
@@ -201,7 +136,7 @@ export default function AnalyticsPage() {
               color: "rgba(3,72,82,0.55)",
             }}
           >
-            Analytics not available for your role.
+            No analytics dashboard is configured for your permissions.
           </p>
         </div>
       )}

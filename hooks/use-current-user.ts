@@ -111,6 +111,17 @@ export function useCurrentUser() {
 
     let isMounted = true;
 
+    // When the tab becomes visible again (user switched away and back), drop the
+    // session cache and re-fetch. This surfaces permission changes applied by an
+    // admin while the user was on another tab without requiring a manual refresh.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        clearUserCache();
+        void load();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
     async function load() {
       if (USE_MOCK) {
         try {
@@ -224,6 +235,7 @@ export function useCurrentUser() {
 
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [clerkMode]); // clerkAuth intentionally omitted — new object ref each render would cause infinite loop
 

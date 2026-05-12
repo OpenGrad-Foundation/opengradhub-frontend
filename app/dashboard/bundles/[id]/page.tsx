@@ -25,14 +25,15 @@ import {
   type SafeUser,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BundleDetailPage() {
   const { id: bundleId } = useParams<{ id: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
   const roleCode  = (userData?.role?.code ?? "") as RoleCode;
   const callerId  = userData?.user?.id ?? "";
 
@@ -69,7 +70,7 @@ export default function BundleDetailPage() {
   }, [userLoading, reload]);
 
   if (userLoading || loading) return <Shell><LoadingCard /></Shell>;
-  if (!ALLOWED.includes(roleCode)) {
+  if (!has(PERM.bundles.edit)) {
     return (
       <Shell>
         <div style={glassCard}>

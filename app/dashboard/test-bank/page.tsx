@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getQuestions, deleteQuestion, type Question } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import {
   QuestionSlideOver,
   QUESTION_TYPES,
@@ -14,15 +13,12 @@ import {
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
 
-// ── Constants ──────────────────────────────────────────────────
-
-const ALLOWED_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
-
 // ── Page ───────────────────────────────────────────────────────
+// Access (`test_bank.view`) is enforced by the backend and the dashboard
+// route guard.
 
 export default function TestBankPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId = data?.user?.id ?? "";
 
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -57,21 +53,10 @@ export default function TestBankPage() {
   }, [filterType, filterProg, filterSubject, filterTopic, filterDiff]);
 
   useEffect(() => {
-    if (!userLoading && ALLOWED_ROLES.includes(roleCode)) void fetchQuestions();
-  }, [userLoading, roleCode, fetchQuestions]);
+    if (!userLoading) void fetchQuestions();
+  }, [userLoading, fetchQuestions]);
 
   if (userLoading) return <LoadingState />;
-
-  if (!ALLOWED_ROLES.includes(roleCode)) {
-    return (
-      <div style={glassCard}>
-        <p style={labelStyle}>Access Denied</p>
-        <p style={{ ...headingStyle, marginTop: "12px" }}>
-          Question Bank is available to Super Admin and Program Managers only.
-        </p>
-      </div>
-    );
-  }
 
   function openAdd()  { setEditTarget(null); setPanelOpen(true); }
   function openEdit(q: Question) { setEditTarget(q); setPanelOpen(true); }

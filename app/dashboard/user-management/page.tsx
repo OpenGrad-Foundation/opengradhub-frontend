@@ -20,6 +20,8 @@ import {
   type StudentForBulk,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 
 const ALL_ROLES: { code: string; label: string }[] = [
@@ -34,8 +36,9 @@ const ALL_ROLES: { code: string; label: string }[] = [
 
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const permissions = data?.permissions ?? [];
+  const canCreate = has(PERM.user_management.create);
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,25 +64,10 @@ export default function UserManagementPage() {
   }, []);
 
   useEffect(() => {
-    const canView = (permissions.includes('user_management.view') || roleCode === 'SUPER_ADMIN');
-    if (!userLoading && canView) void fetchUsers();
-  }, [userLoading, roleCode, permissions, fetchUsers]);
+    if (!userLoading) void fetchUsers();
+  }, [userLoading, fetchUsers]);
 
-  // ── Guard ──────────────────────────────────────────────────
   if (userLoading) return <LoadingState />;
-
-  const canView = (permissions.includes('user_management.view') || roleCode === 'SUPER_ADMIN');
-
-  if (!canView) {
-    return (
-      <div style={glassCard}>
-        <p style={labelStyle}>Access Denied</p>
-        <p style={{ ...titleStyle, marginTop: "12px" }}>
-          User Management is available to users with the {"user_management.view"} permission.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -93,7 +81,7 @@ export default function UserManagementPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          { (permissions.includes('user_management.create') || roleCode === 'SUPER_ADMIN') && (
+          {canCreate && (
             <>
               <button
                 id="add-user-btn"

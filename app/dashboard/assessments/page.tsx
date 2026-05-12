@@ -3,26 +3,21 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getAvailableQuizzes, getQuizAttempts, type Quiz } from "@/lib/api";
-
-const ALLOWED_ROLES = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "STUDENT",
-];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AssessmentsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
   const router = useRouter();
 
-  const roleCode       = data?.role?.code ?? "";
-  const programmeType  = data?.user?.programme ?? null;
   const studentId      = data?.user?.id ?? "";
 
-  const isStudent = roleCode === "STUDENT";
+  // Attempters get the quiz list; others with `assessments.view` get the admin view.
+  const canAttempt = has(PERM.assessments.attempt);
 
   const [quizzes, setQuizzes]   = useState<Omit<Quiz, "questions">[]>([]);
   const [loading, setLoading]   = useState(false);
@@ -32,7 +27,7 @@ export default function AssessmentsPage() {
   const [attemptCounts, setAttemptCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (userLoading || !isStudent || !studentId) return;
+    if (userLoading || !canAttempt || !studentId) return;
     setLoading(true);
     getAvailableQuizzes()
       .then(async (qs) => {
@@ -53,7 +48,7 @@ export default function AssessmentsPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load assessments."))
       .finally(() => setLoading(false));
-  }, [userLoading, isStudent, studentId]);
+  }, [userLoading, canAttempt, studentId]);
 
   if (userLoading) {
     return (
@@ -63,13 +58,8 @@ export default function AssessmentsPage() {
     );
   }
 
-  // Access guard
-  if (!ALLOWED_ROLES.includes(roleCode)) {
-    return <AccessDenied reason="Your role does not have permission to view this module." />;
-  }
-
   // ── Admin/Manager view ───────────────────────────────────────────────────
-  if (!isStudent) {
+  if (!canAttempt) {
     return (
       <div>
         <PageHeader />
@@ -215,22 +205,6 @@ function PageHeader() {
       <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
         Tests assigned to your programme bundle.
       </p>
-    </div>
-  );
-}
-
-function AccessDenied({ reason }: { reason: string }) {
-  return (
-    <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ ...glassCard, textAlign: "center", maxWidth: "440px" }}>
-        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62" }}>
-          Access Denied
-        </p>
-        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>
-          No access to Assessments
-        </p>
-        <p style={{ marginTop: "8px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>{reason}</p>
-      </div>
     </div>
   );
 }

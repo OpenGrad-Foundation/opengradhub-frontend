@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getDoubts, submitDoubt, type Doubt } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
-const ALLOWED_ROLES: RoleCode[] = ["SUPER_ADMIN", "STUDENT"];
-
 export default function DoubtsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId = data?.user?.id ?? "";
 
@@ -17,38 +18,29 @@ export default function DoubtsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  const isAllowed = ALLOWED_ROLES.includes(roleCode);
+  // Submitters (students) see their own doubts + the "ask" form; everyone else
+  // with `doubts.view` (admins/reviewers) sees the full list.
+  const canSubmit = has(PERM.doubts.submit);
 
   const fetchDoubts = useCallback(async () => {
-    if (!roleCode || !isAllowed) return;
+    if (!roleCode) return;
     setLoading(true);
     setError(null);
     try {
-      const studentId = roleCode === "STUDENT" ? userId : undefined;
+      const studentId = canSubmit ? userId : undefined;
       setDoubts(await getDoubts(roleCode, studentId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load doubts.");
     } finally {
       setLoading(false);
     }
-  }, [roleCode, userId, isAllowed]);
+  }, [roleCode, userId, canSubmit]);
 
   useEffect(() => {
     if (!userLoading) void fetchDoubts();
   }, [userLoading, fetchDoubts]);
 
   if (userLoading) return <LoadingState />;
-
-  if (!isAllowed) {
-    return (
-      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-        <div style={glassCard}>
-          <p style={labelStyle}>Access Denied</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>You do not have access to this module.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
@@ -58,10 +50,10 @@ export default function DoubtsPage() {
           <p style={labelStyle}>Support</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
           <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-            {roleCode === "STUDENT" ? "Ask questions and track your answers" : "All student questions"}
+            {canSubmit ? "Ask questions and track your answers" : "All student questions"}
           </p>
         </div>
-        {roleCode === "STUDENT" && (
+        {canSubmit && (
           <button
             style={primaryButton}
             onClick={() => setShowModal(true)}
@@ -91,13 +83,13 @@ export default function DoubtsPage() {
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ ...titleStyle, marginTop: "8px" }}>No Doubts Yet</p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
-            {roleCode === "STUDENT" ? "Click “Ask a Question” to get started." : "No students have submitted doubts yet."}
+            {canSubmit ? "Click “Ask a Question” to get started." : "No students have submitted doubts yet."}
           </p>
         </div>
-      ) : roleCode === "SUPER_ADMIN" ? (
-        <AdminDoubtsList doubts={doubts} />
-      ) : (
+      ) : canSubmit ? (
         <StudentDoubtsList doubts={doubts} />
+      ) : (
+        <AdminDoubtsList doubts={doubts} />
       )}
     </div>
   );

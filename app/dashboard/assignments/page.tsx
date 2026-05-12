@@ -3,13 +3,14 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getAssignments, type Assignment } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
-const MANAGER_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
-
 export default function AssignmentsPage() {
   const { data, isLoading } = useCurrentUser();
+  const { has } = usePermissions();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId   = data?.user?.id ?? "";
 
@@ -17,7 +18,10 @@ export default function AssignmentsPage() {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
 
-  const isManager = MANAGER_ROLES.includes(roleCode);
+  // "Manager view" = can grade submissions. Creating is a separate permission.
+  const canGrade  = has(PERM.assignments.grade);
+  const canCreate = has(PERM.assignments.create);
+  const isManager = canGrade;
 
   const fetchAssignments = useCallback(async () => {
     if (!userId) return;
@@ -49,7 +53,7 @@ export default function AssignmentsPage() {
             {isManager ? `${assignments.length} assignment${assignments.length !== 1 ? "s" : ""}` : "Your pending and completed assignments"}
           </p>
         </div>
-        {isManager && (
+        {canCreate && (
           <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
             + New Assignment
           </Link>
@@ -68,7 +72,7 @@ export default function AssignmentsPage() {
           <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>
             {isManager ? "Create your first assignment." : "No assignments have been set for your courses yet."}
           </p>
-          {isManager && (
+          {canCreate && (
             <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
               + New Assignment
             </Link>

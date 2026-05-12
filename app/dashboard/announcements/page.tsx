@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermission } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   getAnnouncements,
   createAnnouncement,
@@ -22,7 +24,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function AnnouncementsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const canCreate = roleCode === "SUPER_ADMIN" || roleCode === "PROGRAM_MANAGER";
+  const canCreate = usePermission(PERM.announcements.create);
 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);

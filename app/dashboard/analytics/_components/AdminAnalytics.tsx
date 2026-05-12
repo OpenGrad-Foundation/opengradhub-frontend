@@ -33,20 +33,20 @@ const card: React.CSSProperties = {
   padding: "24px 28px",
 };
 
-type Props = { callerId: string; callerRole: string; programmeFilter: string };
+type Props = { programmeFilter: string };
 
-export default function AdminAnalytics({ callerId, callerRole, programmeFilter }: Props) {
+export default function AdminAnalytics({ programmeFilter }: Props) {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    getAdminAnalytics(callerRole, callerId)
+    getAdminAnalytics()
       .then(setStats)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
       .finally(() => setLoading(false));
-  }, [callerId, callerRole]);
+  }, []);
 
   if (loading) return <Spinner />;
   if (error) return <Err msg={error} />;

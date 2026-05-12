@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   getAssignmentById,
   getSubmissions,
@@ -11,16 +13,13 @@ import {
   type Assignment,
   type Submission,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const MANAGER_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
 
 // ── Page ───────────────────────────────────────────────────────
 
 export default function SubmissionsPage() {
   const { id: assignmentId } = useParams<{ id: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (userData?.role?.code ?? "") as RoleCode;
+  const { has, isLoading: permLoading } = usePermissions();
   const userId   = userData?.user?.id ?? "";
 
   const [assignment,   setAssignment]   = useState<Assignment | null>(null);
@@ -29,7 +28,7 @@ export default function SubmissionsPage() {
   const [error,        setError]        = useState<string | null>(null);
   const [activeSubId,  setActiveSubId]  = useState<string | null>(null);
 
-  const isManager = MANAGER_ROLES.includes(roleCode);
+  const canGrade = has(PERM.assignments.grade);
 
   const reload = useCallback(async () => {
     try {
@@ -50,13 +49,13 @@ export default function SubmissionsPage() {
     reload().finally(() => setLoading(false));
   }, [userLoading, userId, reload]);
 
-  if (loading || userLoading) return <LoadingState />;
+  if (loading || userLoading || permLoading) return <LoadingState />;
 
-  if (!isManager) {
+  if (!canGrade) {
     return (
       <div style={glassCard}>
         <p style={S.label}>Access Denied</p>
-        <p style={{ ...S.heading, marginTop: "12px" }}>Only managers can view submissions.</p>
+        <p style={{ ...S.heading, marginTop: "12px" }}>You don&apos;t have permission to view or grade submissions.</p>
       </div>
     );
   }

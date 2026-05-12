@@ -11,12 +11,9 @@ import {
   type AnalyticsStudent,
 } from "@/lib/api";
 
-const ALLOWED_ROLES: RoleCode[] = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "FELLOW",
-];
+// Page access (`student_export.view`) is enforced by the backend and the
+// dashboard route guard. The role checks below only shape the filter UI
+// (which fields are editable for which role) — they are not an access gate.
 
 const ROLE_OPTIONS = [
   "SUPER_ADMIN",
@@ -51,7 +48,6 @@ const EMPTY_FILTERS: FilterState = {
 export default function StudentExportPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId = data?.user?.id ?? "";
 
   const [filters, setFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
@@ -65,7 +61,6 @@ export default function StudentExportPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  const isAllowed = ALLOWED_ROLES.includes(roleCode);
   const isAdmin = roleCode === "SUPER_ADMIN" || roleCode === "PROGRAM_MANAGER";
   const isZonalManager = roleCode === "ZONAL_MANAGER";
   const isFellow = roleCode === "FELLOW";
@@ -73,8 +68,6 @@ export default function StudentExportPage() {
   const filtersForApi = useMemo(() => {
     const source = activeFilters ?? filters;
     return {
-      caller_role: roleCode,
-      caller_id: userId,
       role: source.role || undefined,
       programme_type: source.programme_type || undefined,
       status: source.status || undefined,
@@ -83,22 +76,20 @@ export default function StudentExportPage() {
       from: source.from || undefined,
       to: source.to || undefined,
     };
-  }, [activeFilters, filters, roleCode, userId]);
+  }, [activeFilters, filters]);
 
   useEffect(() => {
-    if (!isAllowed || !userId || !roleCode) return;
-
     setSchoolsLoading(true);
-    getAnalyticsSchools(roleCode, userId)
+    getAnalyticsSchools()
       .then((data) => setSchools(data))
       .catch((err) => {
         setErrorMsg(err instanceof Error ? err.message : "Failed to load schools.");
       })
       .finally(() => setSchoolsLoading(false));
-  }, [isAllowed, roleCode, userId]);
+  }, []);
 
   useEffect(() => {
-    if (userLoading || !isAllowed || hasInitialized) return;
+    if (userLoading || hasInitialized) return;
 
     const next = { ...EMPTY_FILTERS };
     if (isZonalManager) {
@@ -107,7 +98,7 @@ export default function StudentExportPage() {
     setFilters(next);
     setActiveFilters(next);
     setHasInitialized(true);
-  }, [userLoading, isAllowed, isZonalManager, data?.user?.zone, hasInitialized]);
+  }, [userLoading, isZonalManager, data?.user?.zone, hasInitialized]);
 
   useEffect(() => {
     if (!isFellow || schools.length === 0) return;
@@ -120,7 +111,7 @@ export default function StudentExportPage() {
   }, [isFellow, schools, filters, activeFilters]);
 
   useEffect(() => {
-    if (!activeFilters || !roleCode || !userId) return;
+    if (!activeFilters) return;
 
     setStudentsLoading(true);
     setErrorMsg(null);
@@ -130,25 +121,11 @@ export default function StudentExportPage() {
         setErrorMsg(err instanceof Error ? err.message : "Failed to load students.");
       })
       .finally(() => setStudentsLoading(false));
-  }, [activeFilters, filtersForApi, roleCode, userId]);
+  }, [activeFilters, filtersForApi]);
 
   if (userLoading) return <LoadingState />;
 
-  if (!isAllowed) {
-    return (
-      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-        <div style={glassCard}>
-          <p style={labelStyle}>Access Denied</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>
-            You do not have access to this module.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   async function handleDownload() {
-    if (!roleCode || !userId) return;
     setDownloading(true);
     setDownloadError(null);
 

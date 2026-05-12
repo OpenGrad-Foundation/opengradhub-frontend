@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   getStudentsForBulk,
   bulkEnrol,
@@ -14,9 +16,7 @@ import {
   type Bundle,
   type EnrolledItems,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 const STATES = [
   { value: "TAMIL_NADU",    label: "Tamil Nadu" },
   { value: "CHHATTISGARH", label: "Chhattisgarh" },
@@ -27,7 +27,8 @@ type Mode = "assign" | "remove";
 
 export default function BulkManagePage() {
   const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode   = (data?.role?.code ?? "") as RoleCode;
+  const { has } = usePermissions();
+  const canManage  = has(PERM.bulk_assign.run);
   const callerId   = data?.user?.id   ?? "";
   const callerRole = data?.role?.code ?? "";
 
@@ -70,10 +71,10 @@ export default function BulkManagePage() {
 
   // ── Load all courses + bundles for Assign mode ─────────────────
   useEffect(() => {
-    if (userLoading || !ALLOWED.includes(roleCode)) return;
+    if (userLoading || !canManage) return;
     getCourses(undefined, undefined, undefined, true).then(setAllCourses).catch(() => {});
     getBundles().then(setAllBundles).catch(() => {});
-  }, [userLoading, roleCode]);
+  }, [userLoading, canManage]);
 
   // ── Fetch enrolled items when Remove mode + students selected ──
   const selectedIdsKey = Array.from(selectedIds).sort().join(",");
@@ -247,12 +248,12 @@ export default function BulkManagePage() {
 
   if (userLoading) return <LoadingShell />;
 
-  if (!ALLOWED.includes(roleCode)) {
+  if (!canManage) {
     return (
       <div style={glassCard}>
         <p style={labelStyle}>Access Denied</p>
         <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>
-          Bulk Manage is available to Super Admins and Program Managers only.
+          You don&apos;t have permission to run bulk assignments.
         </p>
       </div>
     );

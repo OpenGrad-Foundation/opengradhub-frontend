@@ -207,8 +207,6 @@ export type AnalyticsSchool = {
 };
 
 export type AnalyticsStudentFilters = {
-  caller_role: string;
-  caller_id: string;
   role?: string;
   programme_type?: string;
   status?: string;
@@ -219,10 +217,9 @@ export type AnalyticsStudentFilters = {
 };
 
 function buildAnalyticsParams(filters: AnalyticsStudentFilters) {
-  const params = new URLSearchParams({
-    caller_role: filters.caller_role,
-    caller_id: filters.caller_id,
-  });
+  // Scope (which schools/students the caller may see) is derived server-side
+  // from the JWT — the client never sends `caller_role`/`caller_id`.
+  const params = new URLSearchParams();
 
   if (filters.role) params.set("role", filters.role);
   if (filters.programme_type) params.set("programme_type", filters.programme_type);
@@ -235,12 +232,8 @@ function buildAnalyticsParams(filters: AnalyticsStudentFilters) {
   return params;
 }
 
-export async function getAnalyticsSchools(
-  callerRole: string,
-  callerId: string,
-): Promise<AnalyticsSchool[]> {
-  const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
-  const response = await apiFetch(`${API_BASE_URL}/analytics/schools?${params.toString()}`);
+export async function getAnalyticsSchools(): Promise<AnalyticsSchool[]> {
+  const response = await apiFetch(`${API_BASE_URL}/analytics/schools`);
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch schools.", response.status);
@@ -253,7 +246,10 @@ export async function getAnalyticsStudents(
   filters: AnalyticsStudentFilters,
 ): Promise<AnalyticsStudent[]> {
   const params = buildAnalyticsParams(filters);
-  const response = await apiFetch(`${API_BASE_URL}/analytics/students?${params.toString()}`);
+  const qs = params.toString();
+  const response = await apiFetch(
+    `${API_BASE_URL}/analytics/students${qs ? `?${qs}` : ""}`,
+  );
 
   if (!response.ok) {
     const errorBody = (await response
@@ -271,8 +267,9 @@ export async function getAnalyticsStudents(
 
 export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilters) {
   const params = buildAnalyticsParams(filters);
+  const qs = params.toString();
   const response = await apiFetch(
-    `${API_BASE_URL}/analytics/students/export?${params.toString()}`,
+    `${API_BASE_URL}/analytics/students/export${qs ? `?${qs}` : ""}`,
   );
 
   if (!response.ok) {
@@ -353,26 +350,22 @@ export type SchoolDetail = {
   score_distribution: { label: string; count: number }[];
 };
 
-export async function getAdminAnalytics(
-  callerRole: string,
-  callerId: string,
-): Promise<AdminStats> {
-  const params = new URLSearchParams({ caller_role: callerRole, caller_id: callerId });
-  const res = await apiFetch(`${API_BASE_URL}/analytics/admin?${params.toString()}`);
+export async function getAdminAnalytics(): Promise<AdminStats> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/admin`);
   if (!res.ok) throw new ApiError("Failed to fetch admin analytics.", res.status);
   return (await res.json()) as AdminStats;
 }
 
 export async function getManagerAnalytics(
-  callerId: string,
   courseId?: string,
 ): Promise<
   | { view: "courses"; courses: ManagerCourseRow[] }
   | { view: "students"; students: ManagerStudentRow[]; quiz_distribution: QuizDistributionRow[] }
 > {
-  const params = new URLSearchParams({ caller_id: callerId });
-  if (courseId) params.set("course_id", courseId);
-  const res = await apiFetch(`${API_BASE_URL}/analytics/manager?${params.toString()}`);
+  const url = courseId
+    ? `${API_BASE_URL}/analytics/manager?course_id=${encodeURIComponent(courseId)}`
+    : `${API_BASE_URL}/analytics/manager`;
+  const res = await apiFetch(url);
   if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res.status);
   return res.json() as Promise<
     | { view: "courses"; courses: ManagerCourseRow[] }
@@ -380,27 +373,17 @@ export async function getManagerAnalytics(
   >;
 }
 
-export async function getFellowAnalytics(
-  callerId: string,
-  callerRole: string,
-): Promise<FellowSchoolCard[]> {
-  const params = new URLSearchParams({ caller_id: callerId, caller_role: callerRole });
-  const res = await apiFetch(`${API_BASE_URL}/analytics/fellow?${params.toString()}`);
+export async function getFellowAnalytics(): Promise<FellowSchoolCard[]> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/fellow`);
   if (!res.ok) throw new ApiError("Failed to fetch fellow analytics.", res.status);
   return (await res.json()) as FellowSchoolCard[];
 }
 
 export async function getSchoolDetail(
-  callerId: string,
-  callerRole: string,
   schoolId: string,
   courseId?: string,
 ): Promise<SchoolDetail> {
-  const params = new URLSearchParams({
-    caller_id: callerId,
-    caller_role: callerRole,
-    school_id: schoolId,
-  });
+  const params = new URLSearchParams({ school_id: schoolId });
   if (courseId) params.set("course_id", courseId);
   const res = await apiFetch(`${API_BASE_URL}/analytics/fellow/school?${params.toString()}`);
   if (!res.ok) throw new ApiError("Failed to fetch school detail.", res.status);

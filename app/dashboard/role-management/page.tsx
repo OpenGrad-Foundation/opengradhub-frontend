@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getUsers, type SafeUser } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { UserPermissionPanel } from "@/app/dashboard/_components/UserPermissionPanel";
 
+// Access to this page (`role_management.view`) is enforced by the backend and
+// the dashboard route guard — no role check here.
 export default function RoleManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
   const callerId = data?.user?.id ?? "";
 
   const [users, setUsers] = useState<SafeUser[]>([]);
@@ -26,17 +26,6 @@ export default function RoleManagementPage() {
   useEffect(() => { if (!userLoading) void loadUsers(); }, [userLoading, loadUsers]);
 
   if (userLoading) return <LoadingState />;
-
-  if (roleCode !== "SUPER_ADMIN") {
-    return (
-      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-        <div style={glassCard}>
-          <p style={labelStyle}>Access Denied</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>Super Admin only.</p>
-        </div>
-      </div>
-    );
-  }
 
   const filteredUsers = users.filter((u) =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -108,7 +97,6 @@ export default function RoleManagementPage() {
         <UserPermissionPanel
           user={selectedUser}
           callerId={callerId}
-          callerRole={roleCode}
           onClose={() => setSelectedUser(null)}
           onRoleChanged={() => {
             void loadUsers();

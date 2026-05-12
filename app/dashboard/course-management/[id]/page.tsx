@@ -6,6 +6,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import CourseCurriculumEditor from "../_components/CourseCurriculumEditor";
 import CourseMetaForm from "../../courses/_components/CourseMetaForm";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   getCourseManagementAnalytics,
   getCourseManagementCurriculum,
@@ -21,7 +23,6 @@ import {
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
-const STAFF_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 const TABS = ["overview", "students", "curriculum", "analytics", "settings"] as const;
 type TabKey = (typeof TABS)[number];
 
@@ -30,6 +31,7 @@ export default function CourseManagementPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
 
   const courseId = params.id;
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
@@ -37,7 +39,7 @@ export default function CourseManagementPage() {
   const activeTab = (TABS.includes((searchParams.get("tab") ?? "overview") as TabKey)
     ? (searchParams.get("tab") as TabKey)
     : "overview") as TabKey;
-  const canAccess = STAFF_ROLES.includes(roleCode);
+  const canAccess = has(PERM.courses.edit);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
   const [analytics, setAnalytics] = useState<CourseManagementAnalytics | null>(null);
