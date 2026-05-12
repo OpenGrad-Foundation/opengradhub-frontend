@@ -48,20 +48,7 @@ interface YTPlayer {
 
 const YT_API_SCRIPT_ID = "yt-api-script";
 const YT_API_READY_TIMEOUT_MS = 15000;
-
-function buildYoutubeEmbedUrl(videoId: string): string {
-  const params = new URLSearchParams({
-    enablejsapi: "1",
-    playsinline: "1",
-    rel: "0",
-  });
-
-  if (typeof window !== "undefined") {
-    params.set("origin", window.location.origin);
-  }
-
-  return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
-}
+const YT_PLAYER_DIV_ID = "yt-player-root";
 
 function ensureYouTubeIframeApi(): Promise<void> {
   if (typeof window === "undefined") {
@@ -147,7 +134,6 @@ export default function LessonPage() {
   const [playerFrameNonce, setPlayerFrameNonce] = useState(0);
   const completionFiredRef   = useRef(false);
   const playerRef            = useRef<YTPlayer | null>(null);
-  const playerFrameRef       = useRef<HTMLIFrameElement | null>(null);
   const pollTimerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
   const reinitAttemptsRef    = useRef(0);
   const playerInitTokenRef   = useRef(0);
@@ -261,10 +247,27 @@ export default function LessonPage() {
 
     if (playerInitTokenRef.current !== initToken) return;
 
-    const playerFrame = playerFrameRef.current;
-    if (!playerFrame) return;
+    // The stable wrapper must exist before we do anything.
+    const wrapper = document.getElementById("yt-player-wrapper");
+    if (!wrapper) return;
 
-    playerRef.current = new window.YT.Player(playerFrame, {
+    // player.destroy() completely removes its <iframe> from the DOM — React
+    // never sees the deletion, so it doesn't recreate the child div.
+    // We must manually rebuild a fresh div before every YT.Player() call.
+    let mountDiv = document.getElementById(YT_PLAYER_DIV_ID);
+    if (mountDiv) mountDiv.remove();
+    mountDiv = document.createElement("div");
+    mountDiv.id = YT_PLAYER_DIV_ID;
+    wrapper.appendChild(mountDiv);
+
+    playerRef.current = new window.YT.Player(mountDiv, {
+      videoId,
+      playerVars: {
+        enablejsapi: 1,
+        playsinline: 1,
+        rel: 0,
+        origin: window.location.origin,
+      } as Record<string, string | number>,
       events: {
         onReady: () => {
           if (playerInitTokenRef.current !== initToken) return;
@@ -279,6 +282,9 @@ export default function LessonPage() {
             stopPoll();
           }
           if (e.data === window.YT.PlayerState.ENDED) {
+            // recordProgress() only calls the API — it never updates watchedPct.
+            // setWatchedPct(100) here fills the bar visually to 100%.
+            setWatchedPct(100);
             recordProgress(100);
           }
         },
@@ -300,7 +306,10 @@ export default function LessonPage() {
   }, [destroyPlayer, recordProgress, startPoll, stopPoll]);
 
   useEffect(() => {
-    if (!lesson?.video_id) return;
+    // Guard: only init when lesson is fully loaded and the wrapper is in the DOM.
+    // Without this, initPlayer runs while loading=true and the wrapper isn't
+    // mounted yet, so YT.Player silently fails (black screen / race condition).
+    if (!lesson?.video_id || loading) return;
 
     reinitAttemptsRef.current = 0;
 
@@ -313,7 +322,7 @@ export default function LessonPage() {
       playerInitTokenRef.current += 1;
       destroyPlayer();
     };
-  }, [destroyPlayer, initPlayer, lesson?.video_id, playerFrameNonce]);
+  }, [destroyPlayer, initPlayer, lesson?.video_id, loading, playerFrameNonce]);
 
   useEffect(() => {
     function handleVisibilityChange() {
@@ -369,13 +378,18 @@ export default function LessonPage() {
 
         {/* ── Left: Video + notes ─────────────────────── */}
         <div>
-          {/* 16:9 video container — src built from video_id only, never the raw URL */}
+          {/* 16:9 video container.
+              IMPORTANT: #yt-player-wrapper is a STABLE React-owned element that
+              never unmounts. initPlayer programmatically creates a fresh
+              #yt-player-root div inside it before each YT.Player() call because
+              player.destroy() removes its own <iframe> from the DOM entirely,
+              which React's vDOM never sees. Rebuilding the div manually avoids
+              the black screen / unresponsive player regression. */}
           <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: "16px", overflow: "hidden", background: "#000", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
-            {/* Force the iframe the YT API injects to fill the container.
-                The API sets width="640" height="390" as HTML attributes; this CSS overrides them. */}
             <style>{`
-              [data-yt-player-root],
-              [data-yt-player-root] iframe {
+              #yt-player-wrapper,
+              #yt-player-root,
+              #yt-player-root iframe {
                 position: absolute !important;
                 top: 0 !important;
                 left: 0 !important;
@@ -384,18 +398,8 @@ export default function LessonPage() {
                 border: none;
               }
             `}</style>
-            {lesson.video_id && (
-              <iframe
-                key={`${lesson.video_id}-${playerFrameNonce}`}
-                ref={playerFrameRef}
-                data-yt-player-root
-                src={buildYoutubeEmbedUrl(lesson.video_id)}
-                title={lesson.title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                referrerPolicy="strict-origin-when-cross-origin"
-                allowFullScreen
-              />
-            )}
+            {/* Stable wrapper — React always keeps this in the DOM */}
+            <div id="yt-player-wrapper" />
           </div>
 
           {/* Fix 5: visible error state after 3 failed re-init attempts */}

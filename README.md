@@ -34,3 +34,16 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Netlify
+
+This project includes a [`netlify.toml`](./netlify.toml) entry for `SECRETS_SCAN_OMIT_KEYS` so Netlify secret scanning does not fail on intentionally public `NEXT_PUBLIC_*` values that Next.js embeds into build output.
+
+The omit list is intentionally limited to:
+
+- `NEXT_PUBLIC_AUTH_PROVIDER`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SENTRY_DSN`
+- `NEXT_PUBLIC_API_BASE_URL`
+
+Do not add `CLERK_SECRET_KEY` or `SENTRY_AUTH_TOKEN` to the omit list. Those values must remain protected by Netlify secret scanning.
