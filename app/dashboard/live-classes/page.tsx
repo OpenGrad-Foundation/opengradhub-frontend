@@ -6,12 +6,10 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { getLiveClasses, joinLiveClass, type LiveClass } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 
 export default function LiveClassesPage() {
   const { data, isLoading } = useCurrentUser();
   const { has }   = usePermissions();
-  const roleCode  = (data?.role?.code ?? "") as RoleCode;
   const userId    = data?.user?.id ?? "";
   // "Manager view" = can schedule classes; "join" is a separate permission.
   const canCreate = has(PERM.live_classes.create);
@@ -35,13 +33,13 @@ export default function LiveClassesPage() {
     setLoading(true);
     setError(null);
     try {
-      setClasses(await getLiveClasses(userId, roleCode));
+      setClasses(await getLiveClasses());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
       setLoading(false);
     }
-  }, [userId, roleCode]);
+  }, [userId]);
 
   useEffect(() => { if (!isLoading && userId) void fetch(); }, [isLoading, userId, fetch]);
 

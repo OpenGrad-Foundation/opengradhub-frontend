@@ -7,14 +7,11 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createBundle } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 
 export default function NewBundlePage() {
   const router = useRouter();
-  const { data, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId   = data?.user?.id ?? "";
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -43,8 +40,6 @@ export default function NewBundlePage() {
       const bundle = await createBundle({
         name: name.trim(),
         description: description.trim() || undefined,
-        caller_id: userId,
-        caller_role: roleCode,
       });
       router.replace(`/dashboard/bundles/${bundle.id}`);
     } catch (err) {

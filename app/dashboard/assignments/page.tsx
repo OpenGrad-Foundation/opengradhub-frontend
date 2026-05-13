@@ -6,12 +6,10 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { getAssignments, type Assignment } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 
 export default function AssignmentsPage() {
   const { data, isLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId   = data?.user?.id ?? "";
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -28,13 +26,13 @@ export default function AssignmentsPage() {
     setLoading(true);
     setError(null);
     try {
-      setAssignments(await getAssignments(userId, roleCode));
+      setAssignments(await getAssignments());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load assignments.");
     } finally {
       setLoading(false);
     }
-  }, [userId, roleCode]);
+  }, [userId]);
 
   useEffect(() => {
     if (!isLoading && userId) void fetchAssignments();

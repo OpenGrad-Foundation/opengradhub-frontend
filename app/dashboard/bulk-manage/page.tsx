@@ -26,11 +26,9 @@ const STATES = [
 type Mode = "assign" | "remove";
 
 export default function BulkManagePage() {
-  const { data, isLoading: userLoading } = useCurrentUser();
+  const { isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const canManage  = has(PERM.bulk_assign.run);
-  const callerId   = data?.user?.id   ?? "";
-  const callerRole = data?.role?.code ?? "";
 
   // ── Mode toggle ────────────────────────────────────────────────
   const [mode, setMode] = useState<Mode>("assign");
@@ -180,8 +178,6 @@ export default function BulkManagePage() {
           student_ids: Array.from(selectedIds),
           course_ids:  Array.from(selectedCourseIds),
           bundle_ids:  Array.from(selectedBundleIds),
-          caller_id:   callerId,
-          caller_role: callerRole,
         });
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);
@@ -195,8 +191,6 @@ export default function BulkManagePage() {
           student_ids: Array.from(selectedIds),
           course_ids:  Array.from(selectedCourseIds),
           bundle_ids:  Array.from(selectedBundleIds),
-          caller_id:   callerId,
-          caller_role: callerRole,
         });
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);

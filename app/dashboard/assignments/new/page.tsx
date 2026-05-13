@@ -7,14 +7,10 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createAssignment, getCourses, type Course } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
 export default function NewAssignmentPage() {
   const router = useRouter();
   const { data, isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId   = data?.user?.id ?? "";
 
   const [title, setTitle]         = useState("");
   const [instructions, setInstr]  = useState("");
@@ -54,8 +50,6 @@ export default function NewAssignmentPage() {
         attachment_url:    attachUrl.trim() || undefined,
         due_at:            new Date(dueAt).toISOString(),
         course_id:         courseId || undefined,
-        caller_id:         userId,
-        caller_role:       roleCode,
       });
       router.replace(`/dashboard/assignments/${a.id}/submissions`);
     } catch (err) {

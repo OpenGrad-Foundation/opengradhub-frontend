@@ -60,17 +60,17 @@ export default function CourseManagementPage() {
 
   const loadSummary = useCallback(async () => {
     const [summaryData, analyticsData] = await Promise.all([
-      getCourseManagementSummary(courseId, callerId, roleCode),
-      getCourseManagementAnalytics(courseId, callerId, roleCode),
+      getCourseManagementSummary(courseId),
+      getCourseManagementAnalytics(courseId),
     ]);
     setSummary(summaryData);
     setAnalytics(analyticsData);
-  }, [callerId, courseId, roleCode]);
+  }, [courseId]);
 
   const loadStudents = useCallback(async () => {
     setStudentsLoading(true);
     try {
-      const response = await getCourseManagementStudents(courseId, callerId, roleCode, {
+      const response = await getCourseManagementStudents(courseId, {
         search: search.trim() || undefined,
         status: assignmentStatus === "ALL" ? undefined : assignmentStatus,
         progressBucket: progressBucket === "ALL" ? undefined : progressBucket,
@@ -85,7 +85,7 @@ export default function CourseManagementPage() {
     } finally {
       setStudentsLoading(false);
     }
-  }, [assignmentStatus, callerId, courseId, page, progressBucket, roleCode, search, sort]);
+  }, [assignmentStatus, courseId, page, progressBucket, search, sort]);
 
   useEffect(() => {
     if (userLoading || !callerId || !canAccess) return;
@@ -106,13 +106,13 @@ export default function CourseManagementPage() {
       void loadStudents();
     }
     if (activeTab === "curriculum" && curriculumSummary === null) {
-      void getCourseManagementCurriculum(courseId, callerId, roleCode)
+      void getCourseManagementCurriculum(courseId)
         .then(setCurriculumSummary)
         .catch((curriculumError) => {
           setError(curriculumError instanceof Error ? curriculumError.message : "Failed to load curriculum summary.");
         });
     }
-  }, [activeTab, callerId, canAccess, courseId, curriculumSummary, loadStudents, roleCode]);
+  }, [activeTab, callerId, canAccess, courseId, curriculumSummary, loadStudents]);
 
   useEffect(() => {
     if (!selectedStudentId) {
@@ -121,13 +121,13 @@ export default function CourseManagementPage() {
       return;
     }
     setDetailLoading(true);
-    void getCourseManagementStudentDetail(courseId, selectedStudentId, callerId, roleCode)
+    void getCourseManagementStudentDetail(courseId, selectedStudentId)
       .then(setDetail)
       .catch((detailError) => {
         setError(detailError instanceof Error ? detailError.message : "Failed to load student detail.");
       })
       .finally(() => setDetailLoading(false));
-  }, [callerId, courseId, roleCode, selectedStudentId]);
+  }, [courseId, selectedStudentId]);
 
   const updateTab = (tab: TabKey) => {
     const paramsCopy = new URLSearchParams(searchParams.toString());

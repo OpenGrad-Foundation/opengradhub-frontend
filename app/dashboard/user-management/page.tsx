@@ -37,7 +37,6 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
   const canCreate = has(PERM.user_management.create);
 
   const [users, setUsers] = useState<SafeUser[]>([]);
@@ -127,7 +126,6 @@ export default function UserManagementPage() {
         <BulkAssignPanel
           onClose={() => setShowBulkAssign(false)}
           callerId={currentUserId}
-          callerRole={roleCode}
         />
       )}
 
@@ -145,7 +143,6 @@ export default function UserManagementPage() {
         <AssignBundleModal
           student={assignBundleStudent}
           assignedBy={currentUserId}
-          callerRole={roleCode}
           onClose={() => setAssignBundleStudent(null)}
         />
       )}
@@ -155,7 +152,6 @@ export default function UserManagementPage() {
         <UserDetailPanel
           user={selectedUser}
           callerId={currentUserId}
-          callerRole={roleCode}
           onClose={() => setSelectedUser(null)}
           onUpdated={(updated) => {
             setSelectedUser(updated);
@@ -824,12 +820,10 @@ function AssignCourseModal({
 function AssignBundleModal({
   student,
   assignedBy,
-  callerRole,
   onClose,
 }: {
   student: SafeUser;
   assignedBy: string;
-  callerRole: string;
   onClose: () => void;
 }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -863,7 +857,7 @@ function AssignBundleModal({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await enrolStudentInBundle(selectedBundleId, student.id, assignedBy, callerRole);
+      const result = await enrolStudentInBundle(selectedBundleId, student.id);
       setSuccessMsg(`Enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
       setSuccess(true);
     } catch (err) {
@@ -1028,11 +1022,9 @@ const BULK_STATES = [
 function BulkAssignPanel({
   onClose,
   callerId,
-  callerRole,
 }: {
   onClose: () => void;
   callerId: string;
-  callerRole: string;
 }) {
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1133,8 +1125,6 @@ function BulkAssignPanel({
         student_ids: Array.from(selectedIds),
         course_ids:  Array.from(selectedCourseIds),
         bundle_ids:  Array.from(selectedBundleIds),
-        caller_id:   callerId,
-        caller_role: callerRole,
       });
       setShowConfirm(false);
       const nC = selectedCourseIds.size;

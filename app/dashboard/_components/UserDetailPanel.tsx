@@ -11,7 +11,6 @@ import {
 interface UserDetailPanelProps {
   user: SafeUser;
   callerId: string;
-  callerRole: string;
   onClose: () => void;
   onUpdated: (updated: SafeUser) => void;
   onDeleted: () => void;
@@ -48,7 +47,6 @@ function makeDraft(u: SafeUser): Draft {
 export function UserDetailPanel({
   user,
   callerId,
-  callerRole,
   onClose,
   onUpdated,
   onDeleted,
@@ -127,7 +125,6 @@ export function UserDetailPanel({
           roll_number: draft.roll_number.trim() || undefined,
           district: draft.district.trim() || undefined,
         },
-        callerRole,
       );
       setDraft(makeDraft(updated));
       onUpdated(updated);
@@ -142,7 +139,7 @@ export function UserDetailPanel({
     setDeleting(true);
     setDeleteErr(null);
     try {
-      await deleteUser(user.id, callerRole);
+      await deleteUser(user.id);
       onDeleted();
     } catch (e) {
       setDeleteErr(e instanceof Error ? e.message : "Failed to delete user.");

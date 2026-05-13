@@ -596,12 +596,8 @@ export async function getStudentCourses(studentId: string): Promise<StudentCours
 
 export async function getCourseManagementSummary(
   courseId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<CourseManagementSummary> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-summary`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -612,8 +608,6 @@ export async function getCourseManagementSummary(
 
 export async function getCourseManagementStudents(
   courseId: string,
-  callerId: string,
-  callerRole: string,
   params: {
     search?: string;
     status?: string;
@@ -624,8 +618,6 @@ export async function getCourseManagementStudents(
   } = {},
 ): Promise<CourseManagementStudentsResponse> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-students`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
   if (params.search) url.searchParams.set("search", params.search);
   if (params.status) url.searchParams.set("status", params.status);
   if (params.progressBucket) url.searchParams.set("progress_bucket", params.progressBucket);
@@ -643,12 +635,8 @@ export async function getCourseManagementStudents(
 export async function getCourseManagementStudentDetail(
   courseId: string,
   studentId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<CourseManagementStudentDetail> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-students/${studentId}`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -659,12 +647,8 @@ export async function getCourseManagementStudentDetail(
 
 export async function getCourseManagementCurriculum(
   courseId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<CourseManagementModuleSummary[]> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-curriculum`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -675,12 +659,8 @@ export async function getCourseManagementCurriculum(
 
 export async function getCourseManagementAnalytics(
   courseId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<CourseManagementAnalytics> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/management-analytics`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -740,7 +720,6 @@ export async function createCourse(payload: {
   access_type?: string;
   cover_image_url?: string;
   created_by: string;
-  role: string;
 }): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses`, {
     method: "POST",
@@ -930,11 +909,8 @@ export type LiveClass = {
   attendee_count: number;
 };
 
-export async function getLiveClasses(callerId: string, callerRole: string): Promise<LiveClass[]> {
-  const url = new URL(`${API_BASE_URL}/live-classes`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
-  const r = await apiFetch(url.toString(), { cache: "no-store" });
+export async function getLiveClasses(): Promise<LiveClass[]> {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
   return (await r.json()) as LiveClass[];
 }
@@ -973,8 +949,6 @@ export async function createLiveClass(payload: {
   meeting_url: string;
   course_id?: string;
   programme_type?: string;
-  caller_id: string;
-  caller_role: string;
 }): Promise<LiveClass> {
   const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
     method: "POST",
@@ -1060,11 +1034,8 @@ export type Submission = {
   graded_at: string | null;
 };
 
-export async function getAssignments(callerId: string, callerRole: string): Promise<Assignment[]> {
-  const url = new URL(`${API_BASE_URL}/assignments`);
-  url.searchParams.set("caller_id", callerId);
-  url.searchParams.set("caller_role", callerRole);
-  const r = await apiFetch(url.toString(), { cache: "no-store" });
+export async function getAssignments(): Promise<Assignment[]> {
+  const r = await apiFetch(`${API_BASE_URL}/assignments`, { cache: "no-store" });
   if (!r.ok) throw new ApiError("Failed to fetch assignments.", r.status);
   return (await r.json()) as Assignment[];
 }
@@ -1086,8 +1057,6 @@ export async function createAssignment(payload: {
   attachment_url?: string;
   due_at: string;
   course_id?: string;
-  caller_id: string;
-  caller_role: string;
 }): Promise<Assignment> {
   const r = await apiFetch(`${API_BASE_URL}/assignments`, {
     method: "POST",
@@ -1104,7 +1073,7 @@ export async function createAssignment(payload: {
 
 export async function submitAssignment(
   assignmentId: string,
-  payload: { student_id: string; caller_role: string; response_text?: string; file_urls?: string[] },
+  payload: { student_id: string; response_text?: string; file_urls?: string[] },
 ): Promise<Submission> {
   const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
     method: "POST",
@@ -1624,12 +1593,11 @@ export async function updateUser(
     roll_number?: string;
     district?: string;
   },
-  callerRole: string,
 ): Promise<SafeUser> {
   const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, caller_role: callerRole }),
+    body: JSON.stringify(payload),
     cache: "no-store",
   });
   if (!response.ok) {
@@ -1639,9 +1607,9 @@ export async function updateUser(
   return (await response.json()) as SafeUser;
 }
 
-export async function deleteUser(userId: string, callerRole: string): Promise<void> {
+export async function deleteUser(userId: string): Promise<void> {
   const response = await apiFetch(
-    `${API_BASE_URL}/users/${userId}?caller_role=${encodeURIComponent(callerRole)}`,
+    `${API_BASE_URL}/users/${userId}`,
     { method: "DELETE", cache: "no-store" },
   );
   if (!response.ok) {
@@ -1884,8 +1852,6 @@ export async function getBundleById(id: string): Promise<BundleDetail> {
 export async function createBundle(payload: {
   name: string;
   description?: string;
-  caller_id: string;
-  caller_role: string;
 }): Promise<Bundle> {
   const r = await apiFetch(`${API_BASE_URL}/bundles`, {
     method: "POST",
@@ -1903,13 +1869,11 @@ export async function createBundle(payload: {
 export async function addCourseToBundle(
   bundleId: string,
   courseId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ added: boolean; students_enrolled: number }> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/courses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ course_id: courseId, caller_id: callerId, caller_role: callerRole }),
+    body: JSON.stringify({ course_id: courseId }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -1922,11 +1886,9 @@ export async function addCourseToBundle(
 export async function removeCourseFromBundle(
   bundleId: string,
   courseId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ removed: boolean }> {
   const r = await apiFetch(
-    `${API_BASE_URL}/bundles/${bundleId}/courses/${courseId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    `${API_BASE_URL}/bundles/${bundleId}/courses/${courseId}`,
     { method: "DELETE", cache: "no-store" },
   );
   if (!r.ok) {
@@ -1939,13 +1901,11 @@ export async function removeCourseFromBundle(
 export async function reorderBundleCourses(
   bundleId: string,
   ids: string[],
-  callerId: string,
-  callerRole: string,
 ): Promise<void> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/courses/reorder`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids, caller_id: callerId, caller_role: callerRole }),
+    body: JSON.stringify({ ids }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -1957,13 +1917,11 @@ export async function reorderBundleCourses(
 export async function enrolStudentInBundle(
   bundleId: string,
   studentId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ enrolled: boolean; courses_enrolled: number }> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ student_id: studentId, caller_id: callerId, caller_role: callerRole }),
+    body: JSON.stringify({ student_id: studentId }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -1982,11 +1940,9 @@ export async function getBundleEnrolledStudents(bundleId: string): Promise<Bundl
 export async function removeStudentFromBundle(
   bundleId: string,
   studentId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ removed: boolean }> {
   const r = await apiFetch(
-    `${API_BASE_URL}/bundles/${bundleId}/enrol/${studentId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    `${API_BASE_URL}/bundles/${bundleId}/enrol/${studentId}`,
     { method: "DELETE", cache: "no-store" },
   );
   if (!r.ok) {
@@ -1999,13 +1955,11 @@ export async function removeStudentFromBundle(
 export async function addTestToBundle(
   bundleId: string,
   quizId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ added: boolean }> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/tests`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ quiz_id: quizId, caller_id: callerId, caller_role: callerRole }),
+    body: JSON.stringify({ quiz_id: quizId }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -2018,11 +1972,9 @@ export async function addTestToBundle(
 export async function removeTestFromBundle(
   bundleId: string,
   quizId: string,
-  callerId: string,
-  callerRole: string,
 ): Promise<{ removed: boolean }> {
   const r = await apiFetch(
-    `${API_BASE_URL}/bundles/${bundleId}/tests/${quizId}?caller_id=${encodeURIComponent(callerId)}&caller_role=${encodeURIComponent(callerRole)}`,
+    `${API_BASE_URL}/bundles/${bundleId}/tests/${quizId}`,
     { method: "DELETE", cache: "no-store" },
   );
   if (!r.ok) {
@@ -2099,8 +2051,6 @@ export async function bulkRemove(payload: {
   student_ids: string[];
   course_ids?: string[];
   bundle_ids?: string[];
-  caller_id: string;
-  caller_role: string;
 }): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
   const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
     method: "DELETE",
@@ -2119,8 +2069,6 @@ export async function bulkEnrol(payload: {
   student_ids: string[];
   course_ids?: string[];
   bundle_ids?: string[];
-  caller_id: string;
-  caller_role: string;
 }): Promise<{ enrolled_courses: number; enrolled_bundles: number; skipped: number }> {
   const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
     method: "POST",

@@ -24,7 +24,6 @@ import {
   type Quiz,
   type SafeUser,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 
@@ -34,8 +33,6 @@ export default function BundleDetailPage() {
   const { id: bundleId } = useParams<{ id: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const roleCode  = (userData?.role?.code ?? "") as RoleCode;
-  const callerId  = userData?.user?.id ?? "";
 
   const [bundle, setBundle] = useState<BundleDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,8 +117,6 @@ export default function BundleDetailPage() {
         <CourseList
           bundleId={bundleId}
           courses={bundle.courses}
-          callerId={callerId}
-          callerRole={roleCode}
           studentCount={bundle.enrolled_students.length}
           onRemoved={() => { void reload(); }}
           onReordered={() => { void reload(); }}
@@ -142,8 +137,6 @@ export default function BundleDetailPage() {
         <StudentTable
           bundleId={bundleId}
           students={bundle.enrolled_students}
-          callerId={callerId}
-          callerRole={roleCode}
           onRemoved={() => { void reload(); }}
           setGlobalError={setGlobalError}
         />
@@ -162,8 +155,6 @@ export default function BundleDetailPage() {
         <TestList
           bundleId={bundleId}
           tests={bundle.tests}
-          callerId={callerId}
-          callerRole={roleCode}
           onRemoved={() => { void reload(); }}
           setGlobalError={setGlobalError}
         />
@@ -175,8 +166,6 @@ export default function BundleDetailPage() {
           bundleId={bundleId}
           existingCourseIds={bundle.courses.map((c) => c.id)}
           enrolledStudentCount={bundle.enrolled_students.length}
-          callerId={callerId}
-          callerRole={roleCode}
           onClose={() => setAddCourseOpen(false)}
           onAdded={(msg) => { setAddCourseOpen(false); void reload(); showToast(msg); }}
         />
@@ -186,8 +175,6 @@ export default function BundleDetailPage() {
         <AssignStudentModal
           bundleId={bundleId}
           existingStudentIds={bundle.enrolled_students.map((s) => s.id)}
-          callerId={callerId}
-          callerRole={roleCode}
           onClose={() => setAssignStudentOpen(false)}
           onAssigned={(msg) => { setAssignStudentOpen(false); void reload(); showToast(msg); }}
         />
@@ -197,8 +184,6 @@ export default function BundleDetailPage() {
         <AddTestModal
           bundleId={bundleId}
           existingTestIds={bundle.tests.map((t) => t.id)}
-          callerId={callerId}
-          callerRole={roleCode}
           onClose={() => setAddTestOpen(false)}
           onAdded={(msg) => { setAddTestOpen(false); void reload(); showToast(msg); }}
         />
@@ -224,13 +209,11 @@ export default function BundleDetailPage() {
 // ── Course list with DnD ──────────────────────────────────────────────────────
 
 function CourseList({
-  bundleId, courses, callerId, callerRole, studentCount,
+  bundleId, courses, studentCount,
   onRemoved, onReordered, setGlobalError,
 }: {
   bundleId: string;
   courses: BundleCourse[];
-  callerId: string;
-  callerRole: string;
   studentCount: number;
   onRemoved: () => void;
   onReordered: () => void;
@@ -252,7 +235,7 @@ function CourseList({
     setDragOverIdx(null);
     dragIdx.current = null;
     try {
-      await reorderBundleCourses(bundleId, next.map((c) => c.id), callerId, callerRole);
+      await reorderBundleCourses(bundleId, next.map((c) => c.id));
       onReordered();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Reorder failed.");
@@ -263,7 +246,7 @@ function CourseList({
   async function handleRemove(courseId: string, title: string) {
     if (!confirm(`Remove "${title}" from this bundle?\n\nStudents already enrolled will keep their individual course access.`)) return;
     try {
-      await removeCourseFromBundle(bundleId, courseId, callerId, callerRole);
+      await removeCourseFromBundle(bundleId, courseId);
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
@@ -334,19 +317,17 @@ function CourseList({
 // ── Student table ─────────────────────────────────────────────────────────────
 
 function StudentTable({
-  bundleId, students, callerId, callerRole, onRemoved, setGlobalError,
+  bundleId, students, onRemoved, setGlobalError,
 }: {
   bundleId: string;
   students: BundleEnrolledStudent[];
-  callerId: string;
-  callerRole: string;
   onRemoved: () => void;
   setGlobalError: (e: string | null) => void;
 }) {
   async function handleRemove(studentId: string, studentName: string) {
     if (!confirm(`Remove ${studentName} from this bundle? They will lose access to courses not assigned elsewhere.`)) return;
     try {
-      await removeStudentFromBundle(bundleId, studentId, callerId, callerRole);
+      await removeStudentFromBundle(bundleId, studentId);
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove student.");
@@ -397,13 +378,11 @@ function StudentTable({
 // ── Add Course Modal ──────────────────────────────────────────────────────────
 
 function AddCourseModal({
-  bundleId, existingCourseIds, enrolledStudentCount, callerId, callerRole, onClose, onAdded,
+  bundleId, existingCourseIds, enrolledStudentCount, onClose, onAdded,
 }: {
   bundleId: string;
   existingCourseIds: string[];
   enrolledStudentCount: number;
-  callerId: string;
-  callerRole: string;
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
@@ -455,7 +434,7 @@ function AddCourseModal({
       for (let i = 0; i < courseList.length; i++) {
         const c = courseList[i];
         setProgress(`Adding ${i + 1} of ${courseList.length}…`);
-        const result = await addCourseToBundle(bundleId, c.id, callerId, callerRole);
+        const result = await addCourseToBundle(bundleId, c.id);
         totalStudentsEnrolled += result.students_enrolled;
       }
       const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
@@ -578,12 +557,10 @@ function AddCourseModal({
 // ── Assign Student Modal ──────────────────────────────────────────────────────
 
 function AssignStudentModal({
-  bundleId, existingStudentIds, callerId, callerRole, onClose, onAssigned,
+  bundleId, existingStudentIds, onClose, onAssigned,
 }: {
   bundleId: string;
   existingStudentIds: string[];
-  callerId: string;
-  callerRole: string;
   onClose: () => void;
   onAssigned: (msg: string) => void;
 }) {
@@ -611,7 +588,7 @@ function AssignStudentModal({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await enrolStudentInBundle(bundleId, selected.id, callerId, callerRole);
+      const result = await enrolStudentInBundle(bundleId, selected.id);
       onAssigned(`${selected.name} enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
     } catch (e) {
       const status = (e instanceof Error && "status" in e) ? (e as { status: number }).status : 0;
@@ -681,19 +658,17 @@ function AssignStudentModal({
 // ── Test list ─────────────────────────────────────────────────────────────────
 
 function TestList({
-  bundleId, tests, callerId, callerRole, onRemoved, setGlobalError,
+  bundleId, tests, onRemoved, setGlobalError,
 }: {
   bundleId: string;
   tests: BundleTest[];
-  callerId: string;
-  callerRole: string;
   onRemoved: () => void;
   setGlobalError: (e: string | null) => void;
 }) {
   async function handleRemove(quizId: string, title: string) {
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
-      await removeTestFromBundle(bundleId, quizId, callerId, callerRole);
+      await removeTestFromBundle(bundleId, quizId);
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove test.");
@@ -754,12 +729,10 @@ function TestList({
 // ── Add Test Modal ────────────────────────────────────────────────────────────
 
 function AddTestModal({
-  bundleId, existingTestIds, callerId, callerRole, onClose, onAdded,
+  bundleId, existingTestIds, onClose, onAdded,
 }: {
   bundleId: string;
   existingTestIds: string[];
-  callerId: string;
-  callerRole: string;
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
@@ -786,7 +759,7 @@ function AddTestModal({
     setSubmitting(true);
     setError(null);
     try {
-      await addTestToBundle(bundleId, selected.id, callerId, callerRole);
+      await addTestToBundle(bundleId, selected.id);
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add test.");

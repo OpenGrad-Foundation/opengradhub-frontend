@@ -7,16 +7,13 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 
 type Target = "course" | "programme";
 
 export default function NewLiveClassPage() {
   const router = useRouter();
-  const { data, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId   = data?.user?.id ?? "";
 
   const [title,    setTitle]    = useState("");
   const [desc,     setDesc]     = useState("");
@@ -63,8 +60,6 @@ export default function NewLiveClassPage() {
         meeting_url:      meetUrl.trim(),
         course_id:        target === "course" ? courseId : undefined,
         programme_type:   target === "programme" ? progType : undefined,
-        caller_id:        userId,
-        caller_role:      roleCode,
       });
       router.replace("/dashboard/live-classes");
     } catch (err) {

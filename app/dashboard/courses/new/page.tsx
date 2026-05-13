@@ -13,7 +13,6 @@ export default function NewCoursePage() {
   const { has, isLoading: permLoading } = usePermissions();
 
   const userId = data?.user?.id ?? "";
-  const roleCode = data?.role?.code ?? "";
 
   if (isLoading || permLoading) return <PageShell><LoadingCard /></PageShell>;
 
@@ -39,7 +38,6 @@ export default function NewCoursePage() {
     const course = await createCourse({
       ...fields,
       created_by: userId,
-      role: roleCode,
     });
     router.push(`/dashboard/courses/${course.id}/builder`);
   }
