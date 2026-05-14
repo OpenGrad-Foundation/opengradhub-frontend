@@ -15,6 +15,8 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   getCoursesPage,
   getStudentCourses,
@@ -24,16 +26,6 @@ import {
   type StudentCourse,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
-
-const COURSES_ALLOWED_ROLES: RoleCode[] = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "STUDENT",
-];
-
-const COURSE_CREATE_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
-const COURSE_MANAGE_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 const GRID_PAGE_SIZE = 6;
 const LIST_PAGE_SIZE = 10;
@@ -46,6 +38,7 @@ type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
 
 export default function CoursesPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
+  const { has } = usePermissions();
 
   const [studentCourses, setStudentCourses] = useState<StudentCourse[]>([]);
   const [coursePage, setCoursePage] = useState<PaginatedCoursesResponse | null>(null);
@@ -64,11 +57,12 @@ export default function CoursesPage() {
 
   const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
   const userId = data?.user?.id ?? null;
-  const isAllowed = COURSES_ALLOWED_ROLES.includes(roleCode);
-  const canCreate = COURSE_CREATE_ROLES.includes(roleCode);
-  const canManage = COURSE_MANAGE_ROLES.includes(roleCode);
+  const canCreate = has(PERM.courses.create);
+  const canManage = has(PERM.courses.edit);
+  // "Student view" (enrolled courses) vs "management view" (catalogue) is a
+  // genuine identity distinction — a learner sees their own enrolments.
   const isStudent = roleCode === "STUDENT";
-  const supportsFullStatusFilter = roleCode === "SUPER_ADMIN" || roleCode === "PROGRAM_MANAGER";
+  const supportsFullStatusFilter = canManage;
   const pageSize = viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
 
   const handleSearchChange = (value: string) => {
@@ -102,7 +96,7 @@ export default function CoursesPage() {
   };
 
   const fetchCourses = useCallback(async () => {
-    if (!userId || !isAllowed) return;
+    if (!userId) return;
 
     setLoading(true);
     setError(null);
@@ -144,7 +138,6 @@ export default function CoursesPage() {
   }, [
     accessFilter,
     deferredSearch,
-    isAllowed,
     isStudent,
     lockingFilter,
     page,
@@ -157,11 +150,11 @@ export default function CoursesPage() {
   ]);
 
   useEffect(() => {
-    if (!userLoading && isAllowed) {
+    if (!userLoading) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchCourses();
     }
-  }, [fetchCourses, isAllowed, userLoading]);
+  }, [fetchCourses, userLoading]);
 
   const subtitle = useMemo(() => {
     if (isStudent) return "Your enrolled courses";
@@ -211,18 +204,6 @@ export default function CoursesPage() {
     return (
       <PageShell>
         <LoadingState message="Loading your course workspace..." />
-      </PageShell>
-    );
-  }
-
-  if (!isAllowed) {
-    return (
-      <PageShell>
-        <StateCard
-          eyebrow="Access Denied"
-          title="You do not have access to the Courses module."
-          description="Contact your administrator if you believe this is an error."
-        />
       </PageShell>
     );
   }

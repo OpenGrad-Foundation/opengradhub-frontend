@@ -4,30 +4,28 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { createBundle } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 export default function NewBundlePage() {
   const router = useRouter();
-  const { data, isLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId   = data?.user?.id ?? "";
+  const { isLoading } = useCurrentUser();
+  const { has, isLoading: permLoading } = usePermissions();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (isLoading) return null;
+  if (isLoading || permLoading) return null;
 
-  if (!ALLOWED.includes(roleCode)) {
+  if (!has(PERM.bundles.create)) {
     return (
       <div style={glassCard}>
         <p style={labelSt}>Access Denied</p>
         <p style={{ ...headingSt, marginTop: "12px", fontSize: "18px" }}>
-          Only Super Admins and Program Managers can create bundles.
+          You don&apos;t have permission to create bundles.
         </p>
       </div>
     );
@@ -42,8 +40,6 @@ export default function NewBundlePage() {
       const bundle = await createBundle({
         name: name.trim(),
         description: description.trim() || undefined,
-        caller_id: userId,
-        caller_role: roleCode,
       });
       router.replace(`/dashboard/bundles/${bundle.id}`);
     } catch (err) {

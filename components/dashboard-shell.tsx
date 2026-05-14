@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Sidebar from "./sidebar";
 import DashboardTopbar from "@/app/dashboard/_components/DashboardTopbar";
+import { DashboardRouteGuard } from "@/components/require-permission";
 
 export default function DashboardShell({
   children,
@@ -36,7 +37,7 @@ export default function DashboardShell({
       <div className="flex flex-1 flex-col min-w-0">
         <DashboardTopbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 px-6 py-6 sm:px-8 sm:py-8 bg-gray-50">
-          {children}
+          <DashboardRouteGuard>{children}</DashboardRouteGuard>
         </main>
       </div>
     </div>

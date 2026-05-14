@@ -20,6 +20,8 @@ import {
   type StudentForBulk,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 
 const ALL_ROLES: { code: string; label: string }[] = [
@@ -34,7 +36,8 @@ const ALL_ROLES: { code: string; label: string }[] = [
 
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const { has } = usePermissions();
+  const canCreate = has(PERM.user_management.create);
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,22 +63,10 @@ export default function UserManagementPage() {
   }, []);
 
   useEffect(() => {
-    if (!userLoading && roleCode === "SUPER_ADMIN") void fetchUsers();
-  }, [userLoading, roleCode, fetchUsers]);
+    if (!userLoading) void fetchUsers();
+  }, [userLoading, fetchUsers]);
 
-  // ── Guard ──────────────────────────────────────────────────
   if (userLoading) return <LoadingState />;
-
-  if (roleCode !== "SUPER_ADMIN") {
-    return (
-      <div style={glassCard}>
-        <p style={labelStyle}>Access Denied</p>
-        <p style={{ ...titleStyle, marginTop: "12px" }}>
-          User Management is available to Super Admins only.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -89,30 +80,34 @@ export default function UserManagementPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <button
-            id="add-user-btn"
-            style={primaryButton}
-            onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            + Add User
-          </button>
-          <button
-            id="bulk-upload-btn"
-            style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
-            onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            ↑ Bulk Upload
-          </button>
-          <button
-            id="bulk-assign-btn"
-            style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
-            onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
-            onMouseEnter={hoverIn} onMouseLeave={hoverOut}
-          >
-            ⚡ Bulk Assign
-          </button>
+          {canCreate && (
+            <>
+              <button
+                id="add-user-btn"
+                style={primaryButton}
+                onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                + Add User
+              </button>
+              <button
+                id="bulk-upload-btn"
+                style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
+                onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                ↑ Bulk Upload
+              </button>
+              <button
+                id="bulk-assign-btn"
+                style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
+                onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
+                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
+              >
+                ⚡ Bulk Assign
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -131,7 +126,6 @@ export default function UserManagementPage() {
         <BulkAssignPanel
           onClose={() => setShowBulkAssign(false)}
           callerId={currentUserId}
-          callerRole={roleCode}
         />
       )}
 
@@ -149,7 +143,6 @@ export default function UserManagementPage() {
         <AssignBundleModal
           student={assignBundleStudent}
           assignedBy={currentUserId}
-          callerRole={roleCode}
           onClose={() => setAssignBundleStudent(null)}
         />
       )}
@@ -159,7 +152,6 @@ export default function UserManagementPage() {
         <UserDetailPanel
           user={selectedUser}
           callerId={currentUserId}
-          callerRole={roleCode}
           onClose={() => setSelectedUser(null)}
           onUpdated={(updated) => {
             setSelectedUser(updated);
@@ -828,12 +820,10 @@ function AssignCourseModal({
 function AssignBundleModal({
   student,
   assignedBy,
-  callerRole,
   onClose,
 }: {
   student: SafeUser;
   assignedBy: string;
-  callerRole: string;
   onClose: () => void;
 }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -867,7 +857,7 @@ function AssignBundleModal({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await enrolStudentInBundle(selectedBundleId, student.id, assignedBy, callerRole);
+      const result = await enrolStudentInBundle(selectedBundleId, student.id);
       setSuccessMsg(`Enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
       setSuccess(true);
     } catch (err) {
@@ -1032,11 +1022,9 @@ const BULK_STATES = [
 function BulkAssignPanel({
   onClose,
   callerId,
-  callerRole,
 }: {
   onClose: () => void;
   callerId: string;
-  callerRole: string;
 }) {
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1137,8 +1125,6 @@ function BulkAssignPanel({
         student_ids: Array.from(selectedIds),
         course_ids:  Array.from(selectedCourseIds),
         bundle_ids:  Array.from(selectedBundleIds),
-        caller_id:   callerId,
-        caller_role: callerRole,
       });
       setShowConfirm(false);
       const nC = selectedCourseIds.size;

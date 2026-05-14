@@ -11,7 +11,6 @@ type CalendarEvent =
 
 export default function CalendarPage() {
   const { data: userData, isLoading } = useCurrentUser();
-  const roleCode = userData?.role?.code ?? "";
   const userId   = userData?.user?.id ?? "";
 
   const [events,  setEvents]  = useState<CalendarEvent[]>([]);
@@ -22,8 +21,8 @@ export default function CalendarPage() {
     if (isLoading || !userId) return;
     setLoading(true);
     Promise.all([
-      getLiveClasses(userId, roleCode).catch(() => [] as LiveClass[]),
-      getAssignments(userId, roleCode).catch(() => [] as Assignment[]),
+      getLiveClasses().catch(() => [] as LiveClass[]),
+      getAssignments().catch(() => [] as Assignment[]),
     ]).then(([classes, assignments]) => {
       const all: CalendarEvent[] = [
         ...classes.map(c => ({ kind: "live" as const,       data: c, date: new Date(c.scheduled_at) })),
@@ -36,7 +35,7 @@ export default function CalendarPage() {
       setEvents(all.filter(e => e.date >= now));
     }).catch(e => setError(e instanceof Error ? e.message : "Failed to load."))
       .finally(() => setLoading(false));
-  }, [isLoading, userId, roleCode]);
+  }, [isLoading, userId]);
 
   if (isLoading || loading) return <LoadingState />;
 

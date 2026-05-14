@@ -2,22 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { createCourse } from "@/lib/api";
 import CourseMetaForm from "../_components/CourseMetaForm";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 export default function NewCoursePage() {
   const router = useRouter();
   const { data, isLoading } = useCurrentUser();
+  const { has, isLoading: permLoading } = usePermissions();
 
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
   const userId = data?.user?.id ?? "";
 
-  if (isLoading) return <PageShell><LoadingCard /></PageShell>;
+  if (isLoading || permLoading) return <PageShell><LoadingCard /></PageShell>;
 
-  if (!ALLOWED.includes(roleCode)) {
+  if (!has(PERM.courses.create)) {
     return (
       <PageShell>
         <div style={glassCard}>
@@ -39,7 +38,6 @@ export default function NewCoursePage() {
     const course = await createCourse({
       ...fields,
       created_by: userId,
-      role: roleCode,
     });
     router.push(`/dashboard/courses/${course.id}/builder`);
   }

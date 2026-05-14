@@ -4,16 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { createAssignment, getCourses, type Course } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
-
 export default function NewAssignmentPage() {
   const router = useRouter();
   const { data, isLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
-  const userId   = data?.user?.id ?? "";
+  const { has, isLoading: permLoading } = usePermissions();
 
   const [title, setTitle]         = useState("");
   const [instructions, setInstr]  = useState("");
@@ -30,12 +27,12 @@ export default function NewAssignmentPage() {
       .catch(() => {});
   }, []);
 
-  if (isLoading) return null;
-  if (!ALLOWED.includes(roleCode)) {
+  if (isLoading || permLoading) return null;
+  if (!has(PERM.assignments.create)) {
     return (
       <div style={glassCard}>
         <p style={S.label}>Access Denied</p>
-        <p style={{ ...S.heading, marginTop: "12px" }}>Only managers can create assignments.</p>
+        <p style={{ ...S.heading, marginTop: "12px" }}>You don&apos;t have permission to create assignments.</p>
       </div>
     );
   }
@@ -53,8 +50,6 @@ export default function NewAssignmentPage() {
         attachment_url:    attachUrl.trim() || undefined,
         due_at:            new Date(dueAt).toISOString(),
         course_id:         courseId || undefined,
-        caller_id:         userId,
-        caller_role:       roleCode,
       });
       router.replace(`/dashboard/assignments/${a.id}/submissions`);
     } catch (err) {

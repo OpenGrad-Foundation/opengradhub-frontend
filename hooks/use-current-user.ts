@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { ApiError, fetchCurrentUser, getMe } from "@/lib/api";
+import { ApiError, fetchCurrentUser, getMe, setApiAuthToken, setApiTokenGetter } from "@/lib/api";
 import { clearStoredAuthToken, getStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import type { CurrentUserResponse } from "@/lib/types";
 import { mockUser } from "@/lib/mockUser";
@@ -91,6 +91,14 @@ export function useCurrentUser() {
   // the value when clerkMode is true.
   const clerkAuth = useAuth();
 
+  // Register the Clerk token getter immediately on every render (not in useEffect).
+  // This ensures apiFetch always calls clerkAuth.getToken() for a fresh token,
+  // even when sessionStorage cache sets isLoading=false before the async getToken()
+  // resolves. Clerk caches getToken() internally so this is cheap.
+  if (clerkMode) {
+    setApiTokenGetter(() => clerkAuth.getToken());
+  }
+
   useEffect(() => {
     // Cache hit: render immediately from sessionStorage, then revalidate in the
     // background so data stays current without ever showing a loading state.
@@ -102,6 +110,17 @@ export function useCurrentUser() {
     }
 
     let isMounted = true;
+
+    // When the tab becomes visible again (user switched away and back), drop the
+    // session cache and re-fetch. This surfaces permission changes applied by an
+    // admin while the user was on another tab without requiring a manual refresh.
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        clearUserCache();
+        void load();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
 
     async function load() {
       if (USE_MOCK) {
@@ -159,6 +178,9 @@ export function useCurrentUser() {
         token = getStoredAuthToken();
       }
 
+      // Store token so all subsequent apiFetch calls include the Authorization header.
+      if (token) setApiAuthToken(token);
+
       if (!token) {
         // On background revalidation a missing token means the session expired
         // mid-session. Don't overwrite the cached data with an error — the user
@@ -213,6 +235,7 @@ export function useCurrentUser() {
 
     return () => {
       isMounted = false;
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [clerkMode]); // clerkAuth intentionally omitted — new object ref each render would cause infinite loop
 

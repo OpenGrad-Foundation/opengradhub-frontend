@@ -2,19 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermission } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getResources, createResource, type Resource } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
-
-// ── Role guards (from RBAC_MODULES.md row 4) ──────────────────
-
-const RESOURCES_ALLOWED_ROLES: RoleCode[] = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "STUDENT",
-];
-
-const RESOURCE_CREATE_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 // ── Type → colour mapping ──────────────────────────────────────
 
@@ -37,8 +28,7 @@ export default function ResourcesPage() {
 
   const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
   const programmeType = data?.user?.programme ?? null;
-  const isAllowed = RESOURCES_ALLOWED_ROLES.includes(roleCode);
-  const canCreate = RESOURCE_CREATE_ROLES.includes(roleCode);
+  const canCreate = usePermission(PERM.resources.create);
 
   const fetchResources = useCallback(async () => {
     setLoading(true);
@@ -56,29 +46,13 @@ export default function ResourcesPage() {
   }, [roleCode, programmeType]);
 
   useEffect(() => {
-    if (!userLoading && isAllowed) {
+    if (!userLoading) {
       void fetchResources();
     }
-  }, [userLoading, isAllowed, fetchResources]);
-
-  // ── Role guard ─────────────────────────────────────────────
+  }, [userLoading, fetchResources]);
 
   if (userLoading) {
     return <LoadingState />;
-  }
-
-  if (!isAllowed) {
-    return (
-      <div style={glassCard}>
-        <p style={labelStyle}>Access Denied</p>
-        <p style={{ ...titleStyle, marginTop: "12px" }}>
-          You do not have access to the Resources module.
-        </p>
-        <p style={{ ...subtitleStyle, marginTop: "8px" }}>
-          Contact your administrator if you believe this is an error.
-        </p>
-      </div>
-    );
   }
 
   return (

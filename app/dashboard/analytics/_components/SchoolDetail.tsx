@@ -37,13 +37,11 @@ const card: React.CSSProperties = {
 };
 
 type Props = {
-  callerId: string;
-  callerRole: string;
   schoolId: string;
   onBack: () => void;
 };
 
-export default function SchoolDetail({ callerId, callerRole, schoolId, onBack }: Props) {
+export default function SchoolDetail({ schoolId, onBack }: Props) {
   const [detail, setDetail] = useState<SchoolDetailType | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -52,19 +50,17 @@ export default function SchoolDetail({ callerId, callerRole, schoolId, onBack }:
 
   useEffect(() => {
     setLoading(true);
-    getSchoolDetail(callerId, callerRole, schoolId, selectedCourse || undefined)
+    getSchoolDetail(schoolId, selectedCourse || undefined)
       .then(setDetail)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
       .finally(() => setLoading(false));
-  }, [callerId, callerRole, schoolId, selectedCourse]);
+  }, [schoolId, selectedCourse]);
 
   async function handleExportStudents() {
     if (!detail) return;
     setExporting(true);
     try {
       const { blob, filename } = await downloadAnalyticsStudentsCsv({
-        caller_role: callerRole,
-        caller_id: callerId,
         school_id: schoolId,
       });
       const url = URL.createObjectURL(blob);

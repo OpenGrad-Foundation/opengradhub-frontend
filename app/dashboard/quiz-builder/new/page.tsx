@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { createQuiz } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const ALLOWED_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER"];
 
 export default function NewQuizPage() {
   const router = useRouter();
@@ -15,7 +14,7 @@ export default function NewQuizPage() {
   const courseId  = params.get("course_id")  ?? "";
 
   const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const { has, isLoading: permLoading } = usePermissions();
   const userId   = data?.user?.id ?? "";
 
   const [title, setTitle]                   = useState("");
@@ -30,13 +29,13 @@ export default function NewQuizPage() {
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
 
-  if (userLoading) return null;
+  if (userLoading || permLoading) return null;
 
-  if (!ALLOWED_ROLES.includes(roleCode)) {
+  if (!has(PERM.test_bank.create)) {
     return (
       <div style={glassCard}>
         <p style={label}>Access Denied</p>
-        <p style={{ ...heading, marginTop: "12px" }}>Quiz Builder is for Super Admins and Program Managers only.</p>
+        <p style={{ ...heading, marginTop: "12px" }}>You don&apos;t have permission to create quizzes.</p>
       </div>
     );
   }

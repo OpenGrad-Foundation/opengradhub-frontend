@@ -29,8 +29,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
-import { getNavModules } from "@/lib/moduleAccess";
+import { MODULE_META, type ModuleKey } from "@/lib/moduleAccess";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
+
+// Nav order = the order MODULE_META is declared in.
+const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
 
 // ── Icon map ────────────────────────────────────────────────────────────────
 
@@ -70,9 +73,16 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const clerk = useClerk();
   const { data } = useCurrentUser();
 
-  const roleCode = data?.role?.code ?? "STUDENT";
-  const programmeType = data?.user?.programme ?? null;
-  const navModules = getNavModules(roleCode, programmeType);
+  // Nav is driven entirely by the server's effective module list (role defaults
+  // + per-user overrides). Show only modules we have presentation metadata for
+  // (e.g. `notifications` is a PBAC module but lives in the bell, not the rail),
+  // rendered in the canonical MODULE_META order.
+  const grantedCodes = new Set(
+    (data?.modules ?? []).map((m: { code: string }) => m.code),
+  );
+  const navModules = MODULE_ORDER.filter((key) => grantedCodes.has(key)).map(
+    (key) => ({ key, ...MODULE_META[key] }),
+  );
 
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);

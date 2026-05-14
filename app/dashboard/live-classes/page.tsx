@@ -3,16 +3,18 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { getLiveClasses, joinLiveClass, type LiveClass } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
-
-const MANAGER_ROLES: RoleCode[] = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
 
 export default function LiveClassesPage() {
   const { data, isLoading } = useCurrentUser();
-  const roleCode  = (data?.role?.code ?? "") as RoleCode;
+  const { has }   = usePermissions();
   const userId    = data?.user?.id ?? "";
-  const isManager = MANAGER_ROLES.includes(roleCode);
+  // "Manager view" = can schedule classes; "join" is a separate permission.
+  const canCreate = has(PERM.live_classes.create);
+  const canJoin   = has(PERM.live_classes.join);
+  const isManager = canCreate;
 
   const [classes,  setClasses]  = useState<LiveClass[]>([]);
   const [loading,  setLoading]  = useState(true);
@@ -31,13 +33,13 @@ export default function LiveClassesPage() {
     setLoading(true);
     setError(null);
     try {
-      setClasses(await getLiveClasses(userId, roleCode));
+      setClasses(await getLiveClasses());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load.");
     } finally {
       setLoading(false);
     }
-  }, [userId, roleCode]);
+  }, [userId]);
 
   useEffect(() => { if (!isLoading && userId) void fetch(); }, [isLoading, userId, fetch]);
 
@@ -69,7 +71,7 @@ export default function LiveClassesPage() {
             {upcoming.length} upcoming · {past.length} past
           </p>
         </div>
-        {isManager && (
+        {canCreate && (
           <Link href="/dashboard/live-classes/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
             + Schedule Class
           </Link>
@@ -86,7 +88,7 @@ export default function LiveClassesPage() {
           <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>
             {isManager ? "Schedule the first live session." : "No live classes have been scheduled yet."}
           </p>
-          {isManager && (
+          {canCreate && (
             <Link href="/dashboard/live-classes/new" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
               + Schedule Class
             </Link>
@@ -97,7 +99,7 @@ export default function LiveClassesPage() {
           {upcoming.length > 0 && (
             <Section title="Upcoming">
               {upcoming.map(cls => (
-                <ClassCard key={cls.id} cls={cls} isManager={isManager} now={now}
+                <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
                   onJoin={() => void handleJoin(cls)} joining={joining === cls.id} />
               ))}
             </Section>
@@ -105,7 +107,7 @@ export default function LiveClassesPage() {
           {past.length > 0 && (
             <Section title="Past Sessions">
               {past.map(cls => (
-                <ClassCard key={cls.id} cls={cls} isManager={isManager} now={now}
+                <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
                   onJoin={() => void handleJoin(cls)} joining={joining === cls.id} past />
               ))}
             </Section>
@@ -125,8 +127,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ClassCard({ cls, isManager, now, onJoin, joining, past }: {
-  cls: LiveClass; isManager: boolean; now: number;
+function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past }: {
+  cls: LiveClass; isManager: boolean; mayJoin: boolean; now: number;
   onJoin: () => void; joining: boolean; past?: boolean;
 }) {
   const scheduledMs  = new Date(cls.scheduled_at).getTime();
@@ -180,7 +182,7 @@ function ClassCard({ cls, isManager, now, onJoin, joining, past }: {
       </div>
 
       {/* Join / countdown */}
-      {!isManager && !past && (
+      {mayJoin && !past && (
         <div style={{ flexShrink: 0, textAlign: "right" }}>
           {canJoin ? (
             <button

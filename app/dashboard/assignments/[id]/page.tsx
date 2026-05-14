@@ -126,7 +126,6 @@ export default function AssignmentDetailPage() {
         <SubmissionForm
           assignmentId={assignmentId}
           studentId={studentId}
-          callerRole={roleCode}
           isResubmit={isSubmitted}
           onSubmitted={onSubmitted}
         />
@@ -193,13 +192,11 @@ const MAX_FILES = 3;
 function SubmissionForm({
   assignmentId,
   studentId,
-  callerRole,
   isResubmit,
   onSubmitted,
 }: {
   assignmentId: string;
   studentId: string;
-  callerRole: string;
   isResubmit: boolean;
   onSubmitted: (s: Submission) => void;
 }) {
@@ -246,7 +243,6 @@ function SubmissionForm({
       const fileUrls = files.map(f => f.name);
       const sub = await submitAssignment(assignmentId, {
         student_id:    studentId,
-        caller_role:   callerRole,
         response_text: responseText.trim() || undefined,
         file_urls:     fileUrls,
       });
