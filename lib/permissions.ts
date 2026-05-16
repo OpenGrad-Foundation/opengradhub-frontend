@@ -106,6 +106,9 @@ export const PERM = {
   notifications: {
     view: "notifications.view",
   },
+  audit_log: {
+    view: "audit_log.view",
+  },
 } as const;
 
 /** Maps a top-level dashboard route segment → the permission needed to view it. */
@@ -127,5 +130,6 @@ export const ROUTE_PERMISSION: Record<string, string> = {
   "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
   "role-management": PERM.role_management.view,
+  "activity-log": PERM.audit_log.view,
   // `/dashboard` itself and self-scoped pages (notifications, profile) have no gate.
 };

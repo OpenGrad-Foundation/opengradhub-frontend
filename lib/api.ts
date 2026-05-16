@@ -2082,3 +2082,95 @@ export async function bulkEnrol(payload: {
   }
   return (await r.json()) as { enrolled_courses: number; enrolled_bundles: number; skipped: number };
 }
+
+// ── Audit Logs API ─────────────────────────────────────────────
+
+export type AuditLogEntry = {
+  id: string;
+  user_id: string | null;
+  user_name: string | null;
+  user_role: string | null;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  http_method: string | null;
+  path: string | null;
+  status_code: number | null;
+  ip_address: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type AuditLogFilters = {
+  action?: string;
+  userId?: string;
+  resourceType?: string;
+  search?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+export type AuditLogStats = {
+  today: number;
+  this_week: number;
+  top_actions: { action: string; count: number }[];
+  top_users: { user_id: string; user_name: string; count: number }[];
+};
+
+export type PaginatedAuditLogs = {
+  items: AuditLogEntry[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_next: boolean;
+  has_prev: boolean;
+};
+
+export async function getAuditLogs(filters: AuditLogFilters = {}): Promise<PaginatedAuditLogs> {
+  const url = new URL(`${API_BASE_URL}/audit-logs`);
+  if (filters.action) url.searchParams.set("action", filters.action);
+  if (filters.userId) url.searchParams.set("user_id", filters.userId);
+  if (filters.resourceType) url.searchParams.set("resource_type", filters.resourceType);
+  if (filters.search) url.searchParams.set("search", filters.search);
+  if (filters.from) url.searchParams.set("from", filters.from);
+  if (filters.to) url.searchParams.set("to", filters.to);
+  if (typeof filters.page === "number") url.searchParams.set("page", String(filters.page));
+  if (typeof filters.pageSize === "number") url.searchParams.set("page_size", String(filters.pageSize));
+
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch audit logs.", r.status);
+  }
+  return (await r.json()) as PaginatedAuditLogs;
+}
+
+export async function getAuditLogActions(): Promise<string[]> {
+  const r = await apiFetch(`${API_BASE_URL}/audit-logs/actions`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch audit log actions.", r.status);
+  return (await r.json()) as string[];
+}
+
+export async function getAuditLogStats(): Promise<AuditLogStats> {
+  const r = await apiFetch(`${API_BASE_URL}/audit-logs/stats`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch audit log stats.", r.status);
+  return (await r.json()) as AuditLogStats;
+}
+
+export async function postAuditEvent(action: string, token?: string): Promise<void> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  await apiFetch(`${API_BASE_URL}/audit-logs/event`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ action }),
+  });
+}

@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useSignIn } from "@clerk/nextjs";
-import { signIn, signUp } from "@/lib/api";
+import { useAuth, useSignIn } from "@clerk/nextjs";
+import { postAuditEvent, setApiAuthToken, signIn, signUp } from "@/lib/api";
 import {
   getStoredAuthToken,
   isClerkMode,
@@ -136,6 +136,7 @@ function ClerkSignInForm({
   const router = useRouter();
   // Clerk v7 "Future" signal API: { signIn, errors, fetchStatus }
   const { signIn } = useSignIn();
+  const { getToken } = useAuth();
   const [identifier, setIdentifier] = useState(initialIdentifier);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +164,14 @@ function ClerkSignInForm({
         if (finalizeError) {
           setError(finalizeError.message ?? "Could not activate session.");
           return;
+        }
+        try {
+          const token = await getToken();
+          if (token) {
+            await postAuditEvent("USER_LOGGED_IN", token);
+          }
+        } catch {
+          // Best-effort logging only.
         }
         // Hard navigation so middleware sees the new Clerk session cookie
         window.location.replace("/dashboard");
@@ -360,6 +369,12 @@ export default function LoginPage() {
     try {
       const response = await signIn({ identifier, password });
       persistAuthToken(response.accessToken);
+      setApiAuthToken(response.accessToken);
+      try {
+        await postAuditEvent("USER_LOGGED_IN", response.accessToken);
+      } catch {
+        // Best-effort logging only.
+      }
       router.replace("/dashboard");
     } catch (caughtError) {
       const message =

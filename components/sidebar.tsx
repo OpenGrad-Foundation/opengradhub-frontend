@@ -27,10 +27,12 @@ import {
   ChevronUp,
   ChevronDown,
   type LucideIcon,
+  FileSearch,
 } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { MODULE_META, type ModuleKey } from "@/lib/moduleAccess";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
+import { postAuditEvent } from "@/lib/api";
 
 // Nav order = the order MODULE_META is declared in.
 const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
@@ -54,6 +56,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   user_management: Users,
   role_management: Shield,
   bulk_assign:     UserPlus,
+  audit_log:       FileSearch,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────
@@ -141,6 +144,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   };
 
   async function handleSignOut() {
+    try { await postAuditEvent("USER_LOGGED_OUT"); } catch { /* best-effort */ }
     clearUserCache();
     if (isClerkMode()) {
       await clerk.signOut();
