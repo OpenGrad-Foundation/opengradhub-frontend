@@ -57,7 +57,8 @@ export const PERM = {
     join: "live_classes.join",
   },
   calendar: {
-    view: "calendar.view",
+    view:   "calendar.view",
+    create: "calendar.create",
   },
   resources: {
     view: "resources.view",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -10,8 +10,10 @@ import {
   getQuizAttempts,
   type Quiz,
   type StartedAttempt,
+  type QuizAttempt,
   type QuizAttemptQuestion,
 } from "@/lib/api";
+import { MathContent } from "@/app/dashboard/_components/MathContent";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -94,11 +96,14 @@ const optionRow: React.CSSProperties = {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type AnswerMap = Record<string, string | null>; // snapshot_id → student_answer (option id or text)
+type TimingMap = Record<string, number>;         // snapshot_id → accumulated seconds
 
 type ResultState = {
+  attempt_id: string;
   score: number;
   max_score: number;
   passed: boolean | null;
+  show_answers_after: boolean;
 };
 
 // ── Question renderer ─────────────────────────────────────────────────────────
@@ -108,23 +113,42 @@ function QuestionBlock({
   idx,
   answers,
   setAnswer,
+  onEnter,
+  onLeave,
 }: {
   q: QuizAttemptQuestion;
   idx: number;
   answers: AnswerMap;
   setAnswer: (snapshotId: string, val: string | null) => void;
+  onEnter: (snapshotId: string) => void;
+  onLeave: (snapshotId: string) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) onEnter(q.snapshot_id);
+        else onLeave(q.snapshot_id);
+      },
+      { threshold: 0.3 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [q.snapshot_id, onEnter, onLeave]);
   const current = answers[q.snapshot_id] ?? null;
 
   return (
-    <div style={{ marginBottom: "32px" }}>
+    <div ref={containerRef} style={{ marginBottom: "32px" }}>
       <p style={{ fontSize: "13px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "6px" }}>
         Q{idx + 1} · {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERIC" ? "Numeric" : "Short Answer"}
       </p>
-      {/* Question content */}
-      <div
+      {/* Question content — renders $...$ and $$...$$ as KaTeX math */}
+      <MathContent
+        html={q.content_html}
         style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.5, marginBottom: "16px" }}
-        dangerouslySetInnerHTML={{ __html: q.content_html }}
       />
 
       {q.question_type === "MCQ" && q.options.length > 0 && (
@@ -183,6 +207,8 @@ function QuestionBlock({
               idx={ci}
               answers={answers}
               setAnswer={setAnswer}
+              onEnter={onEnter}
+              onLeave={onLeave}
             />
           ))}
         </div>
@@ -206,6 +232,23 @@ export default function QuizTakingPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [pastAttempts, setPastAttempts] = useState<QuizAttempt[]>([]);
+
+  // Per-question timing via IntersectionObserver
+  const timingsRef    = useRef<TimingMap>({});   // accumulated seconds per snapshot_id
+  const enterTimesRef = useRef<TimingMap>({});    // timestamp when question entered viewport
+
+  const handleQuestionEnter = useRef((snapshotId: string) => {
+    enterTimesRef.current[snapshotId] = Date.now();
+  }).current;
+
+  const handleQuestionLeave = useRef((snapshotId: string) => {
+    const entered = enterTimesRef.current[snapshotId];
+    if (entered) {
+      timingsRef.current[snapshotId] = (timingsRef.current[snapshotId] ?? 0) + Math.round((Date.now() - entered) / 1000);
+      delete enterTimesRef.current[snapshotId];
+    }
+  }).current;
 
   useEffect(() => {
     if (userLoading || !userData) return;
@@ -222,7 +265,9 @@ export default function QuizTakingPage() {
           getQuizAttempts(quizId),
         ]);
         setQuiz(q);
-        setAttemptsUsed(attempts.filter((a) => a.is_complete).length);
+        const completed = attempts.filter((a) => a.is_complete);
+        setAttemptsUsed(completed.length);
+        setPastAttempts(completed);
         setPhase("intro");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load quiz.");
@@ -249,12 +294,26 @@ export default function QuizTakingPage() {
     if (!attempt) return;
     setSubmitting(true);
     try {
+      // Flush any questions still in viewport before submitting
+      const now = Date.now();
+      for (const [snapshotId, entered] of Object.entries(enterTimesRef.current)) {
+        timingsRef.current[snapshotId] = (timingsRef.current[snapshotId] ?? 0) + Math.round((now - entered) / 1000);
+      }
+      enterTimesRef.current = {};
+
       const answerList = Object.entries(answers).map(([snapshot_id, student_answer]) => ({
         snapshot_id,
         student_answer,
+        time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
       }));
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
-      setResult({ score: res.score, max_score: res.max_score, passed: res.passed });
+      setResult({
+        attempt_id: res.attempt_id,
+        score: res.score,
+        max_score: res.max_score,
+        passed: res.passed,
+        show_answers_after: quiz?.show_answers_after ?? false,
+      });
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
@@ -322,9 +381,47 @@ export default function QuizTakingPage() {
               You have used all available attempts for this quiz.
             </p>
           ) : (
-            <button onClick={handleStart} style={primaryBtn}>
+            <button onClick={handleStart} style={{ ...primaryBtn, marginTop: "20px" }}>
               {attemptsUsed > 0 ? "Retake Quiz" : "Start Quiz"} →
             </button>
+          )}
+
+          {/* Past attempt history */}
+          {pastAttempts.length > 0 && (
+            <div style={{ marginTop: "28px", borderTop: "1px solid rgba(3,72,82,0.08)", paddingTop: "20px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "rgba(3,72,82,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+                Past Attempts
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {pastAttempts.map((a) => {
+                  const pct = a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null;
+                  const date = a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
+                  return (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", background: "rgba(3,72,82,0.03)", borderRadius: "10px" }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#034852" }}>
+                          Attempt {a.attempt_number} — {a.score ?? "?"}/{a.max_score ?? "?"}{pct !== null ? ` (${pct}%)` : ""}
+                        </p>
+                        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>{date}</p>
+                      </div>
+                      {a.passed !== null && (
+                        <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "100px", background: a.passed ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)", color: a.passed ? "#0abe62" : "#e53e3e" }}>
+                          {a.passed ? "Passed" : "Failed"}
+                        </span>
+                      )}
+                      {quiz?.show_answers_after && (
+                        <button
+                          onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${a.id}`)}
+                          style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px", margin: 0 }}
+                        >
+                          Review →
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -343,7 +440,15 @@ export default function QuizTakingPage() {
 
         <div style={card}>
           {attempt.questions.map((q, i) => (
-            <QuestionBlock key={q.snapshot_id} q={q} idx={i} answers={answers} setAnswer={setAnswer} />
+            <QuestionBlock
+              key={q.snapshot_id}
+              q={q}
+              idx={i}
+              answers={answers}
+              setAnswer={setAnswer}
+              onEnter={handleQuestionEnter}
+              onLeave={handleQuestionLeave}
+            />
           ))}
 
           <div style={{ borderTop: "1px solid rgba(3,72,82,0.1)", paddingTop: "20px", marginTop: "8px" }}>
@@ -393,6 +498,22 @@ export default function QuizTakingPage() {
             <button onClick={() => router.push("/dashboard/assessments")} style={primaryBtn}>
               Back to Assessments
             </button>
+            {result.show_answers_after && (
+              <button
+                onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`)}
+                style={secondaryBtn}
+              >
+                Review Answers →
+              </button>
+            )}
+            {userData?.user?.programme === "PG" && (
+              <button
+                onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
+                style={secondaryBtn}
+              >
+                Leaderboard
+              </button>
+            )}
             {quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
               <button onClick={() => { setAttemptsUsed((n) => n + 1); setPhase("intro"); }} style={secondaryBtn}>
                 Retake Quiz

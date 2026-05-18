@@ -688,6 +688,7 @@ export type ModuleWithProgress = {
   lessons: LessonWithProgress[];
   is_module_complete: boolean;
   is_locked: boolean;
+  module_quiz: { id: string; title: string; published: boolean } | null;
 };
 
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
@@ -786,6 +787,7 @@ export type Question = {
   subject: string | null;
   topic: string | null;
   difficulty: string | null;
+  explanation_video_url: string | null;
   created_by: string | null;
   options: QuestionOption[];
   children: Question[];
@@ -811,6 +813,7 @@ export type CreateQuestionPayload = {
   subject?: string;
   topic?: string;
   difficulty?: string;
+  explanation_video_url?: string;
   created_by?: string;
   options?: CreateOptionPayload[];
   children?: CreateChildPayload[];
@@ -1151,6 +1154,88 @@ export async function getQuizzes(params: { module_id?: string; quiz_type?: strin
   return (await r.json()) as Omit<Quiz, "questions">[];
 }
 
+export type ModuleQuiz = Omit<Quiz, "questions"> & {
+  course_id: string;
+  course_title: string;
+  module_title: string;
+};
+
+export type BatchDimension = {
+  peer_count: number;
+  student_avg_pct: number;
+  peer_avg_pct: number;
+  percentile: number;
+};
+
+export type BatchComparison = {
+  course_batch:    BatchDimension;
+  school_peers:    BatchDimension | null;
+  programme_peers: BatchDimension | null;
+};
+
+// ── Calendar ──────────────────────────────────────────────────────────────────
+
+export type CalendarItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  event_type: string;
+  starts_at: string;
+  ends_at: string | null;
+  is_all_day: boolean;
+  source: "custom" | "live_class" | "assignment";
+  ref_id: string | null;
+};
+
+export type CreateCalendarEventPayload = {
+  title: string;
+  description?: string;
+  event_type: "EXAM" | "HOLIDAY" | "WORKSHOP" | "OTHER";
+  starts_at: string;
+  ends_at?: string;
+  is_all_day?: boolean;
+  programme_type?: "UG" | "PG";
+  state?: string;
+  school_ids?: string[];
+  course_ids?: string[];
+};
+
+export async function getCalendar(from?: string, to?: string): Promise<CalendarItem[]> {
+  const url = new URL(`${API_BASE_URL}/calendar`);
+  if (from) url.searchParams.set("from", from);
+  if (to)   url.searchParams.set("to", to);
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch calendar.", r.status);
+  return (await r.json()) as CalendarItem[];
+}
+
+export async function createCalendarEvent(payload: CreateCalendarEventPayload): Promise<{ id: string }> {
+  const r = await apiFetch(`${API_BASE_URL}/calendar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new ApiError("Failed to create event.", r.status);
+  return (await r.json()) as { id: string };
+}
+
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/calendar/${id}`, { method: "DELETE" });
+  if (!r.ok) throw new ApiError("Failed to delete event.", r.status);
+}
+
+export async function getBatchComparison(studentId: string, courseId: string): Promise<BatchComparison> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/batch-comparison?course_id=${courseId}`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r.status);
+  return (await r.json()) as BatchComparison;
+}
+
+export async function getModuleQuizzes(): Promise<ModuleQuiz[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/module-tests`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to fetch module tests.", r.status);
+  return (await r.json()) as ModuleQuiz[];
+}
+
 export async function getQuizById(id: string): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, { cache: "no-store" });
   if (!r.ok) {
@@ -1373,7 +1458,7 @@ export async function startQuizAttempt(quizId: string): Promise<StartedAttempt> 
 
 export async function submitQuizAttempt(
   attemptId: string,
-  answers: { snapshot_id: string; student_answer: string | null }[],
+  answers: { snapshot_id: string; student_answer: string | null; time_taken_seconds?: number | null }[],
 ): Promise<{ attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string }> {
   const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/submit`, {
     method: "PATCH",
@@ -1385,6 +1470,81 @@ export async function submitQuizAttempt(
     throw new ApiError(err?.message ?? "Failed to submit quiz attempt.", r.status);
   }
   return await r.json() as { attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string };
+}
+
+// ── Analytics — new endpoints ──────────────────────────────────
+
+export type AttemptReviewQuestion = {
+  snapshot_id: string;
+  question_type: string;
+  content_html: string;
+  student_answer: string | null;
+  correct_answer: string | null;
+  is_correct: boolean | null;
+  marks_awarded: number;
+  time_taken_seconds: number | null;
+  explanation_video_url: string | null;
+  options: { id: string; option_text: string; is_correct: boolean }[];
+};
+
+export type AttemptReview = {
+  attempt_id: string;
+  quiz_id: string;
+  score: number;
+  max_score: number;
+  passed: boolean | null;
+  submitted_at: string;
+  questions: AttemptReviewQuestion[];
+};
+
+export async function getAttemptReview(attemptId: string): Promise<AttemptReview> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/review`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load review.", r.status);
+  }
+  return (await r.json()) as AttemptReview;
+}
+
+export type LeaderboardEntry = {
+  rank: number;
+  student_id: string;
+  name: string;
+  score_pct: number;
+  correct_count: number;
+  submitted_at: string;
+};
+
+export type QuizLeaderboard = {
+  quiz_id: string;
+  rankings: LeaderboardEntry[];
+  viewer_rank: number | null;
+};
+
+export async function getQuizLeaderboard(quizId: string): Promise<QuizLeaderboard> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/quizzes/${quizId}/leaderboard`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load leaderboard.", r.status);
+  }
+  return (await r.json()) as QuizLeaderboard;
+}
+
+export type TopicStrengthRow = {
+  subject: string;
+  topic: string | null;
+  correct: number;
+  total: number;
+  accuracy_pct: number;
+};
+
+export async function getTopicStrength(studentId: string): Promise<TopicStrengthRow[]> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load topic strength.", r.status);
+  }
+  return (await r.json()) as TopicStrengthRow[];
 }
 
 // ── Course Content API (modules + lessons) ─────────────────────

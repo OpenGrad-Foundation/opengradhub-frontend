@@ -10,6 +10,7 @@ import {
   type CreateChildPayload,
   type CreateQuestionPayload,
 } from "@/lib/api";
+import { MathContent } from "./MathContent";
 
 // ── Shared constants ───────────────────────────────────────────
 
@@ -89,6 +90,94 @@ export function FieldGroup({ label, children }: { label: string; children: React
   );
 }
 
+// ── Math toolbar ───────────────────────────────────────────────
+
+const MATH_SYMBOLS = [
+  { label: "x²",   snippet: "^{2}",          title: "Superscript / exponent" },
+  { label: "xₙ",   snippet: "_{n}",           title: "Subscript" },
+  { label: "a/b",  snippet: "\\frac{a}{b}",   title: "Fraction" },
+  { label: "√",    snippet: "\\sqrt{x}",      title: "Square root" },
+  { label: "ⁿ√",   snippet: "\\sqrt[n]{x}",   title: "Nth root" },
+  { label: "∫",    snippet: "\\int_{a}^{b}",  title: "Integral" },
+  { label: "∑",    snippet: "\\sum_{i=1}^{n}",title: "Summation" },
+  { label: "π",    snippet: "\\pi",           title: "Pi" },
+  { label: "α",    snippet: "\\alpha",        title: "Alpha" },
+  { label: "β",    snippet: "\\beta",         title: "Beta" },
+  { label: "∞",    snippet: "\\infty",        title: "Infinity" },
+  { label: "≠",    snippet: "\\neq",          title: "Not equal" },
+  { label: "≤",    snippet: "\\leq",          title: "Less than or equal" },
+  { label: "≥",    snippet: "\\geq",          title: "Greater than or equal" },
+  { label: "×",    snippet: "\\times",        title: "Multiplication" },
+  { label: "÷",    snippet: "\\div",          title: "Division" },
+  { label: "±",    snippet: "\\pm",           title: "Plus/minus" },
+  { label: "θ",    snippet: "\\theta",        title: "Theta" },
+];
+
+function insertAtCursor(
+  ref: React.RefObject<HTMLTextAreaElement | null>,
+  snippet: string,
+  setValue: (v: string) => void,
+) {
+  const el = ref.current;
+  if (!el) return;
+  const start = el.selectionStart ?? 0;
+  const end   = el.selectionEnd ?? 0;
+  const before = el.value.slice(0, start);
+  const after  = el.value.slice(end);
+  // Wrap snippet in $...$ if not already in a math context
+  const wrapped = `$${snippet}$`;
+  const next = before + wrapped + after;
+  setValue(next);
+  // Restore cursor inside the snippet
+  requestAnimationFrame(() => {
+    el.focus();
+    const pos = start + wrapped.length;
+    el.setSelectionRange(pos, pos);
+  });
+}
+
+function MathToolbar({
+  textareaRef,
+  setValue,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  setValue: (v: string) => void;
+}) {
+  return (
+    <div style={{
+      display: "flex", flexWrap: "wrap", gap: "4px",
+      padding: "6px 8px", marginBottom: "4px",
+      background: "rgba(3,72,82,0.04)",
+      border: "1px solid rgba(3,72,82,0.1)",
+      borderRadius: "8px 8px 0 0",
+      borderBottom: "none",
+    }}>
+      {MATH_SYMBOLS.map((sym) => (
+        <button
+          key={sym.snippet}
+          type="button"
+          title={sym.title}
+          onMouseDown={(e) => {
+            e.preventDefault(); // don't blur textarea
+            insertAtCursor(textareaRef, sym.snippet, setValue);
+          }}
+          style={{
+            padding: "3px 7px", border: "1px solid rgba(3,72,82,0.15)",
+            borderRadius: "5px", background: "#fff", cursor: "pointer",
+            fontSize: "13px", fontFamily: "serif", color: "#034852",
+            lineHeight: 1.4, transition: "background 0.1s",
+          }}
+        >
+          {sym.label}
+        </button>
+      ))}
+      <span style={{ fontSize: "10px", color: "rgba(3,72,82,0.4)", alignSelf: "center", marginLeft: "4px" }}>
+        wrap in $…$ for math
+      </span>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────
 
 /**
@@ -121,6 +210,7 @@ export function QuestionSlideOver({
   const [subject, setSubject] = useState(initial?.subject ?? "");
   const [topic, setTopic] = useState(initial?.topic ?? "");
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? "");
+  const [explanationVideoUrl, setExplanationVideoUrl] = useState(initial?.explanation_video_url ?? "");
 
   const [options, setOptions] = useState<DraftOption[]>(() => {
     if (initial?.question_type === "MCQ" && initial.options.length > 0) {
@@ -149,6 +239,7 @@ export function QuestionSlideOver({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const contentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => { contentRef.current?.focus(); }, []);
@@ -216,6 +307,7 @@ export function QuestionSlideOver({
         subject: subject || undefined,
         topic: topic || undefined,
         difficulty: difficulty || undefined,
+        explanation_video_url: explanationVideoUrl.trim() || undefined,
       };
 
       if (isEdit) {
@@ -292,9 +384,37 @@ export function QuestionSlideOver({
           </FieldGroup>
 
           {/* Content */}
-          <FieldGroup label="Content *">
-            <textarea ref={contentRef} value={content} onChange={e => setContent(e.target.value)} rows={4} placeholder="Enter question text…" style={{ ...S.input, resize: "vertical", lineHeight: 1.6 }} />
-          </FieldGroup>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+              <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>Content *</p>
+              <button
+                type="button"
+                onClick={() => setShowPreview(p => !p)}
+                style={{ background: "none", border: "none", fontSize: "11px", fontWeight: 700, color: "#0abe62", cursor: "pointer", padding: 0 }}
+              >
+                {showPreview ? "Edit" : "Preview math"}
+              </button>
+            </div>
+            <MathToolbar textareaRef={contentRef} setValue={setContent} />
+            {showPreview ? (
+              <div style={{
+                ...S.input, minHeight: "80px", lineHeight: 1.6,
+                borderRadius: "0 0 10px 10px", borderTop: "none",
+                background: "rgba(3,72,82,0.02)",
+              }}>
+                <MathContent html={content || "<span style='color:rgba(3,72,82,0.3)'>Nothing to preview…</span>"} />
+              </div>
+            ) : (
+              <textarea
+                ref={contentRef}
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                rows={4}
+                placeholder="Enter question text… use $x^{2}$ for math"
+                style={{ ...S.input, resize: "vertical", lineHeight: 1.6, borderRadius: "0 0 10px 10px", borderTop: "none" }}
+              />
+            )}
+          </div>
 
           {/* Tags */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -316,6 +436,15 @@ export function QuestionSlideOver({
             <FieldGroup label="Subject"><input value={subject} onChange={e => setSubject(e.target.value)} style={S.input} placeholder="e.g. Mathematics" /></FieldGroup>
             <FieldGroup label="Topic"><input value={topic} onChange={e => setTopic(e.target.value)} style={S.input} placeholder="e.g. Arithmetic" /></FieldGroup>
           </div>
+          <FieldGroup label="Explanation Video URL (optional)">
+            <input
+              value={explanationVideoUrl}
+              onChange={e => setExplanationVideoUrl(e.target.value)}
+              style={S.input}
+              placeholder="YouTube URL shown after quiz submission"
+              type="url"
+            />
+          </FieldGroup>
 
           {/* MCQ options */}
           {qType === "MCQ" && (
