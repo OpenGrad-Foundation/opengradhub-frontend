@@ -135,7 +135,7 @@ function QuestionBlock({
     <div>
       {q.question_type !== "GROUP" && (
         <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERIC" ? "Numeric" : "Short Answer"}
+          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERICAL" ? "Numeric" : "Short Answer"}
         </p>
       )}
       <MathContent
@@ -173,10 +173,10 @@ function QuestionBlock({
         </div>
       )}
 
-      {(q.question_type === "NUMERIC" || q.question_type === "SHORT_ANSWER") && (
+      {(q.question_type === "NUMERICAL" || q.question_type === "SHORT_ANSWER") && (
         <input
-          type={q.question_type === "NUMERIC" ? "number" : "text"}
-          placeholder={q.question_type === "NUMERIC" ? "Enter a number…" : "Type your answer…"}
+          type={q.question_type === "NUMERICAL" ? "number" : "text"}
+          placeholder={q.question_type === "NUMERICAL" ? "Enter a number…" : "Type your answer…"}
           value={current ?? ""}
           onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
           style={{

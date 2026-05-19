@@ -1486,6 +1486,9 @@ export type AttemptReviewQuestion = {
   time_taken_seconds: number | null;
   explanation_video_url: string | null;
   options: { id: string; option_text: string; is_correct: boolean }[];
+  avg_time_seconds: number | null;
+  batch_correct_count: number;
+  batch_total_count: number;
 };
 
 export type AttemptReview = {
