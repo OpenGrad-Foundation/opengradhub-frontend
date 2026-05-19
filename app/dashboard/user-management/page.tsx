@@ -14,10 +14,12 @@ import {
   enrolStudentInBundle,
   getStudentsForBulk,
   bulkEnrol,
+  fetchSchools,
   type SafeUser,
   type Course,
   type Bundle,
   type StudentForBulk,
+  type SchoolOption,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { usePermissions } from "@/hooks/use-permission";
@@ -248,6 +250,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdUser, setCreatedUser] = useState<SafeUser | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolsError, setSchoolsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((list) => {
+        if (!cancelled) setSchools(list);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setSchoolsError(err instanceof Error ? err.message : "Failed to load schools.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const isStudent = role === "STUDENT";
   const isFellow = role === "FELLOW";
@@ -386,7 +406,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="School" id="user-school">
-                        <input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="School name (optional)" />
+                        <select
+                          id="user-school"
+                          value={schoolId}
+                          onChange={(e) => setSchoolId(e.target.value)}
+                          style={inputStyle}
+                          disabled={schools.length === 0 && !schoolsError}
+                        >
+                          <option value="">
+                            {schoolsError
+                              ? "Failed to load schools"
+                              : schools.length === 0
+                                ? "Loading schools…"
+                                : "Select a school (optional)"}
+                          </option>
+                          {schools.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
                       </Field>
                     </Row>
                   </>
@@ -417,7 +454,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         <input id="user-district" value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} placeholder="e.g. Ernakulam" />
                       </Field>
                       <Field label="School" id="user-school">
-                        <input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="School name (optional)" />
+                        <select
+                          id="user-school"
+                          value={schoolId}
+                          onChange={(e) => setSchoolId(e.target.value)}
+                          style={inputStyle}
+                          disabled={schools.length === 0 && !schoolsError}
+                        >
+                          <option value="">
+                            {schoolsError
+                              ? "Failed to load schools"
+                              : schools.length === 0
+                                ? "Loading schools…"
+                                : "Select a school (optional)"}
+                          </option>
+                          {schools.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
                       </Field>
                     </Row>
                   </>

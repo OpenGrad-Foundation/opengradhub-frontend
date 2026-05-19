@@ -319,7 +319,8 @@ export type ManagerStudentRow = {
   id: string;
   name: string;
   completion_pct: number;
-  last_score: number | null;
+  best_score: number | null;
+  avg_score: number | null;
   assignment_status: string;
 };
 
@@ -1506,6 +1507,19 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
   return (await r.json()) as AttemptReview;
 }
 
+export type WrongExplanation = {
+  snapshot_id: string;
+  content_html: string;
+  explanation_video_url: string;
+};
+
+export async function getAttemptExplanations(attemptId: string): Promise<WrongExplanation[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/explanations`, { cache: "no-store" });
+  if (!r.ok) return [];
+  const data = await r.json() as { questions: WrongExplanation[] };
+  return data.questions ?? [];
+}
+
 export type LeaderboardEntry = {
   rank: number;
   student_id: string;
@@ -1702,6 +1716,24 @@ export async function createResource(payload: {
 }
 
 // ── User Management API ────────────────────────────────────────
+
+export type SchoolOption = { id: string; name: string };
+
+/**
+ * Fetch all schools (id + name) for user-creation pickers.
+ * Backed by GET /schools (gated by user_management.create).
+ */
+export async function fetchSchools(): Promise<SchoolOption[]> {
+  const response = await apiFetch(`${API_BASE_URL}/schools`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch schools.", response.status);
+  }
+
+  return (await response.json()) as SchoolOption[];
+}
 
 /**
  * Create a single user.

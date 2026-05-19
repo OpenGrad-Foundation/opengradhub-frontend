@@ -8,16 +8,31 @@ import {
   startQuizAttempt,
   submitQuizAttempt,
   getQuizAttempts,
+  getAttemptExplanations,
   type Quiz,
   type StartedAttempt,
   type QuizAttempt,
   type QuizAttemptQuestion,
+  type WrongExplanation,
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const page: React.CSSProperties = {
+const pageOuter: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#f0f2f5",
+  fontFamily: "'Inter', sans-serif",
+  color: "#034852",
+};
+
+const pageInner: React.CSSProperties = {
+  maxWidth: "1100px",
+  margin: "0 auto",
+  padding: "32px 20px",
+};
+
+const pageCentered: React.CSSProperties = {
   maxWidth: "760px",
   margin: "0 auto",
   padding: "32px 16px",
@@ -26,7 +41,7 @@ const page: React.CSSProperties = {
 };
 
 const card: React.CSSProperties = {
-  background: "rgba(255,255,255,0.85)",
+  background: "rgba(255,255,255,0.95)",
   borderRadius: "16px",
   padding: "32px",
   boxShadow: "0 2px 24px rgba(3,72,82,0.08)",
@@ -65,7 +80,6 @@ const primaryBtn: React.CSSProperties = {
   fontSize: "15px",
   fontWeight: 700,
   cursor: "pointer",
-  marginTop: "20px",
 };
 
 const secondaryBtn: React.CSSProperties = {
@@ -77,17 +91,15 @@ const secondaryBtn: React.CSSProperties = {
   fontSize: "15px",
   fontWeight: 700,
   cursor: "pointer",
-  marginTop: "20px",
-  marginLeft: "12px",
 };
 
 const optionRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: "12px",
-  padding: "10px 14px",
+  padding: "12px 16px",
   borderRadius: "10px",
-  marginBottom: "8px",
+  marginBottom: "10px",
   cursor: "pointer",
   border: "1.5px solid rgba(3,72,82,0.12)",
   transition: "all 0.15s",
@@ -95,7 +107,7 @@ const optionRow: React.CSSProperties = {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AnswerMap = Record<string, string | null>; // snapshot_id → student_answer (option id or text)
+type AnswerMap = Record<string, string | null>; // snapshot_id → student_answer
 type TimingMap = Record<string, number>;         // snapshot_id → accumulated seconds
 
 type ResultState = {
@@ -110,45 +122,25 @@ type ResultState = {
 
 function QuestionBlock({
   q,
-  idx,
   answers,
   setAnswer,
-  onEnter,
-  onLeave,
 }: {
   q: QuizAttemptQuestion;
-  idx: number;
   answers: AnswerMap;
   setAnswer: (snapshotId: string, val: string | null) => void;
-  onEnter: (snapshotId: string) => void;
-  onLeave: (snapshotId: string) => void;
 }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) onEnter(q.snapshot_id);
-        else onLeave(q.snapshot_id);
-      },
-      { threshold: 0.3 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [q.snapshot_id, onEnter, onLeave]);
   const current = answers[q.snapshot_id] ?? null;
 
   return (
-    <div ref={containerRef} style={{ marginBottom: "32px" }}>
-      <p style={{ fontSize: "13px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "6px" }}>
-        Q{idx + 1} · {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERIC" ? "Numeric" : "Short Answer"}
-      </p>
-      {/* Question content — renders $...$ and $$...$$ as KaTeX math */}
+    <div>
+      {q.question_type !== "GROUP" && (
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERIC" ? "Numeric" : "Short Answer"}
+        </p>
+      )}
       <MathContent
         html={q.content_html}
-        style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.5, marginBottom: "16px" }}
+        style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.6, marginBottom: "24px" }}
       />
 
       {q.question_type === "MCQ" && q.options.length > 0 && (
@@ -158,10 +150,10 @@ function QuestionBlock({
             return (
               <div
                 key={opt.id}
-                onClick={() => setAnswer(q.snapshot_id, opt.id)}
+                onClick={() => setAnswer(q.snapshot_id, selected ? null : opt.id)}
                 style={{
                   ...optionRow,
-                  background: selected ? "rgba(10,190,98,0.12)" : "transparent",
+                  background: selected ? "rgba(10,190,98,0.08)" : "transparent",
                   borderColor: selected ? "#0abe62" : "rgba(3,72,82,0.12)",
                 }}
               >
@@ -170,7 +162,10 @@ function QuestionBlock({
                   border: `2px solid ${selected ? "#0abe62" : "rgba(3,72,82,0.3)"}`,
                   background: selected ? "#0abe62" : "transparent",
                   flexShrink: 0,
-                }} />
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {selected && <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fff" }} />}
+                </div>
                 <span style={{ fontSize: "15px" }}>{opt.option_text}</span>
               </div>
             );
@@ -186,7 +181,7 @@ function QuestionBlock({
           onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
           style={{
             width: "100%",
-            padding: "10px 14px",
+            padding: "12px 16px",
             borderRadius: "10px",
             border: "1.5px solid rgba(3,72,82,0.2)",
             fontSize: "15px",
@@ -197,22 +192,86 @@ function QuestionBlock({
         />
       )}
 
-      {/* GROUP children */}
       {q.question_type === "GROUP" && q.children.length > 0 && (
-        <div style={{ paddingLeft: "20px", borderLeft: "3px solid rgba(3,72,82,0.1)", marginTop: "12px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
           {q.children.map((child, ci) => (
-            <QuestionBlock
-              key={child.snapshot_id}
-              q={child as QuizAttemptQuestion}
-              idx={ci}
-              answers={answers}
-              setAnswer={setAnswer}
-              onEnter={onEnter}
-              onLeave={onLeave}
-            />
+            <div key={child.snapshot_id} style={{ paddingLeft: "20px", borderLeft: "3px solid rgba(3,72,82,0.1)" }}>
+              <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Part {ci + 1}
+              </p>
+              <QuestionBlock
+                q={child as QuizAttemptQuestion}
+                answers={answers}
+                setAnswer={setAnswer}
+              />
+            </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── YouTube embed helper ──────────────────────────────────────────────────────
+
+function getYouTubeEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const isYouTube = u.hostname === "www.youtube.com" || u.hostname === "youtube.com" || u.hostname === "youtu.be";
+    if (!isYouTube) return null;
+    const v = u.hostname === "youtu.be"
+      ? u.pathname.slice(1)
+      : u.searchParams.get("v");
+    if (!v || !/^[a-zA-Z0-9_-]{11}$/.test(v)) return null;
+    return `https://www.youtube.com/embed/${v}`;
+  } catch {
+    return null;
+  }
+}
+
+// ── Timing breakdown ──────────────────────────────────────────────────────────
+
+function fmtTime(s: number): string {
+  const m   = Math.floor(s / 60);
+  const sec = s % 60;
+  return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function TimingBreakdown({ questions, timings }: { questions: QuizAttemptQuestion[]; timings: TimingMap }) {
+  const rows: { label: string; seconds: number }[] = [];
+  questions.forEach((q, i) => {
+    rows.push({
+      label: `Q${i + 1}${q.question_type === "GROUP" ? " (group)" : ""}`,
+      seconds: timings[q.snapshot_id] ?? 0,
+    });
+  });
+
+  if (rows.length === 0) return null;
+
+  const total = rows.reduce((s, r) => s + r.seconds, 0);
+  const max   = Math.max(1, ...rows.map((r) => r.seconds));
+
+  return (
+    <div style={{ marginTop: "24px", padding: "20px 24px", background: "rgba(3,72,82,0.03)", borderRadius: "12px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
+        <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+          Time per question
+        </p>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "#209379" }}>Total {fmtTime(total)}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {rows.map((r) => (
+          <div key={r.label} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#034852", width: "72px", flexShrink: 0 }}>{r.label}</span>
+            <div style={{ flex: 1, height: "8px", borderRadius: "100px", background: "rgba(3,72,82,0.08)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(r.seconds / max) * 100}%`, borderRadius: "100px", background: "linear-gradient(135deg,#0abe62,#209379)" }} />
+            </div>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.6)", width: "64px", textAlign: "right", flexShrink: 0 }}>
+              {fmtTime(r.seconds)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -233,25 +292,78 @@ export default function QuizTakingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [pastAttempts, setPastAttempts] = useState<QuizAttempt[]>([]);
+  const [explanations, setExplanations] = useState<WrongExplanation[]>([]);
 
-  // Per-question timing via IntersectionObserver
-  const timingsRef    = useRef<TimingMap>({});   // accumulated seconds per snapshot_id
-  const enterTimesRef = useRef<TimingMap>({});    // timestamp when question entered viewport
+  // Question-by-question navigation state
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [showReloadWarning, setShowReloadWarning] = useState(false);
 
-  const handleQuestionEnter = useRef((snapshotId: string) => {
-    enterTimesRef.current[snapshotId] = Date.now();
-  }).current;
+  const timingsRef         = useRef<TimingMap>({});
+  const enterTimesRef      = useRef<TimingMap>({});
+  const submittingRef      = useRef(false);
+  const handleSubmitRef    = useRef<() => Promise<void>>(async () => {});
+  const hasLoadedRef       = useRef(false);
+  const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
 
-  const handleQuestionLeave = useRef((snapshotId: string) => {
-    const entered = enterTimesRef.current[snapshotId];
-    if (entered) {
-      timingsRef.current[snapshotId] = (timingsRef.current[snapshotId] ?? 0) + Math.round((Date.now() - entered) / 1000);
-      delete enterTimesRef.current[snapshotId];
+  // Warn before browser reload/close during an active attempt
+  useEffect(() => {
+    if (phase !== "taking") return;
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
     }
-  }).current;
+    beforeUnloadRef.current = onBeforeUnload;
+    function onKeyDown(e: KeyboardEvent) {
+      const isReload = e.key === "F5" || ((e.ctrlKey || e.metaKey) && e.key === "r");
+      if (!isReload) return;
+      e.preventDefault();
+      setShowReloadWarning(true);
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("keydown", onKeyDown);
+      beforeUnloadRef.current = null;
+    };
+  }, [phase]);
+
+  // Count-up / countdown timer
+  useEffect(() => {
+    if (phase !== "taking") return;
+    const iv = setInterval(() => setTimeElapsed((s) => s + 1), 1000);
+    return () => clearInterval(iv);
+  }, [phase]);
+
+  // Auto-submit when time limit reached
+  const timeLimitSeconds = quiz?.duration_minutes ? quiz.duration_minutes * 60 : null;
+  useEffect(() => {
+    if (phase !== "taking" || !timeLimitSeconds || submittingRef.current) return;
+    if (timeElapsed >= timeLimitSeconds) void handleSubmitRef.current();
+  }, [timeElapsed, timeLimitSeconds, phase]);
+
+  // Per-question timing: track via currentIdx changes instead of IntersectionObserver
+  useEffect(() => {
+    if (phase !== "taking" || !attempt) return;
+    const q = attempt.questions[currentIdx];
+    if (!q) return;
+    const sid = q.snapshot_id;
+    enterTimesRef.current[sid] = Date.now();
+    return () => {
+      const entered = enterTimesRef.current[sid];
+      if (entered) {
+        timingsRef.current[sid] = (timingsRef.current[sid] ?? 0) + Math.round((Date.now() - entered) / 1000);
+        delete enterTimesRef.current[sid];
+      }
+    };
+  }, [currentIdx, phase, attempt]);
 
   useEffect(() => {
-    if (userLoading || !userData) return;
+    if (userLoading || !userData || hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     if (userData.role.code !== "STUDENT") {
       setError("Only students can take quizzes.");
       setPhase("error");
@@ -268,6 +380,7 @@ export default function QuizTakingPage() {
         const completed = attempts.filter((a) => a.is_complete);
         setAttemptsUsed(completed.length);
         setPastAttempts(completed);
+
         setPhase("intro");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load quiz.");
@@ -281,8 +394,16 @@ export default function QuizTakingPage() {
     try {
       setPhase("loading");
       const started = await startQuizAttempt(quizId);
+
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(started.started_at).getTime()) / 1000));
+
       setAttempt(started);
       setAnswers({});
+      setCurrentIdx(0);
+      setFlagged(new Set());
+      setTimeElapsed(elapsedSeconds);
+      timingsRef.current = {};
+      enterTimesRef.current = {};
       setPhase("taking");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start attempt.");
@@ -292,18 +413,26 @@ export default function QuizTakingPage() {
 
   async function handleSubmit() {
     if (!attempt) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      // Flush any questions still in viewport before submitting
       const now = Date.now();
-      for (const [snapshotId, entered] of Object.entries(enterTimesRef.current)) {
-        timingsRef.current[snapshotId] = (timingsRef.current[snapshotId] ?? 0) + Math.round((now - entered) / 1000);
+      for (const [sid, entered] of Object.entries(enterTimesRef.current)) {
+        timingsRef.current[sid] = (timingsRef.current[sid] ?? 0) + Math.round((now - entered) / 1000);
       }
       enterTimesRef.current = {};
 
-      const answerList = Object.entries(answers).map(([snapshot_id, student_answer]) => ({
+      const allSnapshotIds: string[] = [];
+      for (const q of attempt.questions) {
+        if (q.question_type === 'GROUP') {
+          for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
+        } else {
+          allSnapshotIds.push(q.snapshot_id);
+        }
+      }
+      const answerList = allSnapshotIds.map((snapshot_id) => ({
         snapshot_id,
-        student_answer,
+        student_answer: answers[snapshot_id] ?? null,
         time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
       }));
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
@@ -314,24 +443,38 @@ export default function QuizTakingPage() {
         passed: res.passed,
         show_answers_after: quiz?.show_answers_after ?? false,
       });
+      const vids = await getAttemptExplanations(res.attempt_id);
+      setExplanations(vids);
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
       setPhase("error");
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   }
 
+  handleSubmitRef.current = handleSubmit;
+
   function setAnswer(snapshotId: string, val: string | null) {
     setAnswers((prev) => ({ ...prev, [snapshotId]: val }));
+  }
+
+  function toggleFlag(snapshotId: string) {
+    setFlagged((prev) => {
+      const next = new Set(prev);
+      if (next.has(snapshotId)) next.delete(snapshotId);
+      else next.add(snapshotId);
+      return next;
+    });
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (phase === "loading" || userLoading) {
     return (
-      <div style={{ ...page, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
+      <div style={{ ...pageCentered, display: "flex", alignItems: "center", justifyContent: "center", minHeight: "60vh" }}>
         <p style={subtext}>Loading…</p>
       </div>
     );
@@ -339,7 +482,7 @@ export default function QuizTakingPage() {
 
   if (phase === "error") {
     return (
-      <div style={page}>
+      <div style={pageCentered}>
         <div style={card}>
           <p style={{ ...heading, color: "#e53e3e" }}>Error</p>
           <p style={subtext}>{error}</p>
@@ -352,7 +495,7 @@ export default function QuizTakingPage() {
   if (phase === "intro" && quiz) {
     const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
     return (
-      <div style={page}>
+      <div style={pageCentered}>
         <a
           href="/dashboard/assessments"
           style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}
@@ -386,7 +529,6 @@ export default function QuizTakingPage() {
             </button>
           )}
 
-          {/* Past attempt history */}
           {pastAttempts.length > 0 && (
             <div style={{ marginTop: "28px", borderTop: "1px solid rgba(3,72,82,0.08)", paddingTop: "20px" }}>
               <p style={{ fontSize: "13px", fontWeight: 700, color: "rgba(3,72,82,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
@@ -412,7 +554,7 @@ export default function QuizTakingPage() {
                       {quiz?.show_answers_after && (
                         <button
                           onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${a.id}`)}
-                          style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px", margin: 0 }}
+                          style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
                         >
                           Review →
                         </button>
@@ -429,38 +571,240 @@ export default function QuizTakingPage() {
   }
 
   if (phase === "taking" && attempt) {
+    const questions = attempt.questions;
+    const total = questions.length;
+    const safeIdx = Math.min(currentIdx, total - 1);
+    const q = questions[safeIdx];
+    if (!q) return null;
+    const isFirst = safeIdx === 0;
+    const isLast = safeIdx === total - 1;
+    const isFlagged = flagged.has(q.snapshot_id);
+
+    const timeRemaining = timeLimitSeconds ? timeLimitSeconds - timeElapsed : null;
+    const displaySeconds = timeRemaining !== null ? Math.max(0, timeRemaining) : timeElapsed;
+    const mins = Math.floor(displaySeconds / 60);
+    const secs = displaySeconds % 60;
+    const timerStr = `${mins}:${secs.toString().padStart(2, "0")}`;
+    const timerIsLow = timeRemaining !== null && timeRemaining < 60;
+
+    function getQuestionStatus(i: number): "answered" | "unanswered" {
+      const qi = questions[i];
+      const answered =
+        answers[qi.snapshot_id] != null ||
+        (qi.question_type === "GROUP" && qi.children.some((c) => answers[c.snapshot_id] != null));
+      return answered ? "answered" : "unanswered";
+    }
+
     return (
-      <div style={page}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#034852" }}>{quiz?.title}</p>
-          <span style={{ ...pill, background: "rgba(3,72,82,0.08)", color: "#034852" }}>
-            Attempt #{attempt.attempt_number}
-          </span>
-        </div>
+      <div style={pageOuter}>
+        {showReloadWarning && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 9999,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", maxWidth: "420px", width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 12px" }}>Reload this page?</p>
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.65)", margin: "0 0 24px", lineHeight: 1.6 }}>
+                Reloading will <strong>lose all your answers</strong>. This attempt will still be counted against your total.
+              </p>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  onClick={() => setShowReloadWarning(false)}
+                  style={{ ...primaryBtn, flex: 1 }}
+                >
+                  Stay on page
+                </button>
+                <button
+                  onClick={() => {
+                    if (beforeUnloadRef.current) window.removeEventListener("beforeunload", beforeUnloadRef.current);
+                    window.location.reload();
+                  }}
+                  style={{ ...secondaryBtn, flex: 1 }}
+                >
+                  Reload anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div style={pageInner}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <p style={{ fontSize: "15px", fontWeight: 700, color: "#034852", margin: 0 }}>{quiz?.title}</p>
+            <span style={{ ...pill, background: "rgba(3,72,82,0.08)", color: "#034852", margin: 0 }}>
+              Attempt #{attempt.attempt_number}
+            </span>
+          </div>
 
-        <div style={card}>
-          {attempt.questions.map((q, i) => (
-            <QuestionBlock
-              key={q.snapshot_id}
-              q={q}
-              idx={i}
-              answers={answers}
-              setAnswer={setAnswer}
-              onEnter={handleQuestionEnter}
-              onLeave={handleQuestionLeave}
-            />
-          ))}
+          {/* Two-column layout */}
+          <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+            {/* Main question card */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={card}>
+                {/* Question header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
+                  <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#034852" }}>
+                    Question {currentIdx + 1} of {total}
+                  </p>
+                  <button
+                    onClick={() => toggleFlag(q.snapshot_id)}
+                    style={{
+                      background: isFlagged ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.06)",
+                      color: isFlagged ? "#e53e3e" : "rgba(3,72,82,0.5)",
+                      border: "none",
+                      borderRadius: "8px",
+                      padding: "6px 14px",
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    ⚑ {isFlagged ? "Flagged" : "Flag"}
+                  </button>
+                </div>
 
-          <div style={{ borderTop: "1px solid rgba(3,72,82,0.1)", paddingTop: "20px", marginTop: "8px" }}>
-            <button onClick={handleSubmit} disabled={submitting} style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}>
-              {submitting ? "Submitting…" : "Submit Quiz"}
-            </button>
-            <button
-              onClick={() => { if (confirm("Discard this attempt?")) setPhase("intro"); }}
-              style={secondaryBtn}
-            >
-              Cancel
-            </button>
+                {/* Question body */}
+                <QuestionBlock
+                  q={q}
+                  answers={answers}
+                  setAnswer={setAnswer}
+                />
+
+                {/* Navigation */}
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "32px",
+                  paddingTop: "20px",
+                  borderTop: "1px solid rgba(3,72,82,0.08)",
+                }}>
+                  <button
+                    onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
+                    disabled={isFirst}
+                    style={{
+                      ...secondaryBtn,
+                      opacity: isFirst ? 0.3 : 1,
+                      cursor: isFirst ? "default" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    ‹ Previous
+                  </button>
+                  {isLast ? (
+                    <button
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
+                    >
+                      {submitting ? "Submitting…" : "Submit Quiz"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setCurrentIdx((i) => Math.min(total - 1, i + 1))}
+                      style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: "6px" }}
+                    >
+                      Next ›
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar */}
+            <div style={{ width: "220px", flexShrink: 0 }}>
+              <div style={{ ...card, padding: "20px", marginBottom: "12px" }}>
+                {/* Timer */}
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  marginBottom: "20px",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid rgba(3,72,82,0.08)",
+                }}>
+                  <span style={{ fontSize: "18px", color: timerIsLow ? "#e53e3e" : "#034852" }}>⏱</span>
+                  <span style={{
+                    fontSize: "22px",
+                    fontWeight: 800,
+                    color: timerIsLow ? "#e53e3e" : "#034852",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {timerStr}
+                  </span>
+                </div>
+
+                {/* Question navigator grid */}
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                  {questions.map((qi, i) => {
+                    const isCurrent = i === currentIdx;
+                    const status = getQuestionStatus(i);
+                    const isQFlagged = flagged.has(qi.snapshot_id);
+                    return (
+                      <button
+                        key={qi.snapshot_id}
+                        onClick={() => setCurrentIdx(i)}
+                        style={{
+                          width: "100%",
+                          aspectRatio: "1",
+                          borderRadius: "8px",
+                          border: "none",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          position: "relative",
+                          background: isCurrent
+                            ? "#034852"
+                            : status === "answered"
+                              ? "rgba(10,190,98,0.15)"
+                              : "rgba(3,72,82,0.06)",
+                          color: isCurrent
+                            ? "#fff"
+                            : status === "answered"
+                              ? "#0abe62"
+                              : "rgba(3,72,82,0.45)",
+                          outline: isQFlagged ? "2px solid #e53e3e" : "none",
+                          outlineOffset: "2px",
+                        }}
+                      >
+                        {i + 1}
+                        {isQFlagged && (
+                          <span style={{ position: "absolute", top: "2px", right: "3px", fontSize: "8px", color: "#e53e3e", lineHeight: 1 }}>⚑</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Submit from sidebar */}
+                <button
+                  onClick={() => {
+                    if (window.confirm("Submit this quiz? You cannot change your answers after submitting.")) {
+                      void handleSubmit();
+                    }
+                  }}
+                  disabled={submitting}
+                  style={{
+                    ...primaryBtn,
+                    width: "100%",
+                    marginTop: "20px",
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    opacity: submitting ? 0.6 : 1,
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {submitting ? "Submitting…" : "Submit Quiz"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -470,7 +814,7 @@ export default function QuizTakingPage() {
   if (phase === "result" && result) {
     const pct = result.max_score > 0 ? Math.round((result.score / result.max_score) * 100) : null;
     return (
-      <div style={page}>
+      <div style={pageCentered}>
         <div style={card}>
           <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62", marginBottom: "12px" }}>
             Quiz Complete
@@ -493,6 +837,38 @@ export default function QuizTakingPage() {
               </p>
             )}
           </div>
+
+          {attempt && <TimingBreakdown questions={attempt.questions} timings={timingsRef.current} />}
+
+          {explanations.length > 0 && (
+            <div style={{ marginTop: "28px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(3,72,82,0.5)", margin: "0 0 16px" }}>
+                Explanation Videos ({explanations.length} wrong answer{explanations.length !== 1 ? "s" : ""})
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {explanations.map((ex, i) => {
+                  const embedUrl = getYouTubeEmbedUrl(ex.explanation_video_url);
+                  if (!embedUrl) return null;
+                  return (
+                    <div key={ex.snapshot_id} style={{ padding: "16px", background: "rgba(229,62,62,0.04)", borderRadius: "12px", border: "1px solid rgba(229,62,62,0.12)" }}>
+                      <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: 700, color: "#e53e3e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                        Wrong answer #{i + 1}
+                      </p>
+                      <MathContent html={ex.content_html} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", marginBottom: "12px", lineHeight: 1.5 }} />
+                      <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: "8px", overflow: "hidden" }}>
+                        <iframe
+                          src={embedUrl}
+                          style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
             <button onClick={() => router.push("/dashboard/assessments")} style={primaryBtn}>
