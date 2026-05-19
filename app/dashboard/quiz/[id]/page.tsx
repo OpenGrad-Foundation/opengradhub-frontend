@@ -16,6 +16,7 @@ import {
   type WrongExplanation,
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
+import { loadDraft, saveDraft, clearDraft } from "@/lib/quiz-draft";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,7 @@ export default function QuizTakingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [pastAttempts, setPastAttempts] = useState<QuizAttempt[]>([]);
+  const [incompleteAttempt, setIncompleteAttempt] = useState<QuizAttempt | null>(null);
   const [explanations, setExplanations] = useState<WrongExplanation[]>([]);
 
   // Question-by-question navigation state
@@ -306,6 +308,7 @@ export default function QuizTakingPage() {
   const handleSubmitRef    = useRef<() => Promise<void>>(async () => {});
   const hasLoadedRef       = useRef(false);
   const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
+  const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Warn before browser reload/close during an active attempt
   useEffect(() => {
@@ -360,6 +363,24 @@ export default function QuizTakingPage() {
     };
   }, [currentIdx, phase, attempt]);
 
+  // Debounced autosave of in-progress answers to IndexedDB.
+  useEffect(() => {
+    if (phase !== "taking" || !attempt) return;
+    if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      void saveDraft({
+        attempt_id: attempt.attempt_id,
+        answers,
+        flagged: [...flagged],
+        current_idx: currentIdx,
+        updated_at: Date.now(),
+      });
+    }, 500);
+    return () => {
+      if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
+    };
+  }, [answers, flagged, currentIdx, phase, attempt]);
+
   useEffect(() => {
     if (userLoading || !userData || hasLoadedRef.current) return;
     hasLoadedRef.current = true;
@@ -380,6 +401,7 @@ export default function QuizTakingPage() {
         const completed = attempts.filter((a) => a.is_complete);
         setAttemptsUsed(completed.length);
         setPastAttempts(completed);
+        setIncompleteAttempt(attempts.find((a) => !a.is_complete) ?? null);
 
         setPhase("intro");
       } catch (err) {
@@ -397,10 +419,11 @@ export default function QuizTakingPage() {
 
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(started.started_at).getTime()) / 1000));
 
+      const draft = await loadDraft(started.attempt_id);
       setAttempt(started);
-      setAnswers({});
-      setCurrentIdx(0);
-      setFlagged(new Set());
+      setAnswers(draft?.answers ?? {});
+      setCurrentIdx(draft?.current_idx ?? 0);
+      setFlagged(new Set(draft?.flagged ?? []));
       setTimeElapsed(elapsedSeconds);
       timingsRef.current = {};
       enterTimesRef.current = {};
@@ -436,6 +459,7 @@ export default function QuizTakingPage() {
         time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
       }));
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
+      await clearDraft(attempt.attempt_id);
       setResult({
         attempt_id: res.attempt_id,
         score: res.score,
@@ -519,13 +543,17 @@ export default function QuizTakingPage() {
             )}
             <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
           </div>
-          {exhausted ? (
+          {exhausted && !incompleteAttempt ? (
             <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e" }}>
               You have used all available attempts for this quiz.
             </p>
           ) : (
             <button onClick={handleStart} style={{ ...primaryBtn, marginTop: "20px" }}>
-              {attemptsUsed > 0 ? "Retake Quiz" : "Start Quiz"} →
+              {incompleteAttempt
+                ? "Resume Attempt"
+                : attemptsUsed > 0
+                  ? "Retake Quiz"
+                  : "Start Quiz"} →
             </button>
           )}
 
@@ -606,7 +634,7 @@ export default function QuizTakingPage() {
             <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", maxWidth: "420px", width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
               <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 12px" }}>Reload this page?</p>
               <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.65)", margin: "0 0 24px", lineHeight: 1.6 }}>
-                Reloading will <strong>lose all your answers</strong>. This attempt will still be counted against your total.
+                Your answers are <strong>saved automatically</strong>. You can safely reload — your progress will be restored.
               </p>
               <div style={{ display: "flex", gap: "12px" }}>
                 <button
