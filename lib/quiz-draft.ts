@@ -46,7 +46,16 @@ function withStore<T>(
         const tx = db.transaction(STORE, mode);
         const req = fn(tx.objectStore(STORE));
         req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
+        req.onerror = (event) => {
+          // Stop the error event bubbling to window (avoids duplicate reports).
+          event.preventDefault();
+          db.close();
+          reject(req.error);
+        };
+        tx.onabort = () => {
+          db.close();
+          reject(tx.error ?? new DOMException('Transaction aborted', 'AbortError'));
+        };
         tx.oncomplete = () => db.close();
       }),
   );
