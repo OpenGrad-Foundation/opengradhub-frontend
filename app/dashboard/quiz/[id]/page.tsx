@@ -16,7 +16,7 @@ import {
   type WrongExplanation,
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
-import { loadDraft, saveDraft, clearDraft } from "@/lib/quiz-draft";
+import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -374,7 +374,7 @@ export default function QuizTakingPage() {
         flagged: [...flagged],
         current_idx: currentIdx,
         updated_at: Date.now(),
-      });
+      }).catch(() => {});
     }, 500);
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
@@ -419,7 +419,12 @@ export default function QuizTakingPage() {
 
       const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(started.started_at).getTime()) / 1000));
 
-      const draft = await loadDraft(started.attempt_id);
+      let draft: QuizDraft | null = null;
+      try {
+        draft = await loadDraft(started.attempt_id);
+      } catch {
+        // IndexedDB unavailable — non-fatal, start with empty answers.
+      }
       setAttempt(started);
       setAnswers(draft?.answers ?? {});
       setCurrentIdx(draft?.current_idx ?? 0);
@@ -459,7 +464,8 @@ export default function QuizTakingPage() {
         time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
       }));
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
-      await clearDraft(attempt.attempt_id);
+      // Draft cleanup is best-effort — a failure here must not error a successful submit.
+      void clearDraft(attempt.attempt_id).catch(() => {});
       setResult({
         attempt_id: res.attempt_id,
         score: res.score,
