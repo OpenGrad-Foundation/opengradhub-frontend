@@ -1543,6 +1543,7 @@ export async function getQuizAttempts(quizId: string, studentId?: string): Promi
 
 export type QuizAttemptQuestion = {
   snapshot_id: string;
+  section_id?: string | null;
   question_type: string;
   content_html: string;
   correct_answer: string | null;
@@ -1550,6 +1551,7 @@ export type QuizAttemptQuestion = {
   options: { id: string; option_text: string }[];
   children: {
     snapshot_id: string;
+    section_id?: string | null;
     question_type: string;
     content_html: string;
     correct_answer: string | null;
