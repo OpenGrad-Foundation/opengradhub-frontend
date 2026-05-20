@@ -292,7 +292,7 @@ export default function QuizTakingPage() {
   const [attempt, setAttempt] = useState<StartedAttempt | null>(null);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [result, setResult] = useState<ResultState | null>(null);
-  const [phase, setPhase] = useState<"loading" | "intro" | "taking" | "result" | "error">("loading");
+  const [phase, setPhase] = useState<"loading" | "intro" | "taking" | "submitting" | "result" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [fullscreenExited, setFullscreenExited] = useState(false);
@@ -562,6 +562,7 @@ export default function QuizTakingPage() {
     if (!attempt) return;
     submittingRef.current = true;
     setSubmitting(true);
+    setPhase("submitting");
     try {
       const now = Date.now();
       for (const [sid, entered] of Object.entries(enterTimesRef.current)) {
@@ -659,8 +660,11 @@ export default function QuizTakingPage() {
           student_answer: answers[sid] ?? null,
           time_taken_seconds: timingsRef.current[sid] ?? null,
         }));
+        const isFinalSection = currentSectionIdx != null && currentSectionIdx >= sections.length - 1;
+        if (isFinalSection) setPhase("submitting");
         const res = await advanceQuizSection(attempt.attempt_id, answerList);
         if (res.type === "next") {
+          if (isFinalSection) setPhase("taking"); // recover: server returned next unexpectedly
           setAttempt({ ...attempt, questions: res.snapshots });
           setCurrentSectionIdx(res.section_index);
           sectionStartRef.current = Date.now();
@@ -669,7 +673,7 @@ export default function QuizTakingPage() {
           timingsRef.current = {};
           enterTimesRef.current = {};
         } else {
-          // type === "done" — finalize
+          // type === "done" — finalize (phase already "submitting", will become "result")
           setResult({
             attempt_id: res.result.attempt_id,
             score: res.result.score,
@@ -831,6 +835,31 @@ export default function QuizTakingPage() {
             </div>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (phase === "submitting") {
+    return (
+      <div style={pageOuter}>
+        <div style={pageCentered}>
+          <div style={card}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "32px 16px", gap: "24px" }}>
+              <div style={{
+                width: "56px", height: "56px",
+                border: "4px solid rgba(10,190,98,0.18)",
+                borderTopColor: "#0abe62",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+              }} />
+              <p style={{ ...heading, margin: 0, textAlign: "center" }}>Submitting your quiz…</p>
+              <p style={{ ...subtext, margin: 0, textAlign: "center", maxWidth: "420px", lineHeight: 1.6 }}>
+                We&apos;re saving your answers and grading the attempt. Please don&apos;t close this tab — this should only take a few seconds.
+              </p>
+            </div>
+          </div>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
