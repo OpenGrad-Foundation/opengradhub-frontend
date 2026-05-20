@@ -334,11 +334,51 @@ export default function QuizTakingPage() {
       e.preventDefault();
       setShowReloadWarning(true);
     }
+    // Intercept anchor clicks (Next.js Link, plain <a>) so client-side route
+    // changes during a live attempt prompt the student before leaving.
+    function onClickCapture(e: MouseEvent) {
+      const path = e.composedPath() as EventTarget[];
+      const anchor = path.find(
+        (el): el is HTMLAnchorElement =>
+          el instanceof HTMLAnchorElement && !!el.getAttribute("href"),
+      );
+      if (!anchor) return;
+      const href = anchor.getAttribute("href")!;
+      // Skip hash fragments, mailto, tel, and new-tab opens.
+      if (href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("tel:")) return;
+      if (anchor.target === "_blank") return;
+      // Skip clicks on links that point at the current quiz page itself.
+      const currentPath = window.location.pathname;
+      const targetPath = new URL(href, window.location.origin).pathname;
+      if (targetPath === currentPath) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const ok = window.confirm(
+        "Leave this quiz? Your answers are saved, but the timer keeps running and this counts against your attempt.",
+      );
+      if (ok) window.location.href = href;
+    }
+    // popstate fires on back/forward — same warning, then restore the URL on cancel.
+    function onPopState() {
+      const ok = window.confirm(
+        "Leave this quiz? Your answers are saved, but the timer keeps running and this counts against your attempt.",
+      );
+      if (!ok) {
+        window.history.pushState(null, "", window.location.href);
+      }
+    }
+    // Seed a sentinel history entry so the first Back press is catchable.
+    window.history.pushState(null, "", window.location.href);
+
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("click", onClickCapture, true);
+    window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener("beforeunload", onBeforeUnload);
       window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("click", onClickCapture, true);
+      window.removeEventListener("popstate", onPopState);
       beforeUnloadRef.current = null;
     };
   }, [phase]);
