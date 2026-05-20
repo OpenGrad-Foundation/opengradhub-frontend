@@ -55,6 +55,8 @@ export default function QuizBuilderPage() {
   const [showAnswers, setShowAnswers]     = useState(true);
   const [isSectioned, setIsSectioned]     = useState(false);
   const [sequentialSections, setSequentialSections] = useState(false);
+  const [firstAttemptCounts, setFirstAttemptCounts] = useState(false);
+  const [requireFullscreen, setRequireFullscreen]   = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [settingsErr, setSettingsErr]     = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -87,6 +89,8 @@ export default function QuizBuilderPage() {
       setShowAnswers(q.show_answers_after);
       setIsSectioned(q.is_sectioned);
       setSequentialSections(q.sequential_sections);
+      setFirstAttemptCounts(q.first_attempt_counts);
+      setRequireFullscreen(q.require_fullscreen);
       if (q.is_sectioned && q.sections.length > 0) {
         setActiveSectionId(prev => prev ?? q.sections[0].id);
       }
@@ -140,6 +144,8 @@ export default function QuizBuilderPage() {
         show_answers_after:     showAnswers,
         is_sectioned:           isSectioned,
         sequential_sections:    sequentialSections,
+        first_attempt_counts:   firstAttemptCounts,
+        require_fullscreen:     requireFullscreen,
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -307,6 +313,8 @@ export default function QuizBuilderPage() {
               {isSectioned && (
                 <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential — students complete sections in order; each section has its own timer; no going back." />
               )}
+              <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts (subsequent retakes allowed but won't change the grade)" />
+              <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt (desktop only — mobile blocked)" />
             </div>
           </div>
           {settingsErr && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "12px 0 0" }}>{settingsErr}</p>}
