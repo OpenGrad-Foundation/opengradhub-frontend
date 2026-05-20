@@ -600,6 +600,14 @@ export default function QuizTakingPage() {
     if (!window.confirm("Submit this section? You won't be able to return to it.")) return;
     setAdvancingSection(true);
     try {
+      // Flush the in-progress question's timing so the last question on the page
+      // gets credited the time the student actually spent on it.
+      const now = Date.now();
+      for (const [sid, entered] of Object.entries(enterTimesRef.current)) {
+        timingsRef.current[sid] = (timingsRef.current[sid] ?? 0) + Math.round((now - entered) / 1000);
+      }
+      enterTimesRef.current = {};
+
       // Build the answer list for the CURRENT section's questions only
       const allSnapshotIds: string[] = [];
       for (const q of attempt.questions) {
@@ -813,7 +821,13 @@ export default function QuizTakingPage() {
     }
 
     return (
-      <div style={pageOuter}>
+      <div style={{
+        ...pageOuter,
+        position: "fixed",
+        inset: 0,
+        zIndex: 100,
+        overflowY: "auto",
+      }}>
         {fullscreenExited && phase === "taking" && (
           <div style={{
             position: "fixed", inset: 0, zIndex: 99999,
@@ -878,6 +892,42 @@ export default function QuizTakingPage() {
               Attempt #{attempt.attempt_number}
             </span>
           </div>
+
+          {/* Section tab header (when sectioned) */}
+          {quiz?.is_sectioned && sections.length > 0 && (
+            <div style={{
+              display: "flex",
+              gap: "4px",
+              marginBottom: "16px",
+              borderBottom: "2px solid rgba(3,72,82,0.08)",
+              flexWrap: "wrap",
+            }}>
+              {sections.map((s, i) => {
+                const isActive = currentSectionIdx === i || (currentSectionIdx == null && i === 0);
+                const isLocked = quiz.sequential_sections && currentSectionIdx != null && i < currentSectionIdx;
+                const isPending = quiz.sequential_sections && currentSectionIdx != null && i > currentSectionIdx;
+                return (
+                  <div
+                    key={s.section_id}
+                    style={{
+                      padding: "10px 18px",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      background: isActive ? "#fff" : "transparent",
+                      color: isActive ? "#0abe62" : (isLocked || isPending) ? "rgba(3,72,82,0.35)" : "#034852",
+                      borderBottom: `3px solid ${isActive ? "#0abe62" : "transparent"}`,
+                      marginBottom: "-2px",
+                      cursor: (isLocked || isPending) ? "not-allowed" : "default",
+                      opacity: (isLocked || isPending) ? 0.6 : 1,
+                    }}
+                  >
+                    {s.title}
+                    {isLocked && <span style={{ marginLeft: "6px", fontSize: "11px" }}>🔒</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Two-column layout */}
           <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
@@ -944,11 +994,13 @@ export default function QuizTakingPage() {
                       <button
                         onClick={handleAdvanceSection}
                         disabled={advancingSection}
-                        style={primaryBtn}
+                        style={{ ...primaryBtn, opacity: advancingSection ? 0.6 : 1 }}
                       >
-                        {currentSectionIdx != null && currentSectionIdx >= sections.length - 1
-                          ? "Submit Final Section"
-                          : "Submit Section →"}
+                        {advancingSection
+                          ? "Submitting…"
+                          : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
+                            ? "Submit Final Section"
+                            : "Submit Section →"}
                       </button>
                     ) : (
                       <button
@@ -1001,35 +1053,6 @@ export default function QuizTakingPage() {
                     </>
                   )}
                 </div>
-
-                {/* Section tab strip */}
-                {quiz?.is_sectioned && sections.length > 0 && (
-                  <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
-                    {sections.map((s, i) => {
-                      const isActive = currentSectionIdx === i || (currentSectionIdx == null && i === 0);
-                      const isLocked = quiz.sequential_sections && currentSectionIdx != null && i < currentSectionIdx;
-                      const isPending = quiz.sequential_sections && currentSectionIdx != null && i > currentSectionIdx;
-                      return (
-                        <div
-                          key={s.section_id}
-                          style={{
-                            padding: "6px 12px",
-                            borderRadius: "6px",
-                            fontSize: "13px",
-                            fontWeight: 600,
-                            background: isActive ? "rgba(10,190,98,0.15)" : (isLocked || isPending) ? "rgba(3,72,82,0.05)" : "transparent",
-                            color: isActive ? "#0abe62" : (isLocked || isPending) ? "rgba(3,72,82,0.35)" : "#034852",
-                            border: `1px solid ${isActive ? "#0abe62" : "rgba(3,72,82,0.15)"}`,
-                            cursor: (isLocked || isPending) ? "not-allowed" : "default",
-                            opacity: (isLocked || isPending) ? 0.6 : 1,
-                          }}
-                        >
-                          {s.title}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
 
                 {/* Question navigator grid */}
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
@@ -1086,11 +1109,14 @@ export default function QuizTakingPage() {
                       padding: "10px 16px",
                       fontSize: "14px",
                       boxSizing: "border-box",
+                      opacity: advancingSection ? 0.6 : 1,
                     }}
                   >
-                    {currentSectionIdx != null && currentSectionIdx >= sections.length - 1
-                      ? "Submit Final Section"
-                      : "Submit Section →"}
+                    {advancingSection
+                      ? "Submitting…"
+                      : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
+                        ? "Submit Final Section"
+                        : "Submit Section →"}
                   </button>
                 ) : (
                   <button
