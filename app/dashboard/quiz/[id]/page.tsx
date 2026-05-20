@@ -312,6 +312,13 @@ export default function QuizTakingPage() {
   const [currentSectionIdx, setCurrentSectionIdx] = useState<number | null>(null);
   const [advancingSection, setAdvancingSection] = useState(false);
 
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+
   const timingsRef         = useRef<TimingMap>({});
   const enterTimesRef      = useRef<TimingMap>({});
   const submittingRef      = useRef(false);
@@ -320,6 +327,7 @@ export default function QuizTakingPage() {
   const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
   const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionStartRef    = useRef<number>(Date.now());
+  const suppressFsExitRef  = useRef(false);
 
   // Warn before browser reload/close during an active attempt
   useEffect(() => {
@@ -354,19 +362,23 @@ export default function QuizTakingPage() {
       if (targetPath === currentPath) return;
       e.preventDefault();
       e.stopPropagation();
-      const ok = window.confirm(
-        "Leave this quiz? Your answers are saved, but the timer keeps running and this counts against your attempt.",
-      );
-      if (ok) window.location.href = href;
+      const targetHref = href;
+      askConfirm({
+        title: "Leave this quiz?",
+        body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
+        confirmLabel: "Leave Quiz",
+        onConfirm: () => { window.location.href = targetHref; },
+      });
     }
-    // popstate fires on back/forward — same warning, then restore the URL on cancel.
+    // popstate fires on back/forward — push state back immediately, then ask.
     function onPopState() {
-      const ok = window.confirm(
-        "Leave this quiz? Your answers are saved, but the timer keeps running and this counts against your attempt.",
-      );
-      if (!ok) {
-        window.history.pushState(null, "", window.location.href);
-      }
+      window.history.pushState(null, "", window.location.href);
+      askConfirm({
+        title: "Leave this quiz?",
+        body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
+        confirmLabel: "Leave Quiz",
+        onConfirm: () => { window.history.back(); },
+      });
     }
     // Seed a sentinel history entry so the first Back press is catchable.
     window.history.pushState(null, "", window.location.href);
@@ -437,6 +449,7 @@ export default function QuizTakingPage() {
     function onChange() {
       const inFs = !!document.fullscreenElement;
       if (!inFs && attempt) {
+        if (suppressFsExitRef.current) return; // intentional exit (submit) — silent
         setFullscreenExited(true);
         void logProctorEvent(attempt.attempt_id, "fullscreen_exit").catch(() => {});
       } else if (inFs) {
@@ -581,9 +594,11 @@ export default function QuizTakingPage() {
       });
       const vids = await getAttemptExplanations(res.attempt_id);
       setExplanations(vids);
+      suppressFsExitRef.current = true;
       if (document.fullscreenElement) {
         void document.exitFullscreen().catch(() => {});
       }
+      setTimeout(() => { suppressFsExitRef.current = false; }, 500);
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
@@ -596,6 +611,10 @@ export default function QuizTakingPage() {
 
   handleSubmitRef.current = handleSubmit;
 
+  function askConfirm(opts: { title: string; body: string; confirmLabel: string; onConfirm: () => void }) {
+    setConfirmModal(opts);
+  }
+
   async function handleAdvanceSection() {
     if (!attempt) return;
     // Per-section unanswered count for the active section.
@@ -604,65 +623,76 @@ export default function QuizTakingPage() {
       ? attempt.questions.filter((q) => q.section_id === currentSection.section_id)
       : attempt.questions;
     const localStats = computeSectionStats(sectionQs, answers, flagged);
-    const prompt = localStats.unanswered > 0
+    const body = localStats.unanswered > 0
       ? `This section has ${localStats.unanswered} unanswered question(s). Submit anyway? You won't be able to return.`
       : "Submit this section? You won't be able to return to it.";
-    if (!window.confirm(prompt)) return;
-    setAdvancingSection(true);
-    try {
-      // Flush the in-progress question's timing so the last question on the page
-      // gets credited the time the student actually spent on it.
-      const now = Date.now();
-      for (const [sid, entered] of Object.entries(enterTimesRef.current)) {
-        timingsRef.current[sid] = (timingsRef.current[sid] ?? 0) + Math.round((now - entered) / 1000);
-      }
-      enterTimesRef.current = {};
+    askConfirm({
+      title: "Submit Section?",
+      body,
+      confirmLabel: "Submit Section",
+      onConfirm: () => { void doAdvance(); },
+    });
 
-      // Build the answer list for the CURRENT section's questions only
-      const allSnapshotIds: string[] = [];
-      for (const q of attempt.questions) {
-        if (q.question_type === "GROUP") {
-          for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
-        } else {
-          allSnapshotIds.push(q.snapshot_id);
+    async function doAdvance() {
+      if (!attempt) return;
+      setAdvancingSection(true);
+      try {
+        // Flush the in-progress question's timing so the last question on the page
+        // gets credited the time the student actually spent on it.
+        const now = Date.now();
+        for (const [sid, entered] of Object.entries(enterTimesRef.current)) {
+          timingsRef.current[sid] = (timingsRef.current[sid] ?? 0) + Math.round((now - entered) / 1000);
         }
-      }
-      const answerList = allSnapshotIds.map((sid) => ({
-        snapshot_id: sid,
-        student_answer: answers[sid] ?? null,
-        time_taken_seconds: timingsRef.current[sid] ?? null,
-      }));
-      const res = await advanceQuizSection(attempt.attempt_id, answerList);
-      if (res.type === "next") {
-        setAttempt({ ...attempt, questions: res.snapshots });
-        setCurrentSectionIdx(res.section_index);
-        sectionStartRef.current = Date.now();
-        setCurrentIdx(0);
-        setFlagged(new Set());
-        timingsRef.current = {};
         enterTimesRef.current = {};
-      } else {
-        // type === "done" — finalize
-        setResult({
-          attempt_id: res.result.attempt_id,
-          score: res.result.score,
-          max_score: res.result.max_score,
-          passed: res.result.passed,
-          show_answers_after: quiz?.show_answers_after ?? false,
-        });
-        void clearDraft(attempt.attempt_id).catch(() => {});
-        const vids = await getAttemptExplanations(res.result.attempt_id);
-        setExplanations(vids);
-        if (document.fullscreenElement) {
-          void document.exitFullscreen().catch(() => {});
+
+        // Build the answer list for the CURRENT section's questions only
+        const allSnapshotIds: string[] = [];
+        for (const q of attempt.questions) {
+          if (q.question_type === "GROUP") {
+            for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
+          } else {
+            allSnapshotIds.push(q.snapshot_id);
+          }
         }
-        setPhase("result");
+        const answerList = allSnapshotIds.map((sid) => ({
+          snapshot_id: sid,
+          student_answer: answers[sid] ?? null,
+          time_taken_seconds: timingsRef.current[sid] ?? null,
+        }));
+        const res = await advanceQuizSection(attempt.attempt_id, answerList);
+        if (res.type === "next") {
+          setAttempt({ ...attempt, questions: res.snapshots });
+          setCurrentSectionIdx(res.section_index);
+          sectionStartRef.current = Date.now();
+          setCurrentIdx(0);
+          setFlagged(new Set());
+          timingsRef.current = {};
+          enterTimesRef.current = {};
+        } else {
+          // type === "done" — finalize
+          setResult({
+            attempt_id: res.result.attempt_id,
+            score: res.result.score,
+            max_score: res.result.max_score,
+            passed: res.result.passed,
+            show_answers_after: quiz?.show_answers_after ?? false,
+          });
+          void clearDraft(attempt.attempt_id).catch(() => {});
+          const vids = await getAttemptExplanations(res.result.attempt_id);
+          setExplanations(vids);
+          suppressFsExitRef.current = true;
+          if (document.fullscreenElement) {
+            void document.exitFullscreen().catch(() => {});
+          }
+          setTimeout(() => { suppressFsExitRef.current = false; }, 500);
+          setPhase("result");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to advance section.");
+        setPhase("error");
+      } finally {
+        setAdvancingSection(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to advance section.");
-      setPhase("error");
-    } finally {
-      setAdvancingSection(false);
     }
   }
 
@@ -937,6 +967,49 @@ export default function QuizTakingPage() {
             </div>
           </div>
         )}
+        {confirmModal && phase === "taking" && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 99998,
+            background: "rgba(3,72,82,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "20px",
+          }}>
+            <div style={{
+              background: "#fff", borderRadius: "16px",
+              padding: "28px", maxWidth: "480px", width: "100%",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+            }}>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 12px" }}>
+                {confirmModal.title}
+              </p>
+              <p style={{
+                fontSize: "14px", color: "rgba(3,72,82,0.75)",
+                margin: "0 0 24px", lineHeight: 1.6,
+                whiteSpace: "pre-wrap",
+              }}>
+                {confirmModal.body}
+              </p>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setConfirmModal(null)}
+                  style={{ ...secondaryBtn, padding: "10px 20px", fontSize: "14px" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const fn = confirmModal.onConfirm;
+                    setConfirmModal(null);
+                    fn();
+                  }}
+                  style={{ ...primaryBtn, padding: "10px 20px", fontSize: "14px" }}
+                >
+                  {confirmModal.confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div style={pageInner}>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
@@ -1074,9 +1147,12 @@ export default function QuizTakingPage() {
                     ) : (
                       <button
                         onClick={() => {
-                          if (window.confirm(buildFinalSubmitPrompt())) {
-                            void handleSubmit();
-                          }
+                          askConfirm({
+                            title: "Submit Quiz?",
+                            body: buildFinalSubmitPrompt(),
+                            confirmLabel: "Submit Quiz",
+                            onConfirm: () => { void handleSubmit(); },
+                          });
                         }}
                         disabled={submitting}
                         style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
@@ -1237,9 +1313,12 @@ export default function QuizTakingPage() {
                 ) : (
                   <button
                     onClick={() => {
-                      if (window.confirm(buildFinalSubmitPrompt())) {
-                        void handleSubmit();
-                      }
+                      askConfirm({
+                        title: "Submit Quiz?",
+                        body: buildFinalSubmitPrompt(),
+                        confirmLabel: "Submit Quiz",
+                        onConfirm: () => { void handleSubmit(); },
+                      });
                     }}
                     disabled={submitting}
                     style={{
