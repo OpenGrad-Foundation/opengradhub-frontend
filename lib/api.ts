@@ -1161,6 +1161,10 @@ export type CreateQuizPayload = {
   show_answers_after?: boolean;
   quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
   created_by?: string;
+  is_sectioned?: boolean;
+  sequential_sections?: boolean;
+  first_attempt_counts?: boolean;
+  require_fullscreen?: boolean;
 };
 
 export async function getQuizzes(params: { module_id?: string; quiz_type?: string } = {}): Promise<Omit<Quiz, "questions">[]> {
