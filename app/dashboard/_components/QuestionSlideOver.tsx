@@ -194,12 +194,15 @@ export function QuestionSlideOver({
   quizId,
   onClose,
   onSaved,
+  onCreated,
 }: {
   initial: Question | null;
   createdBy: string;
   quizId?: string;
   onClose: () => void;
   onSaved: () => void;
+  /** Called after a brand-new question is created in the bank (quizId absent). Receives the created Question. */
+  onCreated?: (q: Question) => Promise<void>;
 }) {
   const isEdit = !!initial;
   const inQuiz = !!quizId;
@@ -342,7 +345,8 @@ export function QuestionSlideOver({
         if (inQuiz && quizId) {
           await addQuizQuestion(quizId, payload);
         } else {
-          await createQuestion(payload);
+          const created = await createQuestion(payload);
+          if (onCreated) await onCreated(created);
         }
       }
       onSaved();

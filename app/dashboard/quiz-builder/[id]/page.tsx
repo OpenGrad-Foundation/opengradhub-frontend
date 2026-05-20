@@ -2,17 +2,20 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
   updateQuiz,
-  addQuizQuestion,
   attachQuizQuestion,
   reorderQuizQuestions,
   removeQuizQuestion,
   publishQuiz,
   getQuestions,
+  createQuizSection,
+  updateQuizSection,
+  deleteQuizSection,
+  attachQuestionToSection,
+  removeQuestionFromSection,
   type Quiz,
   type Question,
 } from "@/lib/api";
@@ -50,6 +53,9 @@ export default function QuizBuilderPage() {
   const [passThreshold, setPassThreshold] = useState("");
   const [shuffle, setShuffle]             = useState(false);
   const [showAnswers, setShowAnswers]     = useState(true);
+  const [isSectioned, setIsSectioned]     = useState(false);
+  const [sequentialSections, setSequentialSections] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [settingsErr, setSettingsErr]     = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -79,6 +85,11 @@ export default function QuizBuilderPage() {
       setPassThreshold(q.pass_threshold_percent?.toString() ?? "");
       setShuffle(q.shuffle_questions);
       setShowAnswers(q.show_answers_after);
+      setIsSectioned(q.is_sectioned);
+      setSequentialSections(q.sequential_sections);
+      if (q.is_sectioned && q.sections.length > 0) {
+        setActiveSectionId(prev => prev ?? q.sections[0].id);
+      }
     } catch (e) {
       setGlobalErr(e instanceof Error ? e.message : "Failed to load quiz.");
     }
@@ -127,6 +138,8 @@ export default function QuizBuilderPage() {
         pass_threshold_percent: passThreshold ? Number(passThreshold) : null,
         shuffle_questions:      shuffle,
         show_answers_after:     showAnswers,
+        is_sectioned:           isSectioned,
+        sequential_sections:    sequentialSections,
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -154,6 +167,25 @@ export default function QuizBuilderPage() {
 
   async function handlePublish() {
     if (!confirm("Publish this quiz? Students will be able to see and start it.")) return;
+
+    // Sectioned quiz validation
+    if (isSectioned) {
+      if (!quiz?.sections || quiz.sections.length === 0) {
+        setPublishErr("Sectioned quiz must have at least one section.");
+        return;
+      }
+      for (const s of quiz.sections) {
+        if (s.questions.length === 0) {
+          setPublishErr(`Section "${s.title}" has no questions.`);
+          return;
+        }
+        if (sequentialSections && s.duration_minutes == null) {
+          setPublishErr(`Section "${s.title}" needs a duration (sequential mode).`);
+          return;
+        }
+      }
+    }
+
     setPublishing(true);
     setPublishErr(null);
     try {
@@ -270,6 +302,12 @@ export default function QuizBuilderPage() {
               <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
               <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />
             </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <Toggle value={isSectioned} onChange={setIsSectioned} label="Section-wise quiz (multiple labeled sections)" />
+              {isSectioned && (
+                <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential — students complete sections in order; each section has its own timer; no going back." />
+              )}
+            </div>
           </div>
           {settingsErr && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "12px 0 0" }}>{settingsErr}</p>}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
@@ -283,38 +321,53 @@ export default function QuizBuilderPage() {
 
       {/* ── Questions card ────────────────────────────────── */}
       <div style={glassCard}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <p style={S.sectionHeader}>Questions ({questions.length})</p>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <button onClick={() => setBankOpen(true)} style={S.outlineBtn}>+ Add from Bank</button>
-            <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={S.primaryBtn}>+ Add Question</button>
-          </div>
-        </div>
-
-        {questions.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "32px 0", color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>
-            No questions yet — add one above.
-          </div>
+        {quiz?.is_sectioned ? (
+          <SectionsView
+            quiz={quiz}
+            activeSectionId={activeSectionId}
+            setActiveSectionId={setActiveSectionId}
+            sequential={quiz.sequential_sections}
+            onReload={reload}
+            setBankOpen={setBankOpen}
+            setEditTarget={setEditTarget}
+            setPanelOpen={setPanelOpen}
+          />
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-            {questions.map((q, i) => (
-              <QuizQuestionRow
-                key={q.id}
-                question={q}
-                index={i}
-                isLast={i === questions.length - 1}
-                onDragStart={() => onDragStart(i)}
-                onDragOver={e => onDragOver(e, i)}
-                onDrop={() => void onDrop()}
-                onEdit={() => { setEditTarget(q); setPanelOpen(true); }}
-                onRemove={() => void handleRemove(q.id, q.content_html)}
-              />
-            ))}
-          </div>
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <p style={S.sectionHeader}>Questions ({questions.length})</p>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button onClick={() => setBankOpen(true)} style={S.outlineBtn}>+ Add from Bank</button>
+                <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={S.primaryBtn}>+ Add Question</button>
+              </div>
+            </div>
+
+            {questions.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>
+                No questions yet — add one above.
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                {questions.map((q, i) => (
+                  <QuizQuestionRow
+                    key={q.id}
+                    question={q}
+                    index={i}
+                    isLast={i === questions.length - 1}
+                    onDragStart={() => onDragStart(i)}
+                    onDragOver={e => onDragOver(e, i)}
+                    onDrop={() => void onDrop()}
+                    onEdit={() => { setEditTarget(q); setPanelOpen(true); }}
+                    onRemove={() => void handleRemove(q.id, q.content_html)}
+                  />
+                ))}
+              </div>
+            )}
+            <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.35)", marginTop: "12px", textAlign: "center" }}>
+              Drag the ⠿ handle to reorder questions
+            </p>
+          </>
         )}
-        <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.35)", marginTop: "12px", textAlign: "center" }}>
-          Drag the ⠿ handle to reorder questions
-        </p>
       </div>
 
       {/* ── Question slide-over ───────────────────────────── */}
@@ -322,9 +375,16 @@ export default function QuizBuilderPage() {
         <QuestionSlideOver
           initial={editTarget}
           createdBy={userId}
-          quizId={quizId}
+          quizId={quiz?.is_sectioned ? undefined : quizId}
           onClose={() => { setPanelOpen(false); setEditTarget(null); }}
           onSaved={() => { setPanelOpen(false); setEditTarget(null); void reload(); }}
+          onCreated={quiz?.is_sectioned && activeSectionId ? async (q) => {
+            try {
+              await attachQuestionToSection(quizId, activeSectionId, q.id);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : "Failed to attach to section.");
+            }
+          } : undefined}
         />
       )}
 
@@ -332,9 +392,235 @@ export default function QuizBuilderPage() {
       {bankOpen && (
         <BankPickerModal
           quizId={quizId}
+          sectionId={quiz?.is_sectioned ? activeSectionId ?? undefined : undefined}
           onClose={() => setBankOpen(false)}
           onPicked={() => { setBankOpen(false); void reload(); }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Section Settings Form (keyed by section id, so state resets on tab switch) ──
+
+function SectionSettingsForm({
+  quizId,
+  section,
+  sequential,
+  onReload,
+  onDelete,
+}: {
+  quizId: string;
+  section: { id: string; title: string; duration_minutes: number | null; pass_threshold_percent: number | null };
+  sequential: boolean;
+  onReload: () => Promise<void>;
+  onDelete: () => Promise<void>;
+}) {
+  const [editTitle, setEditTitle]       = useState(section.title);
+  const [editDuration, setEditDuration] = useState(section.duration_minutes?.toString() ?? "");
+  const [editThreshold, setEditThreshold] = useState(section.pass_threshold_percent?.toString() ?? "");
+  const [saving, setSaving]             = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await updateQuizSection(quizId, section.id, {
+        title: editTitle.trim() || undefined,
+        duration_minutes: editDuration ? Number(editDuration) : null,
+        pass_threshold_percent: editThreshold ? Number(editThreshold) : null,
+      });
+      await onReload();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "rgba(3,72,82,0.03)", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: sequential ? "2fr 1fr 1fr auto auto" : "2fr 1fr auto auto", gap: "12px", alignItems: "end" }}>
+        <label>
+          <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Title</span>
+          <input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid rgba(3,72,82,0.15)", boxSizing: "border-box" }}
+          />
+        </label>
+        {sequential && (
+          <label>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Duration (min)</span>
+            <input
+              type="number"
+              value={editDuration}
+              onChange={(e) => setEditDuration(e.target.value)}
+              style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid rgba(3,72,82,0.15)", boxSizing: "border-box" }}
+            />
+          </label>
+        )}
+        <label>
+          <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Pass %</span>
+          <input
+            type="number"
+            value={editThreshold}
+            onChange={(e) => setEditThreshold(e.target.value)}
+            style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid rgba(3,72,82,0.15)", boxSizing: "border-box" }}
+          />
+        </label>
+        <button
+          onClick={() => void handleSave()}
+          disabled={saving}
+          style={{ padding: "8px 16px", borderRadius: "6px", border: "none", background: "#209379", color: "#fff", fontWeight: 600, cursor: saving ? "default" : "pointer" }}
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button
+          onClick={() => void onDelete()}
+          style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", fontWeight: 600, cursor: "pointer" }}
+        >
+          Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Sections View ─────────────────────────────────────────────
+
+function SectionsView({
+  quiz,
+  activeSectionId,
+  setActiveSectionId,
+  sequential,
+  onReload,
+  setBankOpen,
+  setEditTarget,
+  setPanelOpen,
+}: {
+  quiz: Quiz;
+  activeSectionId: string | null;
+  setActiveSectionId: (id: string | null) => void;
+  sequential: boolean;
+  onReload: () => Promise<void>;
+  setBankOpen: (open: boolean) => void;
+  setEditTarget: (q: Question | null) => void;
+  setPanelOpen: (open: boolean) => void;
+}) {
+  const sections = quiz.sections;
+  const active = sections.find((s) => s.id === activeSectionId) ?? sections[0] ?? null;
+
+  async function handleAddSection() {
+    const title = window.prompt("Section title (e.g., Aptitude, Logical, Math):");
+    if (!title?.trim()) return;
+    const created = await createQuizSection(quiz.id, { title: title.trim() });
+    await onReload();
+    setActiveSectionId(created.id);
+  }
+
+  async function handleDeleteSection() {
+    if (!active) return;
+    if (!window.confirm(`Delete section "${active.title}"? Its questions stay in the bank but the section + its question links are removed.`)) return;
+    await deleteQuizSection(quiz.id, active.id);
+    setActiveSectionId(null);
+    await onReload();
+  }
+
+  async function handleRemoveQuestion(questionId: string) {
+    if (!active) return;
+    await removeQuestionFromSection(quiz.id, active.id, questionId);
+    await onReload();
+  }
+
+  const activeQuestions = active?.questions ?? [];
+
+  return (
+    <div>
+      {/* Tab strip */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "2px solid rgba(3,72,82,0.08)", marginBottom: "20px", flexWrap: "wrap" }}>
+        {sections.map((s) => (
+          <button
+            key={s.id}
+            onClick={() => setActiveSectionId(s.id)}
+            style={{
+              padding: "10px 16px",
+              border: "none",
+              background: s.id === active?.id ? "#fff" : "transparent",
+              borderBottom: s.id === active?.id ? "2px solid #209379" : "2px solid transparent",
+              marginBottom: "-2px",
+              fontWeight: 600,
+              color: "#034852",
+              cursor: "pointer",
+            }}
+          >
+            {s.title} ({s.questions.length})
+          </button>
+        ))}
+        <button
+          onClick={() => void handleAddSection()}
+          style={{ padding: "10px 16px", border: "1px dashed #209379", background: "transparent", color: "#209379", fontWeight: 600, cursor: "pointer", borderRadius: "6px" }}
+        >
+          + Add Section
+        </button>
+      </div>
+
+      {!active ? (
+        <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic" }}>No sections yet. Click + Add Section to create one.</p>
+      ) : (
+        <>
+          {/* Section settings form — keyed by section id so state resets on tab switch */}
+          <SectionSettingsForm
+            key={active.id}
+            quizId={quiz.id}
+            section={active}
+            sequential={sequential}
+            onReload={onReload}
+            onDelete={handleDeleteSection}
+          />
+
+          {/* Section questions list */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <h3 style={{ margin: 0, fontSize: "16px", color: "#034852" }}>Questions in this section ({activeQuestions.length})</h3>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button
+                onClick={() => { setEditTarget(null); setPanelOpen(true); }}
+                style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #209379", background: "#fff", color: "#209379", fontWeight: 600, cursor: "pointer" }}
+              >
+                + New Question
+              </button>
+              <button
+                onClick={() => setBankOpen(true)}
+                style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #209379", background: "#209379", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+              >
+                Attach From Bank
+              </button>
+            </div>
+          </div>
+
+          {activeQuestions.length === 0 ? (
+            <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic" }}>No questions in this section yet.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {activeQuestions.map((q, idx) => (
+                <div key={q.id} style={{ padding: "12px 16px", background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "8px", display: "flex", gap: "12px", alignItems: "center" }}>
+                  <span style={{ minWidth: "32px", fontWeight: 700, color: "rgba(3,72,82,0.5)" }}>{idx + 1}.</span>
+                  <span style={{ flex: 1 }}>{stripHtml(q.content_html).slice(0, 120)}</span>
+                  <span style={{ ...typeBadge(q.question_type), flexShrink: 0 }}>{q.question_type}</span>
+                  <button
+                    onClick={() => { setEditTarget(q); setPanelOpen(true); }}
+                    style={{ padding: "4px 10px", borderRadius: "4px", border: "1px solid rgba(3,72,82,0.2)", background: "transparent", cursor: "pointer", fontSize: "12px" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => void handleRemoveQuestion(q.id)}
+                    style={{ padding: "4px 10px", borderRadius: "4px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", cursor: "pointer", fontSize: "12px" }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -408,7 +694,7 @@ function QuizQuestionRow({
 
 // ── Bank Picker Modal ──────────────────────────────────────────
 
-function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClose: () => void; onPicked: () => void }) {
+function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: string; sectionId?: string; onClose: () => void; onPicked: () => void }) {
   const [bankQs, setBankQs]             = useState<Question[]>([]);
   const [loadingBank, setLoadingBank]   = useState(true);
   const [search, setSearch]             = useState("");
@@ -436,7 +722,11 @@ function BankPickerModal({ quizId, onClose, onPicked }: { quizId: string; onClos
     setErr(null);
     try {
       for (const qId of selected) {
-        await attachQuizQuestion(quizId, qId);
+        if (sectionId) {
+          await attachQuestionToSection(quizId, sectionId, qId);
+        } else {
+          await attachQuizQuestion(quizId, qId);
+        }
       }
       onPicked();
     } catch (e) {
