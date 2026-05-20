@@ -516,12 +516,40 @@ function SectionsView({
   const sections = quiz.sections;
   const active = sections.find((s) => s.id === activeSectionId) ?? sections[0] ?? null;
 
-  async function handleAddSection() {
-    const title = window.prompt("Section title (e.g., Aptitude, Logical, Math):");
-    if (!title?.trim()) return;
-    const created = await createQuizSection(quiz.id, { title: title.trim() });
-    await onReload();
-    setActiveSectionId(created.id);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newSectionTitle, setNewSectionTitle] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addingSection, setAddingSection] = useState(false);
+
+  function handleAddSection() {
+    setNewSectionTitle("");
+    setAddError(null);
+    setShowAddModal(true);
+  }
+
+  async function submitAddSection() {
+    const title = newSectionTitle.trim();
+    if (!title) {
+      setAddError("Section title is required.");
+      return;
+    }
+    setAddingSection(true);
+    setAddError(null);
+    try {
+      const created = await createQuizSection(quiz.id, { title });
+      await onReload();
+      setActiveSectionId(created.id);
+      setShowAddModal(false);
+      setNewSectionTitle("");
+    } catch (err) {
+      setAddError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't add section. Make sure 'Section-wise quiz' is enabled in settings and saved first.",
+      );
+    } finally {
+      setAddingSection(false);
+    }
   }
 
   async function handleDeleteSection() {
@@ -562,12 +590,18 @@ function SectionsView({
             {s.title} ({s.questions.length})
           </button>
         ))}
-        <button
-          onClick={() => void handleAddSection()}
-          style={{ padding: "10px 16px", border: "1px dashed #209379", background: "transparent", color: "#209379", fontWeight: 600, cursor: "pointer", borderRadius: "6px" }}
-        >
-          + Add Section
-        </button>
+        {quiz.is_sectioned ? (
+          <button
+            onClick={handleAddSection}
+            style={{ padding: "10px 16px", border: "1px dashed #209379", background: "transparent", color: "#209379", fontWeight: 600, cursor: "pointer", borderRadius: "6px" }}
+          >
+            + Add Section
+          </button>
+        ) : (
+          <span style={{ padding: "10px 16px", fontSize: "13px", color: "rgba(3,72,82,0.5)", fontStyle: "italic", alignSelf: "center" }}>
+            Save settings with Section-wise quiz enabled first
+          </span>
+        )}
       </div>
 
       {!active ? (
@@ -629,6 +663,100 @@ function SectionsView({
             </div>
           )}
         </>
+      )}
+
+      {/* ── Add Section Modal ──────────────────────────────── */}
+      {showAddModal && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowAddModal(false);
+          }}
+          style={{
+            position: "fixed", inset: 0, zIndex: 99998,
+            background: "rgba(3,72,82,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "20px",
+          }}
+        >
+          <form
+            onSubmit={(e) => { e.preventDefault(); void submitAddSection(); }}
+            style={{
+              background: "#fff", borderRadius: "16px",
+              padding: "28px", maxWidth: "440px", width: "100%",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+            }}
+          >
+            <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 8px" }}>
+              Add Section
+            </p>
+            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "0 0 20px" }}>
+              Each section groups its own questions (e.g., Aptitude, Logical, Math).
+            </p>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>
+              Section Title
+            </label>
+            <input
+              autoFocus
+              type="text"
+              value={newSectionTitle}
+              onChange={(e) => setNewSectionTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Escape") setShowAddModal(false); }}
+              placeholder="e.g., Aptitude"
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                border: "1.5px solid rgba(3,72,82,0.15)",
+                fontSize: "15px",
+                color: "#034852",
+                outline: "none",
+                boxSizing: "border-box",
+                marginBottom: addError ? "8px" : "20px",
+              }}
+            />
+            {addError && (
+              <p style={{ fontSize: "13px", color: "#e53e3e", margin: "0 0 20px", lineHeight: 1.5 }}>
+                {addError}
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                disabled={addingSection}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "rgba(3,72,82,0.08)",
+                  color: "#034852",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: addingSection ? "default" : "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={addingSection || !newSectionTitle.trim()}
+                style={{
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "linear-gradient(135deg,#0abe62,#209379)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "14px",
+                  cursor: (addingSection || !newSectionTitle.trim()) ? "default" : "pointer",
+                  opacity: (addingSection || !newSectionTitle.trim()) ? 0.6 : 1,
+                }}
+              >
+                {addingSection ? "Adding…" : "Add Section"}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );
