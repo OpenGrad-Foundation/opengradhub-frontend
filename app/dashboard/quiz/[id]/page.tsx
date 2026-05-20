@@ -10,6 +10,7 @@ import {
   getQuizAttempts,
   getAttemptExplanations,
   advanceQuizSection,
+  logProctorEvent,
   type Quiz,
   type StartedAttempt,
   type StartedAttemptSection,
@@ -293,6 +294,7 @@ export default function QuizTakingPage() {
   const [phase, setPhase] = useState<"loading" | "intro" | "taking" | "result" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [fullscreenExited, setFullscreenExited] = useState(false);
   const [attemptsUsed, setAttemptsUsed] = useState(0);
   const [pastAttempts, setPastAttempts] = useState<QuizAttempt[]>([]);
   const [incompleteAttempt, setIncompleteAttempt] = useState<QuizAttempt | null>(null);
@@ -388,6 +390,22 @@ export default function QuizTakingPage() {
     };
   }, [currentIdx, phase, attempt]);
 
+  // Fullscreen proctoring: detect and log exits
+  useEffect(() => {
+    if (phase !== "taking" || !quiz?.require_fullscreen) return;
+    function onChange() {
+      const inFs = !!document.fullscreenElement;
+      if (!inFs && attempt) {
+        setFullscreenExited(true);
+        void logProctorEvent(attempt.attempt_id, "fullscreen_exit").catch(() => {});
+      } else if (inFs) {
+        setFullscreenExited(false);
+      }
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, [phase, quiz?.require_fullscreen, attempt?.attempt_id]);
+
   // Debounced autosave of in-progress answers to IndexedDB.
   useEffect(() => {
     if (phase !== "taking" || !attempt) return;
@@ -443,6 +461,15 @@ export default function QuizTakingPage() {
 
   async function handleStart() {
     try {
+      if (quiz?.require_fullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch {
+          setError("Fullscreen is required for this quiz but the browser blocked it. Please allow fullscreen and try again.");
+          setPhase("error");
+          return;
+        }
+      }
       setPhase("loading");
       const started = await startQuizAttempt(quizId);
 
@@ -513,6 +540,9 @@ export default function QuizTakingPage() {
       });
       const vids = await getAttemptExplanations(res.attempt_id);
       setExplanations(vids);
+      if (document.fullscreenElement) {
+        void document.exitFullscreen().catch(() => {});
+      }
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
@@ -565,6 +595,9 @@ export default function QuizTakingPage() {
         void clearDraft(attempt.attempt_id).catch(() => {});
         const vids = await getAttemptExplanations(res.result.attempt_id);
         setExplanations(vids);
+        if (document.fullscreenElement) {
+          void document.exitFullscreen().catch(() => {});
+        }
         setPhase("result");
       }
     } catch (err) {
@@ -637,19 +670,31 @@ export default function QuizTakingPage() {
             )}
             <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
           </div>
-          {exhausted && !incompleteAttempt ? (
-            <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e" }}>
-              You have used all available attempts for this quiz.
-            </p>
-          ) : (
-            <button onClick={handleStart} style={{ ...primaryBtn, marginTop: "20px" }}>
-              {incompleteAttempt
-                ? "Resume Attempt"
-                : attemptsUsed > 0
-                  ? "Retake Quiz"
-                  : "Start Quiz"} →
-            </button>
-          )}
+          {(() => {
+            const fsRequired = !!quiz?.require_fullscreen;
+            const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
+            const fsBlockMobile = fsRequired && !fsSupported;
+            if (fsBlockMobile) {
+              return (
+                <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e", fontWeight: 600 }}>
+                  This quiz requires fullscreen mode, which isn&apos;t supported on this device. Please use a desktop browser (Chrome / Edge / Firefox) to take this quiz.
+                </p>
+              );
+            }
+            return exhausted && !incompleteAttempt ? (
+              <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e" }}>
+                You have used all available attempts for this quiz.
+              </p>
+            ) : (
+              <button onClick={handleStart} style={{ ...primaryBtn, marginTop: "20px" }}>
+                {incompleteAttempt
+                  ? "Resume Attempt"
+                  : attemptsUsed > 0
+                    ? "Retake Quiz"
+                    : "Start Quiz"} →
+              </button>
+            );
+          })()}
 
           {pastAttempts.length > 0 && (
             <div style={{ marginTop: "28px", borderTop: "1px solid rgba(3,72,82,0.08)", paddingTop: "20px" }}>
@@ -719,6 +764,31 @@ export default function QuizTakingPage() {
 
     return (
       <div style={pageOuter}>
+        {fullscreenExited && phase === "taking" && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 99999,
+            background: "rgba(229,62,62,0.95)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
+            color: "#fff", padding: "40px", textAlign: "center",
+          }}>
+            <h2 style={{ fontSize: "32px", margin: 0, marginBottom: "16px" }}>Fullscreen Exited</h2>
+            <p style={{ fontSize: "16px", margin: 0, marginBottom: "24px", maxWidth: "500px", lineHeight: 1.6 }}>
+              This quiz requires fullscreen mode. The exit has been logged. Return to fullscreen to continue.
+            </p>
+            <button
+              onClick={async () => {
+                try { await document.documentElement.requestFullscreen(); } catch { /* user gesture failed */ }
+              }}
+              style={{
+                padding: "12px 28px", borderRadius: "12px",
+                background: "#fff", color: "#e53e3e",
+                fontSize: "16px", fontWeight: 700, border: "none", cursor: "pointer",
+              }}
+            >
+              Return to Fullscreen
+            </button>
+          </div>
+        )}
         {showReloadWarning && (
           <div style={{
             position: "fixed", inset: 0, zIndex: 9999,
