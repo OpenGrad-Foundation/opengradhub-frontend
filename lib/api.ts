@@ -1118,6 +1118,16 @@ export async function patchSubmission(
 
 // ── Quizzes API ────────────────────────────────────────────────
 
+export type QuizSection = {
+  id: string;
+  quiz_id: string;
+  title: string;
+  order_index: number;
+  duration_minutes: number | null;
+  pass_threshold_percent: number | null;
+  questions: Question[];
+};
+
 export type Quiz = {
   id: string;
   module_id: string | null;
@@ -1132,6 +1142,10 @@ export type Quiz = {
   created_by: string | null;
   created_at: string;
   questions: Question[];
+  // ── Phase 3 additions ──
+  is_sectioned: boolean;
+  sequential_sections: boolean;
+  sections: QuizSection[];
 };
 
 export type CreateQuizPayload = {
@@ -1269,6 +1283,8 @@ export async function updateQuiz(
     pass_threshold_percent?: number | null;
     shuffle_questions?: boolean;
     show_answers_after?: boolean;
+    is_sectioned?: boolean;
+    sequential_sections?: boolean;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
@@ -1334,6 +1350,105 @@ export async function removeQuizQuestion(quizId: string, questionId: string): Pr
     cache: "no-store",
   });
   if (!r.ok) throw new ApiError("Failed to remove question.", r.status);
+}
+
+// ── Sectioning ──────────────────────────────────────────────
+
+export async function createQuizSection(
+  quizId: string,
+  payload: { title: string; duration_minutes?: number | null; pass_threshold_percent?: number | null },
+): Promise<QuizSection> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new ApiError("Failed to create section.", r.status);
+  return (await r.json()) as QuizSection;
+}
+
+export async function updateQuizSection(
+  quizId: string,
+  sectionId: string,
+  payload: { title?: string; duration_minutes?: number | null; pass_threshold_percent?: number | null },
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new ApiError("Failed to update section.", r.status);
+}
+
+export async function deleteQuizSection(quizId: string, sectionId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}`, { method: "DELETE" });
+  if (!r.ok) throw new ApiError("Failed to delete section.", r.status);
+}
+
+export async function reorderQuizSections(quizId: string, ids: string[]): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!r.ok) throw new ApiError("Failed to reorder sections.", r.status);
+}
+
+export async function attachQuestionToSection(
+  quizId: string,
+  sectionId: string,
+  questionId: string,
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}/questions/attach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question_id: questionId }),
+  });
+  if (!r.ok) throw new ApiError("Failed to attach question.", r.status);
+}
+
+export async function removeQuestionFromSection(
+  quizId: string,
+  sectionId: string,
+  questionId: string,
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}/questions/${questionId}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) throw new ApiError("Failed to remove question.", r.status);
+}
+
+export async function reorderSectionQuestions(
+  quizId: string,
+  sectionId: string,
+  ids: string[],
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}/questions/reorder`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!r.ok) throw new ApiError("Failed to reorder questions.", r.status);
+}
+
+export type SectionAdvanceResult =
+  | { type: "next"; section_index: number; section_meta: StartedAttemptSection; snapshots: QuizAttemptQuestion[] }
+  | { type: "done"; result: { attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string } };
+
+export async function advanceQuizSection(
+  attemptId: string,
+  answers: { snapshot_id: string; student_answer: string | null; time_taken_seconds?: number | null }[],
+): Promise<SectionAdvanceResult> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/sections/advance`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to advance section.", r.status);
+  }
+  return (await r.json()) as SectionAdvanceResult;
 }
 
 export async function publishQuiz(quizId: string): Promise<Quiz> {
@@ -1437,11 +1552,21 @@ export type QuizAttemptQuestion = {
   }[];
 };
 
+export type StartedAttemptSection = {
+  section_id: string;
+  title: string;
+  order_index: number;
+  duration_minutes: number | null;
+  pass_threshold_percent: number | null;
+};
+
 export type StartedAttempt = {
   attempt_id: string;
   attempt_number: number;
   started_at: string;
   questions: QuizAttemptQuestion[];
+  sections: StartedAttemptSection[];
+  current_section_index?: number;
 };
 
 export async function startQuizAttempt(quizId: string): Promise<StartedAttempt> {
@@ -1477,6 +1602,7 @@ export async function submitQuizAttempt(
 
 export type AttemptReviewQuestion = {
   snapshot_id: string;
+  section_id: string | null;   // ← new
   question_type: string;
   content_html: string;
   student_answer: string | null;
@@ -1491,6 +1617,15 @@ export type AttemptReviewQuestion = {
   batch_total_count: number;
 };
 
+export type AttemptReviewSection = {
+  section_id: string;
+  title: string;
+  order_index: number;
+  score: number | null;
+  max_score: number | null;
+  passed: boolean | null;
+};
+
 export type AttemptReview = {
   attempt_id: string;
   quiz_id: string;
@@ -1499,6 +1634,7 @@ export type AttemptReview = {
   passed: boolean | null;
   submitted_at: string;
   questions: AttemptReviewQuestion[];
+  sections: AttemptReviewSection[];   // ← new
 };
 
 export async function getAttemptReview(attemptId: string): Promise<AttemptReview> {
