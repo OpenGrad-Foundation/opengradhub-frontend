@@ -13,6 +13,9 @@ export type QuizDraft = {
   flagged: string[];
   current_idx: number;
   updated_at: number;
+  /** Phase 3: the active section id for sectioned (non-sequential) attempts.
+   *  Sequential mode uses server-side current_section_index instead. */
+  section_state?: { current_section_id?: string };
 };
 
 /** True when IndexedDB is usable (false during SSR / unsupported browsers). */
