@@ -598,7 +598,16 @@ export default function QuizTakingPage() {
 
   async function handleAdvanceSection() {
     if (!attempt) return;
-    if (!window.confirm("Submit this section? You won't be able to return to it.")) return;
+    // Per-section unanswered count for the active section.
+    const currentSection = currentSectionIdx != null ? sections[currentSectionIdx] : null;
+    const sectionQs = currentSection
+      ? attempt.questions.filter((q) => q.section_id === currentSection.section_id)
+      : attempt.questions;
+    const localStats = computeSectionStats(sectionQs, answers, flagged);
+    const prompt = localStats.unanswered > 0
+      ? `This section has ${localStats.unanswered} unanswered question(s). Submit anyway? You won't be able to return.`
+      : "Submit this section? You won't be able to return to it.";
+    if (!window.confirm(prompt)) return;
     setAdvancingSection(true);
     try {
       // Flush the in-progress question's timing so the last question on the page
@@ -843,6 +852,27 @@ export default function QuizTakingPage() {
       return answered ? "answered" : "unanswered";
     }
 
+    function buildFinalSubmitPrompt(): string {
+      if (!attempt) return "Submit this quiz?";
+      if (quiz?.is_sectioned) {
+        const sectionLines: string[] = [];
+        for (const s of sections) {
+          const qs = attempt.questions.filter((q) => q.section_id === s.section_id);
+          const ss = computeSectionStats(qs, answers, flagged);
+          if (ss.unanswered > 0) sectionLines.push(`  • ${s.title}: ${ss.unanswered} unanswered`);
+        }
+        if (sectionLines.length > 0) {
+          return "You have unanswered questions:\n\n" + sectionLines.join("\n") + "\n\nSubmit anyway? You cannot change your answers after submitting.";
+        }
+      } else {
+        const gs = computeSectionStats(attempt.questions, answers, flagged);
+        if (gs.unanswered > 0) {
+          return `You have ${gs.unanswered} unanswered question(s). Submit anyway? You cannot change your answers after submitting.`;
+        }
+      }
+      return "Submit this quiz? You cannot change your answers after submitting.";
+    }
+
     return (
       <div style={{
         ...pageOuter,
@@ -1043,7 +1073,11 @@ export default function QuizTakingPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={handleSubmit}
+                        onClick={() => {
+                          if (window.confirm(buildFinalSubmitPrompt())) {
+                            void handleSubmit();
+                          }
+                        }}
                         disabled={submitting}
                         style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
                       >
@@ -1203,7 +1237,7 @@ export default function QuizTakingPage() {
                 ) : (
                   <button
                     onClick={() => {
-                      if (window.confirm("Submit this quiz? You cannot change your answers after submitting.")) {
+                      if (window.confirm(buildFinalSubmitPrompt())) {
                         void handleSubmit();
                       }
                     }}
