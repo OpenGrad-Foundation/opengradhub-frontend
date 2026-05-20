@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion } from "@/lib/api";
+import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 
@@ -212,6 +212,50 @@ function QuestionReviewCard({ q, idx }: { q: AttemptReviewQuestion; idx: number 
   );
 }
 
+// ── Section header ────────────────────────────────────────────────────────────
+
+function SectionHeader({ section }: { section: AttemptReviewSection }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "12px 16px",
+      background: "rgba(3,72,82,0.04)",
+      borderRadius: "8px",
+      marginBottom: "12px",
+    }}>
+      <h3 style={{ margin: 0, fontSize: "16px", color: "#034852", fontWeight: 700 }}>
+        {section.title}
+      </h3>
+      <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        {section.score != null && section.max_score != null && (
+          <span style={{ fontWeight: 700, color: "#034852" }}>
+            {section.score}/{section.max_score}
+            {section.max_score > 0 && (
+              <span style={{ fontWeight: 500, color: "rgba(3,72,82,0.6)", marginLeft: "4px" }}>
+                ({Math.round((section.score / section.max_score) * 100)}%)
+              </span>
+            )}
+          </span>
+        )}
+        {section.passed != null && (
+          <span style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            padding: "3px 10px",
+            borderRadius: "100px",
+            background: section.passed ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)",
+            color: section.passed ? "#0abe62" : "#e53e3e",
+          }}>
+            {section.passed ? "Passed" : "Failed"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AttemptReviewPage() {
@@ -253,6 +297,17 @@ export default function AttemptReviewPage() {
   const skipped  = review.questions.filter((q) => q.student_answer == null).length;
   const totalTime = review.questions.reduce((s, q) => s + (q.time_taken_seconds ?? 0), 0);
 
+  const groupedBySection = review.sections.length > 0
+    ? review.sections.map((s) => ({
+        section: s,
+        questions: review.questions.filter((q) => q.section_id === s.section_id),
+      }))
+    : null;
+
+  const renderQuestionCard = (q: AttemptReviewQuestion, idx: number) => (
+    <QuestionReviewCard key={q.snapshot_id} q={q} idx={idx} />
+  );
+
   return (
     <div style={page}>
       <button
@@ -282,9 +337,18 @@ export default function AttemptReviewPage() {
       </div>
 
       {/* Question-by-question */}
-      {review.questions.map((q, i) => (
-        <QuestionReviewCard key={q.snapshot_id} q={q} idx={i} />
-      ))}
+      {groupedBySection ? (
+        <>
+          {groupedBySection.map(({ section, questions }) => (
+            <div key={section.section_id} style={{ marginBottom: "32px" }}>
+              <SectionHeader section={section} />
+              {questions.map((q, i) => renderQuestionCard(q, i))}
+            </div>
+          ))}
+        </>
+      ) : (
+        review.questions.map((q, i) => renderQuestionCard(q, i))
+      )}
 
       <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
         {userData?.user?.programme === "PG" && (
