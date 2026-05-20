@@ -1146,6 +1146,9 @@ export type Quiz = {
   is_sectioned: boolean;
   sequential_sections: boolean;
   sections: QuizSection[];
+  // ── Phase 4 + 5 additions ──
+  first_attempt_counts: boolean;
+  require_fullscreen: boolean;
 };
 
 export type CreateQuizPayload = {
@@ -1285,6 +1288,8 @@ export async function updateQuiz(
     show_answers_after?: boolean;
     is_sectioned?: boolean;
     sequential_sections?: boolean;
+    first_attempt_counts?: boolean;
+    require_fullscreen?: boolean;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
@@ -1524,6 +1529,7 @@ export type QuizAttempt = {
   submitted_at: string | null;
   is_complete: boolean;
   passed: boolean | null;
+  counts_toward_grade: boolean;
 };
 
 export async function getQuizAttempts(quizId: string, studentId?: string): Promise<QuizAttempt[]> {
@@ -1657,6 +1663,15 @@ export async function getAttemptExplanations(attemptId: string): Promise<WrongEx
   if (!r.ok) return [];
   const data = await r.json() as { questions: WrongExplanation[] };
   return data.questions ?? [];
+}
+
+export async function logProctorEvent(attemptId: string, eventType: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/proctor-event`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ event_type: eventType }),
+  });
+  if (!r.ok) throw new ApiError("Failed to log proctor event.", r.status);
 }
 
 export type LeaderboardEntry = {
