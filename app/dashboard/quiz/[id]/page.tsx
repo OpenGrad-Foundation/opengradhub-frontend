@@ -9,8 +9,10 @@ import {
   submitQuizAttempt,
   getQuizAttempts,
   getAttemptExplanations,
+  advanceQuizSection,
   type Quiz,
   type StartedAttempt,
+  type StartedAttemptSection,
   type QuizAttempt,
   type QuizAttemptQuestion,
   type WrongExplanation,
@@ -302,6 +304,11 @@ export default function QuizTakingPage() {
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showReloadWarning, setShowReloadWarning] = useState(false);
 
+  // Sectioned quiz state
+  const [sections, setSections] = useState<StartedAttemptSection[]>([]);
+  const [currentSectionIdx, setCurrentSectionIdx] = useState<number | null>(null);
+  const [advancingSection, setAdvancingSection] = useState(false);
+
   const timingsRef         = useRef<TimingMap>({});
   const enterTimesRef      = useRef<TimingMap>({});
   const submittingRef      = useRef(false);
@@ -309,6 +316,7 @@ export default function QuizTakingPage() {
   const hasLoadedRef       = useRef(false);
   const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
   const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sectionStartRef    = useRef<number>(Date.now());
 
   // Warn before browser reload/close during an active attempt
   useEffect(() => {
@@ -347,6 +355,23 @@ export default function QuizTakingPage() {
     if (timeElapsed >= timeLimitSeconds) void handleSubmitRef.current();
   }, [timeElapsed, timeLimitSeconds, phase]);
 
+  // Per-section timer derivation (sequential sectioned quizzes)
+  const activeSectionMeta = currentSectionIdx != null ? sections[currentSectionIdx] : null;
+  const sectionDurationSec = activeSectionMeta?.duration_minutes != null
+    ? activeSectionMeta.duration_minutes * 60
+    : null;
+  const sectionElapsed = Math.max(0, Math.floor((Date.now() - sectionStartRef.current) / 1000));
+  const sectionRemaining = sectionDurationSec != null ? Math.max(0, sectionDurationSec - sectionElapsed) : null;
+
+  // Auto-advance on section timer expiry
+  useEffect(() => {
+    if (phase !== "taking" || !quiz?.sequential_sections) return;
+    if (sectionRemaining === 0 && !advancingSection) {
+      void handleAdvanceSection();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionRemaining, phase, quiz?.sequential_sections, advancingSection]);
+
   // Per-question timing: track via currentIdx changes instead of IntersectionObserver
   useEffect(() => {
     if (phase !== "taking" || !attempt) return;
@@ -366,6 +391,7 @@ export default function QuizTakingPage() {
   // Debounced autosave of in-progress answers to IndexedDB.
   useEffect(() => {
     if (phase !== "taking" || !attempt) return;
+    const activeSectionMeta = currentSectionIdx != null ? sections[currentSectionIdx] : null;
     if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     draftTimerRef.current = setTimeout(() => {
       void saveDraft({
@@ -374,12 +400,15 @@ export default function QuizTakingPage() {
         flagged: [...flagged],
         current_idx: currentIdx,
         updated_at: Date.now(),
+        section_state: (quiz?.is_sectioned && !quiz?.sequential_sections && activeSectionMeta)
+          ? { current_section_id: activeSectionMeta.section_id }
+          : undefined,
       }).catch(() => {});
     }, 500);
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     };
-  }, [answers, flagged, currentIdx, phase, attempt]);
+  }, [answers, flagged, currentIdx, phase, attempt, sections, currentSectionIdx, quiz?.is_sectioned, quiz?.sequential_sections]);
 
   useEffect(() => {
     if (userLoading || !userData || hasLoadedRef.current) return;
@@ -426,12 +455,21 @@ export default function QuizTakingPage() {
         // IndexedDB unavailable — non-fatal, start with empty answers.
       }
       setAttempt(started);
+      setSections(started.sections);
+      setCurrentSectionIdx(started.current_section_index ?? null);
+      if (quiz?.sequential_sections) {
+        sectionStartRef.current = Date.now();
+      }
       setAnswers(draft?.answers ?? {});
       setCurrentIdx(draft?.current_idx ?? 0);
       setFlagged(new Set(draft?.flagged ?? []));
       setTimeElapsed(elapsedSeconds);
       timingsRef.current = {};
       enterTimesRef.current = {};
+      if (draft?.section_state?.current_section_id && started.sections.length > 0) {
+        const idx = started.sections.findIndex((s) => s.section_id === draft.section_state!.current_section_id);
+        if (idx >= 0) setCurrentSectionIdx(idx);
+      }
       setPhase("taking");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start attempt.");
@@ -486,6 +524,56 @@ export default function QuizTakingPage() {
   }
 
   handleSubmitRef.current = handleSubmit;
+
+  async function handleAdvanceSection() {
+    if (!attempt) return;
+    if (!window.confirm("Submit this section? You won't be able to return to it.")) return;
+    setAdvancingSection(true);
+    try {
+      // Build the answer list for the CURRENT section's questions only
+      const allSnapshotIds: string[] = [];
+      for (const q of attempt.questions) {
+        if (q.question_type === "GROUP") {
+          for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
+        } else {
+          allSnapshotIds.push(q.snapshot_id);
+        }
+      }
+      const answerList = allSnapshotIds.map((sid) => ({
+        snapshot_id: sid,
+        student_answer: answers[sid] ?? null,
+        time_taken_seconds: timingsRef.current[sid] ?? null,
+      }));
+      const res = await advanceQuizSection(attempt.attempt_id, answerList);
+      if (res.type === "next") {
+        setAttempt({ ...attempt, questions: res.snapshots });
+        setCurrentSectionIdx(res.section_index);
+        sectionStartRef.current = Date.now();
+        setCurrentIdx(0);
+        setFlagged(new Set());
+        timingsRef.current = {};
+        enterTimesRef.current = {};
+      } else {
+        // type === "done" — finalize
+        setResult({
+          attempt_id: res.result.attempt_id,
+          score: res.result.score,
+          max_score: res.result.max_score,
+          passed: res.result.passed,
+          show_answers_after: quiz?.show_answers_after ?? false,
+        });
+        void clearDraft(attempt.attempt_id).catch(() => {});
+        const vids = await getAttemptExplanations(res.result.attempt_id);
+        setExplanations(vids);
+        setPhase("result");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to advance section.");
+      setPhase("error");
+    } finally {
+      setAdvancingSection(false);
+    }
+  }
 
   function setAnswer(snapshotId: string, val: string | null) {
     setAnswers((prev) => ({ ...prev, [snapshotId]: val }));
@@ -732,13 +820,25 @@ export default function QuizTakingPage() {
                     ‹ Previous
                   </button>
                   {isLast ? (
-                    <button
-                      onClick={handleSubmit}
-                      disabled={submitting}
-                      style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
-                    >
-                      {submitting ? "Submitting…" : "Submit Quiz"}
-                    </button>
+                    quiz?.sequential_sections ? (
+                      <button
+                        onClick={handleAdvanceSection}
+                        disabled={advancingSection}
+                        style={primaryBtn}
+                      >
+                        {currentSectionIdx != null && currentSectionIdx >= sections.length - 1
+                          ? "Submit Final Section"
+                          : "Submit Section →"}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
+                      >
+                        {submitting ? "Submitting…" : "Submit Quiz"}
+                      </button>
+                    )
                   ) : (
                     <button
                       onClick={() => setCurrentIdx((i) => Math.min(total - 1, i + 1))}
@@ -763,16 +863,53 @@ export default function QuizTakingPage() {
                   paddingBottom: "16px",
                   borderBottom: "1px solid rgba(3,72,82,0.08)",
                 }}>
-                  <span style={{ fontSize: "18px", color: timerIsLow ? "#e53e3e" : "#034852" }}>⏱</span>
-                  <span style={{
-                    fontSize: "22px",
-                    fontWeight: 800,
-                    color: timerIsLow ? "#e53e3e" : "#034852",
-                    fontVariantNumeric: "tabular-nums",
-                  }}>
-                    {timerStr}
-                  </span>
+                  {quiz?.sequential_sections && sectionRemaining != null ? (
+                    <span style={{ fontWeight: 700, color: sectionRemaining < 60 ? "#e53e3e" : "#034852" }}>
+                      ⏱ Section: {Math.floor(sectionRemaining / 60)}:{(sectionRemaining % 60).toString().padStart(2, "0")}
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: "18px", color: timerIsLow ? "#e53e3e" : "#034852" }}>⏱</span>
+                      <span style={{
+                        fontSize: "22px",
+                        fontWeight: 800,
+                        color: timerIsLow ? "#e53e3e" : "#034852",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {timerStr}
+                      </span>
+                    </>
+                  )}
                 </div>
+
+                {/* Section tab strip */}
+                {quiz?.is_sectioned && sections.length > 0 && (
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+                    {sections.map((s, i) => {
+                      const isActive = currentSectionIdx === i || (currentSectionIdx == null && i === 0);
+                      const isLocked = quiz.sequential_sections && currentSectionIdx != null && i < currentSectionIdx;
+                      const isPending = quiz.sequential_sections && currentSectionIdx != null && i > currentSectionIdx;
+                      return (
+                        <div
+                          key={s.section_id}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: "6px",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            background: isActive ? "rgba(10,190,98,0.15)" : (isLocked || isPending) ? "rgba(3,72,82,0.05)" : "transparent",
+                            color: isActive ? "#0abe62" : (isLocked || isPending) ? "rgba(3,72,82,0.35)" : "#034852",
+                            border: `1px solid ${isActive ? "#0abe62" : "rgba(3,72,82,0.15)"}`,
+                            cursor: (isLocked || isPending) ? "not-allowed" : "default",
+                            opacity: (isLocked || isPending) ? 0.6 : 1,
+                          }}
+                        >
+                          {s.title}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Question navigator grid */}
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
@@ -818,25 +955,44 @@ export default function QuizTakingPage() {
                 </div>
 
                 {/* Submit from sidebar */}
-                <button
-                  onClick={() => {
-                    if (window.confirm("Submit this quiz? You cannot change your answers after submitting.")) {
-                      void handleSubmit();
-                    }
-                  }}
-                  disabled={submitting}
-                  style={{
-                    ...primaryBtn,
-                    width: "100%",
-                    marginTop: "20px",
-                    padding: "10px 16px",
-                    fontSize: "14px",
-                    opacity: submitting ? 0.6 : 1,
-                    boxSizing: "border-box",
-                  }}
-                >
-                  {submitting ? "Submitting…" : "Submit Quiz"}
-                </button>
+                {quiz?.sequential_sections ? (
+                  <button
+                    onClick={handleAdvanceSection}
+                    disabled={advancingSection}
+                    style={{
+                      ...primaryBtn,
+                      width: "100%",
+                      marginTop: "20px",
+                      padding: "10px 16px",
+                      fontSize: "14px",
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {currentSectionIdx != null && currentSectionIdx >= sections.length - 1
+                      ? "Submit Final Section"
+                      : "Submit Section →"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      if (window.confirm("Submit this quiz? You cannot change your answers after submitting.")) {
+                        void handleSubmit();
+                      }
+                    }}
+                    disabled={submitting}
+                    style={{
+                      ...primaryBtn,
+                      width: "100%",
+                      marginTop: "20px",
+                      padding: "10px 16px",
+                      fontSize: "14px",
+                      opacity: submitting ? 0.6 : 1,
+                      boxSizing: "border-box",
+                    }}
+                  >
+                    {submitting ? "Submitting…" : "Submit Quiz"}
+                  </button>
+                )}
               </div>
             </div>
           </div>
