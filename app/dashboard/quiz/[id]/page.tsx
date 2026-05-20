@@ -718,6 +718,16 @@ export default function QuizTakingPage() {
                           {a.passed ? "Passed" : "Failed"}
                         </span>
                       )}
+                      <span style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        padding: "2px 8px",
+                        borderRadius: "100px",
+                        background: a.counts_toward_grade ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
+                        color:      a.counts_toward_grade ? "#0abe62" : "rgba(3,72,82,0.6)",
+                      }}>
+                        {a.counts_toward_grade ? "Counted" : "Practice"}
+                      </span>
                       {quiz?.show_answers_after && (
                         <button
                           onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${a.id}`)}
