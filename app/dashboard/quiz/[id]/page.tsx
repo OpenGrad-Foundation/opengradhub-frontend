@@ -20,6 +20,7 @@ import {
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
+import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -805,6 +806,28 @@ export default function QuizTakingPage() {
     const isLast = safeIdx === total - 1;
     const isFlagged = flagged.has(q.snapshot_id);
 
+    // Per-section + global stats (sectioned quizzes only).
+    const sectionStatsMap = new Map<string, SectionStats>();
+    if (quiz?.is_sectioned) {
+      for (const s of sections) {
+        const qs = attempt.questions.filter((q) => q.section_id === s.section_id);
+        sectionStatsMap.set(s.section_id, computeSectionStats(qs, answers, flagged));
+      }
+    }
+    const globalStats = computeSectionStats(attempt.questions, answers, flagged);
+
+    // Section-aware navigation
+    const currentSectionId = attempt.questions[safeIdx]?.section_id ?? null;
+    const nextQuestion = attempt.questions[safeIdx + 1];
+    const isSectionLast =
+      isLast ||
+      (!!currentSectionId && nextQuestion?.section_id !== currentSectionId);
+    const nextSectionFirstIdx = currentSectionId
+      ? attempt.questions.findIndex(
+          (q, i) => i > safeIdx && q.section_id !== currentSectionId,
+        )
+      : -1;
+
     const timeRemaining = timeLimitSeconds ? timeLimitSeconds - timeElapsed : null;
     const displaySeconds = timeRemaining !== null ? Math.max(0, timeRemaining) : timeElapsed;
     const mins = Math.floor(displaySeconds / 60);
@@ -906,9 +929,16 @@ export default function QuizTakingPage() {
                 const isActive = currentSectionIdx === i || (currentSectionIdx == null && i === 0);
                 const isLocked = quiz.sequential_sections && currentSectionIdx != null && i < currentSectionIdx;
                 const isPending = quiz.sequential_sections && currentSectionIdx != null && i > currentSectionIdx;
+                const clickable = !quiz.sequential_sections && !isLocked && !isPending;
+                const stats = sectionStatsMap.get(s.section_id);
                 return (
                   <div
                     key={s.section_id}
+                    onClick={() => {
+                      if (!clickable) return;
+                      const firstIdx = attempt.questions.findIndex((q) => q.section_id === s.section_id);
+                      if (firstIdx >= 0) setCurrentIdx(firstIdx);
+                    }}
                     style={{
                       padding: "10px 18px",
                       fontSize: "14px",
@@ -917,12 +947,21 @@ export default function QuizTakingPage() {
                       color: isActive ? "#0abe62" : (isLocked || isPending) ? "rgba(3,72,82,0.35)" : "#034852",
                       borderBottom: `3px solid ${isActive ? "#0abe62" : "transparent"}`,
                       marginBottom: "-2px",
-                      cursor: (isLocked || isPending) ? "not-allowed" : "default",
+                      cursor: clickable ? "pointer" : (isLocked || isPending) ? "not-allowed" : "default",
                       opacity: (isLocked || isPending) ? 0.6 : 1,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
                     }}
                   >
-                    {s.title}
-                    {isLocked && <span style={{ marginLeft: "6px", fontSize: "11px" }}>🔒</span>}
+                    <span>{s.title}</span>
+                    {stats && (
+                      <span style={{ fontSize: "11px", fontWeight: 600, opacity: 0.75 }}>
+                        {stats.answered}/{stats.total}
+                        {stats.flagged > 0 ? ` ⚑${stats.flagged}` : ""}
+                      </span>
+                    )}
+                    {isLocked && <span style={{ fontSize: "11px" }}>🔒</span>}
                   </div>
                 );
               })}
@@ -1013,10 +1052,19 @@ export default function QuizTakingPage() {
                     )
                   ) : (
                     <button
-                      onClick={() => setCurrentIdx((i) => Math.min(total - 1, i + 1))}
+                      onClick={() => {
+                        if (!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0) {
+                          setCurrentIdx(nextSectionFirstIdx);
+                        } else {
+                          setCurrentIdx((i) => Math.min(total - 1, i + 1));
+                        }
+                      }}
+                      disabled={isLast}
                       style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: "6px" }}
                     >
-                      Next ›
+                      {!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0
+                        ? "Next Section →"
+                        : "Next ›"}
                     </button>
                   )}
                 </div>
@@ -1053,6 +1101,40 @@ export default function QuizTakingPage() {
                     </>
                   )}
                 </div>
+
+                {/* Section stats block */}
+                {quiz?.is_sectioned && (() => {
+                  const showStats = quiz.sequential_sections
+                    ? (currentSectionId ? sectionStatsMap.get(currentSectionId) : undefined)
+                    : globalStats;
+                  const title = quiz.sequential_sections
+                    ? (currentSectionIdx != null ? sections[currentSectionIdx]?.title : sections[0]?.title) ?? "Section"
+                    : "Quiz Progress";
+                  if (!showStats) return null;
+                  return (
+                    <div style={{
+                      padding: "12px",
+                      background: "rgba(3,72,82,0.04)",
+                      borderRadius: "8px",
+                      marginBottom: "16px",
+                    }}>
+                      <p style={{
+                        margin: 0,
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "rgba(3,72,82,0.6)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                      }}>{title}</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "10px", fontSize: "13px", color: "#034852" }}>
+                        <span><strong>{showStats.answered}</strong> Answered</span>
+                        <span><strong>{showStats.unanswered}</strong> Unanswered</span>
+                        <span><strong>{showStats.flagged}</strong> Flagged</span>
+                        <span><strong>{showStats.flaggedAndAnswered}</strong> Flagged + Answered</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Question navigator grid */}
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
