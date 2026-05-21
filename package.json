@@ -12,7 +12,9 @@
   "dependencies": {
     "@clerk/nextjs": "^7.2.7",
     "@sentry/nextjs": "^10.50.0",
+    "@tanstack/react-query": "5.100.11",
     "chart.js": "^4.5.1",
+    "idb": "8.0.3",
     "katex": "^0.16.46",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
