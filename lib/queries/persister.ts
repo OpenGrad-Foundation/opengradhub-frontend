@@ -58,12 +58,13 @@ export async function idbDel(key: string): Promise<void> {
 }
 
 /**
- * Build a per-query persister bound to the IDB store. Pass to a query's
- * `persister` option. Queries that should NOT be persisted (Tier 2) simply
- * omit this.
+ * Build a per-query persister bound to the IDB store. Returns the
+ * `persisterFn` function directly so it can be passed to a useQuery's
+ * `persister` option without further unwrapping. Queries that should NOT be
+ * persisted (Tier 2) simply omit this.
  */
 export function makeIdbPersister() {
-  return experimental_createQueryPersister({
+  const p = experimental_createQueryPersister({
     storage: {
       getItem: (key: string) => idbGet<string>(key),
       setItem: (key: string, value: string) => idbSet(key, value),
@@ -73,4 +74,5 @@ export function makeIdbPersister() {
     maxAge: 1000 * 60 * 60 * 24,
     buster: APP_VERSION,
   });
+  return p.persisterFn;
 }
