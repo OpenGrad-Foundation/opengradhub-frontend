@@ -9,13 +9,13 @@ import {
   bulkEnrol,
   bulkRemove,
   getEnrolledItemsForStudents,
-  getCourses,
   getBundles,
   type StudentForBulk,
   type Course,
   type Bundle,
   type EnrolledItems,
 } from "@/lib/api";
+import { useCourses } from "@/lib/queries/courses";
 
 const STATES = [
   { value: "TAMIL_NADU",    label: "Tamil Nadu" },
@@ -46,7 +46,10 @@ export default function BulkManagePage() {
   const [selectedIds,    setSelectedIds]    = useState<Set<string>>(new Set());
 
   // ── Step 2 — Assign mode: all courses + bundles ────────────────
-  const [allCourses,        setAllCourses]        = useState<Course[]>([]);
+  // Courses via TanStack Query — Layer 4 Tier 1 (IDB-persisted).
+  const { data: allCourses = [] } = useCourses(
+    { allStatuses: true },
+  );
   const [allBundles,        setAllBundles]        = useState<Bundle[]>([]);
 
   // ── Step 2 — Remove mode: enrolled items only ─────────────────
@@ -67,10 +70,9 @@ export default function BulkManagePage() {
   // Ref to cancel in-flight enrolled-items requests
   const enrolledFetchId = useRef(0);
 
-  // ── Load all courses + bundles for Assign mode ─────────────────
+  // ── Load bundles for Assign mode (courses come from useCourses above) ──
   useEffect(() => {
     if (userLoading || !canManage) return;
-    getCourses(undefined, undefined, undefined, true).then(setAllCourses).catch(() => {});
     getBundles().then(setAllBundles).catch(() => {});
   }, [userLoading, canManage]);
 
