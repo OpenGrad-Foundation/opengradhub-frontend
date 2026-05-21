@@ -2434,3 +2434,59 @@ export async function bulkEnrol(payload: {
   }
   return (await r.json()) as { enrolled_courses: number; enrolled_bundles: number; skipped: number };
 }
+
+// ── Student Report PDFs ────────────────────────────────────────
+//
+// The report endpoints are protected by the same bearer-token auth as the rest
+// of the API. A plain `window.open` would NOT carry the Authorization header,
+// so the PDF is fetched as a blob through `apiFetch` (which injects the token)
+// and the resulting object URL is opened/downloaded by the caller.
+
+export type StudentReportPdf = { blob: Blob; filename: string };
+
+function extractFilename(response: Response, fallback: string): string {
+  const header = response.headers.get("content-disposition");
+  if (header) {
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+  }
+  return fallback;
+}
+
+/**
+ * Download a course report PDF for a single student.
+ * Backend: GET /reports/students/:studentId/pdf?scope=course&ref_id=<courseId>
+ */
+export async function downloadStudentCourseReportPdf(
+  studentId: string,
+  courseId: string,
+): Promise<StudentReportPdf> {
+  const url = new URL(`${API_BASE_URL}/reports/students/${studentId}/pdf`);
+  url.searchParams.set("scope", "course");
+  url.searchParams.set("ref_id", courseId);
+
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to download course report.", r.status);
+  }
+  return { blob: await r.blob(), filename: extractFilename(r, "course-report.pdf") };
+}
+
+/**
+ * Download the current-month period report PDF for a single student.
+ * Backend: GET /reports/students/:studentId/period/pdf?type=MONTHLY
+ */
+export async function downloadStudentMonthlyReportPdf(
+  studentId: string,
+): Promise<StudentReportPdf> {
+  const url = new URL(`${API_BASE_URL}/reports/students/${studentId}/period/pdf`);
+  url.searchParams.set("type", "MONTHLY");
+
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to download monthly report.", r.status);
+  }
+  return { blob: await r.blob(), filename: extractFilename(r, "monthly-report.pdf") };
+}
