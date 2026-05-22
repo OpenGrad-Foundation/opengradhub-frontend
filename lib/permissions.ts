@@ -83,6 +83,7 @@ export const PERM = {
     view_admin: "analytics.view_admin",
     view_manager: "analytics.view_manager",
     view_fellow: "analytics.view_fellow",
+    view_student: "analytics.view_student",
   },
   student_export: {
     view: "student_export.view",
