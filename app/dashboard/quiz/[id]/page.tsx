@@ -322,6 +322,7 @@ export default function QuizTakingPage() {
   const [incompleteAttempt, setIncompleteAttempt] = useState<QuizAttempt | null>(null);
   const [explanations, setExplanations] = useState<WrongExplanation[]>([]);
   const [downloadingReport, setDownloadingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   // Question-by-question navigation state
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -636,11 +637,11 @@ export default function QuizTakingPage() {
 
   async function handleDownloadTestReport() {
     setDownloadingReport(true);
+    setReportError(null);
     try {
       openPdf(await downloadStudentTestReportPdf("me", quizId));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to download report.");
-      setPhase("error");
+      setReportError(e instanceof Error ? e.message : "Failed to download report.");
     } finally {
       setDownloadingReport(false);
     }
@@ -1501,6 +1502,9 @@ export default function QuizTakingPage() {
               </button>
             ) : null}
           </div>
+          {reportError && (
+            <p style={{ color: "#e53e3e", fontSize: "13px", margin: "12px 0 0" }}>{reportError}</p>
+          )}
         </div>
       </div>
     );
