@@ -5,6 +5,7 @@ import type {
   SignUpPayload,
   SignUpResponse,
 } from "./types";
+import type { PracticePayload } from "./practiceStore";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
@@ -2517,4 +2518,17 @@ export async function downloadStudentMonthlyReportPdf(
     throw new ApiError(err?.message ?? "Failed to download monthly report.", r.status);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "monthly-report.pdf") };
+}
+
+/**
+ * Fetch the one-time practice payload for a quiz (questions + answers).
+ * Backend: GET /quizzes/:id/practice-payload
+ */
+export async function getPracticePayload(quizId: string): Promise<PracticePayload> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/practice-payload`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Practice is not available for this quiz.", r.status);
+  }
+  return (await r.json()) as PracticePayload;
 }
