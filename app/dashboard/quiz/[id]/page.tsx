@@ -21,6 +21,7 @@ import {
   type StudentReportPdf,
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
+import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
 
@@ -119,21 +120,8 @@ const secondaryBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const optionRow: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: "12px",
-  padding: "12px 16px",
-  borderRadius: "10px",
-  marginBottom: "10px",
-  cursor: "pointer",
-  border: "1.5px solid rgba(3,72,82,0.12)",
-  transition: "all 0.15s",
-};
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type AnswerMap = Record<string, string | null>; // snapshot_id → student_answer
 type TimingMap = Record<string, number>;         // snapshot_id → accumulated seconds
 
 type ResultState = {
@@ -143,100 +131,6 @@ type ResultState = {
   passed: boolean | null;
   show_answers_after: boolean;
 };
-
-// ── Question renderer ─────────────────────────────────────────────────────────
-
-function QuestionBlock({
-  q,
-  answers,
-  setAnswer,
-}: {
-  q: QuizAttemptQuestion;
-  answers: AnswerMap;
-  setAnswer: (snapshotId: string, val: string | null) => void;
-}) {
-  const current = answers[q.snapshot_id] ?? null;
-
-  return (
-    <div>
-      {q.question_type !== "GROUP" && (
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERICAL" ? "Numeric" : "Short Answer"}
-        </p>
-      )}
-      <MathContent
-        html={q.content_html}
-        style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.6, marginBottom: "24px" }}
-      />
-
-      {q.question_type === "MCQ" && q.options.length > 0 && (
-        <div>
-          {q.options.map((opt) => {
-            const selected = current === opt.id;
-            return (
-              <div
-                key={opt.id}
-                onClick={() => setAnswer(q.snapshot_id, selected ? null : opt.id)}
-                style={{
-                  ...optionRow,
-                  background: selected ? "rgba(10,190,98,0.08)" : "transparent",
-                  borderColor: selected ? "#0abe62" : "rgba(3,72,82,0.12)",
-                }}
-              >
-                <div style={{
-                  width: "18px", height: "18px", borderRadius: "50%",
-                  border: `2px solid ${selected ? "#0abe62" : "rgba(3,72,82,0.3)"}`,
-                  background: selected ? "#0abe62" : "transparent",
-                  flexShrink: 0,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}>
-                  {selected && <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fff" }} />}
-                </div>
-                <span style={{ fontSize: "15px" }}>{opt.option_text}</span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {(q.question_type === "NUMERICAL" || q.question_type === "SHORT_ANSWER") && (
-        <input
-          type={q.question_type === "NUMERICAL" ? "number" : "text"}
-          placeholder={q.question_type === "NUMERICAL" ? "Enter a number…" : "Type your answer…"}
-          value={current ?? ""}
-          onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: "10px",
-            border: "1.5px solid rgba(3,72,82,0.2)",
-            fontSize: "15px",
-            color: "#034852",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-      )}
-
-      {q.question_type === "GROUP" && q.children.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-          {q.children.map((child, ci) => (
-            <div key={child.snapshot_id} style={{ paddingLeft: "20px", borderLeft: "3px solid rgba(3,72,82,0.1)" }}>
-              <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Part {ci + 1}
-              </p>
-              <QuestionBlock
-                q={child as QuizAttemptQuestion}
-                answers={answers}
-                setAnswer={setAnswer}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── YouTube embed helper ──────────────────────────────────────────────────────
 
@@ -1166,7 +1060,7 @@ export default function QuizTakingPage() {
                 </div>
 
                 {/* Question body */}
-                <QuestionBlock
+                <QuestionView
                   q={q}
                   answers={answers}
                   setAnswer={setAnswer}
