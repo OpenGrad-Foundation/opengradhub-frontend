@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getAnalyticsSchools,
-  getAnalyticsStudents,
+  getAnalyticsStudentsPaged,
   getStudentCourses,
   downloadStudentCourseReportPdf,
   downloadStudentMonthlyReportPdf,
+  startBulkReport,
+  getBulkReportStatus,
+  downloadBulkReport,
   type AnalyticsSchool,
   type AnalyticsStudent,
   type StudentCourse,
@@ -30,6 +33,8 @@ const BRAND = {
   yellow: "#ffde00",
 };
 
+const PAGE_SIZE = 50;
+
 function openPdf({ blob, filename }: StudentReportPdf) {
   const url = URL.createObjectURL(blob);
   const win = window.open(url, "_blank");
@@ -50,9 +55,22 @@ export function StaffReportsView() {
   const [schools, setSchools] = useState<AnalyticsSchool[]>([]);
   const [schoolId, setSchoolId] = useState<string>("");
   const [students, setStudents] = useState<AnalyticsStudent[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [programme, setProgramme] = useState("");
+  const [status, setStatus] = useState("");
+  const [bulkScope, setBulkScope] = useState<"monthly" | "course">("monthly");
+  const [bulkCourseId, setBulkCourseId] = useState("");
+  const [bulkCourses, setBulkCourses] = useState<StudentCourse[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkPercent, setBulkPercent] = useState(0);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   // Load the fellow's schools and default to the first one.
   useEffect(() => {
@@ -66,32 +84,129 @@ export function StaffReportsView() {
       );
   }, []);
 
-  // Load students for the selected school.
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    getAnalyticsStudents({
+    const t = window.setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  // Load students for the selected school and filters.
+  useEffect(() => {
+    let cancelled = false;
+    const loadingTimer = window.setTimeout(() => {
+      if (!cancelled) {
+        setLoading(true);
+        setError(null);
+      }
+    }, 0);
+    getAnalyticsStudentsPaged({
       role: "STUDENT",
       school_id: schoolId || undefined,
+      programme_type: programme || undefined,
+      status: status || undefined,
+      search: debouncedSearch || undefined,
+      limit: PAGE_SIZE,
+      offset: page * PAGE_SIZE,
     })
-      .then(setStudents)
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Failed to load students."),
-      )
-      .finally(() => setLoading(false));
-  }, [schoolId]);
+      .then((res) => {
+        if (cancelled) return;
+        setStudents(res.rows);
+        setTotal(res.total);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load students.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadingTimer);
+    };
+  }, [schoolId, programme, status, debouncedSearch, page]);
+
+  // The staff course catalogue is not available to every staff permission set,
+  // so by-course bulk options are derived from the currently visible students.
+  useEffect(() => {
+    if (bulkScope !== "course") return;
+    if (students.length === 0) {
+      const emptyTimer = window.setTimeout(() => {
+        setBulkCourses([]);
+        setBulkCourseId("");
+      }, 0);
+      return () => window.clearTimeout(emptyTimer);
+    }
+
+    let cancelled = false;
+    Promise.all(
+      students.map((student) =>
+        getStudentCourses(student.id).catch(() => [] as StudentCourse[]),
+      ),
+    ).then((courseLists) => {
+      if (cancelled) return;
+      const unique = new Map<string, StudentCourse>();
+      courseLists.flat().forEach((course) => unique.set(course.id, course));
+      setBulkCourses([...unique.values()]);
+      setBulkCourseId((prev) => (prev && unique.has(prev) ? prev : ""));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bulkScope, students]);
 
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(null), 2600);
   }
 
+  async function handleBulkDownload() {
+    setBulkBusy(true);
+    setBulkError(null);
+    setBulkPercent(0);
+    try {
+      const { jobId } = await startBulkReport({
+        scope: bulkScope,
+        courseId: bulkScope === "course" ? bulkCourseId : undefined,
+        filters: {
+          role: "STUDENT",
+          school_id: schoolId || undefined,
+          programme_type: programme || undefined,
+          status: status || undefined,
+          search: debouncedSearch || undefined,
+        },
+      });
+
+      for (;;) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1500));
+        const next = await getBulkReportStatus(jobId);
+        setBulkPercent(next.percent);
+        if (next.status === "done") break;
+        if (next.status === "error") {
+          throw new Error(next.error ?? "Bulk job failed.");
+        }
+      }
+
+      openPdf(await downloadBulkReport(jobId));
+      showToast("Bulk report ZIP downloaded.");
+    } catch (e) {
+      setBulkError(e instanceof Error ? e.message : "Bulk download failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
-        <p style={labelStyle}>Fellow</p>
+        <p style={labelStyle}>Reports</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
-          My Students
+          Student Reports
         </h1>
         <p style={{ ...subtitleStyle, marginTop: "6px" }}>
           Download per-student course and monthly report PDFs.
@@ -104,7 +219,10 @@ export function StaffReportsView() {
             School
             <select
               value={schoolId}
-              onChange={(e) => setSchoolId(e.target.value)}
+              onChange={(e) => {
+                setSchoolId(e.target.value);
+                setPage(0);
+              }}
               style={{ ...inputStyle, marginLeft: "10px" }}
             >
               {schools.map((s) => (
@@ -118,6 +236,88 @@ export function StaffReportsView() {
       )}
 
       {error && <div style={errorBanner}>{error}</div>}
+
+      <div style={{ ...tableCard, padding: "16px 20px", marginBottom: "16px" }}>
+        <p style={{ ...labelStyle, margin: "0 0 8px" }}>Bulk download</p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
+          <select
+            value={bulkScope}
+            onChange={(e) => setBulkScope(e.target.value as "monthly" | "course")}
+            style={inputStyle}
+          >
+            <option value="monthly">Monthly</option>
+            <option value="course">By course</option>
+          </select>
+          {bulkScope === "course" && (
+            <select
+              value={bulkCourseId}
+              onChange={(e) => setBulkCourseId(e.target.value)}
+              style={inputStyle}
+            >
+              <option value="">Select a course…</option>
+              {bulkCourses.map((course) => (
+                <option key={course.id} value={course.id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            onClick={handleBulkDownload}
+            disabled={bulkBusy || (bulkScope === "course" && !bulkCourseId)}
+            style={{
+              ...inputStyle,
+              background: BRAND.mid,
+              color: "#fff",
+              cursor: bulkBusy || (bulkScope === "course" && !bulkCourseId) ? "not-allowed" : "pointer",
+              opacity: bulkBusy || (bulkScope === "course" && !bulkCourseId) ? 0.6 : 1,
+            }}
+          >
+            {bulkBusy ? `Preparing… ${bulkPercent}%` : "Download all (ZIP)"}
+          </button>
+        </div>
+        {bulkBusy && (
+          <div style={{ marginTop: "10px", height: "6px", background: "rgba(3,72,82,0.1)", borderRadius: "3px" }}>
+            <div style={{ width: `${bulkPercent}%`, height: "100%", background: BRAND.green, borderRadius: "3px", transition: "width 0.3s" }} />
+          </div>
+        )}
+        {bulkError && <p style={{ ...subtitleStyle, color: "#c53030", margin: "8px 0 0" }}>{bulkError}</p>}
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "16px", alignItems: "center" }}>
+        <input
+          type="text"
+          placeholder="Search name or email…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ ...inputStyle, minWidth: "220px" }}
+        />
+        <select
+          value={programme}
+          onChange={(e) => {
+            setProgramme(e.target.value);
+            setPage(0);
+          }}
+          style={inputStyle}
+        >
+          <option value="">All programmes</option>
+          <option value="UG">UG</option>
+          <option value="PG">PG</option>
+        </select>
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(0);
+          }}
+          style={inputStyle}
+        >
+          <option value="">All statuses</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+        </select>
+      </div>
 
       <div style={tableCard}>
         {loading ? (
@@ -164,6 +364,28 @@ export function StaffReportsView() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "flex-end", marginTop: "14px" }}>
+        <button
+          type="button"
+          disabled={page <= 0}
+          onClick={() => setPage((p) => Math.max(0, p - 1))}
+          style={{ ...inputStyle, cursor: page <= 0 ? "not-allowed" : "pointer", opacity: page <= 0 ? 0.5 : 1 }}
+        >
+          ← Prev
+        </button>
+        <span style={{ ...subtitleStyle, fontSize: "13px" }}>
+          Page {page + 1} of {pageCount} · {total} students
+        </span>
+        <button
+          type="button"
+          disabled={page + 1 >= pageCount}
+          onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          style={{ ...inputStyle, cursor: page + 1 >= pageCount ? "not-allowed" : "pointer", opacity: page + 1 >= pageCount ? 0.5 : 1 }}
+        >
+          Next →
+        </button>
       </div>
 
       {toast && <div style={toastStyle}>{toast}</div>}

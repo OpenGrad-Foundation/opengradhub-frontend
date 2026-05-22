@@ -5,7 +5,7 @@ import { getNextLiveClass, joinLiveClass, type LiveClass } from "@/lib/api";
 
 export default function NextLiveClassHero({ studentId }: { studentId: string }) {
   const [cls,       setCls]       = useState<LiveClass | null | "loading">("loading");
-  const [now,       setNow]       = useState(Date.now());
+  const [now,       setNow]       = useState(0);
   const [joining,   setJoining]   = useState(false);
   const [joined,    setJoined]    = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -18,6 +18,7 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
 
   // Countdown tick
   useEffect(() => {
+    setNow(Date.now());
     timerRef.current = setInterval(() => setNow(Date.now()), 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);

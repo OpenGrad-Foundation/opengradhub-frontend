@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { StaffReportsView } from "@/components/reports/StaffReportsView";
 import {
   getAvailableQuizzes,
   getModuleQuizzes,
@@ -42,6 +44,13 @@ type CompletedQuiz = { id: string; title: string };
 
 export default function ReportsPage() {
   const { isLoading: userLoading } = useCurrentUser();
+  const perms = usePermissions();
+  const isStaffReportsUser = perms.hasAny(
+    "analytics.view_fellow",
+    "analytics.view_manager",
+    "analytics.view_admin",
+  );
+  const canUseStudentReports = perms.has("reports.view");
 
   const [scope, setScope] = useState<Scope>("month");
 
@@ -60,9 +69,11 @@ export default function ReportsPage() {
   // list; a quiz is eligible for a test report only if it has ≥1 completed
   // attempt — mirroring how the assessments page filters attempts.
   useEffect(() => {
-    if (userLoading) return;
+    if (userLoading || perms.isLoading || isStaffReportsUser || !canUseStudentReports) return;
     let cancelled = false;
-    setPicklistsLoading(true);
+    const loadingTimer = window.setTimeout(() => {
+      if (!cancelled) setPicklistsLoading(true);
+    }, 0);
 
     Promise.all([
       getStudentEnrolments("me").catch(() => [] as Course[]),
@@ -98,8 +109,9 @@ export default function ReportsPage() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(loadingTimer);
     };
-  }, [userLoading]);
+  }, [userLoading, perms.isLoading, isStaffReportsUser, canUseStudentReports]);
 
   async function handleDownload() {
     setDownloading(true);
@@ -121,10 +133,24 @@ export default function ReportsPage() {
     }
   }
 
-  if (userLoading) {
+  if (userLoading || perms.isLoading) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading…</p>
+      </div>
+    );
+  }
+
+  if (isStaffReportsUser) {
+    return <StaffReportsView />;
+  }
+
+  if (!canUseStudentReports) {
+    return (
+      <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>
+          You don&apos;t have access to reports.
+        </p>
       </div>
     );
   }

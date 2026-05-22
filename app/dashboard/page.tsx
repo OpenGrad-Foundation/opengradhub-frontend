@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import NextLiveClassHero from "@/app/dashboard/_components/NextLiveClassHero";
 import FellowWidgets from "@/components/widgets/fellow-widgets";
@@ -73,7 +74,7 @@ export default function DashboardPage() {
           <p style={{ marginTop: "8px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
             {error ?? "Unknown error"}
           </p>
-          <a href="/" style={{
+          <Link href="/" style={{
             display: "inline-block",
             marginTop: "24px",
             padding: "12px 24px",
@@ -85,7 +86,7 @@ export default function DashboardPage() {
             fontWeight: 700,
           }}>
             Back to login
-          </a>
+          </Link>
         </div>
       </div>
     );

@@ -21,7 +21,6 @@ import {
   type StudentForBulk,
   type SchoolOption,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
@@ -127,7 +126,6 @@ export default function UserManagementPage() {
       {showBulkAssign && (
         <BulkAssignPanel
           onClose={() => setShowBulkAssign(false)}
-          callerId={currentUserId}
         />
       )}
 
@@ -144,7 +142,6 @@ export default function UserManagementPage() {
       {assignBundleStudent && (
         <AssignBundleModal
           student={assignBundleStudent}
-          assignedBy={currentUserId}
           onClose={() => setAssignBundleStudent(null)}
         />
       )}
@@ -873,11 +870,9 @@ function AssignCourseModal({
 
 function AssignBundleModal({
   student,
-  assignedBy,
   onClose,
 }: {
   student: SafeUser;
-  assignedBy: string;
   onClose: () => void;
 }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -1075,10 +1070,8 @@ const BULK_STATES = [
 
 function BulkAssignPanel({
   onClose,
-  callerId,
 }: {
   onClose: () => void;
-  callerId: string;
 }) {
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1143,7 +1136,8 @@ function BulkAssignPanel({
   function toggleStudent(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -1159,7 +1153,8 @@ function BulkAssignPanel({
   function toggleCourse(id: string) {
     setSelectedCourseIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -1167,7 +1162,8 @@ function BulkAssignPanel({
   function toggleBundle(id: string) {
     setSelectedBundleIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }

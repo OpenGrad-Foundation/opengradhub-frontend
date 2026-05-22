@@ -140,7 +140,8 @@ export default function BulkManagePage() {
   function toggleStudent(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -156,7 +157,8 @@ export default function BulkManagePage() {
   function toggleCourse(id: string) {
     setSelectedCourseIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -164,7 +166,8 @@ export default function BulkManagePage() {
   function toggleBundle(id: string) {
     setSelectedBundleIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }

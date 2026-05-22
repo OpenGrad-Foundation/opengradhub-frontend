@@ -32,7 +32,6 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
   }, [courseId]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     void reload().finally(() => setLoading(false));
   }, [reload]);

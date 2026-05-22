@@ -237,7 +237,9 @@ export function useCurrentUser() {
       isMounted = false;
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [clerkMode]); // clerkAuth intentionally omitted — new object ref each render would cause infinite loop
+  // clerkAuth intentionally omitted — new object ref each render would cause infinite loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clerkMode]);
 
   return state;
 }

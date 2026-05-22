@@ -79,7 +79,7 @@ export function UserDetailPanel({
     setConfirmDelete(false);
     setDeleteErr(null);
     setConfirmClose(false);
-  }, [user.id]);
+  }, [user]);
 
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));

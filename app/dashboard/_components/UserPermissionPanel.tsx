@@ -11,6 +11,7 @@ import {
   patchRole,
   type Override,
   type CatalogueModule,
+  type EffectivePermissions,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { clearUserCache } from "@/hooks/use-current-user";
 
@@ -38,7 +39,7 @@ export function UserPermissionPanel({
   const [modules, setModules] = useState<CatalogueModule[]>([]);
   const [roleOptions, setRoleOptions] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Override[]>([]);
-  const [effective, setEffective] = useState<null | { permissions: string[]; modules: any[] }>(null);
+  const [effective, setEffective] = useState<EffectivePermissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedModule, setSelectedModule] = useState("dashboard");
   const [pendingChanges, setPendingChanges] = useState<Record<string, PendingAction>>({});
@@ -134,8 +135,9 @@ export function UserPermissionPanel({
         (action === "DENY" && savedEffect === "DENY") ||
         (action === "CLEAR" && !savedOverride)
       ) {
-        const { [permCode]: _, ...rest } = prev;
-        return rest;
+        const next = { ...prev };
+        delete next[permCode];
+        return next;
       }
 
       return { ...prev, [permCode]: action };

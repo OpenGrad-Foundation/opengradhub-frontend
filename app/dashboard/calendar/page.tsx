@@ -28,7 +28,7 @@ function cfg(type: string) {
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
-  const { data: userData, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has } = usePermissions();
   const canCreate = has(PERM.calendar.create);
 

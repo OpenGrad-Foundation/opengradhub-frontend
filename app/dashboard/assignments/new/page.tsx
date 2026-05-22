@@ -9,7 +9,7 @@ import { PERM } from "@/lib/permissions";
 import { createAssignment, getCourses, type Course } from "@/lib/api";
 export default function NewAssignmentPage() {
   const router = useRouter();
-  const { data, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
 
   const [title, setTitle]         = useState("");

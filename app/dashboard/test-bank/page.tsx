@@ -123,7 +123,7 @@ export default function TestBankPage() {
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
           <p style={labelStyle}>Empty Bank</p>
           <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions yet</p>
-          <p style={{ ...mutedStyle, marginTop: "8px" }}>Click "+ Add Question" to create the first one.</p>
+          <p style={{ ...mutedStyle, marginTop: "8px" }}>Click &quot;+ Add Question&quot; to create the first one.</p>
         </div>
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>

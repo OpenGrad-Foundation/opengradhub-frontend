@@ -375,7 +375,7 @@ export default function QuizTakingPage() {
     }
     document.addEventListener("fullscreenchange", onChange);
     return () => document.removeEventListener("fullscreenchange", onChange);
-  }, [phase, quiz?.require_fullscreen, attempt?.attempt_id]);
+  }, [phase, quiz?.require_fullscreen, attempt]);
 
   // Debounced autosave of in-progress answers to IndexedDB.
   useEffect(() => {

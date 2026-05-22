@@ -83,7 +83,9 @@ export const PERM = {
     view_admin: "analytics.view_admin",
     view_manager: "analytics.view_manager",
     view_fellow: "analytics.view_fellow",
-    view_student: "analytics.view_student",
+  },
+  reports: {
+    view: "reports.view",
   },
   student_export: {
     view: "student_export.view",
@@ -110,8 +112,24 @@ export const PERM = {
   },
 } as const;
 
+export const ANALYTICS_DASHBOARD_PERMISSIONS = [
+  PERM.analytics.view,
+  PERM.analytics.view_admin,
+  PERM.analytics.view_manager,
+  PERM.analytics.view_fellow,
+] as const;
+
+export const REPORTS_ROUTE_PERMISSIONS = [
+  PERM.reports.view,
+  PERM.analytics.view_admin,
+  PERM.analytics.view_manager,
+  PERM.analytics.view_fellow,
+] as const;
+
+type RoutePermission = string | readonly string[];
+
 /** Maps a top-level dashboard route segment → the permission needed to view it. */
-export const ROUTE_PERMISSION: Record<string, string> = {
+export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   courses: PERM.courses.view,
   "course-management": PERM.courses.edit,
   bundles: PERM.bundles.view,
@@ -124,7 +142,8 @@ export const ROUTE_PERMISSION: Record<string, string> = {
   resources: PERM.resources.view,
   doubts: PERM.doubts.view,
   announcements: PERM.announcements.view,
-  analytics: PERM.analytics.view,
+  analytics: ANALYTICS_DASHBOARD_PERMISSIONS,
+  reports: REPORTS_ROUTE_PERMISSIONS,
   "student-export": PERM.student_export.view,
   "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,

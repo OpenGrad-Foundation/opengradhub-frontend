@@ -151,7 +151,6 @@ export default function CoursesPage() {
 
   useEffect(() => {
     if (!userLoading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       void fetchCourses();
     }
   }, [fetchCourses, userLoading]);

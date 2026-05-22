@@ -37,11 +37,12 @@ export function RequirePermission({
 export function DashboardRouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { has, isLoading } = usePermissions();
+  const { hasAny, isLoading } = usePermissions();
 
   const segment = pathname.replace(/^\/dashboard\/?/, "").split("/")[0] ?? "";
   const required = ROUTE_PERMISSION[segment];
-  const allowed = !required || has(required);
+  const requiredCodes = Array.isArray(required) ? required : required ? [required] : [];
+  const allowed = requiredCodes.length === 0 || hasAny(...requiredCodes);
 
   useEffect(() => {
     if (!isLoading && !allowed) {

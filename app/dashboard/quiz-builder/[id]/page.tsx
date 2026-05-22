@@ -918,7 +918,12 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
             return (
               <div
                 key={q.id}
-                onClick={() => setSelected(s => { const n = new Set(s); checked ? n.delete(q.id) : n.add(q.id); return n; })}
+                onClick={() => setSelected(s => {
+                  const n = new Set(s);
+                  if (checked) n.delete(q.id);
+                  else n.add(q.id);
+                  return n;
+                })}
                 style={{
                   display: "flex", gap: "12px", alignItems: "flex-start",
                   padding: "12px 16px",
