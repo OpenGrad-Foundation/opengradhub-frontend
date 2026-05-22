@@ -5,26 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, downloadStudentMonthlyReportPdf, downloadStudentCourseReportPdf, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course, type StudentReportPdf } from "@/lib/api";
-
-// ── PDF helper ────────────────────────────────────────────────────────────────
-// The report endpoints are bearer-token protected, so `window.open` cannot fetch
-// them directly. Each PDF is fetched as a blob via the api helpers and the
-// resulting object URL is opened in a new tab (with a download fallback if the
-// popup is blocked).
-function openPdf({ blob, filename }: StudentReportPdf) {
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, "_blank");
-  if (!win) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-}
+import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -50,7 +31,6 @@ export default function AssessmentsPage() {
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
   const [batchComparison, setBatchComparison] = useState<BatchComparison | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
-  const [downloadingReport, setDownloadingReport] = useState(false);
 
   useEffect(() => {
     if (userLoading || !canAttempt || !studentId) return;
@@ -93,31 +73,6 @@ export default function AssessmentsPage() {
       .finally(() => setBatchLoading(false));
   }, [selectedCourseId, studentId]);
 
-  async function handleDownloadMonthly() {
-    setDownloadingReport(true);
-    setError(null);
-    try {
-      openPdf(await downloadStudentMonthlyReportPdf("me"));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to download monthly report.");
-    } finally {
-      setDownloadingReport(false);
-    }
-  }
-
-  async function handleDownloadCourse() {
-    if (!selectedCourseId) return;
-    setDownloadingReport(true);
-    setError(null);
-    try {
-      openPdf(await downloadStudentCourseReportPdf("me", selectedCourseId));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to download course report.");
-    } finally {
-      setDownloadingReport(false);
-    }
-  }
-
   if (userLoading) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -153,57 +108,9 @@ export default function AssessmentsPage() {
   }
 
   // ── Student view ─────────────────────────────────────────────────────────
-  const selectedCourse = enrolledCourses.find((c) => c.id === selectedCourseId);
-
   return (
     <div>
       <PageHeader />
-
-      <div style={{ ...glassCard, marginBottom: "20px", padding: "20px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "14px" }}>
-        <div>
-          <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
-            My Report
-          </p>
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: 0 }}>
-            Download your performance report as a PDF.
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button
-            onClick={handleDownloadMonthly}
-            disabled={downloadingReport}
-            style={{
-              ...primaryBtn,
-              opacity: downloadingReport ? 0.6 : 1,
-              cursor: downloadingReport ? "not-allowed" : "pointer",
-            }}
-          >
-            {downloadingReport ? "Preparing…" : "Download monthly report (PDF)"}
-          </button>
-          {selectedCourseId && (
-            <button
-              onClick={handleDownloadCourse}
-              disabled={downloadingReport}
-              style={{
-                padding: "10px 20px",
-                border: "1.5px solid rgba(3,72,82,0.15)",
-                borderRadius: "10px",
-                background: "#fff",
-                color: "#209379",
-                fontFamily: "var(--font-heading)",
-                fontWeight: 700,
-                fontSize: "13px",
-                opacity: downloadingReport ? 0.6 : 1,
-                cursor: downloadingReport ? "not-allowed" : "pointer",
-              }}
-            >
-              {downloadingReport
-                ? "Preparing…"
-                : `Download course report${selectedCourse ? ` — ${selectedCourse.title}` : ""} (PDF)`}
-            </button>
-          )}
-        </div>
-      </div>
 
       {error && (
         <div style={{ ...glassCard, marginBottom: "20px", background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)" }}>

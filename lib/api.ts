@@ -2474,15 +2474,43 @@ export async function downloadStudentCourseReportPdf(
 }
 
 /**
- * Download the current-month period report PDF for a single student.
- * Backend: GET /reports/students/:studentId/period/pdf?type=MONTHLY
+ * Download a single-test report PDF for a student.
+ * Backend: GET /reports/students/:studentId/pdf?scope=test&ref_id=<quizId>
+ */
+export async function downloadStudentTestReportPdf(
+  studentId: string,
+  quizId: string,
+): Promise<StudentReportPdf> {
+  const url = new URL(`${API_BASE_URL}/reports/students/${studentId}/pdf`);
+  url.searchParams.set("scope", "test");
+  url.searchParams.set("ref_id", quizId);
+  const r = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to download test report.", r.status);
+  }
+  return { blob: await r.blob(), filename: extractFilename(r, "test-report.pdf") };
+}
+
+/**
+ * Download the current month-to-date period report PDF for a single student.
+ * Backend: GET /reports/students/:studentId/period/pdf?type=MONTHLY&start=<iso>&end=<iso>
+ *
+ * An explicit UTC range (1st of the current month → now) is sent so the report
+ * always reflects the *current* month-to-date. Without dates the backend
+ * defaults MONTHLY to the last *completed* calendar month, which shows an empty
+ * report for recent test data when downloaded mid-month.
  */
 export async function downloadStudentMonthlyReportPdf(
   studentId: string,
 ): Promise<StudentReportPdf> {
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+  const end = now.toISOString();
   const url = new URL(`${API_BASE_URL}/reports/students/${studentId}/period/pdf`);
   url.searchParams.set("type", "MONTHLY");
-
+  url.searchParams.set("start", start);
+  url.searchParams.set("end", end);
   const r = await apiFetch(url.toString(), { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
