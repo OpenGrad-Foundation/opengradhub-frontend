@@ -44,15 +44,15 @@ function toQuizQuestion(p: PracticePayloadQuestion): QuizAttemptQuestion {
     content_html: p.content_html,
     correct_answer: p.correct_answer,
     tolerance: p.tolerance,
-    options: p.options.map((o) => ({ id: o.id, option_text: o.option_text })),
-    children: p.children.map((c) => ({
+    options: (p.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
+    children: (p.children ?? []).map((c) => ({
       snapshot_id: c.snapshot_id,
       section_id: c.section_id,
       question_type: c.question_type,
       content_html: c.content_html,
       correct_answer: c.correct_answer,
       tolerance: c.tolerance,
-      options: c.options.map((o) => ({ id: o.id, option_text: o.option_text })),
+      options: (c.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
     })),
   };
 }
@@ -73,7 +73,7 @@ function leafQuestions(qs: PracticePayloadQuestion[]): PracticePayloadQuestion[]
   const out: PracticePayloadQuestion[] = [];
   const walk = (q: PracticePayloadQuestion) => {
     if (q.question_type === "GROUP") {
-      q.children.forEach(walk);
+      (q.children ?? []).forEach(walk);
     } else {
       out.push(q);
     }
@@ -208,7 +208,11 @@ export default function PracticePage() {
       void saveProgress(quizId, answers);
     }, 500);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        // Flush the pending write so a fast navigation doesn't drop the last keystrokes.
+        void saveProgress(quizId, answers);
+      }
     };
   }, [answers, quizId, state.kind]);
 
