@@ -149,6 +149,7 @@ export default function AssessmentsPage() {
                     attempts={attemptsByQuiz[q.id] ?? []}
                     onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
                     onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
+                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
                   />
                 ))}
               </div>
@@ -170,6 +171,7 @@ export default function AssessmentsPage() {
                     attempts={attemptsByQuiz[q.id] ?? []}
                     onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
                     onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
+                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
                   />
                 ))}
               </div>
@@ -200,19 +202,21 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, onStart, onReview,
+  quiz, label, attempts, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
   attempts: QuizAttempt[];
   onStart: () => void;
   onReview: (attemptId: string) => void;
+  onPractice: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
   const maxAttempts  = quiz.max_attempts;
   const attemptsUsed = attempts.length;
   const exhausted    = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
   const sorted = [...attempts].sort((a, b) => {
     const ta = a.submitted_at ? Date.parse(a.submitted_at) : 0;
@@ -322,6 +326,14 @@ function QuizRow({
                     style={{ flexShrink: 0, padding: "5px 12px", border: "1px solid rgba(3,72,82,0.15)", borderRadius: "8px", background: "#fff", color: "#209379", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}
                   >
                     Review →
+                  </button>
+                )}
+                {showPractice && (
+                  <button
+                    onClick={onPractice}
+                    style={{ flexShrink: 0, padding: "5px 12px", border: "1px solid rgba(3,72,82,0.15)", borderRadius: "8px", background: "#fff", color: "#209379", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}
+                  >
+                    Practice →
                   </button>
                 )}
               </div>

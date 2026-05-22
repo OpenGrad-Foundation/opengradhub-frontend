@@ -1390,7 +1390,14 @@ export default function QuizTakingPage() {
                 Leaderboard
               </button>
             )}
-            {quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
+            {quiz?.first_attempt_counts ? (
+              <button
+                onClick={() => router.push(`/dashboard/quiz/${quizId}/practice`)}
+                style={secondaryBtn}
+              >
+                Practice again
+              </button>
+            ) : quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
               <button onClick={() => { setAttemptsUsed((n) => n + 1); setPhase("intro"); }} style={secondaryBtn}>
                 Retake Quiz
               </button>
