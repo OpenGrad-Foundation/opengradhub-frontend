@@ -28,7 +28,9 @@ const DB_VERSION = 1;
 const PAYLOADS = 'payloads';
 const PROGRESS = 'progress';
 
-// In-memory fallback for environments without IndexedDB (private mode, SSR).
+// In-memory fallback used only when IndexedDB is entirely absent (SSR, very old
+// browsers). A runtime IndexedDB failure instead degrades to a no-op write /
+// null read — acceptable for a best-effort cache (the caller just re-fetches).
 const memPayloads = new Map<string, PracticePayload>();
 const memProgress = new Map<string, PracticeAnswers>();
 
@@ -46,6 +48,7 @@ function openDb(): Promise<IDBDatabase> {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB upgrade blocked by another open connection'));
   });
 }
 
@@ -53,9 +56,25 @@ function tx<T>(store: string, mode: IDBTransactionMode, op: (s: IDBObjectStore) 
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
-        const request = op(db.transaction(store, mode).objectStore(store));
-        request.onsuccess = () => resolve(request.result);
+        const transaction = db.transaction(store, mode);
+        const request = op(transaction.objectStore(store));
+        let result: T;
+        request.onsuccess = () => {
+          result = request.result;
+        };
         request.onerror = () => reject(request.error);
+        transaction.oncomplete = () => {
+          db.close();
+          resolve(result);
+        };
+        transaction.onerror = () => {
+          db.close();
+          reject(transaction.error);
+        };
+        transaction.onabort = () => {
+          db.close();
+          reject(transaction.error);
+        };
       }),
   );
 }
@@ -65,7 +84,11 @@ export async function savePayload(payload: PracticePayload): Promise<void> {
     memPayloads.set(payload.quiz_id, payload);
     return;
   }
-  await tx(PAYLOADS, 'readwrite', (s) => s.put(payload, payload.quiz_id));
+  try {
+    await tx(PAYLOADS, 'readwrite', (s) => s.put(payload, payload.quiz_id));
+  } catch {
+    // best-effort cache — ignore write failures
+  }
 }
 
 export async function getPayload(quizId: string): Promise<PracticePayload | null> {
@@ -83,7 +106,11 @@ export async function saveProgress(quizId: string, answers: PracticeAnswers): Pr
     memProgress.set(quizId, answers);
     return;
   }
-  await tx(PROGRESS, 'readwrite', (s) => s.put(answers, quizId));
+  try {
+    await tx(PROGRESS, 'readwrite', (s) => s.put(answers, quizId));
+  } catch {
+    // best-effort cache — ignore write failures
+  }
 }
 
 export async function getProgress(quizId: string): Promise<PracticeAnswers | null> {
@@ -101,5 +128,9 @@ export async function clearProgress(quizId: string): Promise<void> {
     memProgress.delete(quizId);
     return;
   }
-  await tx(PROGRESS, 'readwrite', (s) => s.delete(quizId));
+  try {
+    await tx(PROGRESS, 'readwrite', (s) => s.delete(quizId));
+  } catch {
+    // best-effort cache — ignore write failures
+  }
 }
