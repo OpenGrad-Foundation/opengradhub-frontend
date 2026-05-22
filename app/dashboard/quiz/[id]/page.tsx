@@ -11,16 +11,37 @@ import {
   getAttemptExplanations,
   advanceQuizSection,
   logProctorEvent,
+  downloadStudentTestReportPdf,
   type Quiz,
   type StartedAttempt,
   type StartedAttemptSection,
   type QuizAttempt,
   type QuizAttemptQuestion,
   type WrongExplanation,
+  type StudentReportPdf,
 } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
+
+// ── PDF helper ────────────────────────────────────────────────────────────────
+// The report endpoints are bearer-token protected, so `window.open` cannot fetch
+// them directly. Each PDF is fetched as a blob via the api helpers and the
+// resulting object URL is opened in a new tab (with a download fallback if the
+// popup is blocked).
+function openPdf({ blob, filename }: StudentReportPdf) {
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, "_blank");
+  if (!win) {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -300,6 +321,7 @@ export default function QuizTakingPage() {
   const [pastAttempts, setPastAttempts] = useState<QuizAttempt[]>([]);
   const [incompleteAttempt, setIncompleteAttempt] = useState<QuizAttempt | null>(null);
   const [explanations, setExplanations] = useState<WrongExplanation[]>([]);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   // Question-by-question navigation state
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -611,6 +633,18 @@ export default function QuizTakingPage() {
   }
 
   handleSubmitRef.current = handleSubmit;
+
+  async function handleDownloadTestReport() {
+    setDownloadingReport(true);
+    try {
+      openPdf(await downloadStudentTestReportPdf("me", quizId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to download report.");
+      setPhase("error");
+    } finally {
+      setDownloadingReport(false);
+    }
+  }
 
   function askConfirm(opts: { title: string; body: string; confirmLabel: string; onConfirm: () => void }) {
     setConfirmModal(opts);
@@ -1442,6 +1476,17 @@ export default function QuizTakingPage() {
                 Review Answers →
               </button>
             )}
+            <button
+              onClick={handleDownloadTestReport}
+              disabled={downloadingReport}
+              style={{
+                ...secondaryBtn,
+                opacity: downloadingReport ? 0.6 : 1,
+                cursor: downloadingReport ? "default" : "pointer",
+              }}
+            >
+              {downloadingReport ? "Preparing…" : "Download report (PDF)"}
+            </button>
             {userData?.user?.programme === "PG" && (
               <button
                 onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
