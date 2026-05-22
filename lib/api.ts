@@ -263,7 +263,37 @@ export async function getAnalyticsStudents(
     );
   }
 
-  return (await response.json()) as AnalyticsStudent[];
+  const body = (await response.json()) as { rows: AnalyticsStudent[]; total: number };
+  return body.rows;
+}
+
+export type AnalyticsStudentsPage = {
+  rows: AnalyticsStudent[];
+  total: number;
+};
+
+export type AnalyticsStudentsPageParams = AnalyticsStudentFilters & {
+  search?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export async function getAnalyticsStudentsPaged(
+  params: AnalyticsStudentsPageParams,
+): Promise<AnalyticsStudentsPage> {
+  const sp = buildAnalyticsParams(params);
+  if (params.search) sp.set("search", params.search);
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params.offset !== undefined) sp.set("offset", String(params.offset));
+  const qs = sp.toString();
+  const response = await apiFetch(
+    `${API_BASE_URL}/analytics/students${qs ? `?${qs}` : ""}`,
+  );
+  if (!response.ok) {
+    const e = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch students.", response.status);
+  }
+  return (await response.json()) as AnalyticsStudentsPage;
 }
 
 export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilters) {
@@ -2531,4 +2561,53 @@ export async function getPracticePayload(quizId: string): Promise<PracticePayloa
     throw new ApiError(err?.message ?? "Practice is not available for this quiz.", r.status);
   }
   return (await r.json()) as PracticePayload;
+}
+
+// ---------------------------------------------------------------------------
+// Bulk report jobs
+// ---------------------------------------------------------------------------
+
+export type BulkReportStatus = {
+  status: "pending" | "running" | "done" | "error";
+  total: number;
+  done: number;
+  failed: number;
+  percent: number;
+  error?: string;
+};
+
+export async function startBulkReport(body: {
+  scope: "monthly" | "course";
+  courseId?: string;
+  filters: AnalyticsStudentsPageParams;
+}): Promise<{ jobId: string }> {
+  const response = await apiFetch(`${API_BASE_URL}/reports/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const e = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to start bulk download.", response.status);
+  }
+  return (await response.json()) as { jobId: string };
+}
+
+export async function getBulkReportStatus(jobId: string): Promise<BulkReportStatus> {
+  const response = await apiFetch(`${API_BASE_URL}/reports/bulk/${jobId}`);
+  if (!response.ok) {
+    const e = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch bulk status.", response.status);
+  }
+  return (await response.json()) as BulkReportStatus;
+}
+
+export async function downloadBulkReport(jobId: string): Promise<StudentReportPdf> {
+  const response = await apiFetch(`${API_BASE_URL}/reports/bulk/${jobId}/download`);
+  if (!response.ok) {
+    const e = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to download ZIP.", response.status);
+  }
+  const blob = await response.blob();
+  return { blob, filename: `OpenGrad-Reports-${jobId}.zip` };
 }
