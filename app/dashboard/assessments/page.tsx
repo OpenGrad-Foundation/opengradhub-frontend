@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import {
+  getAssessmentsOverview,
+  type AssessmentsOverview,
+  type AssessmentsOverviewItem,
+} from "@/lib/api";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -517,19 +523,206 @@ function ComparisonCard({ label, dim }: { label: string; dim: { peer_count: numb
   );
 }
 
-// ── Monitor View (stub — built out in Task 7) ─────────────────────────────────
+// ── Monitor View ──────────────────────────────────────────────────────────────
 
 function MonitorView() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+
+  const type      = (params.get('type') as 'MODULE' | 'PROGRAM' | null) ?? null;
+  const courseId  = params.get('course_id') ?? '';
+  const bundleId  = params.get('bundle_id') ?? '';
+  const from      = params.get('from') ?? '';
+  const to        = params.get('to')   ?? '';
+  const q         = params.get('q')    ?? '';
+  const page      = Number(params.get('page') ?? '1');
+  const drawerId  = params.get('drawer');
+
+  const [data, setData]       = useState<AssessmentsOverview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getAssessmentsOverview({
+      type: type ?? undefined,
+      course_id: courseId || undefined,
+      bundle_id: bundleId || undefined,
+      from: from || undefined,
+      to:   to   || undefined,
+      q:    q    || undefined,
+      page,
+      size: 20,
+    })
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [type, courseId, bundleId, from, to, q, page]);
+
+  function setParam(key: string, value: string | null) {
+    const next = new URLSearchParams(params.toString());
+    if (value === null || value === '') next.delete(key);
+    else next.set(key, value);
+    if (key !== 'page' && key !== 'drawer') next.delete('page');
+    router.replace(`${pathname}?${next.toString()}`);
+  }
+
   return (
-    <div style={{ padding: 24 }}>
+    <div>
       <PageHeader />
-      <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
-        <p style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3em', color: '#0abe62', marginBottom: '12px' }}>
-          Admin Monitor
-        </p>
-        <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>Monitor view — building in Task 7.</p>
+
+      {/* Filter bar */}
+      <div style={{ ...glassCard, marginBottom: '20px', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+          <SegBtn label="All"     active={!type}              onClick={() => setParam('type', null)} />
+          <SegBtn label="Module"  active={type === 'MODULE'}  onClick={() => setParam('type', 'MODULE')} />
+          <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
+
+          <input
+            value={q}
+            onChange={(e) => setParam('q', e.target.value)}
+            placeholder="Search by title…"
+            style={{ flex: 1, minWidth: '200px', padding: '8px 12px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
+          />
+
+          <input
+            type="date" value={from} onChange={(e) => setParam('from', e.target.value)}
+            style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
+          />
+          <input
+            type="date" value={to}   onChange={(e) => setParam('to', e.target.value)}
+            style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
+          />
+
+          <button
+            onClick={() => router.replace(pathname)}
+            style={{ padding: '8px 14px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
+          >Reset</button>
+        </div>
       </div>
+
+      {error && (
+        <div style={{ ...glassCard, marginBottom: '20px', background: 'rgba(229,62,62,0.07)' }}>
+          <p style={{ color: '#c53030', fontSize: '14px' }}>{error}</p>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
+          <p style={{ color: 'rgba(3,72,82,0.5)', fontSize: '14px' }}>Loading…</p>
+        </div>
+      ) : !data || data.items.length === 0 ? (
+        <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
+          <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>No assessments match your filters.</p>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {data.items.map((item) => (
+              <MonitorRow key={item.quiz_id} item={item} onClick={() => setParam('drawer', item.quiz_id)} />
+            ))}
+          </div>
+
+          {data.total > data.size && (
+            <Pagination page={data.page} size={data.size} total={data.total} onPage={(p) => setParam('page', String(p))} />
+          )}
+        </>
+      )}
+
+      {drawerId && <TestDrawer quizId={drawerId} onClose={() => setParam('drawer', null)} />}
     </div>
+  );
+}
+
+function SegBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 14px',
+        borderRadius: '8px',
+        border: active ? '1px solid #0abe62' : '1px solid rgba(3,72,82,0.15)',
+        background: active ? 'rgba(10,190,98,0.1)' : '#fff',
+        color: active ? '#0abe62' : '#034852',
+        fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+      }}
+    >{label}</button>
+  );
+}
+
+function MonitorRow({ item, onClick }: { item: AssessmentsOverviewItem; onClick: () => void }) {
+  const lastAttempt = item.last_attempted_at
+    ? new Date(item.last_attempted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '—';
+  const label = item.type === 'MODULE'
+    ? `${item.course_title ?? ''} · Module Test`
+    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Test';
+
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        textAlign: 'left',
+        background: 'rgba(255,255,255,0.75)',
+        border: '1px solid rgba(255,255,255,0.2)',
+        borderRadius: '14px',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
+        padding: '16px 20px',
+        cursor: 'pointer',
+      }}
+    >
+      <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: '#209379' }}>
+        {label}
+      </p>
+      <h3 style={{ margin: '3px 0 8px', fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: 700, color: '#034852' }}>
+        {item.title}
+      </h3>
+      <p style={{ margin: 0, fontSize: '13px', color: 'rgba(3,72,82,0.7)' }}>
+        {item.students_attempted} students · {item.attempts_count} attempts ·
+        {' '}avg {item.avg_score_pct == null ? '—' : `${item.avg_score_pct}%`} ·
+        {' '}{item.pass_rate_pct == null ? '—' : `${item.pass_rate_pct}% pass`} ·
+        {' '}last: {lastAttempt}
+      </p>
+    </button>
+  );
+}
+
+function Pagination({ page, size, total, onPage }: { page: number; size: number; total: number; onPage: (n: number) => void }) {
+  const totalPages = Math.max(1, Math.ceil(total / size));
+  return (
+    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '20px' }}>
+      <button disabled={page <= 1}          onClick={() => onPage(page - 1)} style={pageBtnStyle(page > 1)}>‹</button>
+      <span style={{ padding: '6px 12px', fontSize: '13px', color: '#034852' }}>{page} / {totalPages}</span>
+      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} style={pageBtnStyle(page < totalPages)}>›</button>
+    </div>
+  );
+}
+
+function pageBtnStyle(enabled: boolean): React.CSSProperties {
+  return {
+    padding: '6px 12px',
+    border: '1px solid rgba(3,72,82,0.15)',
+    borderRadius: '8px',
+    background: enabled ? '#fff' : 'rgba(3,72,82,0.04)',
+    color: enabled ? '#034852' : 'rgba(3,72,82,0.3)',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    fontWeight: 700, fontSize: '13px',
+  };
+}
+
+function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
+  return (
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }} />
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 520, background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)', zIndex: 51, padding: 24 }}>
+        <button onClick={onClose} style={{ float: 'right' }} aria-label="Close">×</button>
+        <p>Drawer for {quizId} — building in Task 8.</p>
+      </div>
+    </>
   );
 }
 
