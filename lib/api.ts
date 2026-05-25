@@ -2639,3 +2639,76 @@ export async function downloadBulkReport(jobId: string): Promise<StudentReportPd
   const blob = await response.blob();
   return { blob, filename: `OpenGrad-Reports-${jobId}.zip` };
 }
+
+// ─ Assessments overview (Spec B) ───────────────────────────────────────────
+
+export type AssessmentsOverviewItem = {
+  quiz_id: string;
+  title: string;
+  type: 'MODULE' | 'PROGRAM';
+  course_title: string | null;
+  bundle_title: string | null;
+  duration_minutes: number | null;
+  max_attempts: number | null;
+  attempts_count: number;
+  students_attempted: number;
+  avg_score_pct: number | null;
+  pass_rate_pct: number | null;
+  last_attempted_at: string | null;
+};
+
+export type AssessmentsOverview = {
+  items: AssessmentsOverviewItem[];
+  page: number;
+  size: number;
+  total: number;
+};
+
+export type AssessmentsOverviewFilters = {
+  type?: 'MODULE' | 'PROGRAM' | 'ALL';
+  course_id?: string;
+  bundle_id?: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  page?: number;
+  size?: number;
+};
+
+export async function getAssessmentsOverview(
+  filters: AssessmentsOverviewFilters = {},
+): Promise<AssessmentsOverview> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+  }
+  const r = await apiFetch(`${API_BASE_URL}/analytics/assessments-overview?${qs.toString()}`, { cache: 'no-store' });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? 'Failed to load assessments overview.', r.status);
+  }
+  return r.json();
+}
+
+// ─ Question stats (Spec B) ─────────────────────────────────────────────────
+
+export type QuestionStat = {
+  snapshot_id: string;
+  content_html: string;
+  subject: string | null;
+  topic: string | null;
+  correct_count: number;
+  wrong_count: number;
+  skipped_count: number;
+  total_attempts: number;
+  avg_time_correct_seconds: number | null;
+};
+
+export async function getQuestionStats(quizId: string): Promise<QuestionStat[]> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/quizzes/${quizId}/question-stats`, { cache: 'no-store' });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? 'Failed to load question stats.', r.status);
+  }
+  return r.json();
+}
