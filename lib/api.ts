@@ -1941,6 +1941,7 @@ export async function createUser(payload: {
   roll_number?: string;
   district?: string;
   password?: string;
+  manager_id?: string | null;
 }): Promise<SafeUser> {
   const response = await apiFetch(`${API_BASE_URL}/users`, {
     method: "POST",
@@ -1999,6 +2000,31 @@ export async function deleteUser(userId: string): Promise<void> {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
   }
+}
+
+export type ManagerOption = {
+  id: string;
+  full_name: string;
+  state: string | null;
+  zone: string | null;
+};
+
+/**
+ * Fetch users eligible to be a manager, filtered by role.
+ * Used to populate manager dropdowns when creating/editing users.
+ */
+export async function getManagers(
+  role: "PROGRAM_MANAGER" | "ZONAL_MANAGER",
+): Promise<ManagerOption[]> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/managers?role=${encodeURIComponent(role)}`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? `getManagers failed: ${response.status}`, response.status);
+  }
+  return (await response.json()) as ManagerOption[];
 }
 
 /**
