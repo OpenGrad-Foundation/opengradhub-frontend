@@ -16,6 +16,11 @@ export default function AssessmentsPage() {
 
   const studentId      = data?.user?.id ?? "";
 
+  // Admin-viewers (any analytics permission) go to the monitor view.
+  const isAdminViewer = has(PERM.analytics.view_admin)
+                     || has(PERM.analytics.view_manager)
+                     || has(PERM.analytics.view_fellow);
+
   // Attempters get the quiz list; others with `assessments.view` get the admin view.
   const canAttempt = has(PERM.assessments.attempt);
 
@@ -82,29 +87,8 @@ export default function AssessmentsPage() {
   }
 
   // ── Admin/Manager view ───────────────────────────────────────────────────
-  if (!canAttempt) {
-    return (
-      <div>
-        <PageHeader />
-        <div style={glassCard}>
-          <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62", marginBottom: "12px" }}>
-            Admin View
-          </p>
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#034852" }}>
-            Global tests are managed in Course Bundles.
-          </p>
-          <p style={{ marginTop: "8px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-            Attach published Global Tests to bundles from the Bundle detail page. Enrolled students will see them here.
-          </p>
-          <button
-            onClick={() => router.push("/dashboard/bundles")}
-            style={{ ...primaryBtn, marginTop: "20px" }}
-          >
-            Go to Course Bundles →
-          </button>
-        </div>
-      </div>
-    );
+  if (isAdminViewer) {
+    return <MonitorView />;
   }
 
   // ── Student view ─────────────────────────────────────────────────────────
@@ -529,6 +513,22 @@ function ComparisonCard({ label, dim }: { label: string; dim: { peer_count: numb
       <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>
         Better than {pct}% of peers
       </p>
+    </div>
+  );
+}
+
+// ── Monitor View (stub — built out in Task 7) ─────────────────────────────────
+
+function MonitorView() {
+  return (
+    <div style={{ padding: 24 }}>
+      <PageHeader />
+      <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
+        <p style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.3em', color: '#0abe62', marginBottom: '12px' }}>
+          Admin Monitor
+        </p>
+        <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>Monitor view — building in Task 7.</p>
+      </div>
     </div>
   );
 }
