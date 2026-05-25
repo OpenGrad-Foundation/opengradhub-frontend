@@ -11,6 +11,10 @@ import {
   getAssessmentsOverview,
   type AssessmentsOverview,
   type AssessmentsOverviewItem,
+  getQuizLeaderboard,
+  getQuestionStats,
+  type QuizLeaderboard,
+  type QuestionStat,
 } from "@/lib/api";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -715,14 +719,152 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 }
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
+  const [tab, setTab] = useState<'leaderboard' | 'questions'>('leaderboard');
+
+  useEffect(() => {
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [onClose]);
+
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 520, background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)', zIndex: 51, padding: 24 }}>
-        <button onClick={onClose} style={{ float: 'right' }} aria-label="Close">×</button>
-        <p>Drawer for {quizId} — building in Task 8.</p>
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }}
+      />
+      <div style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 520,
+        background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)',
+        zIndex: 51, display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Test Details</h2>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
+          <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
+          <DrawerTab label="Question Stats" active={tab === 'questions'}   onClick={() => setTab('questions')} />
+        </div>
+
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+          {tab === 'leaderboard' ? <DrawerLeaderboard quizId={quizId} /> : <DrawerQuestionStats quizId={quizId} />}
+        </div>
       </div>
     </>
+  );
+}
+
+function DrawerTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1, padding: '12px 0', background: 'none', border: 'none',
+        borderBottom: active ? '2px solid #0abe62' : '2px solid transparent',
+        color: active ? '#0abe62' : 'rgba(3,72,82,0.6)',
+        fontWeight: 700, fontSize: '13px', cursor: 'pointer',
+      }}
+    >{label}</button>
+  );
+}
+
+function DrawerLeaderboard({ quizId }: { quizId: string }) {
+  const [data, setData]   = useState<QuizLeaderboard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null); setError(null);
+    getQuizLeaderboard(quizId)
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); });
+    return () => { cancelled = true; };
+  }, [quizId]);
+
+  if (error) return <p style={{ color: '#c53030', fontSize: '13px' }}>{error}</p>;
+  if (data === null) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (data.rankings.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No completed attempts yet.</p>;
+
+  return (
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+      <thead>
+        <tr style={{ borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
+          <th style={{ textAlign: 'left',  padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>#</th>
+          <th style={{ textAlign: 'left',  padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Student</th>
+          <th style={{ textAlign: 'right', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Score</th>
+          <th style={{ textAlign: 'right', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Date</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.rankings.slice(0, 50).map((r) => (
+          <tr key={r.student_id} style={{ borderBottom: '1px solid rgba(3,72,82,0.04)' }}>
+            <td style={{ padding: '8px 4px', color: '#034852', fontWeight: 700 }}>{r.rank}</td>
+            <td style={{ padding: '8px 4px', color: '#034852' }}>{r.name}</td>
+            <td style={{ padding: '8px 4px', color: '#034852', textAlign: 'right', fontWeight: 700 }}>
+              {r.score_pct}%
+              <span style={{ marginLeft: 4, color: 'rgba(3,72,82,0.45)', fontWeight: 400 }}>({r.correct_count})</span>
+            </td>
+            <td style={{ padding: '8px 4px', color: 'rgba(3,72,82,0.5)', textAlign: 'right' }}>
+              {new Date(r.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function DrawerQuestionStats({ quizId }: { quizId: string }) {
+  const [stats, setStats] = useState<QuestionStat[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setStats(null); setError(null);
+    getQuestionStats(quizId)
+      .then((d) => { if (!cancelled) setStats(d); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); });
+    return () => { cancelled = true; };
+  }, [quizId]);
+
+  if (error) return <p style={{ color: '#c53030', fontSize: '13px' }}>{error}</p>;
+  if (stats === null) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (stats.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempt data yet.</p>;
+
+  // Sort weakest-first by correct ratio
+  const sorted = [...stats].sort((a, b) => {
+    const aTotal = a.total_attempts || 1;
+    const bTotal = b.total_attempts || 1;
+    return (a.correct_count / aTotal) - (b.correct_count / bTotal);
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {sorted.map((s, idx) => {
+        const total = s.total_attempts || 1;
+        const pctCorrect = Math.round((s.correct_count / total) * 100);
+        return (
+          <div key={s.snapshot_id}>
+            <div style={{ margin: '0 0 4px', fontSize: '13px', color: '#034852' }}>
+              <span style={{ fontWeight: 700, marginRight: 6 }}>Q{idx + 1}</span>
+              <span dangerouslySetInnerHTML={{ __html: s.content_html }} />
+            </div>
+            <div style={{ display: 'flex', height: '8px', borderRadius: '100px', overflow: 'hidden', background: 'rgba(3,72,82,0.06)' }}>
+              <div style={{ width: `${(s.correct_count / total) * 100}%`, background: '#0abe62' }} />
+              <div style={{ width: `${(s.wrong_count   / total) * 100}%`, background: '#e53e3e' }} />
+              <div style={{ width: `${(s.skipped_count / total) * 100}%`, background: 'rgba(3,72,82,0.2)' }} />
+            </div>
+            <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'rgba(3,72,82,0.5)' }}>
+              {pctCorrect}% correct · {s.correct_count}/{total} ·
+              {' '}avg time {s.avg_time_correct_seconds == null ? '—' : `${s.avg_time_correct_seconds}s`}
+              {s.subject ? ` · ${s.subject}${s.topic ? ` / ${s.topic}` : ''}` : ''}
+            </p>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
