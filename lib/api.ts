@@ -144,6 +144,7 @@ export type SafeUser = {
   roll_number: string | null;
   phone: string | null;
   created_at: string;
+  manager_id: string | null;
   tempPassword?: string;
 };
 
@@ -1976,6 +1977,7 @@ export async function updateUser(
     school_code?: string;
     roll_number?: string;
     district?: string;
+    manager_id?: string | null;
   },
 ): Promise<SafeUser> {
   const response = await apiFetch(`${API_BASE_URL}/users/${userId}`, {
