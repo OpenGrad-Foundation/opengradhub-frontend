@@ -2138,31 +2138,46 @@ export type Doubt = {
   id: string;
   student_id: string;
   student_name: string | null;
+  school_name: string | null;
   subject: string;
   body: string;
   status: "OPEN" | "ANSWERED";
   answer: string | null;
+  escalated_to_zm_at: string | null;
+  escalated_to_pm_at: string | null;
+  answered_by_user_id: string | null;
+  answered_at: string | null;
   created_at: string;
 };
 
 /**
- * Fetch doubts.
- * SUPER_ADMIN → all doubts.
- * STUDENT     → own doubts (requires student_id).
+ * Fetch doubts. Backend scopes by req.auth; role/studentId params are
+ * accepted for call-site compatibility but no longer interpolated into the URL.
  */
-export async function getDoubts(role: string, studentId?: string): Promise<Doubt[]> {
-  const params = new URLSearchParams({ role });
-  if (studentId) params.set("student_id", studentId);
+export async function getDoubts(_role?: string, _studentId?: string): Promise<Doubt[]> {
+  const r = await apiFetch(`${API_BASE_URL}/doubts`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load doubts.", r.status);
+  }
+  return r.json();
+}
 
-  const response = await apiFetch(`${API_BASE_URL}/doubts?${params.toString()}`, {
+/**
+ * Answer an existing doubt (FELLOW / admin roles).
+ */
+export async function answerDoubt(id: string, answer: string): Promise<Doubt> {
+  const r = await apiFetch(`${API_BASE_URL}/doubts/${id}/answer`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answer }),
     cache: "no-store",
   });
-
-  if (!response.ok) {
-    throw new ApiError("Failed to fetch doubts.", response.status);
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to answer doubt.", r.status);
   }
-
-  return (await response.json()) as Doubt[];
+  return r.json();
 }
 
 /**
