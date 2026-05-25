@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { useRouter } from "next/navigation";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -27,7 +28,8 @@ export default function AssessmentsPage() {
   const studentId      = data?.user?.id ?? "";
 
   // Admin-viewers (any analytics permission) go to the monitor view.
-  const isAdminViewer = has(PERM.analytics.view_admin)
+  const isAdminViewer = has(PERM.analytics.view)
+                     || has(PERM.analytics.view_admin)
                      || has(PERM.analytics.view_manager)
                      || has(PERM.analytics.view_fellow);
 
@@ -849,7 +851,7 @@ function DrawerQuestionStats({ quizId }: { quizId: string }) {
           <div key={s.snapshot_id}>
             <div style={{ margin: '0 0 4px', fontSize: '13px', color: '#034852' }}>
               <span style={{ fontWeight: 700, marginRight: 6 }}>Q{idx + 1}</span>
-              <span dangerouslySetInnerHTML={{ __html: s.content_html }} />
+              <MathContent html={s.content_html} />
             </div>
             <div style={{ display: 'flex', height: '8px', borderRadius: '100px', overflow: 'hidden', background: 'rgba(3,72,82,0.06)' }}>
               <div style={{ width: `${(s.correct_count / total) * 100}%`, background: '#0abe62' }} />
