@@ -15,11 +15,13 @@ import {
   getStudentsForBulk,
   bulkEnrol,
   fetchSchools,
+  getManagers,
   type SafeUser,
   type Course,
   type Bundle,
   type StudentForBulk,
   type SchoolOption,
+  type ManagerOption,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -249,6 +251,8 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [createdUser, setCreatedUser] = useState<SafeUser | null>(null);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [schoolsError, setSchoolsError] = useState<string | null>(null);
+  const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const [managerId, setManagerId] = useState<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -265,6 +269,19 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setManagerId('');
+    if (role === 'ZONAL_MANAGER') {
+      getManagers('PROGRAM_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else if (role === 'FELLOW') {
+      getManagers('ZONAL_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else {
+      setManagerOptions([]);
+    }
+    return () => { cancelled = true; };
+  }, [role]);
 
   const isStudent = role === "STUDENT";
   const isFellow = role === "FELLOW";
@@ -292,6 +309,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setSchoolCode("");
     setRollNumber("");
     setDistrict("");
+    setManagerId("");
     setPasswordMode("auto");
     setManualPassword("");
   }
@@ -307,6 +325,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         phone: phone.trim() || undefined,
         role,
         password: passwordMode === "manual" && manualPassword.trim() ? manualPassword.trim() : undefined,
+        manager_id: (isZM || isFellow) ? (managerId || null) : null,
       };
       if (isStudent) {
         if (programme) payload.programme_type = programme;
@@ -482,6 +501,26 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <option value="KERALA">Kerala</option>
                       <option value="KARNATAKA">Karnataka</option>
                       <option value="TAMIL_NADU">Tamil Nadu</option>
+                    </select>
+                  </Field>
+                )}
+
+                {/* Reports-to manager — ZONAL_MANAGER reports to Program Manager; FELLOW reports to Zonal Manager */}
+                {(isZM || isFellow) && (
+                  <Field label={isZM ? "Reports to (Program Manager)" : "Reports to (Zonal Manager)"} id="user-manager">
+                    <select
+                      id="user-manager"
+                      value={managerId}
+                      onChange={(e) => setManagerId(e.target.value)}
+                      required
+                      style={inputStyle}
+                    >
+                      <option value="" disabled>Select a manager…</option>
+                      {managerOptions.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.full_name}{m.state ? ` (${m.state}${m.zone ? ` · ${m.zone}` : ''})` : ''}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                 )}
