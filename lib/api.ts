@@ -2626,6 +2626,22 @@ export async function downloadStudentFullReportPdf(
   return { blob: await r.blob(), filename: extractFilename(r, "full-report.pdf") };
 }
 
+/**
+ * Download the comprehensive full-history report PDF for a single student.
+ * Backend: GET /reports/students/:studentId/comprehensive/pdf
+ */
+export async function downloadStudentComprehensiveReportPdf(
+  studentId: string,
+): Promise<StudentReportPdf> {
+  const url = `${API_BASE_URL}/reports/students/${studentId}/comprehensive/pdf`;
+  const r = await apiFetch(url, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to download comprehensive report.", r.status);
+  }
+  return { blob: await r.blob(), filename: extractFilename(r, "comprehensive-report.pdf") };
+}
+
 // ── Student Performance History ────────────────────────────────
 
 export type PerformanceHistoryRow = {
@@ -2683,7 +2699,7 @@ export type BulkReportStatus = {
 };
 
 export async function startBulkReport(body: {
-  scope: "monthly" | "course" | "full";
+  scope: "monthly" | "course" | "full" | "comprehensive";
   courseId?: string;
   filters: AnalyticsStudentsPageParams;
 }): Promise<{ jobId: string }> {
