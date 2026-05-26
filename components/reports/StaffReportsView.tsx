@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   getAnalyticsSchools,
   getAnalyticsStudentsPaged,
@@ -472,17 +473,49 @@ function StudentReportsMenu({
   const [tests, setTests] = useState<PerformanceHistoryRow[] | null>(null);
   const [testsError, setTestsError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number } | null>(null);
 
-  // Close the menu on outside click.
+  // Close the menu on outside click. After portalling the panel, clicks inside
+  // the portal are no longer descendants of `menuRef`, so we also accept clicks
+  // inside `panelRef`.
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (menuRef.current && menuRef.current.contains(target)) return;
+      if (panelRef.current && panelRef.current.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  // Compute fixed-position coordinates for the portalled panel from the
+  // trigger's bounding rect. Recompute on resize and on any scroll in the
+  // ancestor chain (capture phase so scrolling parents trigger it).
+  useEffect(() => {
+    if (!open) {
+      setPanelPos(null);
+      return;
+    }
+    function update() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setPanelPos({
+        top: rect.bottom + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
   }, [open]);
 
   // Lazily fetch the student's enrolled courses the first time the menu opens
@@ -575,6 +608,7 @@ function StudentReportsMenu({
   return (
     <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={busy}
@@ -587,8 +621,18 @@ function StudentReportsMenu({
         {busy ? "Preparing…" : "Reports ▾"}
       </button>
 
-      {open && (
-        <div style={menuPanelStyle}>
+      {open && panelPos !== null && typeof document !== "undefined"
+        && createPortal(
+        <div
+          ref={panelRef}
+          style={{
+            ...menuPanelStyle,
+            position: "fixed",
+            top: panelPos.top,
+            right: panelPos.right,
+            zIndex: 1000,
+          }}
+        >
           <p style={menuSectionLabel}>Course report</p>
           {courses === null ? (
             <p style={menuHint}>Loading courses…</p>
@@ -655,7 +699,8 @@ function StudentReportsMenu({
           >
             Download full report (all history)
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
