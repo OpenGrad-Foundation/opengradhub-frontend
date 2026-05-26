@@ -5,16 +5,20 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { StaffReportsView } from "@/components/reports/StaffReportsView";
 import {
+  ApiError,
   getAvailableQuizzes,
   getModuleQuizzes,
   getQuizAttempts,
   getStudentEnrolments,
+  getStudentPerformanceHistory,
   downloadStudentMonthlyReportPdf,
   downloadStudentCourseReportPdf,
   downloadStudentTestReportPdf,
   type Course,
+  type PerformanceHistoryRow,
   type StudentReportPdf,
 } from "@/lib/api";
+import { PerformanceHistoryTable } from "@/components/performance-history-table";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
 // The report endpoints are bearer-token protected, so `window.open` cannot fetch
@@ -64,6 +68,10 @@ export default function ReportsPage() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [historyRows, setHistoryRows] = useState<PerformanceHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
   // Load the student's enrolled courses and the quizzes they have completed at
   // least once. Quizzes come from both the global/program list and the module
   // list; a quiz is eligible for a test report only if it has ≥1 completed
@@ -112,6 +120,26 @@ export default function ReportsPage() {
       window.clearTimeout(loadingTimer);
     };
   }, [userLoading, perms.isLoading, isStaffReportsUser, canUseStudentReports]);
+
+  // Load the student's full performance history (every completed attempt with
+  // per-subject scores + ranks). Mount-only — backend scopes to the caller.
+  useEffect(() => {
+    getStudentPerformanceHistory("me")
+      .then((resp) => {
+        setHistoryRows(resp.rows);
+        setHistoryLoading(false);
+      })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError) {
+          setHistoryError(e.message);
+        } else if (e instanceof Error) {
+          setHistoryError(e.message);
+        } else {
+          setHistoryError("Failed to load performance history.");
+        }
+        setHistoryLoading(false);
+      });
+  }, []);
 
   async function handleDownload() {
     setDownloading(true);
@@ -276,6 +304,28 @@ export default function ReportsPage() {
         )}
         {scope === "test" && !picklistsLoading && completedQuizzes.length === 0 && (
           <p style={hintText}>Complete a test to generate a test report.</p>
+        )}
+      </div>
+
+      {/* Performance History */}
+      <div style={{ ...glassCard, marginTop: "28px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
+          Performance History
+        </p>
+        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "0 0 8px" }}>
+          Every completed quiz attempt with per-subject scores and ranks.
+        </p>
+
+        {historyLoading ? (
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px", margin: "12px 0 0" }}>Loading…</p>
+        ) : historyError ? (
+          <p style={{ color: "#b91c1c", background: "#fef2f2", padding: "8px 12px", borderRadius: "8px", fontSize: "14px", margin: "12px 0 0" }}>
+            {historyError}
+          </p>
+        ) : historyRows.length === 0 ? (
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px", margin: "12px 0 0" }}>No completed attempts yet.</p>
+        ) : (
+          <PerformanceHistoryTable rows={historyRows} />
         )}
       </div>
     </div>

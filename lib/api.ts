@@ -214,6 +214,8 @@ export type AnalyticsStudentFilters = {
   status?: string;
   school_id?: string;
   zone?: string;
+  state?: string;
+  year?: number | string;
   from?: string;
   to?: string;
 };
@@ -228,6 +230,10 @@ function buildAnalyticsParams(filters: AnalyticsStudentFilters) {
   if (filters.status) params.set("status", filters.status);
   if (filters.school_id) params.set("school_id", filters.school_id);
   if (filters.zone) params.set("zone", filters.zone);
+  if (filters.state) params.set("state", filters.state);
+  if (filters.year !== undefined && filters.year !== null && String(filters.year).trim() !== "") {
+    params.set("year", String(filters.year));
+  }
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
 
@@ -2180,6 +2186,17 @@ export async function answerDoubt(id: string, answer: string): Promise<Doubt> {
   return r.json();
 }
 
+export async function deleteDoubt(id: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/doubts/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete doubt.", r.status);
+  }
+}
+
 /**
  * Submit a new doubt (STUDENT only).
  */
@@ -2594,6 +2611,52 @@ export async function downloadStudentMonthlyReportPdf(
 }
 
 /**
+ * Download the full-history report PDF for a single student.
+ * Backend: GET /reports/students/:studentId/full/pdf
+ */
+export async function downloadStudentFullReportPdf(
+  studentId: string,
+): Promise<StudentReportPdf> {
+  const url = `${API_BASE_URL}/reports/students/${studentId}/full/pdf`;
+  const r = await apiFetch(url, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to download full report.", r.status);
+  }
+  return { blob: await r.blob(), filename: extractFilename(r, "full-report.pdf") };
+}
+
+// ── Student Performance History ────────────────────────────────
+
+export type PerformanceHistoryRow = {
+  attempt_id: string;
+  quiz_id: string;
+  quiz_title: string;
+  quiz_type: string;
+  submitted_at: string;
+  batch_label: string | null;
+  subjects: { subject: string; score: number; max: number; rank: number }[];
+  total: { marks: number; max: number; percent: number };
+  ranks: { test: number; school: number | null; programme: number | null };
+  percentile: number;
+  total_students: number;
+};
+export type PerformanceHistoryResponse = { rows: PerformanceHistoryRow[] };
+
+/**
+ * Fetch every past completed attempt for the student with per-subject scores + ranks.
+ * Backend: GET /reports/students/:studentId/history
+ */
+export async function getStudentPerformanceHistory(studentId: string): Promise<PerformanceHistoryResponse> {
+  const r = await apiFetch(`${API_BASE_URL}/reports/students/${studentId}/history`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load performance history.", r.status);
+  }
+  return (await r.json()) as PerformanceHistoryResponse;
+}
+
+/**
  * Fetch the one-time practice payload for a quiz (questions + answers).
  * Backend: GET /quizzes/:id/practice-payload
  */
@@ -2620,7 +2683,7 @@ export type BulkReportStatus = {
 };
 
 export async function startBulkReport(body: {
-  scope: "monthly" | "course";
+  scope: "monthly" | "course" | "full";
   courseId?: string;
   filters: AnalyticsStudentsPageParams;
 }): Promise<{ jobId: string }> {
