@@ -42,8 +42,10 @@ export default function DoubtsPage() {
 
   if (userLoading) return <LoadingState />;
 
-  // Staff (non-student) users get the staff view with filters + answer modal
-  if (!canSubmit && roleCode) {
+  // Staff (non-student) users get the staff view with filters + answer modal.
+  // Gate on role, NOT on canSubmit — SUPER_ADMIN has every permission including
+  // doubts.submit and would otherwise fall into the student branch.
+  if (roleCode && roleCode !== "STUDENT") {
     return (
       <StaffDoubtsView
         doubts={doubts}
