@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { SafeUser } from "@/lib/api";
-import { updateUser, deleteUser } from "@/lib/api";
+import type { SafeUser, ManagerOption } from "@/lib/api";
+import { updateUser, deleteUser, getManagers } from "@/lib/api";
 import {
   VALID_ROLES,
   patchRole,
@@ -28,6 +28,7 @@ type Draft = {
   school_code: string;
   roll_number: string;
   district: string;
+  manager_id: string;
 };
 
 function makeDraft(u: SafeUser): Draft {
@@ -41,6 +42,7 @@ function makeDraft(u: SafeUser): Draft {
     school_code: u.school_code ?? "",
     roll_number: u.roll_number ?? "",
     district: u.district ?? "",
+    manager_id: u.manager_id ?? "",
   };
 }
 
@@ -67,6 +69,8 @@ export function UserDetailPanel({
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
 
+  const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+
   const initial = makeDraft(user);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
@@ -79,7 +83,19 @@ export function UserDetailPanel({
     setConfirmDelete(false);
     setDeleteErr(null);
     setConfirmClose(false);
-  }, [user.id]);
+  }, [user]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (user.role === 'ZONAL_MANAGER') {
+      getManagers('PROGRAM_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else if (user.role === 'FELLOW') {
+      getManagers('ZONAL_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else {
+      setManagerOptions([]);
+    }
+    return () => { cancelled = true; };
+  }, [user.role]);
 
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -124,6 +140,9 @@ export function UserDetailPanel({
           school_code: draft.school_code.trim() || undefined,
           roll_number: draft.roll_number.trim() || undefined,
           district: draft.district.trim() || undefined,
+          manager_id: (user.role === 'ZONAL_MANAGER' || user.role === 'FELLOW')
+            ? (draft.manager_id || null)
+            : undefined,
         },
       );
       setDraft(makeDraft(updated));
@@ -367,19 +386,43 @@ export function UserDetailPanel({
                       />
                     </PanelField>
                   </div>
+                  <PanelField label="Zonal Manager">
+                    <select value={draft.manager_id} onChange={(e) => set("manager_id", e.target.value)} style={S.input}>
+                      <option value="">Select manager…</option>
+                      {managerOptions.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.full_name}{m.state ? ` (${m.state})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </PanelField>
                 </>
               )}
 
               {isPMorZM && (
-                <PanelField label="State">
-                  <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
-                    <option value="">Select…</option>
-                    <option value="KERALA">Kerala</option>
-                    <option value="KARNATAKA">Karnataka</option>
-                    <option value="TAMIL_NADU">Tamil Nadu</option>
-                    <option value="CHHATTISGARH">Chhattisgarh</option>
-                  </select>
-                </PanelField>
+                <>
+                  <PanelField label="State">
+                    <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                      <option value="">Select…</option>
+                      <option value="KERALA">Kerala</option>
+                      <option value="KARNATAKA">Karnataka</option>
+                      <option value="TAMIL_NADU">Tamil Nadu</option>
+                      <option value="CHHATTISGARH">Chhattisgarh</option>
+                    </select>
+                  </PanelField>
+                  {user.role === 'ZONAL_MANAGER' && (
+                    <PanelField label="Program Manager">
+                      <select value={draft.manager_id} onChange={(e) => set("manager_id", e.target.value)} style={S.input}>
+                        <option value="">Select manager…</option>
+                        {managerOptions.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.full_name}{m.state ? ` (${m.state})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </PanelField>
+                  )}
+                </>
               )}
 
             </div>

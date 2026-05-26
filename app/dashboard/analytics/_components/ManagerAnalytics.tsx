@@ -268,7 +268,8 @@ function DrillDown({
                     <tr>
                       <th style={th}>Student</th>
                       <th style={{ ...th, textAlign: "right" }}>Completion</th>
-                      <th style={{ ...th, textAlign: "right" }}>Last Quiz Score</th>
+                      <th style={{ ...th, textAlign: "right" }}>Best Score</th>
+                      <th style={{ ...th, textAlign: "right" }}>Avg Score</th>
                       <th style={th}>Assignment</th>
                     </tr>
                   </thead>
@@ -280,7 +281,10 @@ function DrillDown({
                           <CompletionBar pct={s.completion_pct} />
                         </td>
                         <td style={{ ...td, textAlign: "right" }}>
-                          {s.last_score != null ? `${s.last_score}%` : "—"}
+                          {s.best_score != null ? `${s.best_score}%` : "—"}
+                        </td>
+                        <td style={{ ...td, textAlign: "right", color: "rgba(3,72,82,0.55)" }}>
+                          {s.avg_score != null ? `${s.avg_score}%` : "—"}
                         </td>
                         <td style={td}>
                           <AssignBadge status={s.assignment_status} />

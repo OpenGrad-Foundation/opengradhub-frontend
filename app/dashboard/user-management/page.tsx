@@ -14,12 +14,15 @@ import {
   enrolStudentInBundle,
   getStudentsForBulk,
   bulkEnrol,
+  fetchSchools,
+  getManagers,
   type SafeUser,
   type Course,
   type Bundle,
   type StudentForBulk,
+  type SchoolOption,
+  type ManagerOption,
 } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
@@ -125,7 +128,6 @@ export default function UserManagementPage() {
       {showBulkAssign && (
         <BulkAssignPanel
           onClose={() => setShowBulkAssign(false)}
-          callerId={currentUserId}
         />
       )}
 
@@ -142,7 +144,6 @@ export default function UserManagementPage() {
       {assignBundleStudent && (
         <AssignBundleModal
           student={assignBundleStudent}
-          assignedBy={currentUserId}
           onClose={() => setAssignBundleStudent(null)}
         />
       )}
@@ -248,6 +249,39 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createdUser, setCreatedUser] = useState<SafeUser | null>(null);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [schoolsError, setSchoolsError] = useState<string | null>(null);
+  const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const [managerId, setManagerId] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((list) => {
+        if (!cancelled) setSchools(list);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setSchoolsError(err instanceof Error ? err.message : "Failed to load schools.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setManagerId('');
+    if (role === 'ZONAL_MANAGER') {
+      getManagers('PROGRAM_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else if (role === 'FELLOW') {
+      getManagers('ZONAL_MANAGER').then((opts) => { if (!cancelled) setManagerOptions(opts); });
+    } else {
+      setManagerOptions([]);
+    }
+    return () => { cancelled = true; };
+  }, [role]);
 
   const isStudent = role === "STUDENT";
   const isFellow = role === "FELLOW";
@@ -275,6 +309,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     setSchoolCode("");
     setRollNumber("");
     setDistrict("");
+    setManagerId("");
     setPasswordMode("auto");
     setManualPassword("");
   }
@@ -290,6 +325,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         phone: phone.trim() || undefined,
         role,
         password: passwordMode === "manual" && manualPassword.trim() ? manualPassword.trim() : undefined,
+        manager_id: (isZM || isFellow) ? (managerId || null) : null,
       };
       if (isStudent) {
         if (programme) payload.programme_type = programme;
@@ -386,7 +422,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="School" id="user-school">
-                        <input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="School name (optional)" />
+                        <select
+                          id="user-school"
+                          value={schoolId}
+                          onChange={(e) => setSchoolId(e.target.value)}
+                          style={inputStyle}
+                          disabled={schools.length === 0 && !schoolsError}
+                        >
+                          <option value="">
+                            {schoolsError
+                              ? "Failed to load schools"
+                              : schools.length === 0
+                                ? "Loading schools…"
+                                : "Select a school (optional)"}
+                          </option>
+                          {schools.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
                       </Field>
                     </Row>
                   </>
@@ -417,7 +470,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         <input id="user-district" value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} placeholder="e.g. Ernakulam" />
                       </Field>
                       <Field label="School" id="user-school">
-                        <input id="user-school" value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={inputStyle} placeholder="School name (optional)" />
+                        <select
+                          id="user-school"
+                          value={schoolId}
+                          onChange={(e) => setSchoolId(e.target.value)}
+                          style={inputStyle}
+                          disabled={schools.length === 0 && !schoolsError}
+                        >
+                          <option value="">
+                            {schoolsError
+                              ? "Failed to load schools"
+                              : schools.length === 0
+                                ? "Loading schools…"
+                                : "Select a school (optional)"}
+                          </option>
+                          {schools.map((s) => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
                       </Field>
                     </Row>
                   </>
@@ -431,6 +501,26 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <option value="KERALA">Kerala</option>
                       <option value="KARNATAKA">Karnataka</option>
                       <option value="TAMIL_NADU">Tamil Nadu</option>
+                    </select>
+                  </Field>
+                )}
+
+                {/* Reports-to manager — ZONAL_MANAGER reports to Program Manager; FELLOW reports to Zonal Manager */}
+                {(isZM || isFellow) && (
+                  <Field label={isZM ? "Reports to (Program Manager)" : "Reports to (Zonal Manager)"} id="user-manager">
+                    <select
+                      id="user-manager"
+                      value={managerId}
+                      onChange={(e) => setManagerId(e.target.value)}
+                      required
+                      style={inputStyle}
+                    >
+                      <option value="" disabled>Select a manager…</option>
+                      {managerOptions.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.full_name}{m.state ? ` (${m.state}${m.zone ? ` · ${m.zone}` : ''})` : ''}
+                        </option>
+                      ))}
                     </select>
                   </Field>
                 )}
@@ -819,11 +909,9 @@ function AssignCourseModal({
 
 function AssignBundleModal({
   student,
-  assignedBy,
   onClose,
 }: {
   student: SafeUser;
-  assignedBy: string;
   onClose: () => void;
 }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
@@ -1021,10 +1109,8 @@ const BULK_STATES = [
 
 function BulkAssignPanel({
   onClose,
-  callerId,
 }: {
   onClose: () => void;
-  callerId: string;
 }) {
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1089,7 +1175,8 @@ function BulkAssignPanel({
   function toggleStudent(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -1105,7 +1192,8 @@ function BulkAssignPanel({
   function toggleCourse(id: string) {
     setSelectedCourseIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }
@@ -1113,7 +1201,8 @@ function BulkAssignPanel({
   function toggleBundle(id: string) {
     setSelectedBundleIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }

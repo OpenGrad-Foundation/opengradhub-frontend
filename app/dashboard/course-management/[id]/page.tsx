@@ -89,7 +89,6 @@ export default function CourseManagementPage() {
 
   useEffect(() => {
     if (userLoading || !callerId || !canAccess) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError(null);
     void loadSummary()
@@ -102,7 +101,6 @@ export default function CourseManagementPage() {
   useEffect(() => {
     if (!callerId || !canAccess) return;
     if (activeTab === "students") {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadStudents();
     }
     if (activeTab === "curriculum" && curriculumSummary === null) {
@@ -116,7 +114,6 @@ export default function CourseManagementPage() {
 
   useEffect(() => {
     if (!selectedStudentId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDetail(null);
       return;
     }

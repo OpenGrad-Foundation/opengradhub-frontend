@@ -31,7 +31,7 @@ import { PERM } from "@/lib/permissions";
 
 export default function BundleDetailPage() {
   const { id: bundleId } = useParams<{ id: string }>();
-  const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const { isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
 
   const [bundle, setBundle] = useState<BundleDetail | null>(null);
@@ -256,7 +256,7 @@ function CourseList({
   if (localCourses.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
-        No courses yet. Click "+ Add Course" to get started.
+        No courses yet. Click &quot;+ Add Course&quot; to get started.
       </p>
     );
   }
@@ -337,7 +337,7 @@ function StudentTable({
   if (students.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
-        No students enrolled yet. Click "+ Assign to Student" to add one.
+        No students enrolled yet. Click &quot;+ Assign to Student&quot; to add one.
       </p>
     );
   }
@@ -406,7 +406,8 @@ function AddCourseModal({
     if (existingCourseIds.includes(id)) return;
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
     setError(null);
@@ -678,7 +679,7 @@ function TestList({
   if (tests.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
-        No tests yet. Click "+ Add Test" to attach a global test.
+        No tests yet. Click &quot;+ Add Test&quot; to attach a global test.
       </p>
     );
   }

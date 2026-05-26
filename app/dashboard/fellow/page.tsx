@@ -1,5 +1,7 @@
-import { RoleDashboardPage } from "@/components/role-dashboard-page";
+"use client";
+
+import { StaffReportsView } from "@/components/reports/StaffReportsView";
 
 export default function FellowDashboardPage() {
-  return <RoleDashboardPage roleSlug="fellow" />;
+  return <StaffReportsView />;
 }

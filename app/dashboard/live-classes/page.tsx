@@ -20,10 +20,11 @@ export default function LiveClassesPage() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState<string | null>(null);
   const [joining,  setJoining]  = useState<string | null>(null);
-  const [now,      setNow]      = useState(Date.now());
+  const [now,      setNow]      = useState(0);
 
   // Tick every minute so the "Join Now" button state refreshes
   useEffect(() => {
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
@@ -57,8 +58,8 @@ export default function LiveClassesPage() {
 
   if (isLoading) return <LoadingState />;
 
-  const upcoming = classes.filter(c => new Date(c.scheduled_at) >= new Date(Date.now() - c.duration_minutes * 60_000));
-  const past     = classes.filter(c => new Date(c.scheduled_at) < new Date(Date.now() - c.duration_minutes * 60_000));
+  const upcoming = classes.filter(c => new Date(c.scheduled_at) >= new Date(now - c.duration_minutes * 60_000));
+  const past     = classes.filter(c => new Date(c.scheduled_at) < new Date(now - c.duration_minutes * 60_000));
 
   return (
     <div>

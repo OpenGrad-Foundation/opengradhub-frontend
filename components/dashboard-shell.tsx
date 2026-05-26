@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "./sidebar";
 import DashboardTopbar from "@/app/dashboard/_components/DashboardTopbar";
 import { DashboardRouteGuard } from "@/components/require-permission";
@@ -11,6 +11,20 @@ export default function DashboardShell({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Restore desktop collapse preference after mount (avoids SSR hydration mismatch).
+  useEffect(() => {
+    setCollapsed(localStorage.getItem("sidebar-collapsed") === "true");
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-collapsed", String(next));
+      return next;
+    });
+  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -30,7 +44,11 @@ export default function DashboardShell({
           (sidebarOpen ? "translate-x-0" : "-translate-x-full")
         }
       >
-        <Sidebar onClose={() => setSidebarOpen(false)} />
+        <Sidebar
+          onClose={() => setSidebarOpen(false)}
+          collapsed={collapsed}
+          onToggleCollapsed={toggleCollapsed}
+        />
       </div>
 
       {/* Main content */}

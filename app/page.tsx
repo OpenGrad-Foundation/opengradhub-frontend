@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
@@ -133,7 +134,6 @@ function ClerkSignInForm({
   initialIdentifier,
   successMessage,
 }: SignInFormProps) {
-  const router = useRouter();
   // Clerk v7 "Future" signal API: { signIn, errors, fetchStatus }
   const { signIn } = useSignIn();
   const [identifier, setIdentifier] = useState(initialIdentifier);
@@ -480,7 +480,7 @@ export default function LoginPage() {
         >
           {/* Logo */}
           <div className="flex items-center justify-center mb-8">
-            <img
+            <Image
               src="/logo.png"
               alt="OpenGrad"
               width={120}
@@ -518,7 +518,6 @@ export default function LoginPage() {
               <button
                 role="tab"
                 type="button"
-                aria-pressed={mode === "sign-in"}
                 aria-selected={mode === "sign-in"}
                 onClick={goToSignIn}
                 className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${
@@ -533,7 +532,6 @@ export default function LoginPage() {
               <button
                 role="tab"
                 type="button"
-                aria-pressed={mode === "sign-up"}
                 aria-selected={mode === "sign-up"}
                 onClick={goToSignUp}
                 className={`rounded-lg min-h-[44px] px-4 text-sm font-semibold cursor-pointer transition-all ${focusRing} ${

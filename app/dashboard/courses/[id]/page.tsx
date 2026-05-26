@@ -172,13 +172,45 @@ function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTit
               module={module}
               courseId={courseId}
               isSequential={isSequential}
-              isLast={idx === module.lessons.length - 1}
+              isLast={idx === module.lessons.length - 1 && !module.module_quiz}
               roleCode={roleCode}
               isModuleLocked={isModuleLocked}
               prevModuleTitle={prevModuleTitle}
             />
           ))}
         </div>
+      )}
+
+      {/* Module quiz row */}
+      {module.module_quiz?.published && !isModuleLocked && (
+        <Link
+          href={`/dashboard/quiz/${module.module_quiz.id}`}
+          style={{ textDecoration: "none" }}
+        >
+          <div style={{
+            display: "flex", alignItems: "center", gap: "12px",
+            padding: "12px 4px",
+            borderTop: "1px solid rgba(3,72,82,0.08)",
+            cursor: "pointer",
+          }}>
+            <div style={{
+              width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "rgba(10,190,98,0.1)",
+              border: "1.5px solid #0abe62",
+              fontSize: "11px", color: "#0abe62", fontWeight: 700,
+            }}>✎</div>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
+                {module.module_quiz.title}
+              </p>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
+                Module test
+              </p>
+            </div>
+            <span style={{ fontSize: "14px", color: "#209379", flexShrink: 0 }}>▶</span>
+          </div>
+        </Link>
       )}
     </div>
   );

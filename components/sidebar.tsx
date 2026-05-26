@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Bell,
   BarChart2,
+  FileBarChart,
   Download,
   Users,
   Shield,
@@ -26,6 +27,8 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  PanelLeftClose,
+  PanelLeftOpen,
   type LucideIcon,
 } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
@@ -50,6 +53,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   doubts:          HelpCircle,
   announcements:   Bell,
   analytics:       BarChart2,
+  reports:         FileBarChart,
   student_export:  Download,
   user_management: Users,
   role_management: Shield,
@@ -67,7 +71,15 @@ function isActivePath(pathname: string, href: string) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function Sidebar({ onClose }: { onClose?: () => void }) {
+export default function Sidebar({
+  onClose,
+  collapsed = false,
+  onToggleCollapsed,
+}: {
+  onClose?: () => void;
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const clerk = useClerk();
@@ -152,10 +164,24 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
   }
 
   return (
-    <aside className="flex h-full min-h-dvh w-64 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm">
-      {/* Logo + mobile close */}
-      <div className="px-6 pb-4 pt-6 border-b border-gray-100 flex items-center justify-between">
-        <Link href="/dashboard" className="inline-flex items-center" onClick={onClose}>
+    <aside
+      className={
+        "flex h-full min-h-dvh shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm transition-[width] duration-200 w-64 " +
+        (collapsed ? "lg:w-[68px]" : "lg:w-64")
+      }
+    >
+      {/* Logo + collapse toggle + mobile close */}
+      <div
+        className={
+          "pb-4 pt-6 border-b border-gray-100 flex items-center px-6 " +
+          (collapsed ? "lg:px-3 lg:justify-center" : "justify-between")
+        }
+      >
+        <Link
+          href="/dashboard"
+          className={"inline-flex items-center " + (collapsed ? "lg:hidden" : "")}
+          onClick={onClose}
+        >
           <Image
             src="/logo.png"
             alt="OpenGrad"
@@ -165,6 +191,17 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             priority
           />
         </Link>
+        {/* Desktop collapse toggle */}
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            className="hidden lg:flex items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+          </button>
+        )}
         {onClose && (
           <button
             type="button"
@@ -214,8 +251,10 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                 <li key={module.key}>
                   <Link
                     href={module.href}
+                    title={collapsed ? module.label : undefined}
                     className={
                       "relative flex items-center gap-3 rounded-lg border-l-[3px] px-4 py-2.5 text-sm font-medium transition-colors " +
+                      (collapsed ? "lg:gap-0 lg:px-0 lg:justify-center " : "") +
                       (isActive
                         ? "border-[var(--teal)] bg-teal-50 text-[var(--teal)]"
                         : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
@@ -228,7 +267,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
                         aria-hidden="true"
                       />
                     )}
-                    {module.label}
+                    <span className={collapsed ? "lg:hidden" : ""}>{module.label}</span>
                   </Link>
                 </li>
               );
@@ -263,10 +302,14 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           id="sidebar-sign-out-btn"
           type="button"
           onClick={handleSignOut}
-          className="flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+          title={collapsed ? "Sign Out" : undefined}
+          className={
+            "flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 " +
+            (collapsed ? "lg:justify-center lg:px-0" : "")
+          }
         >
           <LogOut size={16} aria-hidden="true" />
-          Sign Out
+          <span className={collapsed ? "lg:hidden" : ""}>Sign Out</span>
         </button>
       </div>
     </aside>

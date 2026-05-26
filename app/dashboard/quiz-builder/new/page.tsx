@@ -23,6 +23,10 @@ export default function NewQuizPage() {
   const [passThreshold, setPassThreshold]   = useState("");
   const [shuffle, setShuffle]               = useState(false);
   const [showAnswers, setShowAnswers]       = useState(true);
+  const [isSectioned, setIsSectioned]       = useState(false);
+  const [sequentialSections, setSequentialSections] = useState(false);
+  const [firstAttemptCounts, setFirstAttemptCounts] = useState(false);
+  const [requireFullscreen, setRequireFullscreen]   = useState(false);
   const [submitting, setSubmitting]         = useState(false);
   const [error, setError]                   = useState<string | null>(null);
 
@@ -56,6 +60,10 @@ export default function NewQuizPage() {
         shuffle_questions:      shuffle,
         show_answers_after:     showAnswers,
         created_by:             userId || undefined,
+        is_sectioned:           isSectioned,
+        sequential_sections:    isSectioned ? sequentialSections : false,
+        first_attempt_counts:   firstAttemptCounts,
+        require_fullscreen:     requireFullscreen,
       });
       // Redirect to the full builder with course context preserved
       const target = `/dashboard/quiz-builder/${quiz.id}${courseId ? `?course_id=${courseId}` : ""}`;
@@ -102,6 +110,12 @@ export default function NewQuizPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" description="Randomise question order for each attempt" />
             <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" description="Students can review correct answers after submitting" />
+            <Toggle value={isSectioned} onChange={setIsSectioned} label="Section-wise quiz" description="Group questions into named sections (Aptitude, Logical, Math, etc.)" />
+            {isSectioned && (
+              <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential sections" description="Students complete sections in order with their own timers; no going back." />
+            )}
+            <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts" description="Subsequent retakes allowed but don't change the grade." />
+            <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt" description="Desktop only — students on mobile blocked from starting." />
           </div>
 
           {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
