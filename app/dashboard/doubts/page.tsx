@@ -266,7 +266,19 @@ function AnswerModal({ doubt, onClose, onAnswered }: {
         boxShadow: "0 16px 48px rgba(0,0,0,0.15)",
       }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 18, color: "#034852" }}>Answer doubt</h2>
-        <p style={{ margin: "0 0 14px", fontSize: 13, color: "rgba(3,72,82,0.6)" }}>{doubt.subject}</p>
+        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "#034852" }}>{doubt.subject}</p>
+        {doubt.student_name && (
+          <p style={{ margin: "0 0 10px", fontSize: 11, color: "rgba(3,72,82,0.5)" }}>
+            from {doubt.student_name}{doubt.school_name ? ` · ${doubt.school_name}` : ""}
+          </p>
+        )}
+        <div style={{
+          margin: "0 0 14px", padding: 12, borderRadius: 8,
+          background: "rgba(3,72,82,0.04)", borderLeft: "3px solid rgba(3,72,82,0.2)",
+          fontSize: 13, color: "#034852", whiteSpace: "pre-wrap",
+        }}>
+          {doubt.body}
+        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
