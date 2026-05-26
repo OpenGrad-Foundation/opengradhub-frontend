@@ -2604,6 +2604,36 @@ export async function downloadStudentMonthlyReportPdf(
   return { blob: await r.blob(), filename: extractFilename(r, "monthly-report.pdf") };
 }
 
+// ── Student Performance History ────────────────────────────────
+
+export type PerformanceHistoryRow = {
+  attempt_id: string;
+  quiz_id: string;
+  quiz_title: string;
+  quiz_type: string;
+  submitted_at: string;
+  batch_label: string | null;
+  subjects: { subject: string; score: number; max: number; rank: number }[];
+  total: { marks: number; max: number; percent: number };
+  ranks: { test: number; school: number | null; programme: number | null };
+  percentile: number;
+  total_students: number;
+};
+export type PerformanceHistoryResponse = { rows: PerformanceHistoryRow[] };
+
+/**
+ * Fetch every past completed attempt for the student with per-subject scores + ranks.
+ * Backend: GET /reports/students/:studentId/history
+ */
+export async function getStudentPerformanceHistory(studentId: string): Promise<PerformanceHistoryResponse> {
+  const r = await apiFetch(`${API_BASE_URL}/reports/students/${studentId}/history`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load performance history.", r.status);
+  }
+  return (await r.json()) as PerformanceHistoryResponse;
+}
+
 /**
  * Fetch the one-time practice payload for a quiz (questions + answers).
  * Backend: GET /quizzes/:id/practice-payload
