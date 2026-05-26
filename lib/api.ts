@@ -2180,6 +2180,17 @@ export async function answerDoubt(id: string, answer: string): Promise<Doubt> {
   return r.json();
 }
 
+export async function deleteDoubt(id: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/doubts/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete doubt.", r.status);
+  }
+}
+
 /**
  * Submit a new doubt (STUDENT only).
  */

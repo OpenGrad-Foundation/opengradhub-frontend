@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getDoubts, submitDoubt, answerDoubt, type Doubt } from "@/lib/api";
+import { getDoubts, submitDoubt, answerDoubt, deleteDoubt, type Doubt } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 export default function DoubtsPage() {
@@ -18,9 +18,14 @@ export default function DoubtsPage() {
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  // Submitters (students) see their own doubts + the "ask" form; everyone else
-  // with `doubts.view` (admins/reviewers) sees the full list.
-  const canSubmit = has(PERM.doubts.submit);
+  // PBAC view gate:
+  //   - canRespond OR canDelete => staff view (filters + per-doubt action buttons)
+  //   - else => student view (own doubts + ask form)
+  // STUDENT lacks both perms; PM/ZM/FELLOW/SUPER_ADMIN hold at least one.
+  const canSubmit  = has(PERM.doubts.submit);
+  const canRespond = has(PERM.doubts.respond);
+  const canDelete  = has(PERM.doubts.delete);
+  const isStaffViewer = canRespond || canDelete;
 
   const reload = useCallback(async () => {
     if (!roleCode) return;
@@ -42,16 +47,15 @@ export default function DoubtsPage() {
 
   if (userLoading) return <LoadingState />;
 
-  // Staff (non-student) users get the staff view with filters + answer modal.
-  // Gate on role, NOT on canSubmit — SUPER_ADMIN has every permission including
-  // doubts.submit and would otherwise fall into the student branch.
-  if (roleCode && roleCode !== "STUDENT") {
+  if (isStaffViewer) {
     return (
       <StaffDoubtsView
         doubts={doubts}
         loading={loading}
         error={error}
         onReload={reload}
+        canRespond={canRespond}
+        canDelete={canDelete}
       />
     );
   }
@@ -109,14 +113,30 @@ export default function DoubtsPage() {
 
 type StaffFilter = 'ALL' | 'OPEN' | 'ESCALATED' | 'ANSWERED' | 'ORPHAN';
 
-function StaffDoubtsView({ doubts, loading, error, onReload }: {
+function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete }: {
   doubts: Doubt[];
   loading: boolean;
   error: string | null;
   onReload: () => void;
+  canRespond: boolean;
+  canDelete: boolean;
 }) {
   const [filter, setFilter] = useState<StaffFilter>('OPEN');
   const [answering, setAnswering] = useState<Doubt | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDelete(doubt: Doubt) {
+    if (!confirm(`Delete this doubt from ${doubt.student_name ?? "this student"}? This cannot be undone.`)) return;
+    setDeletingId(doubt.id);
+    try {
+      await deleteDoubt(doubt.id);
+      onReload();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete doubt.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const filtered = doubts.filter((d) => {
     switch (filter) {
@@ -167,7 +187,13 @@ function StaffDoubtsView({ doubts, loading, error, onReload }: {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((d) => (
-            <StaffDoubtCard key={d.id} doubt={d} onAnswer={() => setAnswering(d)} />
+            <StaffDoubtCard
+              key={d.id}
+              doubt={d}
+              onAnswer={canRespond ? () => setAnswering(d) : null}
+              onDelete={canDelete ? () => handleDelete(d) : null}
+              deleting={deletingId === d.id}
+            />
           ))}
         </div>
       )}
@@ -183,7 +209,12 @@ function StaffDoubtsView({ doubts, loading, error, onReload }: {
   );
 }
 
-function StaffDoubtCard({ doubt, onAnswer }: { doubt: Doubt; onAnswer: () => void }) {
+function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
+  doubt: Doubt;
+  onAnswer: (() => void) | null;
+  onDelete: (() => void) | null;
+  deleting: boolean;
+}) {
   const daysOpen = Math.floor((Date.now() - new Date(doubt.created_at).getTime()) / (1000 * 60 * 60 * 24));
   const tier =
     doubt.status === "ANSWERED"    ? { label: "Answered",         color: "#0abe62", bg: "rgba(10,190,98,0.1)" } :
@@ -216,7 +247,7 @@ function StaffDoubtCard({ doubt, onAnswer }: { doubt: Doubt; onAnswer: () => voi
           <span style={{ padding: "3px 10px", borderRadius: 100, fontSize: 11, fontWeight: 700, background: tier.bg, color: tier.color }}>
             {tier.label}
           </span>
-          {doubt.status === "OPEN" && (
+          {doubt.status === "OPEN" && onAnswer && (
             <button
               onClick={onAnswer}
               style={{
@@ -225,6 +256,19 @@ function StaffDoubtCard({ doubt, onAnswer }: { doubt: Doubt; onAnswer: () => voi
                 color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
               }}
             >Answer</button>
+          )}
+          {onDelete && (
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              style={{
+                padding: "6px 14px", border: "1px solid rgba(229,62,62,0.3)", borderRadius: 8,
+                background: "#fff", color: "#c53030",
+                fontWeight: 700, fontSize: 12,
+                cursor: deleting ? "default" : "pointer",
+                opacity: deleting ? 0.6 : 1,
+              }}
+            >{deleting ? "Deleting…" : "Delete"}</button>
           )}
         </div>
       </div>
