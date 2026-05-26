@@ -7,6 +7,9 @@ import {
   getStudentCourses,
   downloadStudentCourseReportPdf,
   downloadStudentMonthlyReportPdf,
+  downloadStudentFullReportPdf,
+  downloadStudentTestReportPdf,
+  getStudentPerformanceHistory,
   startBulkReport,
   getBulkReportStatus,
   downloadBulkReport,
@@ -14,6 +17,7 @@ import {
   type AnalyticsStudent,
   type StudentCourse,
   type StudentReportPdf,
+  type PerformanceHistoryRow,
 } from "@/lib/api";
 
 // ─── Fellow dashboard ─────────────────────────────────────────────────────────
@@ -51,6 +55,20 @@ function openPdf({ blob, filename }: StudentReportPdf) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+const STATE_OPTIONS = [
+  { value: "KERALA", label: "Kerala" },
+  { value: "KARNATAKA", label: "Karnataka" },
+  { value: "TAMIL_NADU", label: "Tamil Nadu" },
+];
+
+function buildYearOptions(): number[] {
+  const now = new Date().getFullYear();
+  const start = 2022;
+  const out: number[] = [];
+  for (let y = now; y >= start; y--) out.push(y);
+  return out;
+}
+
 export function StaffReportsView() {
   const [schools, setSchools] = useState<AnalyticsSchool[]>([]);
   const [schoolId, setSchoolId] = useState<string>("");
@@ -61,7 +79,10 @@ export function StaffReportsView() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [programme, setProgramme] = useState("");
   const [status, setStatus] = useState("");
-  const [bulkScope, setBulkScope] = useState<"monthly" | "course">("monthly");
+  const [state, setState] = useState("");
+  const [year, setYear] = useState("");
+  const yearOptions = buildYearOptions();
+  const [bulkScope, setBulkScope] = useState<"monthly" | "course" | "full">("monthly");
   const [bulkCourseId, setBulkCourseId] = useState("");
   const [bulkCourses, setBulkCourses] = useState<StudentCourse[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -72,12 +93,12 @@ export function StaffReportsView() {
   const [toast, setToast] = useState<string | null>(null);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  // Load the fellow's schools and default to the first one.
+  // Load the schools available to the caller. School filter is optional —
+  // by default we show every student in the caller's scope.
   useEffect(() => {
     getAnalyticsSchools()
       .then((rows) => {
         setSchools(rows);
-        setSchoolId((prev) => prev || rows[0]?.id || "");
       })
       .catch((e) =>
         setError(e instanceof Error ? e.message : "Failed to load schools."),
@@ -106,6 +127,8 @@ export function StaffReportsView() {
       school_id: schoolId || undefined,
       programme_type: programme || undefined,
       status: status || undefined,
+      state: state || undefined,
+      year: year || undefined,
       search: debouncedSearch || undefined,
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
@@ -128,7 +151,7 @@ export function StaffReportsView() {
       cancelled = true;
       window.clearTimeout(loadingTimer);
     };
-  }, [schoolId, programme, status, debouncedSearch, page]);
+  }, [schoolId, programme, status, state, year, debouncedSearch, page]);
 
   // The staff course catalogue is not available to every staff permission set,
   // so by-course bulk options are derived from the currently visible students.
@@ -178,6 +201,8 @@ export function StaffReportsView() {
           school_id: schoolId || undefined,
           programme_type: programme || undefined,
           status: status || undefined,
+          state: state || undefined,
+          year: year || undefined,
           search: debouncedSearch || undefined,
         },
       });
@@ -214,7 +239,7 @@ export function StaffReportsView() {
       </div>
 
       {schools.length > 0 && (
-        <div style={{ marginBottom: "20px" }}>
+        <div style={{ marginBottom: "20px", display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
           <label style={{ ...subtitleStyle, fontSize: "13px" }}>
             School
             <select
@@ -225,10 +250,43 @@ export function StaffReportsView() {
               }}
               style={{ ...inputStyle, marginLeft: "10px" }}
             >
+              <option value="">All schools</option>
               {schools.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ ...subtitleStyle, fontSize: "13px" }}>
+            State
+            <select
+              value={state}
+              onChange={(e) => {
+                setState(e.target.value);
+                setPage(0);
+              }}
+              style={{ ...inputStyle, marginLeft: "10px" }}
+            >
+              <option value="">All states</option>
+              {STATE_OPTIONS.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <label style={{ ...subtitleStyle, fontSize: "13px" }}>
+            Year
+            <select
+              value={year}
+              onChange={(e) => {
+                setYear(e.target.value);
+                setPage(0);
+              }}
+              style={{ ...inputStyle, marginLeft: "10px" }}
+            >
+              <option value="">All years</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={String(y)}>{y}</option>
               ))}
             </select>
           </label>
@@ -242,11 +300,12 @@ export function StaffReportsView() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
           <select
             value={bulkScope}
-            onChange={(e) => setBulkScope(e.target.value as "monthly" | "course")}
+            onChange={(e) => setBulkScope(e.target.value as "monthly" | "course" | "full")}
             style={inputStyle}
           >
             <option value="monthly">Monthly</option>
             <option value="course">By course</option>
+            <option value="full">Full (all history)</option>
           </select>
           {bulkScope === "course" && (
             <select
@@ -300,8 +359,10 @@ export function StaffReportsView() {
             setPage(0);
           }}
           style={inputStyle}
+          aria-label="Batch"
+          title="Batch (UG / PG)"
         >
-          <option value="">All programmes</option>
+          <option value="">All batches</option>
           <option value="UG">UG</option>
           <option value="PG">PG</option>
         </select>
@@ -408,6 +469,8 @@ function StudentReportsMenu({
   const [busy, setBusy] = useState(false);
   const [courses, setCourses] = useState<StudentCourse[] | null>(null);
   const [coursesError, setCoursesError] = useState<string | null>(null);
+  const [tests, setTests] = useState<PerformanceHistoryRow[] | null>(null);
+  const [testsError, setTestsError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close the menu on outside click.
@@ -436,6 +499,18 @@ function StudentReportsMenu({
       });
   }, [open, courses, studentId]);
 
+  // Lazily fetch the student's completed test history the first time the menu
+  // opens — used to render the per-test report download list.
+  useEffect(() => {
+    if (!open || tests !== null) return;
+    getStudentPerformanceHistory(studentId)
+      .then((resp) => setTests(resp.rows))
+      .catch((e) => {
+        setTests([]);
+        setTestsError(e instanceof Error ? e.message : "Failed to load tests.");
+      });
+  }, [open, tests, studentId]);
+
   async function handleCourseReport(courseId: string) {
     setBusy(true);
     try {
@@ -451,6 +526,21 @@ function StudentReportsMenu({
     }
   }
 
+  async function handleTestReport(quizId: string, quizTitle: string) {
+    setBusy(true);
+    try {
+      openPdf(await downloadStudentTestReportPdf(studentId, quizId));
+      onToast(`Test report opened: ${quizTitle}.`);
+      setOpen(false);
+    } catch (e) {
+      onToast(
+        e instanceof Error ? e.message : "Failed to download test report.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleMonthlyReport() {
     setBusy(true);
     try {
@@ -460,6 +550,22 @@ function StudentReportsMenu({
     } catch (e) {
       onToast(
         e instanceof Error ? e.message : "Failed to download monthly report.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleFullReport() {
+    setBusy(true);
+    try {
+      onToast(`Preparing full report for ${studentName}…`);
+      openPdf(await downloadStudentFullReportPdf(studentId));
+      onToast(`Full report opened for ${studentName}.`);
+      setOpen(false);
+    } catch (e) {
+      onToast(
+        e instanceof Error ? e.message : "Failed to download full report.",
       );
     } finally {
       setBusy(false);
@@ -506,6 +612,33 @@ function StudentReportsMenu({
 
           <div style={menuDivider} />
 
+          <p style={menuSectionLabel}>Test report</p>
+          {tests === null ? (
+            <p style={menuHint}>Loading tests…</p>
+          ) : tests.length === 0 ? (
+            <p style={menuHint}>
+              {testsError ?? "No completed tests yet."}
+            </p>
+          ) : (
+            tests.map((t) => (
+              <button
+                key={t.attempt_id}
+                type="button"
+                onClick={() => handleTestReport(t.quiz_id, t.quiz_title)}
+                disabled={busy}
+                style={menuItemStyle}
+              >
+                {t.quiz_title} ·{" "}
+                {new Date(t.submitted_at).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                })}
+              </button>
+            ))
+          )}
+
+          <div style={menuDivider} />
+
           <button
             type="button"
             onClick={handleMonthlyReport}
@@ -513,6 +646,14 @@ function StudentReportsMenu({
             style={{ ...menuItemStyle, fontWeight: 600 }}
           >
             Download monthly report
+          </button>
+          <button
+            type="button"
+            onClick={handleFullReport}
+            disabled={busy}
+            style={{ ...menuItemStyle, fontWeight: 600 }}
+          >
+            Download full report (all history)
           </button>
         </div>
       )}
