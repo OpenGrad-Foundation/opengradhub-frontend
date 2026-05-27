@@ -28,4 +28,12 @@ export const qk = {
 
   studentCourses: (studentId: string) =>
     ['og', 'student', studentId, 'courses'] as const,
+
+  managers: (role: string) => ['og', 'managers', role] as const,
+  assessmentsOverview: (params: Record<string, unknown>) =>
+    ['og', 'assessments', 'overview', params] as const,
+  reportHistory: (studentId: string) =>
+    ['og', 'report', studentId, 'history'] as const,
+  staffDoubts: (filters: Record<string, unknown>) =>
+    ['og', 'doubts', 'staff', filters] as const,
 };
