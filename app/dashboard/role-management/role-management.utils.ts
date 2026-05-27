@@ -31,16 +31,14 @@ export type PermissionCatalogue = {
 };
 
 export async function fetchCatalogue(): Promise<PermissionCatalogue> {
-  const res = await apiFetch(`${API_BASE}/permissions/catalogue`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/permissions/catalogue`);
   if (!res.ok) throw new Error("Failed to load permission catalogue.");
   return res.json() as Promise<PermissionCatalogue>;
 }
 
 /** Default permission codes granted to a role (the `role_permissions` rows). */
 export async function fetchRoleDefaults(roleCode: string): Promise<string[]> {
-  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
-    cache: "no-store",
-  });
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`);
   if (!res.ok) throw new Error("Failed to load role defaults.");
   return res.json() as Promise<string[]>;
 }
@@ -73,7 +71,7 @@ export async function patchRole(userId: string, role: string): Promise<void> {
 }
 
 export async function fetchOverrides(userId: string): Promise<Override[]> {
-  const res = await apiFetch(`${API_BASE}/users/${userId}/overrides`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/users/${userId}/overrides`);
   if (!res.ok) throw new Error("Failed to fetch overrides.");
   return res.json() as Promise<Override[]>;
 }
@@ -88,7 +86,7 @@ export type EffectivePermissions = {
 };
 
 export async function fetchEffectivePermissions(userId: string): Promise<EffectivePermissions> {
-  const res = await apiFetch(`${API_BASE}/users/${userId}/effective`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/users/${userId}/effective`);
   if (!res.ok) throw new Error("Failed to fetch effective permissions.");
   return res.json() as Promise<EffectivePermissions>;
 }

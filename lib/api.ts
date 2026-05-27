@@ -72,7 +72,6 @@ export async function fetchCurrentUser(token: string) {
     headers: {
       Authorization: `Bearer ${token}`,
     },
-    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -168,9 +167,7 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
  * Fetch a single user by ID (mock-friendly — no auth required).
  */
 export async function getMe(id: string): Promise<SafeUser> {
-  const response = await apiFetch(`${API_BASE_URL}/users/me?id=${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
+  const response = await apiFetch(`${API_BASE_URL}/users/me?id=${encodeURIComponent(id)}`);
 
   if (!response.ok) {
     const errorBody = (await response
@@ -548,9 +545,7 @@ export async function assignCourse(
  * Get all courses a student is enrolled in.
  */
 export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
-  const response = await apiFetch(`${API_BASE_URL}/users/${studentId}/enrolments`, {
-    cache: "no-store",
-  });
+  const response = await apiFetch(`${API_BASE_URL}/users/${studentId}/enrolments`);
   if (!response.ok) {
     throw new ApiError("Failed to fetch enrolments.", response.status);
   }
@@ -742,9 +737,7 @@ export async function getCourseOverview(courseId: string, studentId: string): Pr
  * Create a new course (DRAFT by default).
  */
 export async function getCourseById(id: string): Promise<Course> {
-  const response = await apiFetch(`${API_BASE_URL}/courses/${id}`, {
-    cache: "no-store",
-  });
+  const response = await apiFetch(`${API_BASE_URL}/courses/${id}`);
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to fetch course.", response.status);
@@ -1922,9 +1915,7 @@ export type SchoolOption = { id: string; name: string };
  * Backed by GET /schools (gated by user_management.create).
  */
 export async function fetchSchools(): Promise<SchoolOption[]> {
-  const response = await apiFetch(`${API_BASE_URL}/schools`, {
-    cache: "no-store",
-  });
+  const response = await apiFetch(`${API_BASE_URL}/schools`);
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch schools.", response.status);
@@ -2026,7 +2017,6 @@ export async function getManagers(
 ): Promise<ManagerOption[]> {
   const response = await apiFetch(
     `${API_BASE_URL}/users/managers?role=${encodeURIComponent(role)}`,
-    { cache: "no-store" },
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -2100,7 +2090,6 @@ export async function getAnnouncements(role?: string): Promise<Announcement[]> {
   const response = await apiFetch(url, {
     method: "GET",
     headers: { "Content-Type": "application/json" },
-    cache: "no-store",
   });
 
   if (!response.ok) {
