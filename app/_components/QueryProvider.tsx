@@ -1,8 +1,21 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { useState, type ReactNode, useEffect } from 'react';
+import { QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { makeQueryClient } from '../../lib/queries/query-client';
+import { bindQueryClientForLegacy } from '../../hooks/use-current-user';
+
+/**
+ * Binds the active QueryClient to the legacy `clearUserCache` helper so non-React
+ * call sites (sign-out / role-change flows) can invalidate the current-user query.
+ */
+function LegacyClientBinder({ children }: { children: ReactNode }) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    bindQueryClientForLegacy(qc);
+  }, [qc]);
+  return <>{children}</>;
+}
 
 /**
  * Layer 4 of caching strategy v2 — wraps the app in a QueryClientProvider.
@@ -13,5 +26,9 @@ import { makeQueryClient } from '../../lib/queries/query-client';
  */
 export function QueryProvider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => makeQueryClient());
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LegacyClientBinder>{children}</LegacyClientBinder>
+    </QueryClientProvider>
+  );
 }
