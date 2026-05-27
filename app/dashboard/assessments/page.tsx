@@ -9,14 +9,12 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
-  getAssessmentsOverview,
-  type AssessmentsOverview,
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
-  getQuestionStats,
   type QuizLeaderboard,
-  type QuestionStat,
 } from "@/lib/api";
+import { useAssessmentsOverview } from "@/lib/queries/assessments";
+import { useQuestionStats } from "@/lib/queries/quizzes";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -545,29 +543,17 @@ function MonitorView() {
   const page      = Number(params.get('page') ?? '1');
   const drawerId  = params.get('drawer');
 
-  const [data, setData]       = useState<AssessmentsOverview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getAssessmentsOverview({
-      type: type ?? undefined,
-      course_id: courseId || undefined,
-      bundle_id: bundleId || undefined,
-      from: from || undefined,
-      to:   to   || undefined,
-      q:    q    || undefined,
-      page,
-      size: 20,
-    })
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [type, courseId, bundleId, from, to, q, page]);
+  const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
+    type: type ?? undefined,
+    course_id: courseId || undefined,
+    bundle_id: bundleId || undefined,
+    from: from || undefined,
+    to:   to   || undefined,
+    q:    q    || undefined,
+    page,
+    size: 20,
+  });
+  const error = isError ? (queryError instanceof Error ? queryError.message : 'Failed to load.') : null;
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());
@@ -819,20 +805,10 @@ function DrawerLeaderboard({ quizId }: { quizId: string }) {
 }
 
 function DrawerQuestionStats({ quizId }: { quizId: string }) {
-  const [stats, setStats] = useState<QuestionStat[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: stats, isPending, isError, error: queryError } = useQuestionStats(quizId);
 
-  useEffect(() => {
-    let cancelled = false;
-    setStats(null); setError(null);
-    getQuestionStats(quizId)
-      .then((d) => { if (!cancelled) setStats(d); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); });
-    return () => { cancelled = true; };
-  }, [quizId]);
-
-  if (error) return <p style={{ color: '#c53030', fontSize: '13px' }}>{error}</p>;
-  if (stats === null) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (isError) return <p style={{ color: '#c53030', fontSize: '13px' }}>{queryError instanceof Error ? queryError.message : 'Failed to load.'}</p>;
+  if (isPending || stats === undefined) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
   if (stats.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempt data yet.</p>;
 
   // Sort weakest-first by correct ratio

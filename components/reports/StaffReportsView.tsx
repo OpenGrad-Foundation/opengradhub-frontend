@@ -11,7 +11,6 @@ import {
   downloadStudentMonthlyReportPdf,
   downloadStudentFullReportPdf,
   downloadStudentTestReportPdf,
-  getStudentPerformanceHistory,
   startBulkReport,
   getBulkReportStatus,
   downloadBulkReport,
@@ -21,6 +20,7 @@ import {
   type StudentReportPdf,
   type PerformanceHistoryRow,
 } from "@/lib/api";
+import { useReportHistory } from "@/lib/queries/reports";
 
 // ─── Fellow dashboard ─────────────────────────────────────────────────────────
 // Lists the students in the fellow's scope (the visible set is derived
@@ -472,8 +472,22 @@ function StudentReportsMenu({
   const [busy, setBusy] = useState(false);
   const [courses, setCourses] = useState<StudentCourse[] | null>(null);
   const [coursesError, setCoursesError] = useState<string | null>(null);
-  const [tests, setTests] = useState<PerformanceHistoryRow[] | null>(null);
-  const [testsError, setTestsError] = useState<string | null>(null);
+
+  // Completed-test history for the per-test report list. Deferred until the menu
+  // opens (the dropdown is rendered once per student row, so eager fetching
+  // would fan out across the whole page). `tests`/`testsError` keep the same
+  // null = loading semantics the render below already relies on.
+  const {
+    data: testsData,
+    isError: testsIsError,
+    error: testsErrorObj,
+  } = useReportHistory(studentId, open);
+  const tests: PerformanceHistoryRow[] | null = testsData?.rows ?? null;
+  const testsError = testsIsError
+    ? testsErrorObj instanceof Error
+      ? testsErrorObj.message
+      : "Failed to load tests."
+    : null;
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -533,18 +547,6 @@ function StudentReportsMenu({
         );
       });
   }, [open, courses, studentId]);
-
-  // Lazily fetch the student's completed test history the first time the menu
-  // opens — used to render the per-test report download list.
-  useEffect(() => {
-    if (!open || tests !== null) return;
-    getStudentPerformanceHistory(studentId)
-      .then((resp) => setTests(resp.rows))
-      .catch((e) => {
-        setTests([]);
-        setTestsError(e instanceof Error ? e.message : "Failed to load tests.");
-      });
-  }, [open, tests, studentId]);
 
   async function handleCourseReport(courseId: string) {
     setBusy(true);
@@ -675,12 +677,12 @@ function StudentReportsMenu({
           <div style={menuDivider} />
 
           <p style={menuSectionLabel}>Test report</p>
-          {tests === null ? (
+          {testsError ? (
+            <p style={menuHint}>{testsError}</p>
+          ) : tests === null ? (
             <p style={menuHint}>Loading tests…</p>
           ) : tests.length === 0 ? (
-            <p style={menuHint}>
-              {testsError ?? "No completed tests yet."}
-            </p>
+            <p style={menuHint}>No completed tests yet.</p>
           ) : (
             tests.map((t) => (
               <button
