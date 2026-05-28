@@ -1,42 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAssignments, type Assignment } from "@/lib/api";
+import { type Assignment } from "@/lib/api";
+import { useAssignments } from "@/lib/queries/assignments";
 
 export default function AssignmentsPage() {
-  const { data, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const userId   = data?.user?.id ?? "";
-
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
 
   // "Manager view" = can grade submissions. Creating is a separate permission.
   const canGrade  = has(PERM.assignments.grade);
   const canCreate = has(PERM.assignments.create);
   const isManager = canGrade;
 
-  const fetchAssignments = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setAssignments(await getAssignments());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assignments.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (!isLoading && userId) void fetchAssignments();
-  }, [isLoading, userId, fetchAssignments]);
+  const { data: assignments = [], isPending, error: queryError } = useAssignments();
+  const loading = isPending;
+  const error = queryError ? (queryError as Error).message : null;
 
   if (isLoading) return <LoadingState />;
 
