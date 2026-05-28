@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getQuestionStats, getAvailableQuizzes, getQuizAttempts } from '../api';
+import { getQuestionStats, getAvailableQuizzes, getQuizAttempts, getMyQuizAttempts } from '../api';
 import { qk } from './keys';
 import { makeIdbPersister } from './persister';
 
@@ -32,6 +32,19 @@ export function useQuizAttempts(quizId: string, studentId?: string) {
     queryKey: qk.quizAttempts(quizId, studentId),
     queryFn: () => getQuizAttempts(quizId, studentId),
     enabled: !!quizId,
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Layer 4 — Tier 2 batch: all of the student's attempts across every quiz in
+ * one request. Consumers group by quiz_id locally. Replaces per-quiz fetch
+ * loops on reports/assessments. Memory-only, 1 min staleTime.
+ */
+export function useMyQuizAttempts(studentId?: string) {
+  return useQuery({
+    queryKey: qk.myQuizAttempts(studentId),
+    queryFn: () => getMyQuizAttempts(studentId),
     staleTime: 60_000,
   });
 }

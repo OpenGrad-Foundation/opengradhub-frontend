@@ -7,7 +7,7 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
@@ -54,19 +54,14 @@ export default function AssessmentsPage() {
       .then(async ([globalQs, moduleQs]) => {
         setQuizzes(globalQs);
         setModuleQuizzes(moduleQs);
-        // Fetch completed attempts for all quizzes in parallel
+        // One batch attempts call instead of one-per-quiz, grouped by quiz_id.
         const allQs = [...globalQs, ...moduleQs];
         const byQuiz: Record<string, QuizAttempt[]> = {};
-        await Promise.all(
-          allQs.map(async (q) => {
-            try {
-              const attempts = await getQuizAttempts(q.id);
-              byQuiz[q.id] = attempts.filter((a) => a.is_complete);
-            } catch {
-              byQuiz[q.id] = [];
-            }
-          }),
-        );
+        for (const q of allQs) byQuiz[q.id] = [];
+        const myAttempts = await getMyQuizAttempts(studentId).catch(() => [] as QuizAttempt[]);
+        for (const a of myAttempts) {
+          if (a.is_complete && byQuiz[a.quiz_id] !== undefined) byQuiz[a.quiz_id].push(a);
+        }
         setAttemptsByQuiz(byQuiz);
         getTopicStrength(studentId).then(setTopicStrength).catch(() => {});
         getStudentEnrolments(studentId).then((courses) => {

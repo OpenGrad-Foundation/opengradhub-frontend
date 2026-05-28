@@ -1576,6 +1576,19 @@ export async function getQuizAttempts(quizId: string, studentId?: string): Promi
   return (await r.json()) as QuizAttempt[];
 }
 
+/**
+ * Batch: all attempts for the resolved student across every quiz, in one
+ * request. Omits quiz_id so the backend returns the full list; callers group
+ * by quiz_id locally. Replaces the per-quiz fetch loop on reports/assessments.
+ */
+export async function getMyQuizAttempts(studentId?: string): Promise<QuizAttempt[]> {
+  const url = new URL(`${API_BASE_URL}/quiz-attempts`);
+  if (studentId) url.searchParams.set("student_id", studentId);
+  const r = await apiFetch(url.toString());
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  return (await r.json()) as QuizAttempt[];
+}
+
 export type QuizAttemptQuestion = {
   snapshot_id: string;
   section_id?: string | null;
