@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getLiveClasses, joinLiveClass, type LiveClass } from "@/lib/api";
+import { joinLiveClass, type LiveClass } from "@/lib/api";
+import { useLiveClasses } from "@/lib/queries/live-classes";
 
 export default function LiveClassesPage() {
   const { data, isLoading } = useCurrentUser();
@@ -16,11 +17,11 @@ export default function LiveClassesPage() {
   const canJoin   = has(PERM.live_classes.join);
   const isManager = canCreate;
 
-  const [classes,  setClasses]  = useState<LiveClass[]>([]);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
   const [joining,  setJoining]  = useState<string | null>(null);
   const [now,      setNow]      = useState(0);
+
+  const { data: classes = [], isPending: loading, error: queryError } = useLiveClasses();
+  const error = queryError ? (queryError as Error).message : null;
 
   // Tick every minute so the "Join Now" button state refreshes
   useEffect(() => {
@@ -28,21 +29,6 @@ export default function LiveClassesPage() {
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
-
-  const fetch = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setClasses(await getLiveClasses());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => { if (!isLoading && userId) void fetch(); }, [isLoading, userId, fetch]);
 
   async function handleJoin(cls: LiveClass) {
     setJoining(cls.id);
