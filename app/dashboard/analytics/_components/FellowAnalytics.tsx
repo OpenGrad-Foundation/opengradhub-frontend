@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getFellowAnalytics, type FellowSchoolCard } from "@/lib/api";
+import { useState } from "react";
+import { type FellowSchoolCard } from "@/lib/api";
+import { useFellowAnalytics } from "@/lib/queries/analytics";
 import SchoolDetail from "./SchoolDetail";
 
 const BRAND = {
@@ -14,18 +15,9 @@ const BRAND = {
 };
 
 export default function FellowAnalytics() {
-  const [schools, setSchools] = useState<FellowSchoolCard[]>([]);
   const [selectedSchoolId, setSelectedSchoolId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    getFellowAnalytics()
-      .then(setSchools)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: schools = [], isPending: loading, error: queryError } = useFellowAnalytics();
+  const error = queryError ? (queryError as Error).message : null;
 
   if (selectedSchoolId) {
     return (

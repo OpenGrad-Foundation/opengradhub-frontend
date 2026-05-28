@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useAdminAnalytics } from "@/lib/queries/analytics";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -11,7 +11,6 @@ import {
   Legend,
 } from "chart.js";
 import { Bar, Doughnut } from "react-chartjs-2";
-import { getAdminAnalytics, type AdminStats } from "@/lib/api";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -36,17 +35,8 @@ const card: React.CSSProperties = {
 type Props = { programmeFilter: string };
 
 export default function AdminAnalytics({ programmeFilter }: Props) {
-  const [stats, setStats] = useState<AdminStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    getAdminAnalytics()
-      .then(setStats)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
-      .finally(() => setLoading(false));
-  }, []);
+  const { data: stats, isPending: loading, error: queryError } = useAdminAnalytics();
+  const error = queryError ? (queryError as Error).message : null;
 
   if (loading) return <Spinner />;
   if (error) return <Err msg={error} />;

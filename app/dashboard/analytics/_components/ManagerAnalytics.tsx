@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -11,11 +11,11 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import {
-  getManagerAnalytics,
   type ManagerCourseRow,
   type ManagerStudentRow,
   type QuizDistributionRow,
 } from "@/lib/api";
+import { useManagerAnalytics } from "@/lib/queries/analytics";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
@@ -56,36 +56,25 @@ const td: React.CSSProperties = {
 };
 
 export default function ManagerAnalytics() {
-  const [courses, setCourses] = useState<ManagerCourseRow[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<ManagerCourseRow | null>(null);
-  const [students, setStudents] = useState<ManagerStudentRow[]>([]);
-  const [quizDist, setQuizDist] = useState<QuizDistributionRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [drillLoading, setDrillLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setLoading(true);
-    getManagerAnalytics()
-      .then((data) => {
-        if (data.view === "courses") setCourses(data.courses);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
-      .finally(() => setLoading(false));
-  }, []);
+  const coursesQuery = useManagerAnalytics();
+  const drillQuery = useManagerAnalytics(selectedCourse?.id);
+
+  const courses: ManagerCourseRow[] =
+    coursesQuery.data?.view === "courses" ? coursesQuery.data.courses : [];
+  const students: ManagerStudentRow[] =
+    drillQuery.data?.view === "students" ? drillQuery.data.students : [];
+  const quizDist: QuizDistributionRow[] =
+    drillQuery.data?.view === "students" ? drillQuery.data.quiz_distribution : [];
+
+  const loading = coursesQuery.isPending;
+  const drillLoading = !!selectedCourse && drillQuery.isPending;
+  const queryError = coursesQuery.error ?? drillQuery.error;
+  const error = queryError ? (queryError as Error).message : null;
 
   function handleCourseClick(course: ManagerCourseRow) {
     setSelectedCourse(course);
-    setDrillLoading(true);
-    getManagerAnalytics(course.id)
-      .then((data) => {
-        if (data.view === "students") {
-          setStudents(data.students);
-          setQuizDist(data.quiz_distribution);
-        }
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load drill-down."))
-      .finally(() => setDrillLoading(false));
   }
 
   if (loading) return <Spinner />;
