@@ -19,12 +19,12 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
   getCoursesPage,
-  getStudentCourses,
   type Course,
   type CourseListParams,
   type PaginatedCoursesResponse,
   type StudentCourse,
 } from "@/lib/api";
+import { useStudentCourses } from "@/lib/queries/students";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 const GRID_PAGE_SIZE = 6;
@@ -40,7 +40,6 @@ export default function CoursesPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
 
-  const [studentCourses, setStudentCourses] = useState<StudentCourse[]>([]);
   const [coursePage, setCoursePage] = useState<PaginatedCoursesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +63,13 @@ export default function CoursesPage() {
   const isStudent = roleCode === "STUDENT";
   const supportsFullStatusFilter = canManage;
   const pageSize = viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
+
+  const {
+    data: studentCourseData,
+    isLoading: studentCoursesLoading,
+    error: studentCoursesError,
+  } = useStudentCourses(isStudent && userId ? userId : "");
+  const studentCourses = useMemo(() => studentCourseData ?? [], [studentCourseData]);
 
   const handleSearchChange = (value: string) => {
     setSearchInput(value);
@@ -96,19 +102,12 @@ export default function CoursesPage() {
   };
 
   const fetchCourses = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || isStudent) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      if (isStudent) {
-        const enrolled = await getStudentCourses(userId);
-        setStudentCourses(enrolled);
-        setCoursePage(null);
-        return;
-      }
-
       const params: CourseListParams = {
         programmeType: programmeFilter === "ALL" ? undefined : programmeFilter,
         createdBy: roleCode === "PROGRAM_MANAGER" ? userId : undefined,
@@ -129,7 +128,6 @@ export default function CoursesPage() {
       if (response.page !== page) {
         setPage(response.page);
       }
-      setStudentCourses([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load courses.");
     } finally {
@@ -199,7 +197,13 @@ export default function CoursesPage() {
     setPage(1);
   };
 
-  if (userLoading || (loading && !isStudent && !coursePage) || (loading && isStudent && studentCourses.length === 0)) {
+  const pageError = isStudent
+    ? studentCoursesError instanceof Error
+      ? studentCoursesError.message
+      : null
+    : error;
+
+  if (userLoading || (!isStudent && loading && !coursePage) || (isStudent && studentCoursesLoading)) {
     return (
       <PageShell>
         <LoadingState message="Loading your course workspace..." />
@@ -357,9 +361,9 @@ export default function CoursesPage() {
         </div>
       </section>
 
-      {error ? (
+      {pageError ? (
         <section className="mt-6">
-          <StateCard eyebrow="Error" title={error} description="Try refreshing or adjusting the filters." />
+          <StateCard eyebrow="Error" title={pageError} description="Try refreshing or adjusting the filters." />
         </section>
       ) : isStudent ? (
         <StudentCoursesSection courses={visibleStudentCourses} searchTerm={deferredSearch.trim()} />

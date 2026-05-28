@@ -239,6 +239,9 @@ export default function QuizTakingPage() {
   const timingsRef         = useRef<TimingMap>({});
   const enterTimesRef      = useRef<TimingMap>({});
   const submittingRef      = useRef(false);
+  // Holds the retry closure for the last failed submit/advance. Null for
+  // non-submit errors so the error screen only offers retry when it makes sense.
+  const retrySubmitRef     = useRef<(() => void) | null>(null);
   const handleSubmitRef    = useRef<() => Promise<void>>(async () => {});
   const hasLoadedRef       = useRef(false);
   const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
@@ -431,6 +434,7 @@ export default function QuizTakingPage() {
   }, [userLoading, userData, quizId]);
 
   async function handleStart() {
+    retrySubmitRef.current = null;
     try {
       if (quiz?.require_fullscreen) {
         try {
@@ -477,6 +481,7 @@ export default function QuizTakingPage() {
 
   async function handleSubmit() {
     if (!attempt) return;
+    retrySubmitRef.current = null;
     submittingRef.current = true;
     setSubmitting(true);
     setPhase("submitting");
@@ -500,6 +505,19 @@ export default function QuizTakingPage() {
         student_answer: answers[snapshot_id] ?? null,
         time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
       }));
+      // Persist the exact submit payload before the POST so a crash mid-submit
+      // can be replayed on next launch without rebuilding from in-memory state.
+      await saveDraft({
+        attempt_id: attempt.attempt_id,
+        answers,
+        flagged: Array.from(flagged),
+        current_idx: currentIdx,
+        updated_at: Date.now(),
+        submit_pending_at: Date.now(),
+        quiz_id: quizId,
+        submit_payload: answerList,
+        submit_kind: 'full',
+      }).catch(() => {});
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
       // Draft cleanup is best-effort — a failure here must not error a successful submit.
       void clearDraft(attempt.attempt_id).catch(() => {});
@@ -520,6 +538,7 @@ export default function QuizTakingPage() {
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
+      retrySubmitRef.current = () => { void handleSubmit(); };
       setPhase("error");
     } finally {
       setSubmitting(false);
@@ -565,6 +584,7 @@ export default function QuizTakingPage() {
 
     async function doAdvance() {
       if (!attempt) return;
+      retrySubmitRef.current = null;
       setAdvancingSection(true);
       try {
         // Flush the in-progress question's timing so the last question on the page
@@ -590,7 +610,21 @@ export default function QuizTakingPage() {
           time_taken_seconds: timingsRef.current[sid] ?? null,
         }));
         const isFinalSection = currentSectionIdx != null && currentSectionIdx >= sections.length - 1;
-        if (isFinalSection) setPhase("submitting");
+        if (isFinalSection) {
+          setPhase("submitting");
+          // Final-section advance IS the submit — persist its payload for crash replay.
+          await saveDraft({
+            attempt_id: attempt.attempt_id,
+            answers,
+            flagged: Array.from(flagged),
+            current_idx: currentIdx,
+            updated_at: Date.now(),
+            submit_pending_at: Date.now(),
+            quiz_id: quizId,
+            submit_payload: answerList,
+            submit_kind: 'section',
+          }).catch(() => {});
+        }
         const res = await advanceQuizSection(attempt.attempt_id, answerList);
         if (res.type === "next") {
           if (isFinalSection) setPhase("taking"); // recover: server returned next unexpectedly
@@ -622,6 +656,7 @@ export default function QuizTakingPage() {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to advance section.");
+        retrySubmitRef.current = () => { void doAdvance(); };
         setPhase("error");
       } finally {
         setAdvancingSection(false);
@@ -658,7 +693,20 @@ export default function QuizTakingPage() {
         <div style={card}>
           <p style={{ ...heading, color: "#e53e3e" }}>Error</p>
           <p style={subtext}>{error}</p>
-          <button onClick={() => router.back()} style={primaryBtn}>Go back</button>
+          {retrySubmitRef.current && (
+            <button
+              onClick={() => { const fn = retrySubmitRef.current; if (fn) fn(); }}
+              style={primaryBtn}
+            >
+              Retry Submit
+            </button>
+          )}
+          <button
+            onClick={() => router.back()}
+            style={retrySubmitRef.current ? secondaryBtn : primaryBtn}
+          >
+            Go back
+          </button>
         </div>
       </div>
     );
