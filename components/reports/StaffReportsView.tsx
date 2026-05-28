@@ -7,7 +7,6 @@ import {
   getAnalyticsStudentsPaged,
   getStudentCourses,
   downloadStudentCourseReportPdf,
-  downloadStudentComprehensiveReportPdf,
   downloadStudentMonthlyReportPdf,
   downloadStudentFullReportPdf,
   downloadStudentTestReportPdf,
@@ -84,7 +83,7 @@ export function StaffReportsView() {
   const [state, setState] = useState("");
   const [year, setYear] = useState("");
   const yearOptions = buildYearOptions();
-  const [bulkScope, setBulkScope] = useState<"monthly" | "course" | "full" | "comprehensive">("monthly");
+  const [bulkScope, setBulkScope] = useState<"monthly" | "course" | "full">("monthly");
   const [bulkCourseId, setBulkCourseId] = useState("");
   const [bulkCourses, setBulkCourses] = useState<StudentCourse[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -236,7 +235,7 @@ export function StaffReportsView() {
           Student Reports
         </h1>
         <p style={{ ...subtitleStyle, marginTop: "6px" }}>
-          Download per-student course, monthly, full, and comprehensive report PDFs.
+          Download per-student course, monthly, and full report PDFs.
         </p>
       </div>
 
@@ -302,13 +301,12 @@ export function StaffReportsView() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
           <select
             value={bulkScope}
-            onChange={(e) => setBulkScope(e.target.value as "monthly" | "course" | "full" | "comprehensive")}
+            onChange={(e) => setBulkScope(e.target.value as "monthly" | "course" | "full")}
             style={inputStyle}
           >
             <option value="monthly">Monthly</option>
             <option value="course">By course</option>
             <option value="full">Full report</option>
-            <option value="comprehensive">Comprehensive report</option>
           </select>
           {bulkScope === "course" && (
             <select
@@ -609,22 +607,6 @@ function StudentReportsMenu({
     }
   }
 
-  async function handleComprehensiveReport() {
-    setBusy(true);
-    try {
-      onToast(`Preparing comprehensive report for ${studentName}…`);
-      openPdf(await downloadStudentComprehensiveReportPdf(studentId));
-      onToast(`Comprehensive report opened for ${studentName}.`);
-      setOpen(false);
-    } catch (e) {
-      onToast(
-        e instanceof Error ? e.message : "Failed to download comprehensive report.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div ref={menuRef} style={{ position: "relative", display: "inline-block" }}>
       <button
@@ -650,6 +632,8 @@ function StudentReportsMenu({
             position: "fixed",
             top: panelPos.top,
             right: panelPos.right,
+            maxHeight: `calc(100vh - ${panelPos.top + 16}px)`,
+            overflowY: "auto",
             zIndex: 1000,
           }}
         >
@@ -718,14 +702,6 @@ function StudentReportsMenu({
             style={{ ...menuItemStyle, fontWeight: 600 }}
           >
             Download full report
-          </button>
-          <button
-            type="button"
-            onClick={handleComprehensiveReport}
-            disabled={busy}
-            style={{ ...menuItemStyle, fontWeight: 600 }}
-          >
-            Download comprehensive report
           </button>
         </div>,
         document.body,
