@@ -77,9 +77,17 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
   }
 
   async function handleMarkAll() {
-    await markAllNotificationsRead(recipientId).catch(() => {});
+    // Optimistic: clear the badge and flip the list immediately, then confirm
+    // with the server. Restore on failure.
+    const snapshot = items;
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
     setCount(0);
+    try {
+      await markAllNotificationsRead(recipientId);
+    } catch {
+      setItems(snapshot);
+      setCount(snapshot.filter(n => !n.is_read).length);
+    }
   }
 
   return (
