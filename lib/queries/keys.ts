@@ -37,10 +37,8 @@ export const qk = {
   staffDoubts: (filters: Record<string, unknown>) =>
     ['og', 'doubts', 'staff', filters] as const,
 
-  adminAnalytics: () => ['og', 'analytics', 'admin'] as const,
-  managerAnalytics: (courseId?: string) =>
-    ['og', 'analytics', 'manager', courseId ?? 'all'] as const,
-  fellowAnalytics: () => ['og', 'analytics', 'fellow'] as const,
+  managerAnalytics: (courseId: string) =>
+    ['og', 'analytics', 'manager', courseId] as const,
   analyticsSchools: () => ['og', 'analytics', 'schools'] as const,
   analyticsStudents: (filters: Record<string, unknown>) =>
     ['og', 'analytics', 'students', filters] as const,

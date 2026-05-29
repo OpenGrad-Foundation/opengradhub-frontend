@@ -331,25 +331,6 @@ export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilt
 
 // ── Analytics Dashboard API ───────────────────────────────────
 
-export type AdminStats = {
-  total_active_users: number;
-  active_courses: number;
-  avg_completion_rate: number;
-  pending_approvals: number;
-  top_districts: { district: string; count: number }[];
-  programme_distribution: { programme: string; count: number }[];
-};
-
-export type ManagerCourseRow = {
-  id: string;
-  title: string;
-  status: string;
-  programme_type: string;
-  enrolment_count: number;
-  avg_completion: number;
-  avg_quiz_score: number;
-};
-
 export type ManagerStudentRow = {
   id: string;
   name: string;
@@ -365,16 +346,6 @@ export type QuizDistributionRow = {
   buckets: { label: string; count: number }[];
 };
 
-export type FellowSchoolCard = {
-  id: string;
-  name: string;
-  district: string | null;
-  state: string | null;
-  enrolled_students: number;
-  avg_completion: number;
-  badge: "ACTIVE" | "NEEDS_ATTENTION";
-};
-
 export type SchoolDetail = {
   school_id: string;
   school_name: string;
@@ -386,33 +357,21 @@ export type SchoolDetail = {
   score_distribution: { label: string; count: number }[];
 };
 
-export async function getAdminAnalytics(): Promise<AdminStats> {
-  const res = await apiFetch(`${API_BASE_URL}/analytics/admin`);
-  if (!res.ok) throw new ApiError("Failed to fetch admin analytics.", res.status);
-  return (await res.json()) as AdminStats;
-}
-
 export async function getManagerAnalytics(
-  courseId?: string,
-): Promise<
-  | { view: "courses"; courses: ManagerCourseRow[] }
-  | { view: "students"; students: ManagerStudentRow[]; quiz_distribution: QuizDistributionRow[] }
-> {
-  const url = courseId
-    ? `${API_BASE_URL}/analytics/manager?course_id=${encodeURIComponent(courseId)}`
-    : `${API_BASE_URL}/analytics/manager`;
+  courseId: string,
+): Promise<{
+  view: "students";
+  students: ManagerStudentRow[];
+  quiz_distribution: QuizDistributionRow[];
+}> {
+  const url = `${API_BASE_URL}/analytics/manager?course_id=${encodeURIComponent(courseId)}`;
   const res = await apiFetch(url);
   if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res.status);
-  return res.json() as Promise<
-    | { view: "courses"; courses: ManagerCourseRow[] }
-    | { view: "students"; students: ManagerStudentRow[]; quiz_distribution: QuizDistributionRow[] }
-  >;
-}
-
-export async function getFellowAnalytics(): Promise<FellowSchoolCard[]> {
-  const res = await apiFetch(`${API_BASE_URL}/analytics/fellow`);
-  if (!res.ok) throw new ApiError("Failed to fetch fellow analytics.", res.status);
-  return (await res.json()) as FellowSchoolCard[];
+  return res.json() as Promise<{
+    view: "students";
+    students: ManagerStudentRow[];
+    quiz_distribution: QuizDistributionRow[];
+  }>;
 }
 
 // ── Programme Insights ─────────────────────────────────────────────────────
