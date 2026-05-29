@@ -27,6 +27,9 @@ export default function NewQuizPage() {
   const [sequentialSections, setSequentialSections] = useState(false);
   const [firstAttemptCounts, setFirstAttemptCounts] = useState(false);
   const [requireFullscreen, setRequireFullscreen]   = useState(false);
+  const [negativeMarking, setNegativeMarking]       = useState(false);
+  const [correctMarks, setCorrectMarks]             = useState("1");
+  const [wrongMarks, setWrongMarks]                 = useState("0");
   const [submitting, setSubmitting]         = useState(false);
   const [error, setError]                   = useState<string | null>(null);
 
@@ -64,6 +67,9 @@ export default function NewQuizPage() {
         sequential_sections:    isSectioned ? sequentialSections : false,
         first_attempt_counts:   firstAttemptCounts,
         require_fullscreen:     requireFullscreen,
+        negative_marking:       negativeMarking,
+        correct_marks:          correctMarks ? Number(correctMarks) : 1,
+        wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
       });
       // Redirect to the full builder with course context preserved
       const target = `/dashboard/quiz-builder/${quiz.id}${courseId ? `?course_id=${courseId}` : ""}`;
@@ -116,6 +122,17 @@ export default function NewQuizPage() {
             )}
             <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts" description="Subsequent retakes allowed but don't change the grade." />
             <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt" description="Desktop only — students on mobile blocked from starting." />
+            <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking" description="Deduct marks for wrong answers; blanks are never penalized." />
+            {negativeMarking && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <Field label="Marks per correct answer">
+                  <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={input} placeholder="4" />
+                </Field>
+                <Field label="Penalty per wrong answer">
+                  <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={input} placeholder="1" />
+                </Field>
+              </div>
+            )}
           </div>
 
           {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
