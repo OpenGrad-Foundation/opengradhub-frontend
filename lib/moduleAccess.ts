@@ -35,7 +35,8 @@ export type ModuleKey =
   | "student_export"
   | "user_management"
   | "role_management"
-  | "bulk_assign";
+  | "bulk_assign"
+  | "schools";
 
 export type ModuleMeta = { label: string; href: string };
 
@@ -57,4 +58,5 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
   bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
+  schools:          { label: "Schools",         href: "/dashboard/schools" },
 };

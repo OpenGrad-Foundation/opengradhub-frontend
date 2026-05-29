@@ -1970,7 +1970,15 @@ export async function createResource(payload: {
 
 // ── User Management API ────────────────────────────────────────
 
-export type SchoolOption = { id: string; name: string; state: string | null; district: string | null };
+export type SchoolOption = {
+  id: string;
+  name: string;
+  state: string | null;
+  district: string | null;
+  code: string | null;
+  fellow_id: string | null;
+  fellow_name: string | null;
+};
 
 /**
  * Fetch all schools (id + name) for user-creation pickers.
@@ -1984,6 +1992,85 @@ export async function fetchSchools(): Promise<SchoolOption[]> {
   }
 
   return (await response.json()) as SchoolOption[];
+}
+
+/** Create a single school. */
+export async function createSchool(payload: {
+  name: string;
+  district?: string;
+  state?: string;
+  code?: string;
+}): Promise<SchoolOption> {
+  const response = await apiFetch(`${API_BASE_URL}/schools`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to create school.", response.status);
+  }
+  return (await response.json()) as SchoolOption;
+}
+
+/** Update a single school. */
+export async function updateSchool(
+  id: string,
+  payload: { name?: string; district?: string; state?: string; code?: string },
+): Promise<SchoolOption> {
+  const response = await apiFetch(`${API_BASE_URL}/schools/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to update school.", response.status);
+  }
+  return (await response.json()) as SchoolOption;
+}
+
+/** Bulk-upload schools from a CSV file. */
+export async function bulkUploadSchools(
+  file: File,
+): Promise<{ created: number; skipped: number; errors: string[] }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to upload schools.", response.status);
+  }
+  return (await response.json()) as { created: number; skipped: number; errors: string[] };
+}
+
+/** Download URL for the bulk school upload CSV template. */
+export function getSchoolTemplateUrl(): string {
+  return `${API_BASE_URL}/schools/template`;
+}
+
+/** Set (or clear) the single fellow assigned to a school. */
+export async function setSchoolFellow(
+  schoolId: string,
+  fellowId: string | null,
+): Promise<SchoolOption> {
+  const response = await apiFetch(`${API_BASE_URL}/schools/${schoolId}/fellow`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fellow_id: fellowId }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to update fellow.", response.status);
+  }
+  return (await response.json()) as SchoolOption;
 }
 
 /**

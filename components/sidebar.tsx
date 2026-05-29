@@ -23,6 +23,7 @@ import {
   Users,
   Shield,
   UserPlus,
+  School,
   LogOut,
   X,
   ChevronUp,
@@ -58,6 +59,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   user_management: Users,
   role_management: Shield,
   bulk_assign:     UserPlus,
+  schools:         School,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────
