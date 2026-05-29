@@ -119,3 +119,66 @@ export async function deleteOverride(userId: string, permissionId: string): Prom
   });
   if (!res.ok) throw new Error("Failed to delete override.");
 }
+
+// ── Role-level management (defaults editing + CRUD) ───────────────────────────
+
+/** Role codes seeded by migrations — not deletable. */
+export const BUILTIN_ROLES = [
+  "SUPER_ADMIN",
+  "PROGRAM_MANAGER",
+  "ZONAL_MANAGER",
+  "FELLOW",
+  "STUDENT",
+  "GOVERNMENT",
+  "FUNDING_PARTNER",
+] as const;
+
+export async function fetchRoles(): Promise<Array<{ code: string; name: string }>> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles`);
+  if (!res.ok) throw new Error("Failed to load roles.");
+  return res.json() as Promise<Array<{ code: string; name: string }>>;
+}
+
+/** Replace a role's default permission set with exactly `permissions`. */
+export async function putRoleDefaults(
+  roleCode: string,
+  permissions: string[],
+): Promise<string[]> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permissions }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to update role permissions.");
+  }
+  return res.json() as Promise<string[]>;
+}
+
+export async function createRole(input: {
+  code: string;
+  name: string;
+  permissions?: string[];
+}): Promise<{ code: string; name: string }> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to create role.");
+  }
+  return res.json() as Promise<{ code: string; name: string }>;
+}
+
+export async function deleteRole(roleCode: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to delete role.");
+  }
+}
