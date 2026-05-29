@@ -106,6 +106,7 @@ export const PERM = {
     view: "role_management.view",
     assign_role: "role_management.assign_role",
     manage_overrides: "role_management.manage_overrides",
+    manage_roles: "role_management.manage_roles",
   },
   notifications: {
     view: "notifications.view",
