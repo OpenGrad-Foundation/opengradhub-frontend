@@ -337,17 +337,37 @@ function QuizRow({
 // ── Shared sub-components ────────────────────────────────────────────────────
 
 function PageHeader() {
+  const { has } = usePermissions();
+  const router = useRouter();
   return (
     <div style={{ ...glassCard, marginBottom: "28px" }}>
-      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
-        Assessments
-      </p>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
-        Assessments
-      </h1>
-      <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-        Module tests from your courses and programme-wide mock tests.
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
+            Assessments
+          </p>
+          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
+            Assessments
+          </h1>
+          <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
+            Module tests from your courses and programme-wide mock tests.
+          </p>
+        </div>
+        {has(PERM.test_bank.create) && (
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/quiz-builder/new")}
+            style={{
+              flexShrink: 0, padding: "10px 18px", border: "none", borderRadius: "12px",
+              background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+              color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+              cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap",
+            }}
+          >
+            + Create Program Test
+          </button>
+        )}
+      </div>
     </div>
   );
 }
