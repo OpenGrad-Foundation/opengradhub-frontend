@@ -42,7 +42,7 @@ export type ModuleMeta = { label: string; href: string };
 export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   dashboard:        { label: "Dashboard",       href: "/dashboard" },
   courses:          { label: "Courses",         href: "/dashboard/courses" },
-  bundles:          { label: "Course Bundles",  href: "/dashboard/bundles" },
+  bundles:          { label: "Bundles",         href: "/dashboard/bundles" },
   assessments:      { label: "Assessments",     href: "/dashboard/assessments" },
   test_bank:        { label: "Question Bank",    href: "/dashboard/test-bank" },
   assignments:      { label: "Assignments",     href: "/dashboard/assignments" },
