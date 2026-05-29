@@ -1,90 +1,132 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import { getUsers, type SafeUser } from "@/lib/api";
-import { UserPermissionPanel } from "@/app/dashboard/_components/UserPermissionPanel";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import {
+  fetchRoles,
+  createRole,
+  BUILTIN_ROLES,
+} from "@/app/dashboard/role-management/role-management.utils";
+import { RolePermissionPanel } from "@/app/dashboard/_components/RolePermissionPanel";
 
-// Access to this page (`role_management.view`) is enforced by the backend and
-// the dashboard route guard — no role check here.
+type Role = { code: string; name: string };
+
 export default function RoleManagementPage() {
-  const { data, isLoading: userLoading } = useCurrentUser();
-  const callerId = data?.user?.id ?? "";
+  const { has } = usePermissions();
+  const canManage = has(PERM.role_management.manage_roles);
 
-  const [users, setUsers] = useState<SafeUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
-  const [search, setSearch] = useState("");
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Role | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [createErr, setCreateErr] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
-    try { setUsers(await getUsers()); }
-    catch { setUsers([]); }
-    finally { setUsersLoading(false); }
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setRoles(await fetchRoles()); }
+    catch { setRoles([]); }
+    finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { if (!userLoading) void loadUsers(); }, [userLoading, loadUsers]);
+  useEffect(() => { void load(); }, [load]);
 
-  if (userLoading) return <LoadingState />;
-
-  const filteredUsers = users.filter((u) =>
-    u.name.toLowerCase().includes(search.toLowerCase()) ||
-    (u.email ?? "").toLowerCase().includes(search.toLowerCase()),
-  );
+  async function handleCreate() {
+    setCreating(true);
+    setCreateErr(null);
+    try {
+      const created = await createRole({ code: newCode.trim().toUpperCase(), name: newName.trim() });
+      setAdding(false);
+      setNewCode("");
+      setNewName("");
+      await load();
+      setSelected(created);
+    } catch (e) {
+      setCreateErr(e instanceof Error ? e.message : "Failed to create role.");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      {/* ── Header ────────────────────────────────────────── */}
       <div style={{ marginBottom: "32px" }}>
         <p style={labelStyle}>Administration</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
         <p style={{ ...subtitleStyle, marginTop: "6px" }}>
-          Select a user to manage their role and permission overrides
+          Set the default permissions for each role, or create a new role.
         </p>
       </div>
 
-      {/* ══ User Table ════════════════════════════════════ */}
       <div style={glassCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
-            <p style={labelStyle}>Users</p>
-            <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Role Assignment</h2>
+            <p style={labelStyle}>Roles</p>
+            <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Default Permissions</h2>
           </div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name or email…"
-            style={{ ...inputStyle, width: "260px" }}
-          />
+          {canManage && !adding && (
+            <button onClick={() => { setAdding(true); setCreateErr(null); }} style={primaryBtn}>＋ Add Role</button>
+          )}
         </div>
 
-        {usersLoading ? (
-          <p style={subtitleStyle}>Loading users…</p>
+        {adding && (
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "rgba(10,190,98,0.04)", border: "1px solid rgba(10,190,98,0.2)" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: "160px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379" }}>CODE</span>
+              <input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="E.G. CONTENT_EDITOR" style={inputStyle} />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: "160px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379" }}>NAME</span>
+              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Content Editor" style={inputStyle} />
+            </label>
+            <button onClick={() => void handleCreate()} disabled={creating || !newCode.trim() || !newName.trim()} style={{ ...primaryBtn, opacity: creating || !newCode.trim() || !newName.trim() ? 0.5 : 1 }}>
+              {creating ? "Creating…" : "Create"}
+            </button>
+            <button onClick={() => { setAdding(false); setCreateErr(null); }} style={ghostBtn}>Cancel</button>
+            {createErr && <p style={{ width: "100%", fontSize: "12px", color: "#e53e3e", margin: 0 }}>{createErr}</p>}
+          </div>
+        )}
+
+        {loading ? (
+          <p style={subtitleStyle}>Loading roles…</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr>
-                  {["Name", "Email", "Current Role", "Programme", "Status", ""].map((h) => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
+                  {["Role", "Code", "Type", ""].map((h) => (<th key={h} style={thStyle}>{h}</th>))}
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((u) => (
-                  <UserRow
-                    key={u.id}
-                    user={u}
-                    isSelected={selectedUser?.id === u.id}
-                    onSelect={() => setSelectedUser(u)}
-                  />
-                ))}
-                {filteredUsers.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.4)" }}>
-                      No users found.
-                    </td>
-                  </tr>
+                {roles.map((r) => {
+                  const builtin = (BUILTIN_ROLES as readonly string[]).includes(r.code);
+                  const isSelected = selected?.code === r.code;
+                  return (
+                    <tr
+                      key={r.code}
+                      onClick={() => setSelected(r)}
+                      style={{ cursor: "pointer", background: isSelected ? "rgba(10,190,98,0.05)" : "transparent" }}
+                    >
+                      <td style={tdStyle}><span style={{ fontWeight: 600, color: "#034852" }}>{r.name}</span></td>
+                      <td style={tdStyle}><span style={{ color: "rgba(3,72,82,0.6)" }}>{r.code}</span></td>
+                      <td style={tdStyle}>
+                        <span style={{ padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: builtin ? "rgba(3,72,82,0.08)" : "rgba(255,222,89,0.25)", color: builtin ? "#034852" : "#7a6000" }}>
+                          {builtin ? "BUILT-IN" : "CUSTOM"}
+                        </span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 600, color: "#209379", opacity: isSelected ? 1 : 0.5 }}>
+                          {isSelected ? "Open ›" : (canManage ? "Edit →" : "View →")}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {roles.length === 0 && (
+                  <tr><td colSpan={4} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.4)" }}>No roles found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -92,153 +134,26 @@ export default function RoleManagementPage() {
         )}
       </div>
 
-      {/* ── Right Panel ───────────────────────────────────── */}
-      {selectedUser && (
-        <UserPermissionPanel
-          user={selectedUser}
-          callerId={callerId}
-          onClose={() => setSelectedUser(null)}
-          onRoleChanged={() => {
-            void loadUsers();
-            setSelectedUser(null);
-          }}
+      {selected && (
+        <RolePermissionPanel
+          roleCode={selected.code}
+          roleName={selected.name}
+          canManage={canManage}
+          onClose={() => setSelected(null)}
+          onSaved={() => { void load(); }}
+          onDeleted={() => { setSelected(null); void load(); }}
         />
       )}
     </div>
   );
 }
 
-// ── User Row ───────────────────────────────────────────────────
-
-function UserRow({
-  user,
-  isSelected,
-  onSelect,
-}: {
-  user: SafeUser;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <tr
-      onClick={onSelect}
-      style={{
-        cursor: "pointer",
-        background: isSelected ? "rgba(10,190,98,0.05)" : "transparent",
-        transition: "background 150ms",
-      }}
-      onMouseEnter={(e) => {
-        if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(0,0,0,0.02)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLTableRowElement).style.background = isSelected
-          ? "rgba(10,190,98,0.05)"
-          : "transparent";
-      }}
-    >
-      <td style={tdStyle}><span style={{ fontWeight: 600, color: "#034852" }}>{user.name}</span></td>
-      <td style={tdStyle}><span style={{ color: "rgba(3,72,82,0.6)" }}>{user.email ?? "—"}</span></td>
-      <td style={tdStyle}><RoleBadge role={user.role} /></td>
-      <td style={tdStyle}>{user.programme_type ?? "—"}</td>
-      <td style={tdStyle}><StatusBadge status={user.status} /></td>
-      <td style={{ ...tdStyle, textAlign: "right" }}>
-        <span style={{
-          fontSize: "11px", fontWeight: 600, color: "#209379",
-          opacity: isSelected ? 1 : 0.5,
-        }}>
-          {isSelected ? "Open ›" : "Manage →"}
-        </span>
-      </td>
-    </tr>
-  );
-}
-
-// ── Small components ───────────────────────────────────────────
-
-function RoleBadge({ role }: { role: string }) {
-  const colors: Record<string, { bg: string; color: string }> = {
-    SUPER_ADMIN:     { bg: "rgba(3,72,82,0.1)",    color: "#034852" },
-    PROGRAM_MANAGER: { bg: "rgba(0,109,108,0.1)",  color: "#006d6c" },
-    ZONAL_MANAGER:   { bg: "rgba(32,147,121,0.1)", color: "#209379" },
-    FELLOW:          { bg: "rgba(10,190,98,0.1)",  color: "#0a944e" },
-    STUDENT:         { bg: "rgba(166,219,116,0.2)", color: "#4a7a20" },
-    GOVERNMENT:      { bg: "rgba(255,222,0,0.2)",  color: "#7a6600" },
-    FUNDING_PARTNER: { bg: "rgba(255,222,89,0.2)", color: "#7a6000" },
-  };
-  const c = colors[role] ?? { bg: "rgba(0,0,0,0.06)", color: "#034852" };
-  return (
-    <span style={{
-      padding: "3px 10px", borderRadius: "100px", fontSize: "10px",
-      fontWeight: 700, letterSpacing: "0.05em",
-      background: c.bg, color: c.color,
-    }}>
-      {role.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const active = status === "ACTIVE";
-  return (
-    <span style={{
-      padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-      background: active ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)",
-      color: active ? "#0a944e" : "#c53030",
-    }}>
-      {status}
-    </span>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ ...glassCard, textAlign: "center" }}>
-        <p style={labelStyle}>Loading</p>
-        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>Role Management</p>
-        <p style={{ ...subtitleStyle, marginTop: "8px" }}>Please wait…</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Styles ─────────────────────────────────────────────────────
-
-const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid rgba(255,255,255,0.3)",
-  borderRadius: "24px",
-  padding: "32px",
-  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379",
-};
-
-const titleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852",
-};
-
-const subtitleStyle: React.CSSProperties = {
-  fontSize: "14px", color: "rgba(3,72,82,0.6)",
-};
-
-const inputStyle: React.CSSProperties = {
-  padding: "10px 16px",
-  background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)",
-  borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)",
-  fontSize: "14px", outline: "none",
-};
-
-const thStyle: React.CSSProperties = {
-  padding: "10px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.5)",
-  borderBottom: "1px solid rgba(0,0,0,0.08)", whiteSpace: "nowrap",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "12px", borderBottom: "1px solid rgba(0,0,0,0.05)",
-  verticalAlign: "middle",
-};
+const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
+const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
+const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
+const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "rgba(3,72,82,0.6)" };
+const inputStyle: React.CSSProperties = { padding: "10px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none" };
+const primaryBtn: React.CSSProperties = { padding: "10px 18px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer" };
+const ghostBtn: React.CSSProperties = { padding: "10px 18px", background: "none", border: "1px solid rgba(3,72,82,0.2)", borderRadius: "10px", color: "#034852", fontWeight: 600, fontSize: "13px", cursor: "pointer" };
+const thStyle: React.CSSProperties = { padding: "10px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.5)", borderBottom: "1px solid rgba(0,0,0,0.08)", whiteSpace: "nowrap" };
+const tdStyle: React.CSSProperties = { padding: "12px", borderBottom: "1px solid rgba(0,0,0,0.05)", verticalAlign: "middle" };
