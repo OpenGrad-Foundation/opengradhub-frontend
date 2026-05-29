@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   fetchSchools,
   createSchool,
@@ -258,12 +258,7 @@ function SchoolFormModal({
             </div>
             <div>
               <label style={formLabelStyle}>Assigned Fellow</label>
-              <select value={fellowId} onChange={(e) => setFellowId(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
-                <option value="">— Unassigned —</option>
-                {fellows.map((f) => (
-                  <option key={f.id} value={f.id}>{f.name}{f.email ? ` (${f.email})` : ""}</option>
-                ))}
-              </select>
+              <FellowPicker fellows={fellows} value={fellowId} onChange={setFellowId} />
             </div>
             {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
           </div>
@@ -278,6 +273,116 @@ function SchoolFormModal({
         </div>
       </div>
     </>
+  );
+}
+
+function FellowPicker({
+  fellows, value, onChange,
+}: {
+  fellows: SafeUser[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const selected = fellows.find((f) => f.id === value) ?? null;
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", onDocDown);
+    return () => document.removeEventListener("mousedown", onDocDown);
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? fellows.filter((f) =>
+        [f.name, f.email].some((v) => (v ?? "").toLowerCase().includes(q)),
+      )
+    : fellows;
+
+  function pick(id: string) {
+    onChange(id);
+    setOpen(false);
+    setQuery("");
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen(true)}
+        style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: open ? "0" : "12px 16px" }}
+      >
+        {open ? (
+          <input
+            type="search"
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={selected ? `Search… (current: ${selected.name})` : "Search fellows…"}
+            style={{ flex: 1, padding: "12px 16px", border: "none", background: "transparent", outline: "none", fontFamily: "var(--font-body)", fontSize: "14px", color: "#034852" }}
+          />
+        ) : (
+          <span style={{ flex: 1, color: selected ? "#034852" : "rgba(3,72,82,0.5)" }}>
+            {selected ? `${selected.name}${selected.email ? ` (${selected.email})` : ""}` : "— Unassigned —"}
+          </span>
+        )}
+        {selected && !open && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); pick(""); }}
+            aria-label="Clear assigned fellow"
+            style={{ background: "none", border: "none", color: "rgba(3,72,82,0.5)", cursor: "pointer", padding: "0 8px", fontSize: "14px" }}
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: "240px", overflowY: "auto",
+            background: "#fff", border: "1px solid rgba(3,72,82,0.12)", borderRadius: "12px",
+            boxShadow: "0 12px 32px rgba(3,72,82,0.12)", zIndex: 42,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => pick("")}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: value === "" ? "rgba(10,190,98,0.06)" : "transparent", border: "none", fontSize: "13px", color: "rgba(3,72,82,0.7)", cursor: "pointer", fontStyle: "italic" }}
+          >
+            — Unassigned —
+          </button>
+          {filtered.length === 0 ? (
+            <p style={{ padding: "12px 14px", margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.5)" }}>
+              No fellows match &ldquo;{query}&rdquo;.
+            </p>
+          ) : filtered.map((f) => {
+            const active = f.id === value;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => pick(f.id)}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: active ? "rgba(10,190,98,0.08)" : "transparent", border: "none", borderTop: "1px solid rgba(3,72,82,0.06)", fontSize: "13px", color: "#034852", cursor: "pointer" }}
+              >
+                <div style={{ fontWeight: 600 }}>{f.name}</div>
+                {f.email && <div style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)" }}>{f.email}</div>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
