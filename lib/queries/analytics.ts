@@ -8,6 +8,7 @@ import {
   getAnalyticsSchools,
   getAnalyticsStudents,
   getTopicStrength,
+  getProgrammeInsights,
   type AnalyticsStudentFilters,
 } from '../api';
 import { qk } from './keys';
@@ -59,5 +60,13 @@ export function useTopicStrength(studentId: string) {
     queryFn: () => getTopicStrength(studentId),
     enabled: !!studentId,
     staleTime: 5 * 60_000,
+  });
+}
+
+export function useProgrammeInsights(programme?: "UG" | "PG") {
+  return useQuery({
+    queryKey: ["analytics", "insights", programme ?? "all"],
+    queryFn: () => getProgrammeInsights(programme),
+    staleTime: 60_000,  // 1 min client-side cache; server caches 15 min
   });
 }

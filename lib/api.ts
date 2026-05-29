@@ -415,6 +415,48 @@ export async function getFellowAnalytics(): Promise<FellowSchoolCard[]> {
   return (await res.json()) as FellowSchoolCard[];
 }
 
+// ── Programme Insights ─────────────────────────────────────────────────────
+
+export type InsightsScope = {
+  kind: "global" | "programme" | "zone" | "school";
+  label: string;
+  school_ids?: string[];
+  programme_filter: "UG" | "PG" | null;
+};
+
+export type InsightsResponse = {
+  scope: InsightsScope;
+  kpis: {
+    students_reached:  { value: number; delta_pct: number | null; sparkline: number[] };
+    districts_covered: { value: number; delta_pct: number | null; sparkline: number[] | null };
+    ug_pg_split:       { ug: number; pg: number };
+    avg_score:         { value: number; delta_pct: number | null; sparkline: number[] };
+  };
+  trend: Array<{ month: string; new_enrolments: number; avg_score: number | null }>;
+  distribution: {
+    entity: "district" | "school" | "course";
+    rows: Array<{ id: string; name: string; count: number; avg_score: number | null }>;
+  };
+  needs_attention: null | {
+    at_risk_students: Array<{
+      id: string; name: string; school_name: string | null;
+      completion_pct: number; avg_score: number | null;
+      last_activity_at: string | null;
+    }>;
+    worst_quizzes: Array<{
+      id: string; title: string; course_title: string;
+      avg_score: number; attempts: number;
+    }>;
+  };
+};
+
+export async function getProgrammeInsights(programme?: "UG" | "PG"): Promise<InsightsResponse> {
+  const qs = programme ? `?programme=${programme}` : "";
+  const res = await apiFetch(`${API_BASE_URL}/analytics/insights${qs}`);
+  if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
+  return (await res.json()) as InsightsResponse;
+}
+
 export async function getSchoolDetail(
   schoolId: string,
   courseId?: string,
