@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -287,8 +287,38 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const isFellow = role === "FELLOW";
   const isPM = role === "PROGRAM_MANAGER";
   const isZM = role === "ZONAL_MANAGER";
-  const isUgStudent = isStudent && programme === "UG";
   const roleSelected = role !== "";
+
+  // Email is optional for students/fellows until PG is chosen; required for everyone else.
+  const emailRequired = !(isStudent || isFellow) || programme === "PG";
+
+  // State → District → School cascade, driven by the schools list itself.
+  const normState = (s: string | null | undefined) =>
+    (s ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const districtOptions = useMemo(() => {
+    if (!state) return [] as string[];
+    const set = new Set<string>();
+    for (const s of schools) {
+      if (normState(s.state) === state && s.district) set.add(s.district);
+    }
+    return Array.from(set).sort();
+  }, [schools, state]);
+  const filteredSchools = useMemo(() => {
+    if (!state || !district) return [] as SchoolOption[];
+    return schools.filter(
+      (s) => normState(s.state) === state && s.district === district,
+    );
+  }, [schools, state, district]);
+
+  function handleStateChange(value: string) {
+    setState(value);
+    setDistrict("");
+    setSchoolId("");
+  }
+  function handleDistrictChange(value: string) {
+    setDistrict(value);
+    setSchoolId("");
+  }
 
   const pwRules = {
     length:    manualPassword.trim().length >= 8,
@@ -330,6 +360,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
       if (isStudent) {
         if (programme) payload.programme_type = programme;
         if (state) payload.state = state;
+        if (district.trim()) payload.district = district.trim();
         if (schoolId.trim()) payload.school_id = schoolId.trim();
         if (schoolCode.trim()) payload.school_code = schoolCode.trim();
         if (rollNumber.trim()) payload.roll_number = rollNumber.trim();
@@ -389,8 +420,8 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                   <Field label="Full Name *" id="user-name">
                     <input id="user-name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} placeholder="Suraj Kumar" />
                   </Field>
-                  <Field label={isUgStudent ? "Email" : "Email *"} id="user-email">
-                    <input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={!isUgStudent} style={inputStyle} placeholder="suraj@opengrad.org" />
+                  <Field label={emailRequired ? "Email *" : "Email"} id="user-email">
+                    <input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={emailRequired} style={inputStyle} placeholder="suraj@opengrad.org" />
                   </Field>
                 </Row>
                 <Field label="Phone" id="user-phone">
@@ -414,34 +445,58 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </Row>
                     <Row>
                       <Field label="State" id="user-state">
-                        <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
+                        <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
                           <option value="KERALA">Kerala</option>
                           <option value="KARNATAKA">Karnataka</option>
                           <option value="TAMIL_NADU">Tamil Nadu</option>
                         </select>
                       </Field>
-                      <Field label="School" id="user-school">
+                      <Field label="District" id="user-district">
                         <select
-                          id="user-school"
-                          value={schoolId}
-                          onChange={(e) => setSchoolId(e.target.value)}
+                          id="user-district"
+                          value={district}
+                          onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={schools.length === 0 && !schoolsError}
+                          disabled={!state}
                         >
                           <option value="">
-                            {schoolsError
-                              ? "Failed to load schools"
-                              : schools.length === 0
-                                ? "Loading schools…"
-                                : "Select a school (optional)"}
+                            {!state
+                              ? "Select a state first"
+                              : districtOptions.length === 0
+                                ? "No districts available"
+                                : "Select a district"}
                           </option>
-                          {schools.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                          {districtOptions.map((d) => (
+                            <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
                       </Field>
                     </Row>
+                    <Field label="School" id="user-school">
+                      <select
+                        id="user-school"
+                        value={schoolId}
+                        onChange={(e) => setSchoolId(e.target.value)}
+                        style={inputStyle}
+                        disabled={!district}
+                      >
+                        <option value="">
+                          {schoolsError
+                            ? "Failed to load schools"
+                            : !state
+                              ? "Select a state first"
+                              : !district
+                                ? "Select a district first"
+                                : filteredSchools.length === 0
+                                  ? "No schools in this district"
+                                  : "Select a school (optional)"}
+                        </option>
+                        {filteredSchools.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </Field>
                   </>
                 )}
 
@@ -457,7 +512,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="State" id="user-state">
-                        <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
+                        <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
                           <option value="KERALA">Kerala</option>
                           <option value="KARNATAKA">Karnataka</option>
@@ -467,7 +522,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </Row>
                     <Row>
                       <Field label="District" id="user-district">
-                        <input id="user-district" value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} placeholder="e.g. Ernakulam" />
+                        <select
+                          id="user-district"
+                          value={district}
+                          onChange={(e) => handleDistrictChange(e.target.value)}
+                          style={inputStyle}
+                          disabled={!state}
+                        >
+                          <option value="">
+                            {!state
+                              ? "Select a state first"
+                              : districtOptions.length === 0
+                                ? "No districts available"
+                                : "Select a district"}
+                          </option>
+                          {districtOptions.map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
                       </Field>
                       <Field label="School" id="user-school">
                         <select
@@ -475,16 +547,20 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={schoolId}
                           onChange={(e) => setSchoolId(e.target.value)}
                           style={inputStyle}
-                          disabled={schools.length === 0 && !schoolsError}
+                          disabled={!district}
                         >
                           <option value="">
                             {schoolsError
                               ? "Failed to load schools"
-                              : schools.length === 0
-                                ? "Loading schools…"
-                                : "Select a school (optional)"}
+                              : !state
+                                ? "Select a state first"
+                                : !district
+                                  ? "Select a district first"
+                                  : filteredSchools.length === 0
+                                    ? "No schools in this district"
+                                    : "Select a school (optional)"}
                           </option>
-                          {schools.map((s) => (
+                          {filteredSchools.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}
                         </select>
@@ -605,7 +681,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <button
             id="user-submit-btn"
             type="submit"
-            disabled={!roleSelected || submitting || !name.trim() || (!isUgStudent && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim()) || !isManualPasswordValid}
+            disabled={!roleSelected || submitting || !name.trim() || (emailRequired && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim()) || !isManualPasswordValid}
             style={{ ...primaryButton, marginTop: "20px", opacity: (!roleSelected || submitting) ? 0.5 : 1 }}
           >
             {submitting ? "Creating…" : "Create User"}
