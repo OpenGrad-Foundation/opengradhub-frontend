@@ -5,7 +5,10 @@ import {
   fetchSchools,
   createSchool,
   updateSchool,
+  setSchoolFellow,
+  getUsers,
   type SchoolOption,
+  type SafeUser,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -93,18 +96,20 @@ export default function SchoolsPage() {
                 <th style={thStyle}>District</th>
                 <th style={thStyle}>State</th>
                 <th style={thStyle}>Code</th>
+                <th style={thStyle}>Fellow</th>
                 {canEdit && <th style={thStyle} />}
               </tr>
             </thead>
             <tbody>
               {schools.length === 0 ? (
-                <tr><td colSpan={canEdit ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
+                <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
               ) : schools.map((s) => (
                 <tr key={s.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                   <td style={tdStyle}>{s.name}</td>
                   <td style={tdStyle}>{s.district ?? "—"}</td>
                   <td style={tdStyle}>{s.state ?? "—"}</td>
                   <td style={tdStyle}>{s.code ?? "—"}</td>
+                  <td style={tdStyle}>{s.fellow_name ?? "—"}</td>
                   {canEdit && (
                     <td style={{ ...tdStyle, textAlign: "right" }}>
                       <button onClick={() => setEditSchool(s)} style={linkBtnStyle}>Edit</button>
@@ -132,8 +137,20 @@ function SchoolFormModal({
   const [district, setDistrict] = useState(school?.district ?? "");
   const [state, setState] = useState(school?.state ?? "");
   const [code, setCode] = useState(school?.code ?? "");
+  const [fellowId, setFellowId] = useState<string>(school?.fellow_id ?? "");
+  const [fellows, setFellows] = useState<SafeUser[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getUsers("FELLOW")
+      .then((rows) => { if (!cancelled) setFellows(rows); })
+      .catch(() => { if (!cancelled) setFellows([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const initialFellowId = school?.fellow_id ?? "";
 
   async function save() {
     if (!name.trim()) { setErr("Name is required."); return; }
@@ -141,9 +158,13 @@ function SchoolFormModal({
     setErr(null);
     try {
       if (mode === "create") {
-        await createSchool({ name, district, state, code });
+        const created = await createSchool({ name, district, state, code });
+        if (fellowId) await setSchoolFellow(created.id, fellowId);
       } else if (school) {
         await updateSchool(school.id, { name, district, state, code });
+        if (fellowId !== initialFellowId) {
+          await setSchoolFellow(school.id, fellowId || null);
+        }
       }
       onSaved();
     } catch (e) {
@@ -205,6 +226,15 @@ function SchoolFormModal({
               <label style={formLabelStyle}>Code (optional — auto-generated if blank)</label>
               <input value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} placeholder="OG-SCH-001" />
             </div>
+            <div>
+              <label style={formLabelStyle}>Assigned Fellow</label>
+              <select value={fellowId} onChange={(e) => setFellowId(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+                <option value="">— Unassigned —</option>
+                {fellows.map((f) => (
+                  <option key={f.id} value={f.id}>{f.name}{f.email ? ` (${f.email})` : ""}</option>
+                ))}
+              </select>
+            </div>
             {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
           </div>
         </div>
@@ -223,7 +253,6 @@ function SchoolFormModal({
 
 const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
 const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" };
 const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap" };
 const secondaryButton: React.CSSProperties = { padding: "12px 24px", border: "1px solid rgba(3,72,82,0.2)", borderRadius: "12px", background: "rgba(3,72,82,0.04)", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap" };
 const closeBtnStyle: React.CSSProperties = { background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.5)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px" };
