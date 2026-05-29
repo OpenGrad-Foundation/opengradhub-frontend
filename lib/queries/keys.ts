@@ -56,6 +56,8 @@ export const qk = {
   nextLiveClass: (studentId: string) =>
     ['og', 'live-classes', 'next', studentId] as const,
   assignments: () => ['og', 'assignments'] as const,
+  submissionQueue: (filters: Record<string, unknown>) =>
+    ['og', 'assignments', 'submission-queue', filters] as const,
   resources: (programmeType?: string) =>
     ['og', 'resources', programmeType ?? 'all'] as const,
   calendar: (from?: string, to?: string) =>

@@ -1147,6 +1147,45 @@ export async function patchSubmission(
   return (await r.json()) as Submission;
 }
 
+export type SubmissionQueueRow = {
+  submission_id: string | null;
+  assignment_id: string;
+  assignment_title: string;
+  due_at: string;
+  course_title: string | null;
+  student_id: string;
+  student_name: string | null;
+  student_roll: string | null;
+  school_id: string;
+  school_name: string | null;
+  status: string;
+  is_late: boolean;
+  is_overdue: boolean;
+  score: number | null;
+  submitted_at: string | null;
+};
+
+export type SubmissionQueueResult = {
+  rows: SubmissionQueueRow[];
+  schools: { id: string; name: string }[];
+};
+
+export async function getSubmissionQueue(filters: {
+  schoolId?: string;
+  overdue?: boolean;
+  status?: string;
+  q?: string;
+}): Promise<SubmissionQueueResult> {
+  const url = new URL(`${API_BASE_URL}/assignments/submission-queue`);
+  if (filters.schoolId) url.searchParams.set("school_id", filters.schoolId);
+  if (filters.overdue)  url.searchParams.set("overdue", "true");
+  if (filters.status)   url.searchParams.set("status", filters.status);
+  if (filters.q)        url.searchParams.set("q", filters.q);
+  const r = await apiFetch(url.toString());
+  if (!r.ok) throw new ApiError("Failed to fetch submission queue.", r.status);
+  return (await r.json()) as SubmissionQueueResult;
+}
+
 // ── Quizzes API ────────────────────────────────────────────────
 
 export type QuizSection = {
@@ -1180,6 +1219,9 @@ export type Quiz = {
   // ── Phase 4 + 5 additions ──
   first_attempt_counts: boolean;
   require_fullscreen: boolean;
+  negative_marking: boolean;
+  correct_marks: number;
+  wrong_marks: number;
 };
 
 export type CreateQuizPayload = {
@@ -1196,6 +1238,9 @@ export type CreateQuizPayload = {
   sequential_sections?: boolean;
   first_attempt_counts?: boolean;
   require_fullscreen?: boolean;
+  negative_marking?: boolean;
+  correct_marks?: number;
+  wrong_marks?: number;
 };
 
 export async function getQuizzes(params: { module_id?: string; quiz_type?: string } = {}): Promise<Omit<Quiz, "questions">[]> {
@@ -1325,6 +1370,9 @@ export async function updateQuiz(
     sequential_sections?: boolean;
     first_attempt_counts?: boolean;
     require_fullscreen?: boolean;
+    negative_marking?: boolean;
+    correct_marks?: number;
+    wrong_marks?: number;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
@@ -1921,7 +1969,7 @@ export async function createResource(payload: {
 
 // ── User Management API ────────────────────────────────────────
 
-export type SchoolOption = { id: string; name: string };
+export type SchoolOption = { id: string; name: string; state: string | null; district: string | null };
 
 /**
  * Fetch all schools (id + name) for user-creation pickers.
