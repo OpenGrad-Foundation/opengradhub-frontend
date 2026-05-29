@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import type { SafeUser, ManagerOption } from "@/lib/api";
 import { updateUser, deleteUser, getManagers } from "@/lib/api";
 import {
-  VALID_ROLES,
+  fetchRoles,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
@@ -58,6 +58,7 @@ export function UserDetailPanel({
 }: UserDetailPanelProps) {
   const [draft, setDraft] = useState<Draft>(() => makeDraft(user));
   const [panelTab, setPanelTab] = useState<"details" | "permissions">("details");
+  const [roleOptions, setRoleOptions] = useState<Array<{ code: string; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
@@ -99,6 +100,14 @@ export function UserDetailPanel({
     }
     return () => { cancelled = true; };
   }, [user.role]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoles()
+      .then((rs) => { if (!cancelled) setRoleOptions(rs); })
+      .catch(() => { if (!cancelled) setRoleOptions([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -264,8 +273,8 @@ export function UserDetailPanel({
                   onChange={(e) => setNewRole(e.target.value)}
                   style={{ ...S.input, flex: 1, minWidth: 0, padding: "7px 12px", fontSize: "13px" }}
                 >
-                  {VALID_ROLES.map((r) => (
-                    <option key={r} value={r}>{r.replace(/_/g, " ")}</option>
+                  {roleOptions.map((r) => (
+                    <option key={r.code} value={r.code}>{r.name}</option>
                   ))}
                 </select>
                 <button
