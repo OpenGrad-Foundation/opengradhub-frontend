@@ -98,7 +98,7 @@ export default function SchoolsPage() {
             </thead>
             <tbody>
               {schools.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
+                <tr><td colSpan={canEdit ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
               ) : schools.map((s) => (
                 <tr key={s.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                   <td style={tdStyle}>{s.name}</td>
