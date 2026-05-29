@@ -2,17 +2,6 @@ import { apiFetch } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-/** Assignable role codes (also available via `GET /permissions/catalogue` → roles). */
-export const VALID_ROLES = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "FELLOW",
-  "STUDENT",
-  "GOVERNMENT",
-  "FUNDING_PARTNER",
-] as const;
-
 // ── Permission catalogue (server-driven) ──────────────────────────────────────
 // The module/action matrix is no longer hand-maintained here — it comes from
 // `GET /permissions/catalogue`, which is the same data the backend
