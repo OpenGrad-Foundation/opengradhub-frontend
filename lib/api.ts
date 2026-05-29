@@ -409,11 +409,51 @@ export type InsightsResponse = {
   };
 };
 
-export async function getProgrammeInsights(programme?: "UG" | "PG"): Promise<InsightsResponse> {
-  const qs = programme ? `?programme=${programme}` : "";
-  const res = await apiFetch(`${API_BASE_URL}/analytics/insights${qs}`);
+export type ProgrammeInsightsFilters = {
+  programme?: "UG" | "PG";
+  state?: string;
+  district?: string;
+  schoolId?: string;
+};
+
+export async function getProgrammeInsights(
+  filters: ProgrammeInsightsFilters = {},
+): Promise<InsightsResponse> {
+  const qs = new URLSearchParams();
+  if (filters.programme) qs.set("programme", filters.programme);
+  if (filters.state)     qs.set("state", filters.state);
+  if (filters.district)  qs.set("district", filters.district);
+  if (filters.schoolId)  qs.set("school_id", filters.schoolId);
+  const path = qs.toString() ? `?${qs}` : "";
+  const res = await apiFetch(`${API_BASE_URL}/analytics/insights${path}`);
   if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
   return (await res.json()) as InsightsResponse;
+}
+
+export async function getAnalyticsFilterStates(): Promise<string[]> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/states`);
+  if (!res.ok) throw new ApiError("Failed to fetch states.", res.status);
+  return (await res.json()) as string[];
+}
+
+export async function getAnalyticsFilterDistricts(state?: string): Promise<string[]> {
+  const qs = state ? `?state=${encodeURIComponent(state)}` : "";
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/districts${qs}`);
+  if (!res.ok) throw new ApiError("Failed to fetch districts.", res.status);
+  return (await res.json()) as string[];
+}
+
+export async function getAnalyticsFilterSchools(
+  state?: string,
+  district?: string,
+): Promise<Array<{ id: string; name: string }>> {
+  const qs = new URLSearchParams();
+  if (state)    qs.set("state", state);
+  if (district) qs.set("district", district);
+  const path = qs.toString() ? `?${qs}` : "";
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/schools${path}`);
+  if (!res.ok) throw new ApiError("Failed to fetch schools.", res.status);
+  return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
 export async function getSchoolDetail(

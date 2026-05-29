@@ -7,7 +7,11 @@ import {
   getAnalyticsStudents,
   getTopicStrength,
   getProgrammeInsights,
+  getAnalyticsFilterStates,
+  getAnalyticsFilterDistricts,
+  getAnalyticsFilterSchools,
   type AnalyticsStudentFilters,
+  type ProgrammeInsightsFilters,
 } from '../api';
 import { qk } from './keys';
 
@@ -46,10 +50,34 @@ export function useTopicStrength(studentId: string) {
   });
 }
 
-export function useProgrammeInsights(programme?: "UG" | "PG") {
+export function useProgrammeInsights(filters: ProgrammeInsightsFilters = {}) {
   return useQuery({
-    queryKey: ["analytics", "insights", programme ?? "all"],
-    queryFn: () => getProgrammeInsights(programme),
+    queryKey: ["analytics", "insights", filters.programme ?? "all", filters.state ?? "all", filters.district ?? "all", filters.schoolId ?? "all"],
+    queryFn: () => getProgrammeInsights(filters),
     staleTime: 60_000,  // 1 min client-side cache; server caches 15 min
+  });
+}
+
+export function useAnalyticsFilterStates() {
+  return useQuery({
+    queryKey: ["analytics", "filters", "states"],
+    queryFn: getAnalyticsFilterStates,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAnalyticsFilterDistricts(state?: string) {
+  return useQuery({
+    queryKey: ["analytics", "filters", "districts", state ?? "all"],
+    queryFn: () => getAnalyticsFilterDistricts(state),
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAnalyticsFilterSchools(state?: string, district?: string) {
+  return useQuery({
+    queryKey: ["analytics", "filters", "schools", state ?? "all", district ?? "all"],
+    queryFn: () => getAnalyticsFilterSchools(state, district),
+    staleTime: 5 * 60_000,
   });
 }

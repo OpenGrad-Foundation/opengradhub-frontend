@@ -1,19 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { useProgrammeInsights } from "@/lib/queries/analytics";
+import {
+  useProgrammeInsights,
+  useAnalyticsFilterStates,
+  useAnalyticsFilterDistricts,
+  useAnalyticsFilterSchools,
+} from "@/lib/queries/analytics";
 import { KpiStrip } from "./KpiStrip";
 import { TrendDistribution } from "./TrendDistribution";
 import { NeedsAttention } from "./NeedsAttention";
 import { ScopeChip } from "./ScopeChip";
+import { SearchableSelect } from "./SearchableSelect";
 import SchoolDetail from "./SchoolDetail";
 import ManagerDrill from "./ManagerDrill";
 
 export default function ProgrammeInsights() {
-  const [programmeFilter, setProgrammeFilter] = useState<"" | "UG" | "PG">("");
+  const [programme, setProgramme] = useState<"" | "UG" | "PG">("");
+  const [state, setState] = useState<string>("");
+  const [district, setDistrict] = useState<string>("");
+  const [schoolId, setSchoolId] = useState<string>("");
   const [drilledSchoolId, setDrilledSchoolId] = useState<string | null>(null);
   const [drilledCourse, setDrilledCourse] = useState<{ id: string; title: string } | null>(null);
-  const { data, isPending, error } = useProgrammeInsights(programmeFilter || undefined);
+  const { data, isPending, error } = useProgrammeInsights({
+    programme: programme || undefined,
+    state:     state     || undefined,
+    district:  district  || undefined,
+    schoolId:  schoolId  || undefined,
+  });
+  const statesQ    = useAnalyticsFilterStates();
+  const districtsQ = useAnalyticsFilterDistricts(state || undefined);
+  const schoolsQ   = useAnalyticsFilterSchools(state || undefined, district || undefined);
 
   if (drilledSchoolId) {
     return (
@@ -63,15 +80,42 @@ export default function ProgrammeInsights() {
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <ScopeChip scope={data.scope} />
           {showFilter && (
-            <select
-              value={programmeFilter}
-              onChange={(e) => setProgrammeFilter(e.target.value as "" | "UG" | "PG")}
-              style={{ padding: "8px 14px", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.2)", background: "#fff", color: "#034852", fontSize: "13px", fontWeight: 600 }}
-            >
-              <option value="">All programmes</option>
-              <option value="UG">UG</option>
-              <option value="PG">PG</option>
-            </select>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <SearchableSelect
+                placeholder="All programmes"
+                value={programme}
+                onChange={(v) => setProgramme(v as "" | "UG" | "PG")}
+                options={[
+                  { value: "UG", label: "UG" },
+                  { value: "PG", label: "PG" },
+                ]}
+              />
+              <SearchableSelect
+                placeholder="All states"
+                value={state}
+                onChange={(v) => {
+                  setState(v);
+                  setDistrict("");
+                  setSchoolId("");
+                }}
+                options={(statesQ.data ?? []).map((s) => ({ value: s, label: s }))}
+              />
+              <SearchableSelect
+                placeholder="All districts"
+                value={district}
+                onChange={(v) => {
+                  setDistrict(v);
+                  setSchoolId("");
+                }}
+                options={(districtsQ.data ?? []).map((d) => ({ value: d, label: d }))}
+              />
+              <SearchableSelect
+                placeholder="All schools"
+                value={schoolId}
+                onChange={setSchoolId}
+                options={(schoolsQ.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
+              />
+            </div>
           )}
         </div>
       </div>
