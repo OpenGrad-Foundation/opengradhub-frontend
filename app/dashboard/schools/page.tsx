@@ -154,34 +154,70 @@ function SchoolFormModal({
   }
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-        <p style={labelStyle}>{mode === "create" ? "Add School" : "Edit School"}</p>
-        <button onClick={onClose} style={closeBtnStyle}>✕</button>
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }}
+      />
+      {/* Slide-over panel */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === "create" ? "Add School" : "Edit School"}
+        style={{
+          position: "fixed", top: 0, right: 0, bottom: 0, width: "min(520px, 100vw)",
+          background: "#ffffff", borderLeft: "1px solid rgba(3,72,82,0.1)",
+          boxShadow: "-24px 0 64px rgba(3,72,82,0.12)", zIndex: 41,
+          display: "flex", flexDirection: "column", overflow: "hidden",
+          animation: "schoolPanelIn 240ms cubic-bezier(0.16,1,0.3,1)",
+        }}
+      >
+        <style>{`@keyframes schoolPanelIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
+
+        {/* Header */}
+        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={labelStyle}>{mode === "create" ? "Add School" : "Edit School"}</p>
+            {mode === "edit" && school && (
+              <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 2px" }}>{school.name}</h2>
+            )}
+          </div>
+          <button onClick={onClose} style={closeBtnStyle} aria-label="Close panel">✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
+          <div style={{ display: "grid", gap: "14px" }}>
+            <div>
+              <label style={formLabelStyle}>Name *</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
+            </div>
+            <div>
+              <label style={formLabelStyle}>District</label>
+              <input value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={formLabelStyle}>State</label>
+              <input value={state} onChange={(e) => setState(e.target.value)} style={inputStyle} />
+            </div>
+            <div>
+              <label style={formLabelStyle}>Code (optional — auto-generated if blank)</label>
+              <input value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} placeholder="OG-SCH-001" />
+            </div>
+            {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 28px 24px", borderTop: "1px solid rgba(3,72,82,0.08)", flexShrink: 0, display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={secondaryButton}>Cancel</button>
+          <button onClick={() => void save()} disabled={saving} style={{ ...primaryButton, opacity: saving ? 0.5 : 1 }}>
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
       </div>
-      <div style={{ display: "grid", gap: "14px" }}>
-        <div>
-          <label style={formLabelStyle}>Name *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} />
-        </div>
-        <div>
-          <label style={formLabelStyle}>District</label>
-          <input value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} />
-        </div>
-        <div>
-          <label style={formLabelStyle}>State</label>
-          <input value={state} onChange={(e) => setState(e.target.value)} style={inputStyle} />
-        </div>
-        <div>
-          <label style={formLabelStyle}>Code (optional — auto-generated if blank)</label>
-          <input value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} placeholder="OG-SCH-001" />
-        </div>
-        {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
-        <button onClick={() => void save()} disabled={saving} style={{ ...primaryButton, opacity: saving ? 0.5 : 1 }}>
-          {saving ? "Saving…" : "Save"}
-        </button>
-      </div>
-    </div>
+    </>
   );
 }
 
