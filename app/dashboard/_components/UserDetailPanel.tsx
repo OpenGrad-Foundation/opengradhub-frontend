@@ -7,6 +7,7 @@ import {
   VALID_ROLES,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
+import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -56,6 +57,7 @@ export function UserDetailPanel({
   onAssignBundle,
 }: UserDetailPanelProps) {
   const [draft, setDraft] = useState<Draft>(() => makeDraft(user));
+  const [panelTab, setPanelTab] = useState<"details" | "permissions">("details");
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
@@ -83,6 +85,7 @@ export function UserDetailPanel({
     setConfirmDelete(false);
     setDeleteErr(null);
     setConfirmClose(false);
+    setPanelTab("details");
   }, [user]);
 
   useEffect(() => {
@@ -222,8 +225,34 @@ export function UserDetailPanel({
           <button onClick={handleClose} style={S.closeBtn} aria-label="Close panel">✕</button>
         </div>
 
+        {/* ── Tab switcher ────────────────────────────────── */}
+        <div style={{ display: "flex", gap: "6px", padding: "12px 28px 0", borderBottom: "1px solid rgba(3,72,82,0.08)", flexShrink: 0 }}>
+          {(["details", "permissions"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setPanelTab(t)}
+              style={{
+                padding: "8px 14px", border: "none", background: "none", cursor: "pointer",
+                fontFamily: "var(--font-body)", fontSize: "13px",
+                fontWeight: panelTab === t ? 700 : 500,
+                color: panelTab === t ? "#034852" : "rgba(3,72,82,0.5)",
+                borderBottom: `2px solid ${panelTab === t ? "#0abe62" : "transparent"}`,
+              }}
+            >
+              {t === "details" ? "Details" : "Permissions"}
+            </button>
+          ))}
+        </div>
+
         {/* ── Scrollable body ─────────────────────────────── */}
         <div style={{ flex: 1, overflowY: "auto" }}>
+
+          {panelTab === "permissions" ? (
+            <div style={{ padding: "16px 28px" }}>
+              <UserOverrideEditor userId={user.id} callerId={callerId} />
+            </div>
+          ) : (
+            <>
 
           {/* ── Role Section ───────────────────────────────── */}
           <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
@@ -506,6 +535,8 @@ export function UserDetailPanel({
             </div>
           )}
 
+            </>
+          )}
         </div>
 
         {/* ── Footer ──────────────────────────────────────── */}
