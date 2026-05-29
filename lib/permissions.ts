@@ -95,6 +95,12 @@ export const PERM = {
     view: "bulk_assign.view",
     run: "bulk_assign.run",
   },
+  schools: {
+    view: "schools.view",
+    create: "schools.create",
+    edit: "schools.edit",
+    bulk_import: "schools.bulk_import",
+  },
   user_management: {
     view: "user_management.view",
     create: "user_management.create",
@@ -148,6 +154,7 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   "student-export": PERM.student_export.view,
   "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
+  schools: PERM.schools.view,
   "role-management": PERM.role_management.view,
   // `/dashboard` itself and self-scoped pages (notifications, profile) have no gate.
 };
