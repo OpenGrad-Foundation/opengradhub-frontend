@@ -22,8 +22,15 @@ const entityLabel: Record<InsightsResponse["distribution"]["entity"], string> = 
 };
 
 export function TrendDistribution({
-  trend, distribution,
-}: { trend: InsightsResponse["trend"]; distribution: InsightsResponse["distribution"] }) {
+  trend, distribution, onBarClick,
+}: {
+  trend: InsightsResponse["trend"];
+  distribution: InsightsResponse["distribution"];
+  onBarClick?: (
+    entity: InsightsResponse["distribution"]["entity"],
+    row: InsightsResponse["distribution"]["rows"][number],
+  ) => void;
+}) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "16px", marginBottom: "20px" }}>
       <div style={card}>
@@ -88,6 +95,12 @@ export function TrendDistribution({
               responsive: true,
               plugins: { legend: { display: false } },
               scales: { x: { beginAtZero: true } },
+              onClick: (_evt, elements) => {
+                if (!onBarClick || elements.length === 0) return;
+                const idx = elements[0].index;
+                const row = distribution.rows[idx];
+                if (row) onBarClick(distribution.entity, row);
+              },
             }}
           />
         )}

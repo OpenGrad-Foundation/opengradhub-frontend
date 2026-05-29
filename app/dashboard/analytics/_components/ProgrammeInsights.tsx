@@ -6,10 +6,32 @@ import { KpiStrip } from "./KpiStrip";
 import { TrendDistribution } from "./TrendDistribution";
 import { NeedsAttention } from "./NeedsAttention";
 import { ScopeChip } from "./ScopeChip";
+import SchoolDetail from "./SchoolDetail";
+import ManagerDrill from "./ManagerDrill";
 
 export default function ProgrammeInsights() {
   const [programmeFilter, setProgrammeFilter] = useState<"" | "UG" | "PG">("");
+  const [drilledSchoolId, setDrilledSchoolId] = useState<string | null>(null);
+  const [drilledCourse, setDrilledCourse] = useState<{ id: string; title: string } | null>(null);
   const { data, isPending, error } = useProgrammeInsights(programmeFilter || undefined);
+
+  if (drilledSchoolId) {
+    return (
+      <SchoolDetail
+        schoolId={drilledSchoolId}
+        onBack={() => setDrilledSchoolId(null)}
+      />
+    );
+  }
+  if (drilledCourse) {
+    return (
+      <ManagerDrill
+        courseId={drilledCourse.id}
+        courseTitle={drilledCourse.title}
+        onBack={() => setDrilledCourse(null)}
+      />
+    );
+  }
 
   if (isPending) return <Spinner />;
   if (error)     return <Err msg={(error as Error).message} />;
@@ -55,7 +77,15 @@ export default function ProgrammeInsights() {
       </div>
 
       <KpiStrip kpis={data.kpis} />
-      <TrendDistribution trend={data.trend} distribution={data.distribution} />
+      <TrendDistribution
+        trend={data.trend}
+        distribution={data.distribution}
+        onBarClick={(entity, row) => {
+          if (entity === "school")  setDrilledSchoolId(row.id);
+          if (entity === "course")  setDrilledCourse({ id: row.id, title: row.name });
+          // district: no-op for now
+        }}
+      />
       {data.needs_attention && <NeedsAttention data={data.needs_attention} />}
     </div>
   );
