@@ -12,6 +12,7 @@ import {
   type EffectivePermissions,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { clearUserCache } from "@/hooks/use-current-user";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface UserOverrideEditorProps {
   userId: string;
@@ -39,6 +40,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
   const isSelf = userId === callerId;
   const dirty = Object.keys(pendingChanges).length > 0;
   const pendingCount = Object.keys(pendingChanges).length;
+  const isMobile = useIsMobile(640);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,16 +156,38 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
       <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "0 0 12px" }}>
         Toggles grant explicit access for this user. Use Deny to block a role default.
       </p>
-      <div style={{ display: "flex", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", overflow: "hidden", minHeight: "320px" }}>
-        <div style={{ width: "150px", borderRight: "1px solid rgba(3,72,82,0.08)", overflowY: "auto", flexShrink: 0, padding: "8px 0" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", overflow: "hidden", minHeight: "320px" }}>
+        <div style={isMobile
+          ? { display: "flex", flexDirection: "row", overflowX: "auto", flexShrink: 0, padding: "6px 6px", borderBottom: "1px solid rgba(3,72,82,0.08)", gap: "4px" }
+          : { width: "150px", borderRight: "1px solid rgba(3,72,82,0.08)", overflowY: "auto", flexShrink: 0, padding: "8px 0" }}
+        >
           {modules.map((mod) => {
             const active = selectedModule === mod.code;
             const hasPending = mod.permissions.some((p) => pendingChanges[p.code]);
+            const mobileBtn: React.CSSProperties = {
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "7px 12px", border: "none",
+              background: active ? "rgba(10,190,98,0.1)" : "transparent",
+              borderRadius: "8px",
+              color: active ? "#034852" : "rgba(3,72,82,0.6)",
+              fontFamily: "var(--font-body)", fontSize: "12px",
+              fontWeight: active ? 600 : 500,
+              cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+            };
+            const desktopBtn: React.CSSProperties = {
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              width: "100%", padding: "9px 14px", border: "none",
+              background: active ? "rgba(10,190,98,0.08)" : "transparent",
+              borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
+              color: active ? "#034852" : "rgba(3,72,82,0.6)",
+              fontFamily: "var(--font-body)", fontSize: "13px",
+              fontWeight: active ? 600 : 400, cursor: "pointer", textAlign: "left",
+            };
             return (
               <button
                 key={mod.code}
                 onClick={() => setSelectedModule(mod.code)}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "9px 14px", border: "none", background: active ? "rgba(10,190,98,0.08)" : "transparent", borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`, color: active ? "#034852" : "rgba(3,72,82,0.6)", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: active ? 600 : 400, cursor: "pointer", textAlign: "left" }}
+                style={isMobile ? mobileBtn : desktopBtn}
               >
                 <span>{mod.name}</span>
                 {hasPending && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />}
@@ -171,7 +195,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
             );
           })}
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: "14px 18px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "12px 14px" : "14px 18px" }}>
           {loading ? (
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>Loading permissions…</p>
           ) : (
@@ -192,7 +216,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", gap: "10px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "12px", gap: "10px", flexWrap: "wrap" }}>
         <div>
           {saveErr && <span style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600 }}>{saveErr}</span>}
           {saveOk && !dirty && <span style={{ fontSize: "12px", color: "#0abe62", fontWeight: 600 }}>Saved. Takes effect on the user&apos;s next refresh.</span>}

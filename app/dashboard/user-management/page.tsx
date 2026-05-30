@@ -26,6 +26,7 @@ import {
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -82,11 +83,12 @@ export default function UserManagementPage() {
             {users.length} user{users.length !== 1 ? "s" : ""} registered
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full sm:w-auto">
           {canCreate && (
             <>
               <button
                 id="add-user-btn"
+                className="w-full sm:w-auto"
                 style={primaryButton}
                 onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -95,6 +97,7 @@ export default function UserManagementPage() {
               </button>
               <button
                 id="bulk-upload-btn"
+                className="w-full sm:w-auto"
                 style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
                 onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -103,6 +106,7 @@ export default function UserManagementPage() {
               </button>
               <button
                 id="bulk-assign-btn"
+                className="w-full sm:w-auto"
                 style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
                 onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -234,6 +238,7 @@ export default function UserManagementPage() {
 // ── Add User Form ──────────────────────────────────────────────
 
 function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const isMobile = useIsMobile(640);
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -386,7 +391,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   }
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <p style={labelStyle}>Add New User</p>
         <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -1188,6 +1193,7 @@ function BulkAssignPanel({
 }: {
   onClose: () => void;
 }) {
+  const isMobile = useIsMobile(640);
   // Filters
   const [filterState,    setFilterState]    = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
@@ -1329,7 +1335,7 @@ function BulkAssignPanel({
   })();
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)", position: "relative" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)", position: "relative" }}>
 
       {/* Toast */}
       {toast && (
@@ -1477,7 +1483,7 @@ function BulkAssignPanel({
             Assign to {selectedCount} student{selectedCount !== 1 ? "s" : ""}
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
 
             {/* Courses column */}
             <div>
@@ -1694,6 +1700,7 @@ function csvEscape(val: string): string {
 }
 
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const isMobile = useIsMobile(640);
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
   const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
@@ -1800,7 +1807,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const hasData    = csvHeaders.length > 0 && editableRows.length > 0;
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <p style={labelStyle}>Bulk Upload Users</p>
         <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -2062,7 +2069,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>{children}</div>;
+  const isMobile = useIsMobile(640);
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+      gap: "12px",
+    }}>
+      {children}
+    </div>
+  );
 }
 
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
