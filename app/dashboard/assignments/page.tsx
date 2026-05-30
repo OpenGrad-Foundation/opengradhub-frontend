@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -146,6 +146,17 @@ function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
   const [q, setQ]               = useState("");
   const [active, setActive]     = useState<SubmissionQueueRow | null>(null);
 
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setActive(null); };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [active]);
+
   const { data, isPending, error, refetch } = useSubmissionQueue({
     schoolId: schoolId || undefined,
     overdue:  overdue || undefined,
@@ -177,7 +188,11 @@ function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
     : null;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: activeSubmission ? "1fr 420px" : "1fr", gap: "24px", alignItems: "flex-start" }}>
+    <div>
+      <style>{`
+        @keyframes gradeSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes gradeFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
       <div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
           <div>
@@ -263,14 +278,43 @@ function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
       </div>
 
       {activeSubmission && (
-        <GradePanel
-          key={activeSubmission.id}
-          submission={activeSubmission}
-          assignmentId={activeSubmission.assignment_id}
-          graderId={graderId}
-          onSaved={async () => { await refetch(); }}
-          onClose={() => setActive(null)}
-        />
+        <>
+          <div
+            onClick={() => setActive(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(3,72,82,0.25)",
+              backdropFilter: "blur(2px)",
+              zIndex: 50,
+              animation: "gradeFadeIn 180ms ease-out",
+            }}
+          />
+          <aside
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "min(460px, 100vw)",
+              background: "#f8fafa",
+              boxShadow: "-12px 0 36px rgba(3,72,82,0.18)",
+              overflowY: "auto",
+              zIndex: 51,
+              padding: "24px",
+              animation: "gradeSlideIn 280ms cubic-bezier(0.16,1,0.3,1)",
+            }}
+          >
+            <GradePanel
+              key={activeSubmission.id}
+              submission={activeSubmission}
+              assignmentId={activeSubmission.assignment_id}
+              graderId={graderId}
+              onSaved={async () => { await refetch(); }}
+              onClose={() => setActive(null)}
+            />
+          </aside>
+        </>
       )}
     </div>
   );

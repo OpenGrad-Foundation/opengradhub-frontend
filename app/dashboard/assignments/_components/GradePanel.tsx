@@ -68,7 +68,7 @@ export function GradePanel({
   }
 
   return (
-    <div style={{ ...glassCard, position: "sticky", top: "24px" }}>
+    <div style={glassCard}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <div>
           <p style={S.label}>Grading</p>
@@ -86,8 +86,8 @@ export function GradePanel({
       {sub.response_text && (
         <div style={{ marginBottom: "14px" }}>
           <p style={{ ...sectionLabel, marginBottom: "8px" }}>Response</p>
-          <div style={{ background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: "#034852", lineHeight: 1.7, maxHeight: "180px", overflowY: "auto" }}>
-            {sub.response_text}
+          <div style={{ background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: "#034852", lineHeight: 1.7, maxHeight: "180px", overflowY: "auto", wordBreak: "break-word" }}>
+            {linkify(sub.response_text)}
           </div>
         </div>
       )}
@@ -132,6 +132,27 @@ export function GradePanel({
       </div>
     </div>
   );
+}
+
+const URL_RE = /(https?:\/\/[^\s<>"')]+)/g;
+function linkify(text: string): React.ReactNode[] {
+  const parts = text.split(URL_RE);
+  return parts.map((part, i) => {
+    if (i % 2 === 1) {
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#209379", fontWeight: 600, textDecoration: "underline", wordBreak: "break-all" }}
+        >
+          {part}
+        </a>
+      );
+    }
+    return <span key={i}>{part}</span>;
+  });
 }
 
 const glassCard: React.CSSProperties = {
