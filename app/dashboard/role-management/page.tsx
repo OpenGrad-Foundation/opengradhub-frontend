@@ -52,28 +52,56 @@ export default function RoleManagementPage() {
   }
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "32px" }}>
+    <div className="rm-container" style={{ maxWidth: "1000px", margin: "0 auto", padding: "0 16px" }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 768px) {
+          .rm-container { padding: 0 12px !important; }
+          .rm-header { margin-bottom: 20px !important; }
+          .rm-title { font-size: 22px !important; }
+          .rm-card { padding: 18px !important; border-radius: 16px !important; }
+          .rm-card-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
+          .rm-add-btn { width: 100% !important; }
+          .rm-create-form { flex-direction: column !important; align-items: stretch !important; }
+          .rm-create-form label { min-width: 0 !important; width: 100% !important; }
+          .rm-create-form button { width: 100% !important; }
+          .rm-table thead { display: none !important; }
+          .rm-table, .rm-table tbody, .rm-table tr, .rm-table td { display: block !important; width: 100% !important; }
+          .rm-table tr {
+            border: 1px solid rgba(0,0,0,0.08) !important;
+            border-radius: 12px !important;
+            padding: 12px 14px !important;
+            margin-bottom: 10px !important;
+            position: relative;
+          }
+          .rm-table td {
+            padding: 4px 0 !important;
+            border-bottom: none !important;
+            text-align: left !important;
+          }
+          .rm-table td:last-child { text-align: left !important; margin-top: 4px; }
+        }
+      ` }} />
+      <div className="rm-header" style={{ marginBottom: "32px" }}>
         <p style={labelStyle}>Administration</p>
-        <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
+        <h1 className="rm-title" style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
         <p style={{ ...subtitleStyle, marginTop: "6px" }}>
           Set the default permissions for each role, or create a new role.
         </p>
       </div>
 
-      <div style={glassCard}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+      <div className="rm-card" style={glassCard}>
+        <div className="rm-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
             <p style={labelStyle}>Roles</p>
             <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Default Permissions</h2>
           </div>
           {canManage && !adding && (
-            <button onClick={() => { setAdding(true); setCreateErr(null); }} style={primaryBtn}>＋ Add Role</button>
+            <button className="rm-add-btn" onClick={() => { setAdding(true); setCreateErr(null); }} style={primaryBtn}>＋ Add Role</button>
           )}
         </div>
 
         {adding && (
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "rgba(10,190,98,0.04)", border: "1px solid rgba(10,190,98,0.2)" }}>
+          <div className="rm-create-form" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "rgba(10,190,98,0.04)", border: "1px solid rgba(10,190,98,0.2)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: "160px" }}>
               <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379" }}>CODE</span>
               <input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="E.G. CONTENT_EDITOR" style={inputStyle} />
@@ -94,7 +122,7 @@ export default function RoleManagementPage() {
           <p style={subtitleStyle}>Loading roles…</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <table className="rm-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr>
                   {["Role", "Code", "Type", ""].map((h) => (<th key={h} style={thStyle}>{h}</th>))}

@@ -134,18 +134,54 @@ export function RolePermissionPanel({
 
   return (
     <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media (max-width: 768px) {
+          .rpp-panel { width: 100vw !important; }
+          .rpp-header { padding: 18px 18px 12px !important; }
+          .rpp-body { flex-direction: column !important; }
+          .rpp-modules {
+            width: 100% !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(3,72,82,0.08) !important;
+            display: flex !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            padding: 6px 8px !important;
+            scrollbar-width: none;
+          }
+          .rpp-modules::-webkit-scrollbar { display: none; }
+          .rpp-modules-label { display: none !important; }
+          .rpp-modules button {
+            flex-shrink: 0 !important;
+            width: auto !important;
+            padding: 8px 12px !important;
+            border-left: none !important;
+            border-bottom: 3px solid transparent !important;
+            white-space: nowrap;
+            font-size: 12px !important;
+          }
+          .rpp-modules button[data-active="true"] {
+            border-bottom-color: #0abe62 !important;
+          }
+          .rpp-content { padding: 14px 16px !important; }
+          .rpp-footer { padding: 12px 16px !important; }
+          .rpp-footer-row { flex-direction: column !important; align-items: stretch !important; gap: 8px !important; }
+          .rpp-footer-row > div { width: 100%; display: flex; gap: 8px; }
+          .rpp-footer-row button { flex: 1; }
+        }
+      ` }} />
       <div
         onClick={onClose}
         style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }}
       />
-      <div style={{
+      <div className="rpp-panel" style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(580px, 100vw)",
         background: "#ffffff", borderLeft: "1px solid rgba(3,72,82,0.1)",
         boxShadow: "-24px 0 64px rgba(3,72,82,0.12)", zIndex: 41,
         display: "flex", flexDirection: "column", overflow: "hidden",
       }}>
         {/* Header */}
-        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+        <div className="rpp-header" style={{ padding: "24px 28px 16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
             <p style={S.label}>Role Permissions</p>
             <h2 style={{ ...S.heading, fontSize: "20px", margin: "4px 0 2px" }}>{roleName}</h2>
@@ -162,14 +198,15 @@ export function RolePermissionPanel({
         </div>
 
         {/* Body */}
-        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-          <div style={{ width: "160px", borderRight: "1px solid rgba(3,72,82,0.08)", overflowY: "auto", flexShrink: 0, padding: "8px 0" }}>
-            <p style={{ ...S.label, padding: "8px 16px 4px", fontSize: "9px" }}>Modules</p>
+        <div className="rpp-body" style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <div className="rpp-modules" style={{ width: "160px", borderRight: "1px solid rgba(3,72,82,0.08)", overflowY: "auto", flexShrink: 0, padding: "8px 0" }}>
+            <p className="rpp-modules-label" style={{ ...S.label, padding: "8px 16px 4px", fontSize: "9px" }}>Modules</p>
             {modules.map((mod) => {
               const active = selectedModule === mod.code;
               return (
                 <button
                   key={mod.code}
+                  data-active={active}
                   onClick={() => setSelectedModule(mod.code)}
                   style={{
                     display: "block", width: "100%", padding: "9px 16px", border: "none",
@@ -186,7 +223,7 @@ export function RolePermissionPanel({
             })}
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+          <div className="rpp-content" style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
             {loading ? (
               <p style={{ ...S.subtitle, marginTop: "24px" }}>Loading permissions…</p>
             ) : (
@@ -214,7 +251,7 @@ export function RolePermissionPanel({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "14px 28px", borderTop: "1px solid rgba(3,72,82,0.08)", flexShrink: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div className="rpp-footer" style={{ padding: "14px 28px", borderTop: "1px solid rgba(3,72,82,0.08)", flexShrink: 0, display: "flex", flexDirection: "column", gap: "10px" }}>
           {saveErr && <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{saveErr}</p>}
           {deleteErr && <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{deleteErr}</p>}
           {saveOk && !dirty && <p style={{ fontSize: "12px", color: "#0abe62", fontWeight: 600, margin: 0 }}>Saved. Affected users see changes on their next refresh.</p>}
@@ -223,7 +260,7 @@ export function RolePermissionPanel({
               Delete role <strong>{roleCode}</strong>? This can&apos;t be undone.
             </div>
           )}
-          <div style={{ display: "flex", gap: "10px", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="rpp-footer-row" style={{ display: "flex", gap: "10px", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               {deletable && (
                 confirmDelete ? (
