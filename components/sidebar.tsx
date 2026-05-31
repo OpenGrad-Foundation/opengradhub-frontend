@@ -155,14 +155,15 @@ export default function Sidebar({
   };
 
   async function handleSignOut() {
-    clearUserCache();
+    // Sign out first so any in-flight refetch loses its token and can't
+    // re-populate the cache with the previous user's data.
     if (isClerkMode()) {
       await clerk.signOut();
-      router.replace("/");
     } else {
       clearStoredAuthToken();
-      router.replace("/");
     }
+    clearUserCache();
+    router.replace("/");
   }
 
   return (
