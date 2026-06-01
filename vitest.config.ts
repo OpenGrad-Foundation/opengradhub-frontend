@@ -1,11 +1,38 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+const resolveConfig = {
+  alias: { '@': path.resolve(__dirname) },
+};
 
 export default defineConfig({
+  resolve: resolveConfig,
   test: {
-    environment: 'node',
-    // Polyfills `indexedDB` globally so the draft store can be tested.
     setupFiles: ['fake-indexeddb/auto'],
-    include: ['test/**/*.spec.ts'],
     passWithNoTests: true,
+    globals: true,
+    projects: [
+      {
+        name: 'node',
+        resolve: resolveConfig,
+        test: {
+          environment: 'node',
+          include: ['test/**/*.spec.ts'],
+          setupFiles: ['fake-indexeddb/auto'],
+        },
+      },
+      {
+        name: 'dom',
+        resolve: resolveConfig,
+        test: {
+          environment: 'jsdom',
+          include: ['test/**/*.spec.tsx'],
+          setupFiles: ['fake-indexeddb/auto'],
+        },
+      },
+    ],
   },
 });
