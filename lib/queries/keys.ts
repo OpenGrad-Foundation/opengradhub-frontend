@@ -62,4 +62,9 @@ export const qk = {
     ['og', 'calendar', from ?? '', to ?? ''] as const,
   studentEnrolments: (studentId: string) =>
     ['og', 'student', studentId, 'enrolments'] as const,
+
+  dashboard: (role: string, tab: 'overview' | 'activity' | 'tasks') =>
+    ['og', 'dashboard', role, tab] as const,
+  dashboardWidget: (role: string, tab: 'overview' | 'activity' | 'tasks', widgetId: string) =>
+    ['og', 'dashboard', role, tab, widgetId] as const,
 };
