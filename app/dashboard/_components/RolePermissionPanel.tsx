@@ -225,7 +225,7 @@ export function RolePermissionPanel({
 
           <div className="rpp-content" style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
             {loading ? (
-              <p style={{ ...S.subtitle, marginTop: "24px" }}>Loading permissions…</p>
+              <p style={{ ...S.subtitle, margin: "24px 0 0" }}>Loading permissions…</p>
             ) : (
               <>
                 <p style={{ ...S.heading, fontSize: "15px", marginBottom: "4px" }}>{selectedModuleName}</p>

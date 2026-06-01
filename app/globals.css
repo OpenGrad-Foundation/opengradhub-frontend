@@ -11,9 +11,10 @@
   --light-yellow: #ffde59;
   --white: #ffffff;
 
-  /* Font stacks — Greycliff CF not present; Montserrat is the fallback */
-  --font-heading: 'Montserrat', sans-serif;
-  --font-body: 'Montserrat', sans-serif;
+  /* Font stacks — self-hosted via next/font (--font-montserrat); system fallbacks
+     cover the swap window. Greycliff CF not present; Montserrat is the brand face. */
+  --font-heading: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
+  --font-body: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
 
   /* Legacy colour aliases used by dashboard pages */
   --color-deep-teal: #006d6c;
@@ -33,8 +34,8 @@
 @theme inline {
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
-  --font-sans: 'Montserrat', sans-serif;
-  --font-display: 'Montserrat', sans-serif;
+  --font-sans: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
 }
 
 @keyframes floatIn {
@@ -80,6 +81,24 @@ input {
     color 180ms ease,
     transform 180ms ease,
     box-shadow 180ms ease;
+}
+
+/* Keyboard-focus safety net. Many fields use outline-none with no replacement,
+   leaving keyboard users unable to see focus (WCAG 2.4.7). This restores a
+   visible brand-teal ring on every focusable, beating any .outline-none utility
+   on specificity. Mouse/touch users are unaffected (:focus-visible only). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .font-display {

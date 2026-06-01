@@ -645,6 +645,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <input
                         id="user-password"
                         type="text"
+                        aria-label="Password"
                         value={manualPassword}
                         onChange={(e) => setManualPassword(e.target.value)}
                         placeholder="e.g. OpenGrad@2025"
@@ -894,6 +895,7 @@ function AssignCourseModal({
             {/* Search */}
             <input
               type="text"
+              aria-label="Search courses"
               placeholder="Search courses…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1114,6 +1116,7 @@ function AssignBundleModal({
               <input
                 type="text"
                 autoFocus={enrolledBundles.length === 0}
+                aria-label="Search bundles"
                 placeholder="Search bundles…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1367,12 +1370,12 @@ function BulkAssignPanel({
           </select>
         </div>
         <div>
-          <label style={formLabelStyle}>District</label>
-          <input type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-district" style={formLabelStyle}>District</label>
+          <input id="filter-district" type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
         <div>
-          <label style={formLabelStyle}>School</label>
-          <input type="text" placeholder="School name" value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-school" style={formLabelStyle}>School</label>
+          <input id="filter-school" type="text" placeholder="School name" value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
         <div>
           <label style={formLabelStyle}>Programme</label>
@@ -1383,8 +1386,8 @@ function BulkAssignPanel({
           </select>
         </div>
         <div>
-          <label style={formLabelStyle}>Search</label>
-          <input type="text" placeholder="Name or roll number" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-search" style={formLabelStyle}>Search</label>
+          <input id="filter-search" type="text" placeholder="Name or roll number" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
       </div>
 
@@ -1448,6 +1451,7 @@ function BulkAssignPanel({
                             <input
                               type="checkbox"
                               checked={checked}
+                              aria-label={`Select ${s.name}`}
                               onChange={() => toggleStudent(s.id)}
                               onClick={(e) => e.stopPropagation()}
                               style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
@@ -1488,7 +1492,7 @@ function BulkAssignPanel({
             {/* Courses column */}
             <div>
               <p style={{ ...formLabelStyle, marginBottom: "6px" }}>Courses</p>
-              <input type="text" placeholder="Search courses…" value={courseSearch}
+              <input type="text" aria-label="Search courses" placeholder="Search courses…" value={courseSearch}
                 onChange={(e) => setCourseSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
               <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
@@ -1530,7 +1534,7 @@ function BulkAssignPanel({
             {/* Bundles column */}
             <div>
               <p style={{ ...formLabelStyle, marginBottom: "6px" }}>Bundles</p>
-              <input type="text" placeholder="Search bundles…" value={bundleSearch}
+              <input type="text" aria-label="Search bundles" placeholder="Search bundles…" value={bundleSearch}
                 onChange={(e) => setBundleSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
               <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
@@ -1836,7 +1840,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
       {/* File input */}
       <div style={{ marginTop: "20px" }}>
-        <label style={formLabelStyle}>Upload CSV File</label>
+        <label htmlFor="bulk-csv-input" style={formLabelStyle}>Upload CSV File</label>
         <input
           id="bulk-csv-input"
           type="file"
@@ -1987,6 +1991,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                             ) : (
                               <input
                                 type="text"
+                                aria-label={col}
                                 value={val}
                                 onChange={(e) => updateCell(rowIdx, col, e.target.value)}
                                 style={controlBase}
