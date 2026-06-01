@@ -3,6 +3,9 @@
 import React from 'react';
 import DashboardTabs from './DashboardTabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
+import StudentOverview from '@/components/dashboard/roles/student/Overview';
+import StudentActivity from '@/components/dashboard/roles/student/Activity';
+import StudentTasks from '@/components/dashboard/roles/student/Tasks';
 
 type Role =
   | 'STUDENT'
@@ -29,9 +32,9 @@ export default function RoleDashboard({
   const dispatchers: Record<Role, React.ReactNode> = {
     STUDENT: (
       <DashboardTabs
-        overview={placeholder('Student Overview')}
-        activity={placeholder('Student Activity')}
-        tasks={placeholder('Student Tasks')}
+        overview={<StudentOverview userId={userId ?? ''} />}
+        activity={<StudentActivity userId={userId ?? ''} />}
+        tasks={<StudentTasks userId={userId ?? ''} />}
       />
     ),
     FELLOW: (
