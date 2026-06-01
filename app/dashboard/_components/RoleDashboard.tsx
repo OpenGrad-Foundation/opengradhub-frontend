@@ -3,9 +3,34 @@
 import React from 'react';
 import DashboardTabs from './DashboardTabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
+
 import StudentOverview from '@/components/dashboard/roles/student/Overview';
 import StudentActivity from '@/components/dashboard/roles/student/Activity';
 import StudentTasks from '@/components/dashboard/roles/student/Tasks';
+
+import FellowOverview from '@/components/dashboard/roles/fellow/Overview';
+import FellowActivity from '@/components/dashboard/roles/fellow/Activity';
+import FellowTasks from '@/components/dashboard/roles/fellow/Tasks';
+
+import PMOverview from '@/components/dashboard/roles/program-manager/Overview';
+import PMActivity from '@/components/dashboard/roles/program-manager/Activity';
+import PMTasks from '@/components/dashboard/roles/program-manager/Tasks';
+
+import ZMOverview from '@/components/dashboard/roles/zonal-manager/Overview';
+import ZMActivity from '@/components/dashboard/roles/zonal-manager/Activity';
+import ZMTasks from '@/components/dashboard/roles/zonal-manager/Tasks';
+
+import SuperAdminOverview from '@/components/dashboard/roles/super-admin/Overview';
+import SuperAdminActivity from '@/components/dashboard/roles/super-admin/Activity';
+import SuperAdminTasks from '@/components/dashboard/roles/super-admin/Tasks';
+
+import GovernmentOverview from '@/components/dashboard/roles/government/Overview';
+import GovernmentActivity from '@/components/dashboard/roles/government/Activity';
+import GovernmentTasks from '@/components/dashboard/roles/government/Tasks';
+
+import FundingPartnerOverview from '@/components/dashboard/roles/funding-partner/Overview';
+import FundingPartnerActivity from '@/components/dashboard/roles/funding-partner/Activity';
+import FundingPartnerTasks from '@/components/dashboard/roles/funding-partner/Tasks';
 
 type Role =
   | 'STUDENT'
@@ -16,10 +41,6 @@ type Role =
   | 'GOVERNMENT'
   | 'FUNDING_PARTNER';
 
-const placeholder = (label: string) => (
-  <EmptyState helperText={`${label} — coming soon`} />
-);
-
 export default function RoleDashboard({
   role,
   programmeType,
@@ -29,54 +50,56 @@ export default function RoleDashboard({
   programmeType?: string | null;
   userId?: string;
 }) {
+  const id = userId ?? '';
+
   const dispatchers: Record<Role, React.ReactNode> = {
     STUDENT: (
       <DashboardTabs
-        overview={<StudentOverview userId={userId ?? ''} />}
-        activity={<StudentActivity userId={userId ?? ''} />}
-        tasks={<StudentTasks userId={userId ?? ''} />}
+        overview={<StudentOverview userId={id} />}
+        activity={<StudentActivity userId={id} />}
+        tasks={<StudentTasks userId={id} />}
       />
     ),
     FELLOW: (
       <DashboardTabs
-        overview={placeholder('Fellow Overview')}
-        activity={placeholder('Fellow Activity')}
-        tasks={placeholder('Fellow Tasks')}
+        overview={<FellowOverview userId={id} />}
+        activity={<FellowActivity userId={id} />}
+        tasks={<FellowTasks userId={id} />}
       />
     ),
     PROGRAM_MANAGER: (
       <DashboardTabs
-        overview={placeholder('PM Overview')}
-        activity={placeholder('PM Activity')}
-        tasks={placeholder('PM Tasks')}
+        overview={<PMOverview userId={id} />}
+        activity={<PMActivity userId={id} />}
+        tasks={<PMTasks userId={id} />}
       />
     ),
     ZONAL_MANAGER: (
       <DashboardTabs
-        overview={placeholder('ZM Overview')}
-        activity={placeholder('ZM Activity')}
-        tasks={placeholder('ZM Tasks')}
+        overview={<ZMOverview userId={id} />}
+        activity={<ZMActivity userId={id} />}
+        tasks={<ZMTasks userId={id} />}
       />
     ),
     SUPER_ADMIN: (
       <DashboardTabs
-        overview={placeholder('Super Admin Overview')}
-        activity={placeholder('Super Admin Activity')}
-        tasks={placeholder('Super Admin Tasks')}
+        overview={<SuperAdminOverview userId={id} />}
+        activity={<SuperAdminActivity userId={id} />}
+        tasks={<SuperAdminTasks userId={id} />}
       />
     ),
     GOVERNMENT: (
       <DashboardTabs
-        overview={placeholder('Government Overview')}
-        activity={placeholder('Government Activity')}
-        tasks={<EmptyState helperText="Read-only role — no tasks" />}
+        overview={<GovernmentOverview userId={id} />}
+        activity={<GovernmentActivity userId={id} />}
+        tasks={<GovernmentTasks />}
       />
     ),
     FUNDING_PARTNER: (
       <DashboardTabs
-        overview={placeholder('Funding Partner Overview')}
-        activity={placeholder('Funding Partner Activity')}
-        tasks={<EmptyState helperText="Read-only role — no tasks" />}
+        overview={<FundingPartnerOverview userId={id} />}
+        activity={<FundingPartnerActivity userId={id} />}
+        tasks={<FundingPartnerTasks />}
       />
     ),
   };
@@ -85,6 +108,5 @@ export default function RoleDashboard({
   if (!node) return <EmptyState helperText="No dashboard for this role" />;
 
   void programmeType;
-  void userId;
   return <>{node}</>;
 }
