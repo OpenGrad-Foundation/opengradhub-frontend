@@ -14,13 +14,6 @@ export type ActivityItem = {
   href: string;
 };
 
-type AnnouncementRow = {
-  id: string;
-  title: string;
-  created_at?: string;
-  published_at?: string;
-};
-
 export function useStudentActivity(userId: string) {
   const qc = useQueryClient();
   const query = useQuery<{ items: ActivityItem[] }, Error>({
@@ -29,19 +22,15 @@ export function useStudentActivity(userId: string) {
     staleTime: FIVE_MIN,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      // TODO(dashboard-backend): /analytics/dashboard/student/feed will merge
-      // quiz/doubt/announcement events server-side. Until then we only have
-      // announcements client-side.
-      const res = await apiFetch(`${API_BASE}/announcements`);
+      // Server merges quiz results, doubt replies, and student-targeted
+      // announcements into one reverse-chronological feed (capped at 20).
+      const res = await apiFetch(`${API_BASE}/analytics/dashboard/student/feed`);
       if (!res.ok) return { items: [] };
       const raw: unknown = await res.json();
-      const rows = Array.isArray(raw) ? (raw as AnnouncementRow[]) : [];
-      const items: ActivityItem[] = rows.slice(0, 20).map((r) => ({
-        ts: r.published_at ?? r.created_at ?? new Date().toISOString(),
-        kind: "announcement",
-        text: r.title,
-        href: "/dashboard/announcements",
-      }));
+      const items =
+        raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)
+          ? (raw as { items: ActivityItem[] }).items
+          : [];
       return { items };
     },
   });

@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericTasks from "../_GenericTasks";
-import { useStubTasks } from "@/lib/queries/dashboard/_shared";
+import { usePMTasks } from "@/lib/queries/dashboard/program-manager/use-tasks";
 
 export default function PMTasks({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /analytics/dashboard/program-manager/tasks
-  const { tasks, isLoading, error, refetch } = useStubTasks("PROGRAM_MANAGER", userId, []);
+  const { tasks, isLoading, error, refetch } = usePMTasks(userId);
   return (
     <GenericTasks
       role="PROGRAM_MANAGER"
