@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import DOMPurify from "isomorphic-dompurify";
 
 // renderMathInElement is a UMD-style module — import as any, types not shipped
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,6 +40,10 @@ export function MathContent({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // Sanitize here so the component is safe regardless of caller. KaTeX
+  // auto-render runs afterwards on the mounted node and is unaffected.
+  const safeHtml = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+
   useEffect(() => {
     let cancelled = false;
     if (!ref.current) return;
@@ -53,7 +58,7 @@ export function MathContent({
       ref={ref}
       className={className}
       style={style}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
 }

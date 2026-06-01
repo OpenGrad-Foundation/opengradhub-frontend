@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import DOMPurify from "isomorphic-dompurify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -606,12 +607,10 @@ export default function LessonPage() {
  * Basic HTML sanitiser — strips <script> blocks and dangerous event attributes.
  * notes_html is also sanitised at write time by admin input; this is a defence-in-depth layer.
  */
+// Allowlist-based sanitizer (DOMPurify) — replaces the bypassable regex
+// (single-quote/unquoted handlers, svg/onload, iframes all slipped through).
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\s+on\w+="[^"]*"/gi, "")
-    .replace(/\s+on\w+='[^']*'/gi, "")
-    .replace(/javascript:/gi, "");
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }
 
 function LoadingState() {
