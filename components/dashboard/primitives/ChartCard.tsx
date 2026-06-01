@@ -55,10 +55,16 @@ export default function ChartCard({
         <div data-testid="chart-skeleton" className="h-48 animate-pulse rounded bg-slate-100" />
       ) : !hasData ? (
         <EmptyState helperText={emptyHelper} />
-      ) : variant === 'line' ? (
-        <Line data={data} options={{ responsive: true, maintainAspectRatio: false }} height={192} />
       ) : (
-        <Bar data={data} options={{ responsive: true, maintainAspectRatio: false }} height={192} />
+        // Fixed-height box: with maintainAspectRatio:false the canvas sizes to
+        // its container, not the height prop — without this it grows unbounded.
+        <div className="relative h-48">
+          {variant === 'line' ? (
+            <Line data={data} options={{ responsive: true, maintainAspectRatio: false }} />
+          ) : (
+            <Bar data={data} options={{ responsive: true, maintainAspectRatio: false }} />
+          )}
+        </div>
       )}
     </div>
   );
