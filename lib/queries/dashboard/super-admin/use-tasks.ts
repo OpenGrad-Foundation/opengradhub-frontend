@@ -9,39 +9,39 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000"
 const FIVE_MIN = 5 * 60_000;
 
 type TasksResponse = {
-  escalatedDoubts: Array<{ id: string; title: string }>;
-  overdueCheckIns: Array<{ id: string; name: string }>;
+  pendingApprovals: Array<{ id: string; title: string; created_by_name: string | null }>;
+  openDoubts: Array<{ id: string; title: string }>;
 };
 
 function toTasks(r: TasksResponse): TaskRow[] {
-  const doubts: TaskRow[] = (r.escalatedDoubts ?? []).map((d) => ({
+  const approvals: TaskRow[] = (r.pendingApprovals ?? []).map((c) => ({
+    id: `approval-${c.id}`,
+    icon: "review",
+    title: c.title,
+    subtitle: c.created_by_name ? `Submitted by ${c.created_by_name}` : "Awaiting approval",
+    href: `/dashboard/courses/${c.id}`,
+    actionLabel: "Approve",
+  }));
+  const doubts: TaskRow[] = (r.openDoubts ?? []).map((d) => ({
     id: `doubt-${d.id}`,
     icon: "doubt",
     title: d.title,
-    subtitle: "Escalated to you",
+    subtitle: "Open doubt",
     href: `/dashboard/doubts/${d.id}`,
     actionLabel: "Review",
   }));
-  const checkIns: TaskRow[] = (r.overdueCheckIns ?? []).map((f) => ({
-    id: `checkin-${f.id}`,
-    icon: "system",
-    title: f.name,
-    subtitle: "Inactive 7+ days",
-    href: `/dashboard/users/${f.id}`,
-    actionLabel: "Nudge",
-  }));
-  return [...doubts, ...checkIns];
+  return [...approvals, ...doubts];
 }
 
-export function usePMTasks(userId: string) {
+export function useSuperAdminTasks(userId: string) {
   const qc = useQueryClient();
   const query = useQuery<TaskRow[], Error>({
-    queryKey: qk.dashboardWidget("PROGRAM_MANAGER", "tasks", userId),
+    queryKey: qk.dashboardWidget("SUPER_ADMIN", "tasks", userId),
     enabled: !!userId,
     staleTime: FIVE_MIN,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await apiFetch(`${API_BASE}/analytics/dashboard/program-manager/tasks`);
+      const res = await apiFetch(`${API_BASE}/analytics/dashboard/super-admin/tasks`);
       if (!res.ok) return [];
       const raw = (await res.json()) as TasksResponse;
       return toTasks(raw);
@@ -52,6 +52,6 @@ export function usePMTasks(userId: string) {
     tasks: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard("PROGRAM_MANAGER", "tasks") }),
+    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard("SUPER_ADMIN", "tasks") }),
   };
 }
