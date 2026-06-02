@@ -34,9 +34,10 @@ export function useStudentOverview(userId: string) {
     staleTime: FIVE_MIN,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const [enrolmentsRes, doubtsRes] = await Promise.all([
+      const [enrolmentsRes, doubtsRes, overviewRes] = await Promise.all([
         apiFetch(`${API_BASE}/users/${userId}/enrolments`),
         apiFetch(`${API_BASE}/doubts?mine=1&status=open`),
+        apiFetch(`${API_BASE}/analytics/dashboard/student/overview`),
       ]);
 
       const enrolments: unknown = enrolmentsRes.ok ? await enrolmentsRes.json() : [];
@@ -54,14 +55,22 @@ export function useStudentOverview(userId: string) {
           ? (doubts as { items: unknown[] }).items.length
           : 0;
 
-      // TODO(dashboard-backend): wire avgScore, attendancePct, recentScores from
-      // /analytics/dashboard/student/overview once that endpoint exists.
+      // Score + attendance KPIs are server-computed (quiz_attempts +
+      // live_class_attendees).
+      const overview = overviewRes.ok
+        ? ((await overviewRes.json()) as {
+            avgScore: number;
+            attendancePct: number;
+            recentScores: StudentOverviewWidgets["recentScores"];
+          })
+        : null;
+
       return {
         myCourses,
-        avgScore: 0,
+        avgScore: overview?.avgScore ?? 0,
         openDoubts,
-        attendancePct: 0,
-        recentScores: { labels: [], datasets: [] },
+        attendancePct: overview?.attendancePct ?? 0,
+        recentScores: overview?.recentScores ?? { labels: [], datasets: [] },
       };
     },
   });
