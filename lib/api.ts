@@ -310,12 +310,20 @@ export async function getAnalyticsStudentsPaged(
   return (await response.json()) as AnalyticsStudentsPage;
 }
 
-export async function downloadAnalyticsStudentsCsv(filters: AnalyticsStudentFilters) {
-  const params = buildAnalyticsParams(filters);
-  const qs = params.toString();
-  const response = await apiFetch(
-    `${API_BASE_URL}/analytics/students/export${qs ? `?${qs}` : ""}`,
-  );
+export async function downloadAnalyticsStudentsCsv(
+  filters: AnalyticsStudentFilters,
+  studentIds?: string[],
+  includeMarks?: boolean,
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await apiFetch(`${API_BASE_URL}/analytics/students/export/csv`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      filters,
+      student_ids: studentIds,
+      include_marks: includeMarks || false,
+    }),
+  });
 
   if (!response.ok) {
     const errorBody = (await response
