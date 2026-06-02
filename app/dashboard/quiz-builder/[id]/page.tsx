@@ -57,6 +57,9 @@ export default function QuizBuilderPage() {
   const [sequentialSections, setSequentialSections] = useState(false);
   const [firstAttemptCounts, setFirstAttemptCounts] = useState(false);
   const [requireFullscreen, setRequireFullscreen]   = useState(false);
+  const [negativeMarking, setNegativeMarking] = useState(false);
+  const [correctMarks, setCorrectMarks]       = useState("1");
+  const [wrongMarks, setWrongMarks]           = useState("0");
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [settingsErr, setSettingsErr]     = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -91,6 +94,9 @@ export default function QuizBuilderPage() {
       setSequentialSections(q.sequential_sections);
       setFirstAttemptCounts(q.first_attempt_counts);
       setRequireFullscreen(q.require_fullscreen);
+      setNegativeMarking(q.negative_marking);
+      setCorrectMarks(String(q.correct_marks ?? 1));
+      setWrongMarks(String(q.wrong_marks ?? 0));
       if (q.is_sectioned && q.sections.length > 0) {
         setActiveSectionId(prev => prev ?? q.sections[0].id);
       }
@@ -146,6 +152,9 @@ export default function QuizBuilderPage() {
         sequential_sections:    sequentialSections,
         first_attempt_counts:   firstAttemptCounts,
         require_fullscreen:     requireFullscreen,
+        negative_marking:       negativeMarking,
+        correct_marks:          correctMarks ? Number(correctMarks) : 1,
+        wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
       });
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2500);
@@ -315,6 +324,17 @@ export default function QuizBuilderPage() {
               )}
               <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts (subsequent retakes allowed but won't change the grade)" />
               <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt (desktop only — mobile blocked)" />
+              <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking (deduct marks for wrong answers; blanks never penalized)" />
+              {negativeMarking && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <Field label="Marks per correct answer">
+                    <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
+                  </Field>
+                  <Field label="Penalty per wrong answer">
+                    <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="1" />
+                  </Field>
+                </div>
+              )}
             </div>
           </div>
           {settingsErr && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "12px 0 0" }}>{settingsErr}</p>}

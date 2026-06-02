@@ -23,7 +23,7 @@ import {
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 
-const TABS = ["overview", "students", "curriculum", "analytics", "settings"] as const;
+const TABS = ["curriculum", "overview", "students", "analytics", "settings"] as const;
 type TabKey = (typeof TABS)[number];
 
 export default function CourseManagementPage() {
@@ -36,9 +36,8 @@ export default function CourseManagementPage() {
   const courseId = params.id;
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
   const callerId = userData?.user?.id ?? "";
-  const activeTab = (TABS.includes((searchParams.get("tab") ?? "overview") as TabKey)
-    ? (searchParams.get("tab") as TabKey)
-    : "overview") as TabKey;
+  const tabParam = searchParams.get("tab");
+  const activeTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
   const canAccess = has(PERM.courses.edit);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);

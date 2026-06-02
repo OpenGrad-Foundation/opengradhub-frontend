@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import DOMPurify from "isomorphic-dompurify";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -12,6 +14,7 @@ import {
   type LessonDetail,
   type QuizAttempt,
 } from "@/lib/api";
+import { qk } from "@/lib/queries/keys";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── YouTube IFrame API type declarations ───────────────────────
@@ -118,6 +121,7 @@ function ensureYouTubeIframeApi(): Promise<void> {
 export default function LessonPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const queryClient = useQueryClient();
   const studentId = userData?.user?.id ?? "";
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
@@ -133,6 +137,8 @@ export default function LessonPage() {
   const [playerError, setPlayerError] = useState(false);
   const [playerFrameNonce, setPlayerFrameNonce] = useState(0);
   const completionFiredRef   = useRef(false);
+  const coursesInvalidatedRef = useRef(false);
+  const nextPrefetchedRef     = useRef(false);
   const playerRef            = useRef<YTPlayer | null>(null);
   const pollTimerRef         = useRef<ReturnType<typeof setInterval> | null>(null);
   const reinitAttemptsRef    = useRef(0);
@@ -143,7 +149,11 @@ export default function LessonPage() {
   const studentIdRef = useRef(studentId);
   const lessonIdRef  = useRef(lessonId as string);
   useEffect(() => { studentIdRef.current = studentId; }, [studentId]);
-  useEffect(() => { lessonIdRef.current  = lessonId as string; }, [lessonId]);
+  useEffect(() => {
+    lessonIdRef.current = lessonId as string;
+    coursesInvalidatedRef.current = false;
+    nextPrefetchedRef.current = false;
+  }, [lessonId]);
 
   // ── Data load ─────────────────────────────────────────────────
 
@@ -156,7 +166,13 @@ export default function LessonPage() {
       setError(null);
 
       try {
-        const l = await getLessonById(lessonId);
+        // Read through the query cache so a prefetched next-lesson (see the
+        // prefetch effect below) is served instantly instead of re-fetched.
+        const l = await queryClient.fetchQuery({
+          queryKey: qk.lesson(lessonId),
+          queryFn: () => getLessonById(lessonId),
+          staleTime: 60 * 60_000,
+        });
         if (cancelled) return;
 
         setLesson(l);
@@ -185,7 +201,7 @@ export default function LessonPage() {
 
     void loadLesson();
     return () => { cancelled = true; };
-  }, [userLoading, lessonId, studentId]);
+  }, [userLoading, lessonId, studentId, queryClient]);
 
   // ── YouTube IFrame API ─────────────────────────────────────────
 
@@ -197,9 +213,17 @@ export default function LessonPage() {
       completionFiredRef.current = true;
     }
     patchLessonProgress({ student_id: sid, lesson_id: lid, watched_percent: pct })
-      .then(result => { if (result.is_complete) setIsComplete(true); })
+      .then(result => {
+        if (result.is_complete) {
+          setIsComplete(true);
+          if (!coursesInvalidatedRef.current) {
+            coursesInvalidatedRef.current = true;
+            void queryClient.invalidateQueries({ queryKey: qk.studentCourses(sid) });
+          }
+        }
+      })
       .catch(() => { /* ignore */ });
-  }, []);
+  }, [queryClient]);
 
   const stopPoll = useCallback(() => {
     if (pollTimerRef.current) {
@@ -340,6 +364,25 @@ export default function LessonPage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [startPoll, stopPoll]);
+
+  // L6 — prefetch the next lesson once the student is far enough along that
+  // navigation is imminent. In sequential courses the next lesson is locked
+  // until this one is 80% watched, so don't prefetch a lesson that would 403.
+  // Fire-once per lesson; the ref resets when lessonId changes.
+  useEffect(() => {
+    if (nextPrefetchedRef.current) return;
+    const nextId = lesson?.next_lesson_id;
+    if (!nextId || watchedPct < 60) return;
+    const unlocked = isComplete || watchedPct >= 80;
+    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && !unlocked;
+    if (seqLocked) return;
+    nextPrefetchedRef.current = true;
+    void queryClient.prefetchQuery({
+      queryKey: qk.lesson(nextId),
+      queryFn: () => getLessonById(nextId),
+      staleTime: 60 * 60_000,
+    });
+  }, [lesson, watchedPct, isComplete, lockingMode, roleCode, queryClient]);
 
   if (loading || userLoading) return <LoadingState />;
 
@@ -568,12 +611,10 @@ export default function LessonPage() {
  * Basic HTML sanitiser — strips <script> blocks and dangerous event attributes.
  * notes_html is also sanitised at write time by admin input; this is a defence-in-depth layer.
  */
+// Allowlist-based sanitizer (DOMPurify) — replaces the bypassable regex
+// (single-quote/unquoted handlers, svg/onload, iframes all slipped through).
 function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/\s+on\w+="[^"]*"/gi, "")
-    .replace(/\s+on\w+='[^']*'/gi, "")
-    .replace(/javascript:/gi, "");
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }
 
 function LoadingState() {

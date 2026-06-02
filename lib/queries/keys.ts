@@ -28,4 +28,43 @@ export const qk = {
 
   studentCourses: (studentId: string) =>
     ['og', 'student', studentId, 'courses'] as const,
+
+  managers: (role: string) => ['og', 'managers', role] as const,
+  assessmentsOverview: (params: Record<string, unknown>) =>
+    ['og', 'assessments', 'overview', params] as const,
+  reportHistory: (studentId: string) =>
+    ['og', 'report', studentId, 'history'] as const,
+  staffDoubts: (filters: Record<string, unknown>) =>
+    ['og', 'doubts', 'staff', filters] as const,
+
+  managerAnalytics: (courseId: string) =>
+    ['og', 'analytics', 'manager', courseId] as const,
+  analyticsSchools: () => ['og', 'analytics', 'schools'] as const,
+  analyticsStudents: (filters: Record<string, unknown>) =>
+    ['og', 'analytics', 'students', filters] as const,
+  topicStrength: (studentId: string) =>
+    ['og', 'student', studentId, 'topics'] as const,
+  quizAttempts: (quizId: string, studentId?: string) =>
+    ['og', 'quiz', quizId, 'attempts', studentId ?? 'self'] as const,
+  myQuizAttempts: (studentId?: string) =>
+    ['og', 'quiz-attempts', 'mine', studentId ?? 'self'] as const,
+  availableQuizzes: () => ['og', 'quizzes', 'available'] as const,
+  bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
+  liveClasses: () => ['og', 'live-classes'] as const,
+  nextLiveClass: (studentId: string) =>
+    ['og', 'live-classes', 'next', studentId] as const,
+  assignments: () => ['og', 'assignments'] as const,
+  submissionQueue: (filters: Record<string, unknown>) =>
+    ['og', 'assignments', 'submission-queue', filters] as const,
+  resources: (programmeType?: string) =>
+    ['og', 'resources', programmeType ?? 'all'] as const,
+  calendar: (from?: string, to?: string) =>
+    ['og', 'calendar', from ?? '', to ?? ''] as const,
+  studentEnrolments: (studentId: string) =>
+    ['og', 'student', studentId, 'enrolments'] as const,
+
+  dashboard: (role: string, tab: 'overview' | 'activity' | 'tasks') =>
+    ['og', 'dashboard', role, tab] as const,
+  dashboardWidget: (role: string, tab: 'overview' | 'activity' | 'tasks', widgetId: string) =>
+    ['og', 'dashboard', role, tab, widgetId] as const,
 };

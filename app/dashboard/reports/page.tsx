@@ -5,19 +5,17 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { StaffReportsView } from "@/components/reports/StaffReportsView";
 import {
-  ApiError,
   getAvailableQuizzes,
   getModuleQuizzes,
-  getQuizAttempts,
+  getMyQuizAttempts,
   getStudentEnrolments,
-  getStudentPerformanceHistory,
   downloadStudentMonthlyReportPdf,
   downloadStudentCourseReportPdf,
   downloadStudentTestReportPdf,
   type Course,
-  type PerformanceHistoryRow,
   type StudentReportPdf,
 } from "@/lib/api";
+import { useReportHistory } from "@/lib/queries/reports";
 import { PerformanceHistoryTable } from "@/components/performance-history-table";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
@@ -68,9 +66,20 @@ export default function ReportsPage() {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [historyRows, setHistoryRows] = useState<PerformanceHistoryRow[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(true);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  // Load the student's full performance history (every completed attempt with
+  // per-subject scores + ranks). Backend scopes to the caller ("me").
+  const {
+    data: historyData,
+    isPending: historyLoading,
+    isError: historyIsError,
+    error: historyErrorObj,
+  } = useReportHistory("me");
+  const historyRows = historyData?.rows ?? [];
+  const historyError = historyIsError
+    ? historyErrorObj instanceof Error
+      ? historyErrorObj.message
+      : "Failed to load performance history."
+    : null;
 
   // Load the student's enrolled courses and the quizzes they have completed at
   // least once. Quizzes come from both the global/program list and the module
@@ -87,27 +96,23 @@ export default function ReportsPage() {
       getStudentEnrolments("me").catch(() => [] as Course[]),
       getAvailableQuizzes().catch(() => []),
       getModuleQuizzes().catch(() => []),
+      getMyQuizAttempts().catch(() => []),
     ])
-      .then(async ([enrolments, globalQs, moduleQs]) => {
+      .then(([enrolments, globalQs, moduleQs, myAttempts]) => {
         if (cancelled) return;
         setCourses(enrolments);
         if (enrolments.length > 0) setSelectedCourseId(enrolments[0].id);
 
-        const allQs = [...globalQs, ...moduleQs];
-        const completed: CompletedQuiz[] = [];
-        await Promise.all(
-          allQs.map(async (q) => {
-            try {
-              const attempts = await getQuizAttempts(q.id);
-              if (attempts.some((a) => a.is_complete)) {
-                completed.push({ id: q.id, title: q.title });
-              }
-            } catch {
-              /* skip quizzes whose attempts fail to load */
-            }
-          }),
+        // One batch attempts call instead of one-per-quiz: a quiz is eligible
+        // for a test report if it has >=1 complete attempt.
+        const completedQuizIds = new Set(
+          myAttempts.filter((a) => a.is_complete).map((a) => a.quiz_id),
         );
-        if (cancelled) return;
+        const allQs = [...globalQs, ...moduleQs];
+        const completed: CompletedQuiz[] = allQs
+          .filter((q) => completedQuizIds.has(q.id))
+          .map((q) => ({ id: q.id, title: q.title }));
+
         setCompletedQuizzes(completed);
         if (completed.length > 0) setSelectedQuizId(completed[0].id);
       })
@@ -120,26 +125,6 @@ export default function ReportsPage() {
       window.clearTimeout(loadingTimer);
     };
   }, [userLoading, perms.isLoading, isStaffReportsUser, canUseStudentReports]);
-
-  // Load the student's full performance history (every completed attempt with
-  // per-subject scores + ranks). Mount-only — backend scopes to the caller.
-  useEffect(() => {
-    getStudentPerformanceHistory("me")
-      .then((resp) => {
-        setHistoryRows(resp.rows);
-        setHistoryLoading(false);
-      })
-      .catch((e: unknown) => {
-        if (e instanceof ApiError) {
-          setHistoryError(e.message);
-        } else if (e instanceof Error) {
-          setHistoryError(e.message);
-        } else {
-          setHistoryError("Failed to load performance history.");
-        }
-        setHistoryLoading(false);
-      });
-  }, []);
 
   async function handleDownload() {
     setDownloading(true);

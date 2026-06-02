@@ -1,44 +1,31 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAssignments, type Assignment } from "@/lib/api";
+import { type Assignment, type SubmissionQueueRow, type Submission } from "@/lib/api";
+import { useAssignments, useSubmissionQueue } from "@/lib/queries/assignments";
+import { GradePanel, StatusBadge } from "@/app/dashboard/assignments/_components/GradePanel";
 
 export default function AssignmentsPage() {
-  const { data, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const userId   = data?.user?.id ?? "";
-
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [error, setError]             = useState<string | null>(null);
 
   // "Manager view" = can grade submissions. Creating is a separate permission.
   const canGrade  = has(PERM.assignments.grade);
   const canCreate = has(PERM.assignments.create);
   const isManager = canGrade;
 
-  const fetchAssignments = useCallback(async () => {
-    if (!userId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      setAssignments(await getAssignments());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load assignments.");
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    if (!isLoading && userId) void fetchAssignments();
-  }, [isLoading, userId, fetchAssignments]);
+  const { data: assignments = [], isPending, error: queryError } = useAssignments();
+  const loading = isPending;
+  const error = queryError ? (queryError as Error).message : null;
 
   if (isLoading) return <LoadingState />;
+  if (isManager) {
+    return <SubmissionQueue canCreate={canCreate} />;
+  }
 
   return (
     <div>
@@ -138,23 +125,6 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const cfg: Record<string, { bg: string; color: string; label: string }> = {
-    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "rgba(3,72,82,0.5)",  label: "Not Started" },
-    SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#0abe62",            label: "Submitted" },
-    LATE:        { bg: "rgba(255,222,0,0.2)",   color: "#956f00",            label: "Late" },
-    GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Grading" },
-    GRADED:      { bg: "rgba(10,190,98,0.12)",  color: "#0abe62",            label: "Graded" },
-    "—":         { bg: "transparent",           color: "rgba(3,72,82,0.35)", label: "—" },
-  };
-  const { bg, color, label } = cfg[status] ?? cfg["NOT_STARTED"];
-  return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: bg, color }}>
-      {label}
-    </span>
-  );
-}
-
 function LoadingState() {
   return (
     <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -165,6 +135,195 @@ function LoadingState() {
     </div>
   );
 }
+
+function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
+  const { data: userData } = useCurrentUser();
+  const graderId = userData?.user?.id ?? "";
+
+  const [schoolId, setSchoolId] = useState("");
+  const [overdue, setOverdue]   = useState(false);
+  const [status, setStatus]     = useState("");
+  const [q, setQ]               = useState("");
+  const [active, setActive]     = useState<SubmissionQueueRow | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setActive(null); };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [active]);
+
+  const { data, isPending, error, refetch } = useSubmissionQueue({
+    schoolId: schoolId || undefined,
+    overdue:  overdue || undefined,
+    status:   status || undefined,
+    q:        q || undefined,
+  });
+
+  const rows = data?.rows ?? [];
+  const schools = data?.schools ?? [];
+
+  // Build a Submission object for GradePanel from the active queue row.
+  const activeSubmission: Submission | null = active && active.submission_id
+    ? {
+        id: active.submission_id,
+        assignment_id: active.assignment_id,
+        student_id: active.student_id,
+        student_name: active.student_name,
+        student_roll: active.student_roll,
+        response_text: null,
+        file_urls: [],
+        status: active.status,
+        submitted_at: active.submitted_at,
+        is_late: active.is_late,
+        score: active.score,
+        feedback: null,
+        graded_by: null,
+        graded_at: null,
+      }
+    : null;
+
+  return (
+    <div>
+      <style>{`
+        @keyframes gradeSlideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        @keyframes gradeFadeIn  { from { opacity: 0; } to { opacity: 1; } }
+      `}</style>
+      <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
+          <div>
+            <p style={S.label}>Grading</p>
+            <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Submission Queue</h1>
+            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+              {rows.length} obligation{rows.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          {canCreate && (
+            <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
+              + New Assignment
+            </Link>
+          )}
+        </div>
+
+        <div style={{ ...glassCard, padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center" }}>
+          <select value={schoolId} onChange={(e) => setSchoolId(e.target.value)} style={filterInput}>
+            <option value="">All schools</option>
+            {schools.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} style={filterInput}>
+            <option value="">All statuses</option>
+            {["NOT_STARTED", "SUBMITTED", "LATE", "GRADING", "GRADED"].map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#034852", fontWeight: 600 }}>
+            <input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> Overdue only
+          </label>
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search student…" style={{ ...filterInput, flex: 1, minWidth: "160px" }} />
+        </div>
+
+        {isPending ? (
+          <div style={{ ...glassCard, textAlign: "center", padding: "40px" }}><p style={S.label}>Loading…</p></div>
+        ) : error ? (
+          <div style={{ ...glassCard, textAlign: "center" }}><p style={{ color: "#e53e3e", fontWeight: 600 }}>{(error as Error).message}</p></div>
+        ) : rows.length === 0 ? (
+          <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
+            <p style={S.label}>Nothing Here</p>
+            <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>No submissions match your filters.</p>
+          </div>
+        ) : (
+          <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+            <div className="overflow-x-auto">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
+                    {["Student", "School", "Assignment", "Due", "Status", ""].map((h) => <th key={h} style={thStyle}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => {
+                    const due = new Date(r.due_at);
+                    const isActive = active?.submission_id != null && active.submission_id === r.submission_id;
+                    return (
+                      <tr key={`${r.assignment_id}:${r.student_id}`} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)", background: isActive ? "rgba(10,190,98,0.04)" : "transparent" }}>
+                        <td style={tdStyle}><strong style={{ color: "#034852" }}>{r.student_name ?? "—"}</strong>{r.student_roll ? <span style={{ color: "rgba(3,72,82,0.4)" }}> · {r.student_roll}</span> : null}</td>
+                        <td style={tdStyle}>{r.school_name ?? "—"}</td>
+                        <td style={tdStyle}>{r.assignment_title}{r.course_title ? <span style={{ color: "rgba(3,72,82,0.4)" }}> · {r.course_title}</span> : null}</td>
+                        <td style={tdStyle}>
+                          <span style={{ color: r.is_overdue ? "#dc2626" : "rgba(3,72,82,0.7)", fontWeight: r.is_overdue ? 700 : 400 }}>
+                            {due.toLocaleDateString()}
+                          </span>
+                          {r.is_overdue && <span style={{ marginLeft: "6px", padding: "1px 6px", borderRadius: "6px", fontSize: "9px", fontWeight: 700, background: "rgba(220,38,38,0.1)", color: "#dc2626" }}>OVERDUE</span>}
+                        </td>
+                        <td style={tdStyle}><StatusBadge status={r.status} /></td>
+                        <td style={tdStyle}>
+                          {r.submission_id ? (
+                            <button onClick={() => setActive(isActive ? null : r)} style={{ padding: "5px 12px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>
+                              {isActive ? "Close" : "Grade"}
+                            </button>
+                          ) : (
+                            <span style={{ color: "rgba(3,72,82,0.35)", fontSize: "12px" }}>Not submitted</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {activeSubmission && (
+        <>
+          <div
+            onClick={() => setActive(null)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(3,72,82,0.25)",
+              backdropFilter: "blur(2px)",
+              zIndex: 50,
+              animation: "gradeFadeIn 180ms ease-out",
+            }}
+          />
+          <aside
+            style={{
+              position: "fixed",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "min(460px, 100vw)",
+              background: "#f8fafa",
+              boxShadow: "-12px 0 36px rgba(3,72,82,0.18)",
+              overflowY: "auto",
+              zIndex: 51,
+              padding: "24px",
+              animation: "gradeSlideIn 280ms cubic-bezier(0.16,1,0.3,1)",
+            }}
+          >
+            <GradePanel
+              key={activeSubmission.id}
+              submission={activeSubmission}
+              assignmentId={activeSubmission.assignment_id}
+              graderId={graderId}
+              onSaved={async () => { await refetch(); }}
+              onClose={() => setActive(null)}
+            />
+          </aside>
+        </>
+      )}
+    </div>
+  );
+}
+
+const filterInput: React.CSSProperties = {
+  padding: "8px 12px", border: "1px solid rgba(3,72,82,0.15)", borderRadius: "8px",
+  fontSize: "13px", color: "#034852", background: "#fff", outline: "none",
+};
 
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" };
 const S = {

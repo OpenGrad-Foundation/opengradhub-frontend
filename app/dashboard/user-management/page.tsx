@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -26,6 +26,7 @@ import {
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -82,11 +83,12 @@ export default function UserManagementPage() {
             {users.length} user{users.length !== 1 ? "s" : ""} registered
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full sm:w-auto">
           {canCreate && (
             <>
               <button
                 id="add-user-btn"
+                className="w-full sm:w-auto"
                 style={primaryButton}
                 onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -95,6 +97,7 @@ export default function UserManagementPage() {
               </button>
               <button
                 id="bulk-upload-btn"
+                className="w-full sm:w-auto"
                 style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
                 onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -103,6 +106,7 @@ export default function UserManagementPage() {
               </button>
               <button
                 id="bulk-assign-btn"
+                className="w-full sm:w-auto"
                 style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
                 onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
                 onMouseEnter={hoverIn} onMouseLeave={hoverOut}
@@ -234,6 +238,7 @@ export default function UserManagementPage() {
 // ── Add User Form ──────────────────────────────────────────────
 
 function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const isMobile = useIsMobile(640);
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -287,8 +292,38 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const isFellow = role === "FELLOW";
   const isPM = role === "PROGRAM_MANAGER";
   const isZM = role === "ZONAL_MANAGER";
-  const isUgStudent = isStudent && programme === "UG";
   const roleSelected = role !== "";
+
+  // Email is optional for students/fellows until PG is chosen; required for everyone else.
+  const emailRequired = !(isStudent || isFellow) || programme === "PG";
+
+  // State → District → School cascade, driven by the schools list itself.
+  const normState = (s: string | null | undefined) =>
+    (s ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  const districtOptions = useMemo(() => {
+    if (!state) return [] as string[];
+    const set = new Set<string>();
+    for (const s of schools) {
+      if (normState(s.state) === state && s.district) set.add(s.district);
+    }
+    return Array.from(set).sort();
+  }, [schools, state]);
+  const filteredSchools = useMemo(() => {
+    if (!state || !district) return [] as SchoolOption[];
+    return schools.filter(
+      (s) => normState(s.state) === state && s.district === district,
+    );
+  }, [schools, state, district]);
+
+  function handleStateChange(value: string) {
+    setState(value);
+    setDistrict("");
+    setSchoolId("");
+  }
+  function handleDistrictChange(value: string) {
+    setDistrict(value);
+    setSchoolId("");
+  }
 
   const pwRules = {
     length:    manualPassword.trim().length >= 8,
@@ -330,6 +365,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
       if (isStudent) {
         if (programme) payload.programme_type = programme;
         if (state) payload.state = state;
+        if (district.trim()) payload.district = district.trim();
         if (schoolId.trim()) payload.school_id = schoolId.trim();
         if (schoolCode.trim()) payload.school_code = schoolCode.trim();
         if (rollNumber.trim()) payload.roll_number = rollNumber.trim();
@@ -355,7 +391,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   }
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <p style={labelStyle}>Add New User</p>
         <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -389,8 +425,8 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                   <Field label="Full Name *" id="user-name">
                     <input id="user-name" value={name} onChange={(e) => setName(e.target.value)} required style={inputStyle} placeholder="Suraj Kumar" />
                   </Field>
-                  <Field label={isUgStudent ? "Email" : "Email *"} id="user-email">
-                    <input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={!isUgStudent} style={inputStyle} placeholder="suraj@opengrad.org" />
+                  <Field label={emailRequired ? "Email *" : "Email"} id="user-email">
+                    <input id="user-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required={emailRequired} style={inputStyle} placeholder="suraj@opengrad.org" />
                   </Field>
                 </Row>
                 <Field label="Phone" id="user-phone">
@@ -414,34 +450,58 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </Row>
                     <Row>
                       <Field label="State" id="user-state">
-                        <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
+                        <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
                           <option value="KERALA">Kerala</option>
                           <option value="KARNATAKA">Karnataka</option>
                           <option value="TAMIL_NADU">Tamil Nadu</option>
                         </select>
                       </Field>
-                      <Field label="School" id="user-school">
+                      <Field label="District" id="user-district">
                         <select
-                          id="user-school"
-                          value={schoolId}
-                          onChange={(e) => setSchoolId(e.target.value)}
+                          id="user-district"
+                          value={district}
+                          onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={schools.length === 0 && !schoolsError}
+                          disabled={!state}
                         >
                           <option value="">
-                            {schoolsError
-                              ? "Failed to load schools"
-                              : schools.length === 0
-                                ? "Loading schools…"
-                                : "Select a school (optional)"}
+                            {!state
+                              ? "Select a state first"
+                              : districtOptions.length === 0
+                                ? "No districts available"
+                                : "Select a district"}
                           </option>
-                          {schools.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
+                          {districtOptions.map((d) => (
+                            <option key={d} value={d}>{d}</option>
                           ))}
                         </select>
                       </Field>
                     </Row>
+                    <Field label="School" id="user-school">
+                      <select
+                        id="user-school"
+                        value={schoolId}
+                        onChange={(e) => setSchoolId(e.target.value)}
+                        style={inputStyle}
+                        disabled={!district}
+                      >
+                        <option value="">
+                          {schoolsError
+                            ? "Failed to load schools"
+                            : !state
+                              ? "Select a state first"
+                              : !district
+                                ? "Select a district first"
+                                : filteredSchools.length === 0
+                                  ? "No schools in this district"
+                                  : "Select a school (optional)"}
+                        </option>
+                        {filteredSchools.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                    </Field>
                   </>
                 )}
 
@@ -457,7 +517,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="State" id="user-state">
-                        <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
+                        <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
                           <option value="KERALA">Kerala</option>
                           <option value="KARNATAKA">Karnataka</option>
@@ -467,7 +527,24 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </Row>
                     <Row>
                       <Field label="District" id="user-district">
-                        <input id="user-district" value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} placeholder="e.g. Ernakulam" />
+                        <select
+                          id="user-district"
+                          value={district}
+                          onChange={(e) => handleDistrictChange(e.target.value)}
+                          style={inputStyle}
+                          disabled={!state}
+                        >
+                          <option value="">
+                            {!state
+                              ? "Select a state first"
+                              : districtOptions.length === 0
+                                ? "No districts available"
+                                : "Select a district"}
+                          </option>
+                          {districtOptions.map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
                       </Field>
                       <Field label="School" id="user-school">
                         <select
@@ -475,16 +552,20 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={schoolId}
                           onChange={(e) => setSchoolId(e.target.value)}
                           style={inputStyle}
-                          disabled={schools.length === 0 && !schoolsError}
+                          disabled={!district}
                         >
                           <option value="">
                             {schoolsError
                               ? "Failed to load schools"
-                              : schools.length === 0
-                                ? "Loading schools…"
-                                : "Select a school (optional)"}
+                              : !state
+                                ? "Select a state first"
+                                : !district
+                                  ? "Select a district first"
+                                  : filteredSchools.length === 0
+                                    ? "No schools in this district"
+                                    : "Select a school (optional)"}
                           </option>
-                          {schools.map((s) => (
+                          {filteredSchools.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>
                           ))}
                         </select>
@@ -564,6 +645,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <input
                         id="user-password"
                         type="text"
+                        aria-label="Password"
                         value={manualPassword}
                         onChange={(e) => setManualPassword(e.target.value)}
                         placeholder="e.g. OpenGrad@2025"
@@ -605,7 +687,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <button
             id="user-submit-btn"
             type="submit"
-            disabled={!roleSelected || submitting || !name.trim() || (!isUgStudent && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim()) || !isManualPasswordValid}
+            disabled={!roleSelected || submitting || !name.trim() || (emailRequired && !email.trim()) || (passwordMode === "manual" && !manualPassword.trim()) || !isManualPasswordValid}
             style={{ ...primaryButton, marginTop: "20px", opacity: (!roleSelected || submitting) ? 0.5 : 1 }}
           >
             {submitting ? "Creating…" : "Create User"}
@@ -813,6 +895,7 @@ function AssignCourseModal({
             {/* Search */}
             <input
               type="text"
+              aria-label="Search courses"
               placeholder="Search courses…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1033,6 +1116,7 @@ function AssignBundleModal({
               <input
                 type="text"
                 autoFocus={enrolledBundles.length === 0}
+                aria-label="Search bundles"
                 placeholder="Search bundles…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -1112,6 +1196,7 @@ function BulkAssignPanel({
 }: {
   onClose: () => void;
 }) {
+  const isMobile = useIsMobile(640);
   // Filters
   const [filterState,    setFilterState]    = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
@@ -1253,7 +1338,7 @@ function BulkAssignPanel({
   })();
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)", position: "relative" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)", position: "relative" }}>
 
       {/* Toast */}
       {toast && (
@@ -1285,12 +1370,12 @@ function BulkAssignPanel({
           </select>
         </div>
         <div>
-          <label style={formLabelStyle}>District</label>
-          <input type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-district" style={formLabelStyle}>District</label>
+          <input id="filter-district" type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
         <div>
-          <label style={formLabelStyle}>School</label>
-          <input type="text" placeholder="School name" value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-school" style={formLabelStyle}>School</label>
+          <input id="filter-school" type="text" placeholder="School name" value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
         <div>
           <label style={formLabelStyle}>Programme</label>
@@ -1301,8 +1386,8 @@ function BulkAssignPanel({
           </select>
         </div>
         <div>
-          <label style={formLabelStyle}>Search</label>
-          <input type="text" placeholder="Name or roll number" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <label htmlFor="filter-search" style={formLabelStyle}>Search</label>
+          <input id="filter-search" type="text" placeholder="Name or roll number" value={filterSearch} onChange={(e) => setFilterSearch(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
         </div>
       </div>
 
@@ -1339,8 +1424,8 @@ function BulkAssignPanel({
 
           {students.length > 0 && (
             <div style={{ border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", overflow: "hidden" }}>
-              <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", fontFamily: "var(--font-body)" }}>
+              <div style={{ maxHeight: "300px", overflowY: "auto", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", fontFamily: "var(--font-body)", minWidth: "640px" }}>
                   <thead style={{ position: "sticky", top: 0 }}>
                     <tr style={{ background: "rgba(3,72,82,0.05)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
                       <th style={{ ...thStyle, width: "40px" }}></th>
@@ -1366,6 +1451,7 @@ function BulkAssignPanel({
                             <input
                               type="checkbox"
                               checked={checked}
+                              aria-label={`Select ${s.name}`}
                               onChange={() => toggleStudent(s.id)}
                               onClick={(e) => e.stopPropagation()}
                               style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
@@ -1401,12 +1487,12 @@ function BulkAssignPanel({
             Assign to {selectedCount} student{selectedCount !== 1 ? "s" : ""}
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
 
             {/* Courses column */}
             <div>
               <p style={{ ...formLabelStyle, marginBottom: "6px" }}>Courses</p>
-              <input type="text" placeholder="Search courses…" value={courseSearch}
+              <input type="text" aria-label="Search courses" placeholder="Search courses…" value={courseSearch}
                 onChange={(e) => setCourseSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
               <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
@@ -1448,7 +1534,7 @@ function BulkAssignPanel({
             {/* Bundles column */}
             <div>
               <p style={{ ...formLabelStyle, marginBottom: "6px" }}>Bundles</p>
-              <input type="text" placeholder="Search bundles…" value={bundleSearch}
+              <input type="text" aria-label="Search bundles" placeholder="Search bundles…" value={bundleSearch}
                 onChange={(e) => setBundleSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
               <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
@@ -1618,6 +1704,7 @@ function csvEscape(val: string): string {
 }
 
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const isMobile = useIsMobile(640);
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
   const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
@@ -1724,7 +1811,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const hasData    = csvHeaders.length > 0 && editableRows.length > 0;
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
+    <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <p style={labelStyle}>Bulk Upload Users</p>
         <button onClick={onClose} style={closeBtnStyle}>✕</button>
@@ -1753,7 +1840,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
       {/* File input */}
       <div style={{ marginTop: "20px" }}>
-        <label style={formLabelStyle}>Upload CSV File</label>
+        <label htmlFor="bulk-csv-input" style={formLabelStyle}>Upload CSV File</label>
         <input
           id="bulk-csv-input"
           type="file"
@@ -1904,6 +1991,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                             ) : (
                               <input
                                 type="text"
+                                aria-label={col}
                                 value={val}
                                 onChange={(e) => updateCell(rowIdx, col, e.target.value)}
                                 style={controlBase}
@@ -1986,7 +2074,16 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>{children}</div>;
+  const isMobile = useIsMobile(640);
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+      gap: "12px",
+    }}>
+      {children}
+    </div>
+  );
 }
 
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {

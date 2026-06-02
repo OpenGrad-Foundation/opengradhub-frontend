@@ -34,10 +34,19 @@ export default function NotificationsPage() {
   useEffect(() => { if (!isLoading && userId) void fetch(); }, [isLoading, userId, fetch]);
 
   async function handleMarkAll() {
-    setMarking(true);
-    await markAllNotificationsRead(userId).catch(() => {});
+    // Optimistic: flip every item to read immediately, then confirm with the
+    // server. The unread badge/button vanish at once instead of waiting a full
+    // round-trip. Restore the prior state if the request fails.
+    const snapshot = items;
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
-    setMarking(false);
+    setMarking(true);
+    try {
+      await markAllNotificationsRead(userId);
+    } catch {
+      setItems(snapshot);
+    } finally {
+      setMarking(false);
+    }
   }
 
   const unreadCount = items.filter(n => !n.is_read).length;

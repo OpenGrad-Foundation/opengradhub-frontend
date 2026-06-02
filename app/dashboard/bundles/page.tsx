@@ -1,28 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getBundles, type Bundle } from "@/lib/api";
+import { type Bundle } from "@/lib/api";
+import { useBundles } from "@/lib/queries/bundles";
 
 export default function BundlesPage() {
   const { isLoading } = useCurrentUser();
   const canCreate = usePermission(PERM.bundles.create);
 
-  const [bundles, setBundles] = useState<Bundle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isLoading) return;
-    setLoading(true);
-    getBundles()
-      .then(setBundles)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load."))
-      .finally(() => setLoading(false));
-  }, [isLoading]);
+  const { data: bundles = [], isPending: loading, error: queryError } = useBundles();
+  const error = queryError ? (queryError as Error).message : null;
 
   if (isLoading) return <LoadingCard />;
 
@@ -32,8 +22,8 @@ export default function BundlesPage() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "32px", gap: "16px" }}>
         <div>
           <p style={label}>Curriculum</p>
-          <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Course Bundles</h1>
-          <p style={sub}>Group courses together and assign them to students in one action.</p>
+          <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Bundles</h1>
+          <p style={sub}>Group courses and tests together and assign them to students in one action.</p>
         </div>
         {canCreate && (
           <Link href="/dashboard/bundles/new" style={primaryBtn}>

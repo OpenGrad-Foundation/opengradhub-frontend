@@ -2,17 +2,6 @@ import { apiFetch } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
-/** Assignable role codes (also available via `GET /permissions/catalogue` → roles). */
-export const VALID_ROLES = [
-  "SUPER_ADMIN",
-  "PROGRAM_MANAGER",
-  "ZONAL_MANAGER",
-  "FELLOW",
-  "STUDENT",
-  "GOVERNMENT",
-  "FUNDING_PARTNER",
-] as const;
-
 // ── Permission catalogue (server-driven) ──────────────────────────────────────
 // The module/action matrix is no longer hand-maintained here — it comes from
 // `GET /permissions/catalogue`, which is the same data the backend
@@ -31,16 +20,14 @@ export type PermissionCatalogue = {
 };
 
 export async function fetchCatalogue(): Promise<PermissionCatalogue> {
-  const res = await apiFetch(`${API_BASE}/permissions/catalogue`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/permissions/catalogue`);
   if (!res.ok) throw new Error("Failed to load permission catalogue.");
   return res.json() as Promise<PermissionCatalogue>;
 }
 
 /** Default permission codes granted to a role (the `role_permissions` rows). */
 export async function fetchRoleDefaults(roleCode: string): Promise<string[]> {
-  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
-    cache: "no-store",
-  });
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`);
   if (!res.ok) throw new Error("Failed to load role defaults.");
   return res.json() as Promise<string[]>;
 }
@@ -73,7 +60,7 @@ export async function patchRole(userId: string, role: string): Promise<void> {
 }
 
 export async function fetchOverrides(userId: string): Promise<Override[]> {
-  const res = await apiFetch(`${API_BASE}/users/${userId}/overrides`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/users/${userId}/overrides`);
   if (!res.ok) throw new Error("Failed to fetch overrides.");
   return res.json() as Promise<Override[]>;
 }
@@ -88,7 +75,7 @@ export type EffectivePermissions = {
 };
 
 export async function fetchEffectivePermissions(userId: string): Promise<EffectivePermissions> {
-  const res = await apiFetch(`${API_BASE}/users/${userId}/effective`, { cache: "no-store" });
+  const res = await apiFetch(`${API_BASE}/users/${userId}/effective`);
   if (!res.ok) throw new Error("Failed to fetch effective permissions.");
   return res.json() as Promise<EffectivePermissions>;
 }
@@ -120,4 +107,67 @@ export async function deleteOverride(userId: string, permissionId: string): Prom
     method: "DELETE",
   });
   if (!res.ok) throw new Error("Failed to delete override.");
+}
+
+// ── Role-level management (defaults editing + CRUD) ───────────────────────────
+
+/** Role codes seeded by migrations — not deletable. */
+export const BUILTIN_ROLES = [
+  "SUPER_ADMIN",
+  "PROGRAM_MANAGER",
+  "ZONAL_MANAGER",
+  "FELLOW",
+  "STUDENT",
+  "GOVERNMENT",
+  "FUNDING_PARTNER",
+] as const;
+
+export async function fetchRoles(): Promise<Array<{ code: string; name: string }>> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles`);
+  if (!res.ok) throw new Error("Failed to load roles.");
+  return res.json() as Promise<Array<{ code: string; name: string }>>;
+}
+
+/** Replace a role's default permission set with exactly `permissions`. */
+export async function putRoleDefaults(
+  roleCode: string,
+  permissions: string[],
+): Promise<string[]> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permissions }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to update role permissions.");
+  }
+  return res.json() as Promise<string[]>;
+}
+
+export async function createRole(input: {
+  code: string;
+  name: string;
+  permissions?: string[];
+}): Promise<{ code: string; name: string }> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to create role.");
+  }
+  return res.json() as Promise<{ code: string; name: string }>;
+}
+
+export async function deleteRole(roleCode: string): Promise<void> {
+  const res = await apiFetch(`${API_BASE}/permissions/roles/${encodeURIComponent(roleCode)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to delete role.");
+  }
 }

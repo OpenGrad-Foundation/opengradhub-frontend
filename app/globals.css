@@ -11,30 +11,77 @@
   --light-yellow: #ffde59;
   --white: #ffffff;
 
-  /* Font stacks — Greycliff CF not present; Montserrat is the fallback */
-  --font-heading: 'Montserrat', sans-serif;
-  --font-body: 'Montserrat', sans-serif;
+  /* Font stacks — self-hosted via next/font (--font-montserrat); system fallbacks
+     cover the swap window. Greycliff CF not present; Montserrat is the brand face. */
+  --font-heading: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
+  --font-body: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
 
-  /* Legacy colour aliases used by dashboard pages */
-  --color-deep-teal: #006d6c;
-  --color-green: #0abe62;
-  --color-sun: #ffde00;
-  --color-ink: #034852;
-  --color-green-deep: #209379;
-  --color-green-muted: #a6db74;
-  --color-sun-soft: #ffde59;
-  --color-background: #034852;
-  --color-foreground: #f7fff8;
-  --color-panel: #f7fff8;
+  /* Type scale — semantic, rem-based (respects user zoom), 1.2 modular ratio.
+     Names describe role, not size, so the UI can converge off ad-hoc px values. */
+  --text-caption: 0.694rem;  /* ~11px — uppercase labels, meta */
+  --text-sm:      0.833rem;  /* ~13px — table body, secondary text */
+  --text-body:    1rem;      /* 16px — default body */
+  --text-subhead: 1.2rem;    /* ~19px */
+  --text-heading: 1.44rem;   /* ~23px */
+  --text-display: 1.728rem;  /* ~28px — page titles */
+
+  /* Weight roles — pick from these four, not arbitrary 500/800/900. */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Line-height roles. */
+  --leading-tight: 1.2;  /* headings */
+  --leading-body: 1.6;   /* prose */
+
+  /* Legacy colour aliases — now reference the canonical brand tokens above so
+     there is one source of truth. Resolved values are unchanged. */
+  --color-deep-teal: var(--teal);          /* #006d6c */
+  --color-green: var(--green);             /* #0abe62 */
+  --color-sun: var(--yellow);              /* #ffde00 */
+  --color-ink: var(--dark-teal);           /* #034852 */
+  --color-green-deep: var(--light-teal);   /* #209379 */
+  --color-green-muted: var(--light-green); /* #a6db74 */
+  --color-sun-soft: var(--light-yellow);   /* #ffde59 */
+  --color-background: var(--dark-teal);    /* #034852 */
+  --color-foreground: #f7fff8;             /* near-white mint, no brand twin */
+  --color-panel: var(--color-foreground);  /* #f7fff8 */
   --color-mint-soft: #eef9e1;
   --color-aqua: #8ef0c5;
+
+  /* ── Semantic roles ───────────────────────────────────────────────────────
+     What a colour MEANS, not which hex it is. The codebase hand-writes
+     rgba(3,72,82,α) for muted text and borders hundreds of times; these name it
+     once. color-mix keeps every neutral tinted toward the brand teal (per the
+     "no flat grey" rule). Adopt incrementally; a future .dark theme overrides
+     only this block. */
+  --color-text:        var(--dark-teal);
+  --color-text-muted:  color-mix(in srgb, var(--dark-teal) 65%, transparent);
+  --color-text-subtle: color-mix(in srgb, var(--dark-teal) 45%, transparent);
+  --color-surface:        oklch(99.2% 0.004 195); /* near-white, faint teal tint */
+  --color-surface-sunken: var(--color-mint-soft);
+  --color-border:        color-mix(in srgb, var(--dark-teal) 12%, transparent);
+  --color-border-strong: color-mix(in srgb, var(--dark-teal) 22%, transparent);
+
+  /* State colours — consistent meaning everywhere. Each pairs a foreground with
+     a low-alpha surface tint for badges/banners. */
+  --color-success:         var(--green);
+  --color-success-surface: color-mix(in srgb, var(--green) 12%, transparent);
+  --color-danger:          #e53e3e;        /* matches existing error usage */
+  --color-danger-surface:  color-mix(in srgb, #e53e3e 10%, transparent);
+  --color-warning:         var(--light-teal); /* legible on light; yellow reserved for surfaces */
+  --color-warning-surface: color-mix(in srgb, var(--yellow) 22%, transparent);
+  --color-info:            var(--teal);
+  --color-info-surface:    color-mix(in srgb, var(--teal) 10%, transparent);
+  --color-accent:          var(--green);   /* primary action */
 }
 
 @theme inline {
   --color-background: var(--color-background);
   --color-foreground: var(--color-foreground);
-  --font-sans: 'Montserrat', sans-serif;
-  --font-display: 'Montserrat', sans-serif;
+  --font-sans: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
+  --font-display: var(--font-montserrat), 'Segoe UI', system-ui, sans-serif;
 }
 
 @keyframes floatIn {
@@ -69,6 +116,13 @@ body {
   background: transparent;
   color: var(--dark-teal);
   font-family: var(--font-body);
+  font-kerning: normal;
+}
+
+/* Data tables: align digits in columns (scores, counts, roll numbers).
+   tabular-nums gives every figure equal width so numbers line up vertically. */
+table {
+  font-variant-numeric: tabular-nums;
 }
 
 a,
@@ -80,6 +134,24 @@ input {
     color 180ms ease,
     transform 180ms ease,
     box-shadow 180ms ease;
+}
+
+/* Keyboard-focus safety net. Many fields use outline-none with no replacement,
+   leaving keyboard users unable to see focus (WCAG 2.4.7). This restores a
+   visible brand-teal ring on every focusable, beating any .outline-none utility
+   on specificity. Mouse/touch users are unaffected (:focus-visible only). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .font-display {

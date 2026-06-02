@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
-  getCalendar, createCalendarEvent, deleteCalendarEvent,
+  createCalendarEvent, deleteCalendarEvent,
   type CalendarItem, type CreateCalendarEventPayload,
 } from "@/lib/api";
+import { useCalendar } from "@/lib/queries/calendar";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -32,26 +34,23 @@ export default function CalendarPage() {
   const { has } = usePermissions();
   const canCreate = has(PERM.calendar.create);
 
-  const [items,   setItems]   = useState<CalendarItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const queryClient = useQueryClient();
 
-  function load() {
-    setLoading(true);
-    const now = new Date();
-    const from = now.toISOString();
-    const to   = new Date(now.getTime() + 90 * 24 * 3600 * 1000).toISOString();
-    getCalendar(from, to)
-      .then(setItems)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load calendar."))
-      .finally(() => setLoading(false));
-  }
+  // Stable range (start-of-today → +90 days) so the cache key doesn't churn
+  // on every render from a moving `now` timestamp.
+  const { from, to } = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    return {
+      from: start.toISOString(),
+      to: new Date(start.getTime() + 90 * 24 * 3600 * 1000).toISOString(),
+    };
+  }, []);
 
-  useEffect(() => {
-    if (isLoading) return;
-    load();
-  }, [isLoading]);
+  const { data: items = [], isPending, error: queryError } = useCalendar(from, to);
+  const loading = isPending;
+  const error = queryError ? (queryError as Error).message : null;
 
   // Group by date
   const groups = new Map<string, CalendarItem[]>();
@@ -113,7 +112,7 @@ export default function CalendarPage() {
                       if (ev.source !== "custom") return;
                       if (!confirm(`Delete "${ev.title}"?`)) return;
                       await deleteCalendarEvent(ev.id);
-                      load();
+                      void queryClient.invalidateQueries({ queryKey: ["og","calendar"] });
                     }}
                   />
                 ))}
@@ -126,7 +125,7 @@ export default function CalendarPage() {
       {showCreate && (
         <CreateEventModal
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); load(); }}
+          onCreated={() => { setShowCreate(false); void queryClient.invalidateQueries({ queryKey: ["og","calendar"] }); }}
         />
       )}
     </div>

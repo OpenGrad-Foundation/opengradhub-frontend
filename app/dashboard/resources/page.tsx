@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getResources, createResource, type Resource } from "@/lib/api";
+import { createResource, type Resource } from "@/lib/api";
+import { useResources } from "@/lib/queries/resources";
+import { useQueryClient } from "@tanstack/react-query";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Type → colour mapping ──────────────────────────────────────
@@ -21,35 +23,18 @@ const TYPE_STYLES: Record<string, { bg: string; color: string; icon: string }> =
 export default function ResourcesPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
 
-  const [resources, setResources] = useState<Resource[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const queryClient = useQueryClient();
 
   const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
   const programmeType = data?.user?.programme ?? null;
   const canCreate = usePermission(PERM.resources.create);
 
-  const fetchResources = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const filter =
-        roleCode === "STUDENT" && programmeType ? programmeType : undefined;
-      const data = await getResources(filter);
-      setResources(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load resources.");
-    } finally {
-      setLoading(false);
-    }
-  }, [roleCode, programmeType]);
-
-  useEffect(() => {
-    if (!userLoading) {
-      void fetchResources();
-    }
-  }, [userLoading, fetchResources]);
+  const resourceFilter =
+    roleCode === "STUDENT" && programmeType ? programmeType : undefined;
+  const { data: resources = [], isPending, error: queryError } = useResources(resourceFilter);
+  const loading = isPending;
+  const error = queryError ? (queryError as Error).message : null;
 
   if (userLoading) {
     return <LoadingState />;
@@ -106,7 +91,7 @@ export default function ResourcesPage() {
           roleCode={roleCode}
           onCreated={() => {
             setShowForm(false);
-            void fetchResources();
+            void queryClient.invalidateQueries({ queryKey: ["og", "resources"] });
           }}
         />
       )}

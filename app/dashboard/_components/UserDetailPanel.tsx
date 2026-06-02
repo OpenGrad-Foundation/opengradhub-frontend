@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import type { SafeUser, ManagerOption } from "@/lib/api";
 import { updateUser, deleteUser, getManagers } from "@/lib/api";
 import {
-  VALID_ROLES,
+  fetchRoles,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
+import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -56,6 +58,8 @@ export function UserDetailPanel({
   onAssignBundle,
 }: UserDetailPanelProps) {
   const [draft, setDraft] = useState<Draft>(() => makeDraft(user));
+  const [panelTab, setPanelTab] = useState<"details" | "permissions">("details");
+  const [roleOptions, setRoleOptions] = useState<Array<{ code: string; name: string }>>([]);
   const [saving, setSaving] = useState(false);
   const [saveErr, setSaveErr] = useState<string | null>(null);
 
@@ -70,6 +74,13 @@ export function UserDetailPanel({
   const [confirmClose, setConfirmClose] = useState(false);
 
   const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const isMobile = useIsMobile(640);
+  const padH = isMobile ? "16px" : "28px";
+  const padV = isMobile ? "14px" : "16px";
+  const headerPad = isMobile ? "18px 16px 12px" : "24px 28px 16px";
+  const formRowStyle: React.CSSProperties = isMobile
+    ? { display: "flex", flexDirection: "column", gap: "12px" }
+    : S.formRow;
 
   const initial = makeDraft(user);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
@@ -83,6 +94,7 @@ export function UserDetailPanel({
     setConfirmDelete(false);
     setDeleteErr(null);
     setConfirmClose(false);
+    setPanelTab("details");
   }, [user]);
 
   useEffect(() => {
@@ -96,6 +108,14 @@ export function UserDetailPanel({
     }
     return () => { cancelled = true; };
   }, [user.role]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoles()
+      .then((rs) => { if (!cancelled) setRoleOptions(rs); })
+      .catch(() => { if (!cancelled) setRoleOptions([]); });
+    return () => { cancelled = true; };
+  }, []);
 
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -201,7 +221,7 @@ export function UserDetailPanel({
 
         {/* ── Header ─────────────────────────────────────── */}
         <div style={{
-          padding: "24px 28px 16px",
+          padding: headerPad,
           borderBottom: "1px solid rgba(3,72,82,0.08)",
           display: "flex",
           justifyContent: "space-between",
@@ -222,11 +242,37 @@ export function UserDetailPanel({
           <button onClick={handleClose} style={S.closeBtn} aria-label="Close panel">✕</button>
         </div>
 
+        {/* ── Tab switcher ────────────────────────────────── */}
+        <div style={{ display: "flex", gap: "6px", padding: `12px ${padH} 0`, borderBottom: "1px solid rgba(3,72,82,0.08)", flexShrink: 0 }}>
+          {(["details", "permissions"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setPanelTab(t)}
+              style={{
+                padding: "8px 14px", border: "none", background: "none", cursor: "pointer",
+                fontFamily: "var(--font-body)", fontSize: "13px",
+                fontWeight: panelTab === t ? 700 : 500,
+                color: panelTab === t ? "#034852" : "rgba(3,72,82,0.5)",
+                borderBottom: `2px solid ${panelTab === t ? "#0abe62" : "transparent"}`,
+              }}
+            >
+              {t === "details" ? "Details" : "Permissions"}
+            </button>
+          ))}
+        </div>
+
         {/* ── Scrollable body ─────────────────────────────── */}
         <div style={{ flex: 1, overflowY: "auto" }}>
 
+          {panelTab === "permissions" ? (
+            <div style={{ padding: `${padV} ${padH}` }}>
+              <UserOverrideEditor userId={user.id} callerId={callerId} />
+            </div>
+          ) : (
+            <>
+
           {/* ── Role Section ───────────────────────────────── */}
-          <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+          <div style={{ padding: `${padV} ${padH}`, borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
             <p style={{ ...S.label, marginBottom: "10px" }}>Role</p>
             {roleEditing ? (
               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
@@ -235,8 +281,8 @@ export function UserDetailPanel({
                   onChange={(e) => setNewRole(e.target.value)}
                   style={{ ...S.input, flex: 1, minWidth: 0, padding: "7px 12px", fontSize: "13px" }}
                 >
-                  {VALID_ROLES.map((r) => (
-                    <option key={r} value={r}>{r.replace(/_/g, " ")}</option>
+                  {roleOptions.map((r) => (
+                    <option key={r.code} value={r.code}>{r.name}</option>
                   ))}
                 </select>
                 <button
@@ -265,11 +311,11 @@ export function UserDetailPanel({
           </div>
 
           {/* ── Details Section ─────────────────────────────── */}
-          <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+          <div style={{ padding: `${padV} ${padH}`, borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
             <p style={{ ...S.label, marginBottom: "14px" }}>Details</p>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
 
-              <div style={S.formRow}>
+              <div style={formRowStyle}>
                 <PanelField label="Full Name">
                   <input
                     value={draft.name}
@@ -301,7 +347,7 @@ export function UserDetailPanel({
 
               {isStudent && (
                 <>
-                  <div style={S.formRow}>
+                  <div style={formRowStyle}>
                     <PanelField label="Roll Number">
                       <input
                         value={draft.roll_number}
@@ -318,7 +364,7 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                   </div>
-                  <div style={S.formRow}>
+                  <div style={formRowStyle}>
                     <PanelField label="State">
                       <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
                         <option value="">Select…</option>
@@ -350,7 +396,7 @@ export function UserDetailPanel({
 
               {isFellow && (
                 <>
-                  <div style={S.formRow}>
+                  <div style={formRowStyle}>
                     <PanelField label="Programme">
                       <select value={draft.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={S.input}>
                         <option value="">Select…</option>
@@ -368,7 +414,7 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                   </div>
-                  <div style={S.formRow}>
+                  <div style={formRowStyle}>
                     <PanelField label="District">
                       <input
                         value={draft.district}
@@ -430,7 +476,7 @@ export function UserDetailPanel({
 
           {/* ── Courses & Bundles (STUDENT only) ───────────── */}
           {isStudent && (
-            <div style={{ padding: "16px 28px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+            <div style={{ padding: `${padV} ${padH}`, borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
               <p style={{ ...S.label, marginBottom: "6px" }}>Courses & Bundles</p>
               <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "0 0 12px" }}>
                 Assign learning content to this student.
@@ -468,7 +514,7 @@ export function UserDetailPanel({
 
           {/* ── Danger Zone ─────────────────────────────────── */}
           {!isSelf && (
-            <div style={{ padding: "16px 28px" }}>
+            <div style={{ padding: `${padV} ${padH}` }}>
               <p style={{ ...S.label, color: "#c53030", marginBottom: "10px" }}>Danger Zone</p>
               {confirmDelete ? (
                 <div style={{
@@ -506,11 +552,13 @@ export function UserDetailPanel({
             </div>
           )}
 
+            </>
+          )}
         </div>
 
         {/* ── Footer ──────────────────────────────────────── */}
         <div style={{
-          padding: "14px 28px",
+          padding: `14px ${padH}`,
           borderTop: "1px solid rgba(3,72,82,0.08)",
           flexShrink: 0,
           display: "flex",

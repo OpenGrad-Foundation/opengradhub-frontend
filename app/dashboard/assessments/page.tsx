@@ -7,16 +7,14 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAvailableQuizzes, getModuleQuizzes, getQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
-  getAssessmentsOverview,
-  type AssessmentsOverview,
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
-  getQuestionStats,
   type QuizLeaderboard,
-  type QuestionStat,
 } from "@/lib/api";
+import { useAssessmentsOverview } from "@/lib/queries/assessments";
+import { useQuestionStats } from "@/lib/queries/quizzes";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -56,19 +54,14 @@ export default function AssessmentsPage() {
       .then(async ([globalQs, moduleQs]) => {
         setQuizzes(globalQs);
         setModuleQuizzes(moduleQs);
-        // Fetch completed attempts for all quizzes in parallel
+        // One batch attempts call instead of one-per-quiz, grouped by quiz_id.
         const allQs = [...globalQs, ...moduleQs];
         const byQuiz: Record<string, QuizAttempt[]> = {};
-        await Promise.all(
-          allQs.map(async (q) => {
-            try {
-              const attempts = await getQuizAttempts(q.id);
-              byQuiz[q.id] = attempts.filter((a) => a.is_complete);
-            } catch {
-              byQuiz[q.id] = [];
-            }
-          }),
-        );
+        for (const q of allQs) byQuiz[q.id] = [];
+        const myAttempts = await getMyQuizAttempts(studentId).catch(() => [] as QuizAttempt[]);
+        for (const a of myAttempts) {
+          if (a.is_complete && byQuiz[a.quiz_id] !== undefined) byQuiz[a.quiz_id].push(a);
+        }
         setAttemptsByQuiz(byQuiz);
         getTopicStrength(studentId).then(setTopicStrength).catch(() => {});
         getStudentEnrolments(studentId).then((courses) => {
@@ -344,17 +337,37 @@ function QuizRow({
 // ── Shared sub-components ────────────────────────────────────────────────────
 
 function PageHeader() {
+  const { has } = usePermissions();
+  const router = useRouter();
   return (
     <div style={{ ...glassCard, marginBottom: "28px" }}>
-      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
-        Assessments
-      </p>
-      <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
-        Assessments
-      </h1>
-      <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-        Module tests from your courses and programme-wide mock tests.
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+        <div>
+          <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
+            Assessments
+          </p>
+          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
+            Assessments
+          </h1>
+          <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
+            Module tests from your courses and programme-wide mock tests.
+          </p>
+        </div>
+        {has(PERM.test_bank.create) && (
+          <button
+            type="button"
+            onClick={() => router.push("/dashboard/quiz-builder/new")}
+            style={{
+              flexShrink: 0, padding: "10px 18px", border: "none", borderRadius: "12px",
+              background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+              color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+              cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap",
+            }}
+          >
+            + Create Program Test
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -545,29 +558,17 @@ function MonitorView() {
   const page      = Number(params.get('page') ?? '1');
   const drawerId  = params.get('drawer');
 
-  const [data, setData]       = useState<AssessmentsOverview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getAssessmentsOverview({
-      type: type ?? undefined,
-      course_id: courseId || undefined,
-      bundle_id: bundleId || undefined,
-      from: from || undefined,
-      to:   to   || undefined,
-      q:    q    || undefined,
-      page,
-      size: 20,
-    })
-      .then((d) => { if (!cancelled) setData(d); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [type, courseId, bundleId, from, to, q, page]);
+  const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
+    type: type ?? undefined,
+    course_id: courseId || undefined,
+    bundle_id: bundleId || undefined,
+    from: from || undefined,
+    to:   to   || undefined,
+    q:    q    || undefined,
+    page,
+    size: 20,
+  });
+  const error = isError ? (queryError instanceof Error ? queryError.message : 'Failed to load.') : null;
 
   function setParam(key: string, value: string | null) {
     const next = new URLSearchParams(params.toString());
@@ -819,20 +820,10 @@ function DrawerLeaderboard({ quizId }: { quizId: string }) {
 }
 
 function DrawerQuestionStats({ quizId }: { quizId: string }) {
-  const [stats, setStats] = useState<QuestionStat[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: stats, isPending, isError, error: queryError } = useQuestionStats(quizId);
 
-  useEffect(() => {
-    let cancelled = false;
-    setStats(null); setError(null);
-    getQuestionStats(quizId)
-      .then((d) => { if (!cancelled) setStats(d); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load.'); });
-    return () => { cancelled = true; };
-  }, [quizId]);
-
-  if (error) return <p style={{ color: '#c53030', fontSize: '13px' }}>{error}</p>;
-  if (stats === null) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (isError) return <p style={{ color: '#c53030', fontSize: '13px' }}>{queryError instanceof Error ? queryError.message : 'Failed to load.'}</p>;
+  if (isPending || stats === undefined) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
   if (stats.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempt data yet.</p>;
 
   // Sort weakest-first by correct ratio

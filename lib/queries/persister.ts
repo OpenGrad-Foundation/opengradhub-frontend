@@ -58,6 +58,14 @@ export async function idbDel(key: string): Promise<void> {
 }
 
 /**
+ * Wipes every persisted query entry. Called on sign-out / role-change so the
+ * next user can't hydrate the previous user's data from IDB.
+ */
+export async function clearPersistedQueryCache(): Promise<void> {
+  await (await db()).clear(STORE);
+}
+
+/**
  * Build a per-query persister bound to the IDB store. Returns the
  * `persisterFn` function directly so it can be passed to a useQuery's
  * `persister` option without further unwrapping. Queries that should NOT be

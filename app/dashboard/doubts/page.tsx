@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getDoubts, submitDoubt, answerDoubt, deleteDoubt, type Doubt } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
+import { submitDoubt, answerDoubt, deleteDoubt, type Doubt } from "@/lib/api";
+import { useStaffDoubts } from "@/lib/queries/doubts";
 
 export default function DoubtsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const queryClient = useQueryClient();
   const userId = data?.user?.id ?? "";
 
-  const [doubts, setDoubts] = useState<Doubt[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
 
   // PBAC view gate:
@@ -27,23 +25,18 @@ export default function DoubtsPage() {
   const canDelete  = has(PERM.doubts.delete);
   const isStaffViewer = canRespond || canDelete;
 
-  const reload = useCallback(async () => {
-    if (!roleCode) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const studentId = canSubmit ? userId : undefined;
-      setDoubts(await getDoubts(roleCode, studentId));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load doubts.");
-    } finally {
-      setLoading(false);
-    }
-  }, [roleCode, userId, canSubmit]);
+  // Single stable cache entry — `getDoubts` ignores its args and the backend
+  // scopes the list by `req.auth`, so we never partition the cache by filters.
+  const { data: doubtsData, isPending, isError, error: queryError } = useStaffDoubts();
+  const doubts = doubtsData ?? [];
+  const loading = isPending;
+  const error = isError ? (queryError instanceof Error ? queryError.message : "Failed to load doubts.") : null;
 
-  useEffect(() => {
-    if (!userLoading) void reload();
-  }, [userLoading, reload]);
+  // After any mutation (answer / delete / submit) invalidate the doubts cache so
+  // the list refreshes immediately instead of waiting for the staleTime window.
+  const reload = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['og', 'doubts'] });
+  }, [queryClient]);
 
   if (userLoading) return <LoadingState />;
 

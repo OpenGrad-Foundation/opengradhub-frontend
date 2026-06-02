@@ -39,3 +39,14 @@ describe('query-key factory', () => {
     expect(qk.all).toEqual(['og']);
   });
 });
+
+describe('qk.dashboard', () => {
+  it('returns a tuple prefixed with og/dashboard/<role>/<tab>', () => {
+    expect(qk.dashboard('STUDENT', 'overview')).toEqual(['og', 'dashboard', 'STUDENT', 'overview']);
+  });
+
+  it('returns a widget-scoped key suitable for per-widget queries', () => {
+    expect(qk.dashboardWidget('FELLOW', 'tasks', 'open-doubts'))
+      .toEqual(['og', 'dashboard', 'FELLOW', 'tasks', 'open-doubts']);
+  });
+});

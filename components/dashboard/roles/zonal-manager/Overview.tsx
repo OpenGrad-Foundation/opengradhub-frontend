@@ -1,0 +1,10 @@
+"use client";
+
+import React from "react";
+import GenericOverview from "../_GenericOverview";
+import { useInsightsOverview } from "@/lib/queries/dashboard/_insights-overview";
+
+export default function ZMOverview({ userId }: { userId: string }) {
+  const { widgets, isLoading, error, refetch } = useInsightsOverview("ZONAL_MANAGER", userId);
+  return <GenericOverview role="ZONAL_MANAGER" widgets={widgets} isLoading={isLoading} error={error} refetch={refetch} />;
+}
