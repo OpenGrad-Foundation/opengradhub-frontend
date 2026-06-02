@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useDoubtsActivity } from "@/lib/queries/dashboard/_doubts-activity";
 
 export default function FellowActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): wire to /quizzes/recent-submissions, /doubts?escalated, /announcements
-  const { items, isLoading, error, refetch } = useStubActivity("FELLOW", userId, []);
+  const { items, isLoading, error, refetch } = useDoubtsActivity("FELLOW", userId);
   return (
     <GenericActivity
       role="FELLOW"

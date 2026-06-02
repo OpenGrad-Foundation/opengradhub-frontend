@@ -156,13 +156,15 @@ export default function Sidebar({
 
   async function handleSignOut() {
     // Sign out first so any in-flight refetch loses its token and can't
-    // re-populate the cache with the previous user's data.
+    // re-populate the cache with the previous user's data. Then AWAIT the
+    // cache wipe so IDB is empty before the next user's useCurrentUser
+    // mounts and the persister tries to restore.
     if (isClerkMode()) {
       await clerk.signOut();
     } else {
       clearStoredAuthToken();
     }
-    clearUserCache();
+    await clearUserCache();
     router.replace("/");
   }
 
@@ -256,11 +258,11 @@ export default function Sidebar({
                     href={module.href}
                     title={collapsed ? module.label : undefined}
                     className={
-                      "relative flex items-center gap-3 rounded-lg border-l-[3px] px-4 py-2.5 text-sm font-medium transition-colors " +
+                      "relative flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors " +
                       (collapsed ? "lg:gap-0 lg:px-0 lg:justify-center " : "") +
                       (isActive
-                        ? "border-[var(--teal)] bg-teal-50 text-[var(--teal)]"
-                        : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
+                        ? "bg-teal-50 font-semibold text-[var(--teal)]"
+                        : "font-medium text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
                     }
                   >
                     {Icon && (

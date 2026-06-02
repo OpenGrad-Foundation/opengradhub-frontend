@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useDoubtsActivity } from "@/lib/queries/dashboard/_doubts-activity";
 
 export default function PMActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /schools?recent=1, /doubts?escalated=1, /announcements
-  const { items, isLoading, error, refetch } = useStubActivity("PROGRAM_MANAGER", userId, []);
+  const { items, isLoading, error, refetch } = useDoubtsActivity("PROGRAM_MANAGER", userId);
   return (
     <GenericActivity
       role="PROGRAM_MANAGER"

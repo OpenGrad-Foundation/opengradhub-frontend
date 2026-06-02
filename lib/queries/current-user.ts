@@ -5,7 +5,6 @@ import { useAuth } from '@clerk/nextjs';
 import { fetchCurrentUser, setApiTokenGetter } from '@/lib/api';
 import { isClerkMode, getStoredAuthToken } from '@/lib/auth-session';
 import type { CurrentUserResponse } from '@/lib/types';
-import { makeIdbPersister } from './persister';
 
 /**
  * Layer 4 — production-grade per-user current-user hook.
@@ -36,8 +35,14 @@ export function useCurrentUser(): {
     setApiTokenGetter(() => clerkAuth.getToken());
   }
 
+  // Scope the query key by Clerk user id so the IDB-persisted entry for user A
+  // can never hydrate user B — different key, no restoration. `clerkAuth.userId`
+  // is `null` before Clerk loads and in custom-auth mode (where the legacy
+  // token store identifies the caller instead).
+  const identityKey: string = clerkMode ? clerkAuth.userId ?? 'anon' : 'local';
+
   const query = useQuery({
-    queryKey: ['og', 'user', 'self'] as const,
+    queryKey: ['og', 'user', 'self', identityKey] as const,
     queryFn: async () => {
       let token: string | null = null;
       if (clerkMode) {
@@ -57,7 +62,12 @@ export function useCurrentUser(): {
     staleTime: 30_000,
     gcTime: 60 * 60_000,
     refetchOnWindowFocus: true,
-    persister: makeIdbPersister(),
+    // Identity is NEVER persisted to durable storage. Even with the userId-scoped
+    // key above, persisting identity across sessions is the source of the
+    // "sticky login" bug (a wipe that loses a race re-leaks the previous user).
+    // It is resolved live each cold load from the token; the 30s staleTime +
+    // server-side L3 Redis cache keep that cheap. Other (non-identity) queries
+    // keep their IDB persister.
     retry: 1,
   });
 

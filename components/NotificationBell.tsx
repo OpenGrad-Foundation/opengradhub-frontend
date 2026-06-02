@@ -124,7 +124,7 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
           width: "340px",
-          background: "rgba(255,255,255,0.97)", backdropFilter: "blur(24px)",
+          background: "rgba(255,255,255,0.97)",
           border: "1px solid rgba(3,72,82,0.1)", borderRadius: "18px",
           boxShadow: "0 16px 48px rgba(3,72,82,0.15)",
           zIndex: 100, overflow: "hidden",

@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericTasks from "../_GenericTasks";
-import { useStubTasks } from "@/lib/queries/dashboard/_shared";
+import { useDoubtsTasks } from "@/lib/queries/dashboard/_doubts-tasks";
 
 export default function FellowTasks({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): doubts to answer, low-performers, live classes I host
-  const { tasks, isLoading, error, refetch } = useStubTasks("FELLOW", userId, []);
+  const { tasks, isLoading, error, refetch } = useDoubtsTasks("FELLOW", userId);
   return (
     <GenericTasks
       role="FELLOW"

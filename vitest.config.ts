@@ -5,6 +5,7 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const resolveConfig = {
+  // Mirror tsconfig "@/*" -> project root so tests can import app modules.
   alias: { '@': path.resolve(__dirname) },
 };
 

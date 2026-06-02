@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useDoubtsActivity } from "@/lib/queries/dashboard/_doubts-activity";
 
 export default function ZMActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /doubts?escalated=1&zone=me, /announcements
-  const { items, isLoading, error, refetch } = useStubActivity("ZONAL_MANAGER", userId, []);
+  const { items, isLoading, error, refetch } = useDoubtsActivity("ZONAL_MANAGER", userId);
   return (
     <GenericActivity
       role="ZONAL_MANAGER"

@@ -104,7 +104,7 @@ export function RolePermissionPanel({
       setInitial(new Set(granted));
       // Editing role defaults can change the current user's own effective
       // permissions; clear the cached profile so nav refreshes.
-      clearUserCache();
+      await clearUserCache();
       setSaveOk(true);
       onSaved();
     } catch (e) {

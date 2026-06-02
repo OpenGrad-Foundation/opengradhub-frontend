@@ -27,6 +27,16 @@ export function setApiTokenGetter(getter: () => Promise<string | null>): void {
   _tokenGetter = getter;
 }
 
+/**
+ * Reset both auth-token holders. Called by the sign-out flow so any in-flight
+ * fetch fired after sign-out can't still resolve a token for the previous user.
+ * The next `useCurrentUser` render re-registers a fresh getter for the new user.
+ */
+export function clearApiAuth(): void {
+  _apiToken = null;
+  _tokenGetter = null;
+}
+
 async function resolveAuthHeader(): Promise<Record<string, string>> {
   if (_tokenGetter) {
     const token = await _tokenGetter();

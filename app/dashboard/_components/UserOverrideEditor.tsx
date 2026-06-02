@@ -133,7 +133,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
       setOverrides(fresh);
       setPendingChanges({});
       if (isSelf) {
-        clearUserCache();
+        await clearUserCache();
         window.location.reload();
         return;
       }

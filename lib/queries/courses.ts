@@ -22,7 +22,9 @@ export function useCourses(params: CoursesParams = {}) {
     queryFn: () => getCourses(params.programmeType, params.studentId, params.createdBy, params.allStatuses),
     staleTime: 30 * 60_000,
     gcTime: 2 * 60 * 60_000,
-    persister: makeIdbPersister(),
+    // NOT IDB-persisted: the list is role-filtered server-side (SUPER_ADMIN sees
+    // more) but the role is not in the query key, so a persisted entry could
+    // hydrate across roles after a re-login. Browser no-store doesn't cover IDB.
   });
 }
 

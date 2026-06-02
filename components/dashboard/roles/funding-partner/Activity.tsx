@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useAnnouncementsFeed } from "@/lib/queries/dashboard/_announcements-feed";
 
 export default function FundingPartnerActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /announcements, /reports?funder=me
-  const { items, isLoading, error, refetch } = useStubActivity("FUNDING_PARTNER", userId, []);
+  const { items, isLoading, error, refetch } = useAnnouncementsFeed("FUNDING_PARTNER", userId);
   return (
     <GenericActivity
       role="FUNDING_PARTNER"

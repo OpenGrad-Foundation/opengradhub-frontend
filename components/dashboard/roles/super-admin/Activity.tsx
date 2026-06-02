@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useDoubtsActivity } from "@/lib/queries/dashboard/_doubts-activity";
 
 export default function SuperAdminActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /users?recent=1, /permissions/audit, /announcements
-  const { items, isLoading, error, refetch } = useStubActivity("SUPER_ADMIN", userId, []);
+  const { items, isLoading, error, refetch } = useDoubtsActivity("SUPER_ADMIN", userId);
   return (
     <GenericActivity
       role="SUPER_ADMIN"

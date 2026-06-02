@@ -2,11 +2,10 @@
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
-import { useStubActivity } from "@/lib/queries/dashboard/_shared";
+import { useAnnouncementsFeed } from "@/lib/queries/dashboard/_announcements-feed";
 
 export default function GovernmentActivity({ userId }: { userId: string }) {
-  // TODO(dashboard-backend): /announcements
-  const { items, isLoading, error, refetch } = useStubActivity("GOVERNMENT", userId, []);
+  const { items, isLoading, error, refetch } = useAnnouncementsFeed("GOVERNMENT", userId);
   return (
     <GenericActivity
       role="GOVERNMENT"

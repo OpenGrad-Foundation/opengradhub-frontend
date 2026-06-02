@@ -1424,8 +1424,8 @@ function BulkAssignPanel({
 
           {students.length > 0 && (
             <div style={{ border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", overflow: "hidden" }}>
-              <div style={{ maxHeight: "300px", overflowY: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", fontFamily: "var(--font-body)" }}>
+              <div style={{ maxHeight: "300px", overflowY: "auto", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", fontFamily: "var(--font-body)", minWidth: "640px" }}>
                   <thead style={{ position: "sticky", top: 0 }}>
                     <tr style={{ background: "rgba(3,72,82,0.05)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
                       <th style={{ ...thStyle, width: "40px" }}></th>
