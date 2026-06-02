@@ -17,7 +17,6 @@ export default defineConfig({
     globals: true,
     projects: [
       {
-        name: 'node',
         resolve: resolveConfig,
         test: {
           environment: 'node',
@@ -26,7 +25,6 @@ export default defineConfig({
         },
       },
       {
-        name: 'dom',
         resolve: resolveConfig,
         test: {
           environment: 'jsdom',
