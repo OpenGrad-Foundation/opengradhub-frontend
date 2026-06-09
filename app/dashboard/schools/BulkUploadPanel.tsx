@@ -87,8 +87,6 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     }
     return warns;
   }
-  const warnsPerRow = rows.map(rowWarnings);
-  const warnCount = warnsPerRow.filter((w) => w.length > 0).length;
   const resolved = rows.map((r) => {
     const rs = resolveState(r.state ?? "");
     const state = rs.status === "exact" || rs.status === "corrected" ? rs.value : (r.state ?? "");
@@ -96,10 +94,12 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     const district = rd.status === "exact" || rd.status === "corrected" ? rd.value : (r.district ?? "");
     return { state, district, stateStatus: rs, districtStatus: rd };
   });
+  const resolvedRows = rows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
+  const warnsPerRow = resolvedRows.map(rowWarnings);
+  const warnCount = warnsPerRow.filter((w) => w.length > 0).length;
   const readyRows = rows.filter((_, i) => errsPerRow[i].length === 0);
   const readyCount = readyRows.length;
   const errorCount = rows.length - readyCount;
-  const resolvedRows = rows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
   const readyResolved = resolvedRows.filter((_, i) => errsPerRow[i].length === 0);
 
   async function doUpload(toUpload: Array<Record<string, string>>) {
@@ -210,7 +210,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                         const corrected = !!res && res.status === "corrected";
                         return (
                           <td key={col} style={{ padding: "4px 6px" }}>
-                            <input type="text" value={corrected ? res!.value : val}
+                            <input type="text" value={val}
                               onChange={(e) => updateCell(idx, col, e.target.value)}
                               style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852",
                                 background: cellErr ? "rgba(229,62,62,0.04)" : corrected ? "rgba(10,190,98,0.06)" : "transparent",
