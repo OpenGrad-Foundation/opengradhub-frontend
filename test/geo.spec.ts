@@ -19,9 +19,9 @@ describe('geo', () => {
 
   it('every real state has a non-empty district list; ALL has none', () => {
     expect(STATE_DISTRICTS.KERALA.length).toBe(14);
-    expect(STATE_DISTRICTS.KARNATAKA.length).toBeGreaterThan(0);
-    expect(STATE_DISTRICTS.TAMIL_NADU.length).toBeGreaterThan(0);
-    expect(STATE_DISTRICTS.CHHATTISGARH.length).toBeGreaterThan(0);
+    expect(STATE_DISTRICTS.KARNATAKA.length).toBe(31);
+    expect(STATE_DISTRICTS.TAMIL_NADU.length).toBe(38);
+    expect(STATE_DISTRICTS.CHHATTISGARH.length).toBe(33);
     expect(STATE_DISTRICTS[ALL_STATE]).toEqual([]);
   });
 

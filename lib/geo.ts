@@ -53,7 +53,10 @@ export const STATE_DISTRICTS: Record<string, string[]> = {
   [ALL_STATE]: [],
 };
 
-/** Canonicalize a state string to a STATES value form. */
+/**
+ * Canonicalize a state string to a STATES value form.
+ * Accepts either stored value ("TAMIL_NADU") or display label ("Tamil Nadu").
+ */
 export const normState = (s: string | null | undefined): string =>
   (s ?? "").trim().toUpperCase().replace(/\s+/g, "_");
 
