@@ -27,8 +27,12 @@ function downloadErroredCsv(result: { skippedRows: Array<Record<string, string>>
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "schools_errored_rows.csv"; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url;
+  a.download = "schools_errored_rows.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
