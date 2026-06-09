@@ -87,6 +87,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     return warns;
   }
   const warnsPerRow = rows.map(rowWarnings);
+  const warnCount = warnsPerRow.filter((w) => w.length > 0).length;
   const readyRows = rows.filter((_, i) => errsPerRow[i].length === 0);
   const readyCount = readyRows.length;
   const errorCount = rows.length - readyCount;
@@ -144,9 +145,9 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", padding: "12px 16px", borderRadius: "12px", marginBottom: "12px", background: errorCount > 0 ? "rgba(229,62,62,0.05)" : "rgba(10,190,98,0.06)", border: `1px solid ${errorCount > 0 ? "rgba(229,62,62,0.2)" : "rgba(10,190,98,0.2)"}` }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>✓ {readyCount} ready</span>
             {errorCount > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#e53e3e" }}>✗ {errorCount} with errors</span>}
-            {warnsPerRow.filter((w) => w.length > 0).length > 0 && (
+            {warnCount > 0 && (
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#b7791f" }}>
-                ⚠ {warnsPerRow.filter((w) => w.length > 0).length} to review
+                ⚠ {warnCount} to review
               </span>
             )}
             <div style={{ marginLeft: "auto" }}>
