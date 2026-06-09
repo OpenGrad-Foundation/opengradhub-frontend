@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
+import { isKnownState, isValidDistrictForState, normState } from "@/lib/geo";
 
 const HEADERS = ["name", "district", "state", "code"] as const;
 const HEADER_LABELS: Record<string, string> = {
@@ -73,6 +74,19 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     return errs;
   }
   const errsPerRow = rows.map(rowErrors);
+  // Non-blocking geo warnings: unknown state, or district not in that state.
+  function rowWarnings(r: Record<string, string>): string[] {
+    const warns: string[] = [];
+    const st = (r.state ?? "").trim();
+    const di = (r.district ?? "").trim();
+    if (st && !isKnownState(st)) {
+      warns.push("Unknown state");
+    } else if (st && di && !isValidDistrictForState(st, di)) {
+      warns.push(`District not in ${normState(st)}`);
+    }
+    return warns;
+  }
+  const warnsPerRow = rows.map(rowWarnings);
   const readyRows = rows.filter((_, i) => errsPerRow[i].length === 0);
   const readyCount = readyRows.length;
   const errorCount = rows.length - readyCount;
@@ -130,6 +144,11 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", padding: "12px 16px", borderRadius: "12px", marginBottom: "12px", background: errorCount > 0 ? "rgba(229,62,62,0.05)" : "rgba(10,190,98,0.06)", border: `1px solid ${errorCount > 0 ? "rgba(229,62,62,0.2)" : "rgba(10,190,98,0.2)"}` }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>✓ {readyCount} ready</span>
             {errorCount > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#e53e3e" }}>✗ {errorCount} with errors</span>}
+            {warnsPerRow.filter((w) => w.length > 0).length > 0 && (
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#b7791f" }}>
+                ⚠ {warnsPerRow.filter((w) => w.length > 0).length} to review
+              </span>
+            )}
             <div style={{ marginLeft: "auto" }}>
               <button onClick={() => void doUpload(errorCount > 0 ? readyRows : rows)} disabled={uploading || readyCount === 0}
                 style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1 }}>
@@ -174,6 +193,11 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                       })}
                       <td style={{ padding: "6px 10px", minWidth: "120px" }}>
                         {hasErr && <span style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 600 }}>{errs.join(", ")}</span>}
+                        {warnsPerRow[idx].length > 0 && (
+                          <span style={{ display: "block", fontSize: "11px", color: "#b7791f", fontWeight: 600 }}>
+                            ⚠ {warnsPerRow[idx].join(", ")}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "center" }}>
                         <button onClick={() => deleteRow(idx)} title="Remove row"
