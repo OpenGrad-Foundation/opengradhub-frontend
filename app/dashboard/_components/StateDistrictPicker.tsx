@@ -40,10 +40,16 @@ export function StateDistrictPicker({
   stateId,
   districtId,
 }: Props) {
-  const style = inputStyle ?? defaultInput;
+  const style = { ...defaultInput, ...inputStyle };
   const options = STATES.filter((s) => includeAll || s.value !== "ALL");
   const districts = districtsForState(state);
   const districtOff = districtDisabled(state);
+
+  // Normalize incoming (possibly label-form) state for option matching.
+  // Fall back to the blank option if it isn't a known option, so the
+  // controlled <select> never holds a value absent from its options.
+  const normalized = normState(state);
+  const stateValue = options.some((o) => o.value === normalized) ? normalized : "";
 
   function handleState(value: string) {
     onStateChange(value);
@@ -54,18 +60,14 @@ export function StateDistrictPicker({
   const wrap: CSSProperties =
     layout === "row"
       ? { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }
-      : { display: "grid", gap: "12px" };
+      : { display: "grid", gridTemplateColumns: "1fr", gap: "12px" };
 
   return (
     <div style={wrap}>
       <select
         id={stateId}
         aria-label="State"
-        value={
-          normState(state) && options.some((o) => o.value === normState(state))
-            ? normState(state)
-            : state
-        }
+        value={stateValue}
         onChange={(e) => handleState(e.target.value)}
         style={style}
       >
@@ -84,7 +86,7 @@ export function StateDistrictPicker({
         disabled={districtOff}
       >
         <option value="">
-          {districtOff ? "—" : districts.length === 0 ? "No districts" : "Select district…"}
+          {districtOff ? "—" : "Select district…"}
         </option>
         {districts.map((d) => (
           <option key={d} value={d}>{d}</option>
