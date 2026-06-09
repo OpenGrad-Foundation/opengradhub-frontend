@@ -27,6 +27,7 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { STATES, districtDisabled } from "@/lib/geo";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -452,9 +453,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="State" id="user-state">
                         <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="KERALA">Kerala</option>
-                          <option value="KARNATAKA">Karnataka</option>
-                          <option value="TAMIL_NADU">Tamil Nadu</option>
+                          {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
                       <Field label="District" id="user-district">
@@ -463,10 +462,10 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={district}
                           onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={!state}
+                          disabled={districtDisabled(state)}
                         >
                           <option value="">
-                            {!state
+                            {districtDisabled(state)
                               ? "Select a state first"
                               : districtOptions.length === 0
                                 ? "No districts available"
@@ -519,9 +518,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="State" id="user-state">
                         <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="KERALA">Kerala</option>
-                          <option value="KARNATAKA">Karnataka</option>
-                          <option value="TAMIL_NADU">Tamil Nadu</option>
+                          {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
                     </Row>
@@ -532,10 +529,10 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={district}
                           onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={!state}
+                          disabled={districtDisabled(state)}
                         >
                           <option value="">
-                            {!state
+                            {districtDisabled(state)
                               ? "Select a state first"
                               : districtOptions.length === 0
                                 ? "No districts available"
@@ -579,9 +576,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                   <Field label="State" id="user-state">
                     <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
                       <option value="">Select…</option>
-                      <option value="KERALA">Kerala</option>
-                      <option value="KARNATAKA">Karnataka</option>
-                      <option value="TAMIL_NADU">Tamil Nadu</option>
+                      {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </Field>
                 )}
@@ -1185,11 +1180,6 @@ function AssignBundleModal({
 
 // ── Bulk Assign Panel ──────────────────────────────────────────
 
-const BULK_STATES = [
-  { value: "TAMIL_NADU",    label: "Tamil Nadu" },
-  { value: "CHHATTISGARH", label: "Chhattisgarh" },
-  { value: "KERALA",        label: "Kerala" },
-];
 
 function BulkAssignPanel({
   onClose,
@@ -1366,7 +1356,7 @@ function BulkAssignPanel({
           <label style={formLabelStyle}>State</label>
           <select value={filterState} onChange={(e) => setFilterState(e.target.value)} style={inputStyle}>
             <option value="">All States</option>
-            {BULK_STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
         <div>
