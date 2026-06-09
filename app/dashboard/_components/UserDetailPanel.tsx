@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { SafeUser, ManagerOption, SchoolOption } from "@/lib/api";
 import { updateUser, deleteUser, archiveUser, getManagers, fetchSchools } from "@/lib/api";
 import {
@@ -142,11 +142,14 @@ export function UserDetailPanel({
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
 
-  const schoolOptions = (() => {
-    if (normState(draft.state) === "ALL") return schools.filter((s) => normState(s.state) === "ALL");
-    if (!draft.state || !draft.district) return [] as SchoolOption[];
-    return schools.filter((s) => normState(s.state) === draft.state && s.district === draft.district);
-  })();
+  const schoolOptions = useMemo(() => {
+    const st = normState(draft.state);
+    if (st === "ALL") return schools.filter((s) => normState(s.state) === "ALL");
+    if (!st) return [] as SchoolOption[];
+    // Student blocks have no district field; fellows do. Show all schools in the
+    // state, narrowing by district only when one is actually selected.
+    return schools.filter((s) => normState(s.state) === st && (!draft.district || s.district === draft.district));
+  }, [schools, draft.state, draft.district]);
 
   function handleClose() {
     if (dirty) {
@@ -417,18 +420,14 @@ export function UserDetailPanel({
                         value={draft.school_id}
                         onChange={(e) => set("school_id", e.target.value)}
                         style={S.input}
-                        disabled={!draft.district && normState(draft.state) !== "ALL"}
+                        disabled={!draft.state}
                       >
                         <option value="">
                           {!draft.state
                             ? "Select a state first"
-                            : normState(draft.state) === "ALL"
-                              ? (schoolOptions.length === 0 ? "No All-state schools" : "Select a school")
-                              : !draft.district
-                                ? "Select a district first"
-                                : schoolOptions.length === 0
-                                  ? "No schools here"
-                                  : "Select a school"}
+                            : schoolOptions.length === 0
+                              ? (normState(draft.state) === "ALL" ? "No All-state schools" : "No schools in this state")
+                              : "Select a school"}
                         </option>
                         {schoolOptions.map((s) => (
                           <option key={s.id} value={s.id}>{s.name}</option>
@@ -485,18 +484,14 @@ export function UserDetailPanel({
                         value={draft.school_id}
                         onChange={(e) => set("school_id", e.target.value)}
                         style={S.input}
-                        disabled={!draft.district && normState(draft.state) !== "ALL"}
+                        disabled={!draft.state}
                       >
                         <option value="">
                           {!draft.state
                             ? "Select a state first"
-                            : normState(draft.state) === "ALL"
-                              ? (schoolOptions.length === 0 ? "No All-state schools" : "Select a school")
-                              : !draft.district
-                                ? "Select a district first"
-                                : schoolOptions.length === 0
-                                  ? "No schools here"
-                                  : "Select a school"}
+                            : schoolOptions.length === 0
+                              ? (normState(draft.state) === "ALL" ? "No All-state schools" : "No schools in this state")
+                              : "Select a school"}
                         </option>
                         {schoolOptions.map((s) => (
                           <option key={s.id} value={s.id}>{s.name}</option>
