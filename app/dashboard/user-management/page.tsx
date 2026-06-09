@@ -27,7 +27,7 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { STATES, districtDisabled } from "@/lib/geo";
+import { STATES, districtDisabled, resolveState, resolveDistrict } from "@/lib/geo";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 const ALL_ROLES: { code: string; label: string }[] = [
@@ -1686,6 +1686,27 @@ function isCellRequired(row: Record<string, string>, col: string): boolean {
   return false;
 }
 
+function downloadErroredUsersCsv(
+  result: { skippedRows: Array<Record<string, string>>; errors: string[] },
+  headers: string[],
+) {
+  const cols = [...headers, "error"];
+  const lines = [cols.join(",")];
+  for (const row of result.skippedRows) {
+    const reason = result.errors.find((e) => row.name && e.includes(`"${row.name}"`)) ?? "see report";
+    lines.push([...headers.map((h) => csvEscape(row[h] ?? "")), csvEscape(reason)].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "users_errored_rows.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 // Minimal CSV value escaper
 function csvEscape(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
@@ -1698,7 +1719,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const isMobile = useIsMobile(640);
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
-  const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
+  const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>>; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
   const [templateRole, setTemplateRole] = useState<string>("COMMON");
   const [parseError,   setParseError]   = useState<string | null>(null);
   const [csvHeaders,   setCsvHeaders]   = useState<string[]>([]);
@@ -1773,7 +1794,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       setResult(res);
       onDone();
     } catch (err) {
-      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."] });
+      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."], corrections: [], skippedRows: [] });
     } finally {
       setUploading(false);
     }
@@ -1800,6 +1821,17 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const errorCount = rowErrors.filter((e) => e.length  > 0).length;
   const readyRows  = editableRows.filter((_, i) => rowErrors[i].length === 0);
   const hasData    = csvHeaders.length > 0 && editableRows.length > 0;
+
+  // Geo resolution (runs only when state/district columns exist in CSV)
+  const resolved = editableRows.map((r) => {
+    const rs = resolveState(r.state ?? "");
+    const state = rs.status === "exact" || rs.status === "corrected" ? rs.value : (r.state ?? "");
+    const rd = resolveDistrict(state, r.district ?? "");
+    const district = rd.status === "exact" || rd.status === "corrected" ? rd.value : (r.district ?? "");
+    return { state, district, stateStatus: rs, districtStatus: rd };
+  });
+  const resolvedRows = editableRows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
+  const readyResolved = resolvedRows.filter((_, i) => rowErrors[i].length === 0);
 
   return (
     <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
@@ -1873,7 +1905,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                 <>
                   <button
                     id="bulk-submit-btn"
-                    onClick={() => void doUpload(readyRows)}
+                    onClick={() => void doUpload(readyResolved)}
                     disabled={uploading || readyCount === 0}
                     style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1, cursor: uploading || readyCount === 0 ? "not-allowed" : "pointer" }}
                   >
@@ -1886,7 +1918,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
               ) : (
                 <button
                   id="bulk-submit-btn"
-                  onClick={() => void doUpload(editableRows)}
+                  onClick={() => void doUpload(resolvedRows)}
                   disabled={uploading}
                   style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading ? 0.5 : 1, cursor: uploading ? "not-allowed" : "pointer" }}
                 >
@@ -1958,6 +1990,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                           cursor: "text",
                         };
 
+                        const geoRes = col === "state" ? resolved[rowIdx].stateStatus
+                                     : col === "district" ? resolved[rowIdx].districtStatus : null;
+
                         return (
                           <td key={col} style={cellBase} title={tooltipMsg}>
                             {isDropRole ? (
@@ -1979,6 +2014,27 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 <option value="UG">UG</option>
                                 <option value="PG">PG</option>
                               </select>
+                            ) : geoRes && geoRes.status === "ambiguous" && geoRes.candidates ? (
+                              <select
+                                value={val}
+                                onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #b7791f" }}
+                              >
+                                <option value={val}>{val} (keep)</option>
+                                {geoRes.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            ) : geoRes && geoRes.status === "corrected" ? (
+                              <>
+                                <input
+                                  type="text"
+                                  aria-label={col}
+                                  value={val}
+                                  onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                  style={{ ...controlBase, border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #0abe62" }}
+                                  placeholder={cellErr ? "Required" : ""}
+                                />
+                                <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
+                              </>
                             ) : (
                               <input
                                 type="text"
@@ -2024,6 +2080,21 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
+          )}
+          {result.corrections.length > 0 && (
+            <details style={{ marginTop: "8px" }}>
+              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+                {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
+              </summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
+                {result.corrections.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </details>
+          )}
+          {result.skippedRows.length > 0 && (
+            <button onClick={() => downloadErroredUsersCsv(result, csvHeaders)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
+              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            </button>
           )}
           {result.credentials?.some((c) => c.tempPassword) && (
             <div style={{ marginTop: "16px", padding: "12px", background: "rgba(10,190,98,0.08)", borderRadius: "8px" }}>
