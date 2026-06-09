@@ -28,6 +28,7 @@ import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { STATES, districtDisabled } from "@/lib/geo";
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -1352,16 +1353,16 @@ function BulkAssignPanel({
 
       {/* ── Filter bar ─────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px", marginBottom: "14px" }}>
-        <div>
-          <label style={formLabelStyle}>State</label>
-          <select value={filterState} onChange={(e) => setFilterState(e.target.value)} style={inputStyle}>
-            <option value="">All States</option>
-            {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="filter-district" style={formLabelStyle}>District</label>
-          <input id="filter-district" type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+        <div style={{ gridColumn: "span 2" }}>
+          <label style={formLabelStyle}>State &amp; District</label>
+          <StateDistrictPicker
+            state={filterState}
+            district={filterDistrict}
+            onStateChange={setFilterState}
+            onDistrictChange={setFilterDistrict}
+            blankStateLabel="All States"
+            inputStyle={inputStyle}
+          />
         </div>
         <div>
           <label htmlFor="filter-school" style={formLabelStyle}>School</label>
