@@ -315,7 +315,7 @@ export async function downloadAnalyticsStudentsCsv(
   studentIds?: string[],
   includeMarks?: boolean,
 ): Promise<{ blob: Blob; filename: string }> {
-  const response = await apiFetch(`${API_BASE_URL}/analytics/students/export/csv`, {
+  const response = await apiFetch(`${API_BASE_URL}/analytics/students/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -336,13 +336,11 @@ export async function downloadAnalyticsStudentsCsv(
     );
   }
 
-  const blob = await response.blob();
-  const header = response.headers.get("content-disposition");
-  let filename = "opengrad_export.csv";
-  if (header) {
-    const match = /filename="?([^";]+)"?/i.exec(header);
-    if (match?.[1]) filename = match[1];
-  }
+  // Backend returns JSON { filename, data } where data is the CSV string — not a
+  // binary blob with a Content-Disposition header. Build the Blob from data.
+  const body = (await response.json()) as { filename?: string; data?: string };
+  const blob = new Blob([body.data ?? ""], { type: "text/csv;charset=utf-8;" });
+  const filename = body.filename || "opengrad_export.csv";
 
   return { blob, filename };
 }
@@ -601,6 +599,26 @@ export async function assignCourse(
 }
 
 /**
+ * Remove a single student's enrolment from a single course.
+ */
+export async function unassignCourse(
+  studentId: string,
+  courseId: string,
+): Promise<{ removed: true; student_id: string; course_id: string }> {
+  const response = await apiFetch(`${API_BASE_URL}/enrolments`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_id: studentId, course_id: courseId }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to remove student from course.", response.status);
+  }
+  return (await response.json()) as { removed: true; student_id: string; course_id: string };
+}
+
+/**
  * Get all courses a student is enrolled in.
  */
 export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
@@ -781,7 +799,7 @@ export type ModuleWithProgress = {
   lessons: LessonWithProgress[];
   is_module_complete: boolean;
   is_locked: boolean;
-  module_quiz: { id: string; title: string; published: boolean } | null;
+  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
 };
 
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
@@ -1109,6 +1127,17 @@ export type Assignment = {
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
+  /** The caller's own submission + grade (only populated by getAssignmentById). */
+  my_submission?: {
+    response_text: string | null;
+    file_urls: string[];
+    status: string;
+    score: number | null;
+    feedback: string | null;
+    graded_at: string | null;
+    is_late: boolean;
+    submitted_at: string | null;
+  } | null;
 };
 
 export type Submission = {
@@ -1624,13 +1653,17 @@ export type LessonDetail = {
   /** Extracted server-side — the raw YouTube URL is never returned. */
   video_id: string;
   order_index: number;
-  module_quiz_id: string | null;
+  module_quiz_ids: string[];
   prev_lesson_id: string | null;
   next_lesson_id: string | null;
   /** Whether this student has already completed the lesson (watched ≥ 80%). */
   is_complete?: boolean;
   /** Percentage watched in the most recent session, if returned by the API. */
   watched_percent?: number;
+  /** True when next_lesson_id belongs to a different module. */
+  next_in_new_module?: boolean;
+  /** Whether the caller has finished this lesson's module (lessons + quizzes). */
+  current_module_complete?: boolean;
 };
 
 export async function getLessonById(lessonId: string): Promise<LessonDetail> {
@@ -1890,7 +1923,7 @@ export type CourseModule = {
   title: string;
   order_index: number;
   lessons: CourseLesson[];
-  module_quiz: { id: string; title: string; published: boolean } | null;
+  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
 };
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
@@ -2093,7 +2126,7 @@ export async function updateSchool(
 /** Bulk-upload schools from a CSV file. */
 export async function bulkUploadSchools(
   file: File,
-): Promise<{ created: number; skipped: number; errors: string[] }> {
+): Promise<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
   const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
@@ -2105,7 +2138,7 @@ export async function bulkUploadSchools(
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to upload schools.", response.status);
   }
-  return (await response.json()) as { created: number; skipped: number; errors: string[] };
+  return (await response.json()) as { created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> };
 }
 
 /** Download URL for the bulk school upload CSV template. */
@@ -2197,6 +2230,7 @@ export async function updateUser(
   return (await response.json()) as SafeUser;
 }
 
+/** Hard-delete: removes the user row + Clerk account. Irreversible. */
 export async function deleteUser(userId: string): Promise<void> {
   const response = await apiFetch(
     `${API_BASE_URL}/users/${userId}`,
@@ -2205,6 +2239,18 @@ export async function deleteUser(userId: string): Promise<void> {
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
+  }
+}
+
+/** Archive (soft-delete): sets status → INACTIVE. Reversible. */
+export async function archiveUser(userId: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/${userId}/archive`,
+    { method: "PATCH", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to archive user.", response.status);
   }
 }
 
@@ -2237,7 +2283,7 @@ export async function getManagers(
  */
 export async function bulkUploadUsers(
   file: File,
-): Promise<{ created: number; skipped: number; errors: string[]; credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }> }> {
+): Promise<{ created: number; skipped: number; errors: string[]; credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }>; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -2263,6 +2309,8 @@ export async function bulkUploadUsers(
     skipped: number;
     errors: string[];
     credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }>;
+    corrections: string[];
+    skippedRows: Array<Record<string, string>>;
   };
 }
 
@@ -2503,6 +2551,18 @@ export async function createBundle(payload: {
     throw new ApiError(err?.message ?? "Failed to create bundle.", r.status);
   }
   return (await r.json()) as Bundle;
+}
+
+export async function deleteBundle(id: string): Promise<{ deleted: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete bundle.", r.status);
+  }
+  return (await r.json()) as { deleted: boolean };
 }
 
 export async function addCourseToBundle(
