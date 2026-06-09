@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
-import { isKnownState, isValidDistrictForState, normState } from "@/lib/geo";
+import { isKnownState, isValidDistrictForState, normState, STATES } from "@/lib/geo";
 
 const HEADERS = ["name", "district", "state", "code"] as const;
 const HEADER_LABELS: Record<string, string> = {
@@ -82,7 +82,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     if (st && !isKnownState(st)) {
       warns.push("Unknown state");
     } else if (st && di && !isValidDistrictForState(st, di)) {
-      warns.push(`District not in ${normState(st)}`);
+      const label = STATES.find((s) => s.value === normState(st))?.label ?? st;
+      warns.push(`District not in ${label}`);
     }
     return warns;
   }
