@@ -35,6 +35,14 @@ describe('resolveDistrict', () => {
     expect(resolveDistrict('ALL', 'Anything')).toEqual({ status: 'unknown', value: 'Anything' });
     expect(resolveDistrict('', 'Anything')).toEqual({ status: 'unknown', value: 'Anything' });
   });
+  // "tiruvalur" is edit-distance 1 from both Tiruvallur and Tiruvarur (Tamil Nadu)
+  // and distance >=3 from every other district — a genuine natural tie at threshold 2.
+  it('ambiguous returns >=2 sorted candidates', () => {
+    const r = resolveDistrict('TAMIL_NADU', 'tiruvalur');
+    expect(r.status).toBe('ambiguous');
+    expect(r.candidates!.length).toBeGreaterThanOrEqual(2);
+    expect([...r.candidates!]).toEqual([...r.candidates!].sort());
+  });
 });
 
 describe('resolveState', () => {

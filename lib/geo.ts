@@ -90,12 +90,9 @@ export function isValidDistrictForState(
 export type ResolveStatus = "exact" | "corrected" | "ambiguous" | "unknown" | "none";
 export type ResolveResult = { status: ResolveStatus; value: string; candidates?: string[] };
 
-/** Lowercase, trim, collapse whitespace, strip non-alphanumerics. */
-export function normalizeForMatch(s: string): string {
-  return (s ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
+/** Lowercase and strip non-alphanumerics (accepts null/undefined safely). */
+export function normalizeForMatch(s: string | null | undefined): string {
+  return (s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 /** Levenshtein edit distance. */
