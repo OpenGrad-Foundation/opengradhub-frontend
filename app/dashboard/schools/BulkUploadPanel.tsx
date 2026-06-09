@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
-import { isKnownState, isValidDistrictForState, normState, STATES } from "@/lib/geo";
+import { isKnownState, isValidDistrictForState, normState, STATES, resolveState, resolveDistrict } from "@/lib/geo";
 
 const HEADERS = ["name", "district", "state", "code"] as const;
 const HEADER_LABELS: Record<string, string> = {
@@ -89,9 +89,18 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   }
   const warnsPerRow = rows.map(rowWarnings);
   const warnCount = warnsPerRow.filter((w) => w.length > 0).length;
+  const resolved = rows.map((r) => {
+    const rs = resolveState(r.state ?? "");
+    const state = rs.status === "exact" || rs.status === "corrected" ? rs.value : (r.state ?? "");
+    const rd = resolveDistrict(state, r.district ?? "");
+    const district = rd.status === "exact" || rd.status === "corrected" ? rd.value : (r.district ?? "");
+    return { state, district, stateStatus: rs, districtStatus: rd };
+  });
   const readyRows = rows.filter((_, i) => errsPerRow[i].length === 0);
   const readyCount = readyRows.length;
   const errorCount = rows.length - readyCount;
+  const resolvedRows = rows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
+  const readyResolved = resolvedRows.filter((_, i) => errsPerRow[i].length === 0);
 
   async function doUpload(toUpload: Array<Record<string, string>>) {
     if (!toUpload.length) return;
@@ -152,7 +161,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
               </span>
             )}
             <div style={{ marginLeft: "auto" }}>
-              <button onClick={() => void doUpload(errorCount > 0 ? readyRows : rows)} disabled={uploading || readyCount === 0}
+              <button onClick={() => void doUpload(errorCount > 0 ? readyResolved : resolvedRows)} disabled={uploading || readyCount === 0}
                 style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1 }}>
                 {uploading ? "Uploading…" : errorCount > 0 ? `Import Ready Rows (${readyCount})` : `Import All (${rows.length})`}
               </button>
@@ -185,11 +194,34 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                       {HEADERS.map((col) => {
                         const val = row[col] ?? "";
                         const cellErr = col === "name" && !val.trim();
+                        const res = col === "state" ? resolved[idx].stateStatus
+                                  : col === "district" ? resolved[idx].districtStatus : null;
+                        if (res && res.status === "ambiguous" && res.candidates) {
+                          return (
+                            <td key={col} style={{ padding: "4px 6px" }}>
+                              <select value={val} onChange={(e) => updateCell(idx, col, e.target.value)}
+                                style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", border: "1.5px solid #b7791f", color: "#034852", boxSizing: "border-box", minWidth: "90px" }}>
+                                <option value={val}>{val} (keep)</option>
+                                {res.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </td>
+                          );
+                        }
+                        const corrected = !!res && res.status === "corrected";
                         return (
                           <td key={col} style={{ padding: "4px 6px" }}>
-                            <input type="text" value={val} onChange={(e) => updateCell(idx, col, e.target.value)}
-                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852", background: cellErr ? "rgba(229,62,62,0.04)" : "transparent", border: cellErr ? "1.5px solid #e53e3e" : "1px solid transparent", outline: "none", boxSizing: "border-box", minWidth: "90px" }}
+                            <input type="text" value={corrected ? res!.value : val}
+                              onChange={(e) => updateCell(idx, col, e.target.value)}
+                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852",
+                                background: cellErr ? "rgba(229,62,62,0.04)" : corrected ? "rgba(10,190,98,0.06)" : "transparent",
+                                border: cellErr ? "1.5px solid #e53e3e" : corrected ? "1.5px solid #0abe62" : "1px solid transparent",
+                                outline: "none", boxSizing: "border-box", minWidth: "90px" }}
                               placeholder={cellErr ? "Required" : ""} />
+                            {corrected && (
+                              <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>
+                                {val} → {res!.value}
+                              </span>
+                            )}
                           </td>
                         );
                       })}
