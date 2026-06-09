@@ -17,12 +17,26 @@ function csvEscape(val: string): string {
   return val;
 }
 
+function downloadErroredCsv(result: { skippedRows: Array<Record<string, string>>; errors: string[] }) {
+  const cols = [...HEADERS, "error"];
+  const lines = [cols.join(",")];
+  for (const row of result.skippedRows) {
+    const reason = result.errors.find((e) => row.name && e.includes(`"${row.name}"`)) ?? "see report";
+    lines.push([...HEADERS.map((h) => csvEscape(row[h] ?? "")), csvEscape(reason)].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "schools_errored_rows.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> } | null>(null);
 
   useEffect(() => {
     if (!file) { setRows([]); setParseError(null); return; }
@@ -116,7 +130,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       setResult(res);
       onDone();
     } catch (err) {
-      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."] });
+      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."], corrections: [], skippedRows: [] });
     } finally {
       setUploading(false);
     }
@@ -259,6 +273,21 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
             <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
+          )}
+          {result.corrections.length > 0 && (
+            <details style={{ marginTop: "8px" }}>
+              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+                {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
+              </summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
+                {result.corrections.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </details>
+          )}
+          {result.skippedRows.length > 0 && (
+            <button onClick={() => downloadErroredCsv(result)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
+              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            </button>
           )}
         </div>
       )}
