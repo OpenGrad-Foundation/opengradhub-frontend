@@ -9,6 +9,7 @@ import {
 } from "@/app/dashboard/role-management/role-management.utils";
 import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -366,12 +367,9 @@ export function UserDetailPanel({
                   </div>
                   <div style={formRowStyle}>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="KERALA">Kerala</option>
-                        <option value="KARNATAKA">Karnataka</option>
-                        <option value="TAMIL_NADU">Tamil Nadu</option>
-                        <option value="CHHATTISGARH">Chhattisgarh</option>
+                        {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                     <PanelField label="School">
@@ -405,23 +403,27 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="KERALA">Kerala</option>
-                        <option value="KARNATAKA">Karnataka</option>
-                        <option value="TAMIL_NADU">Tamil Nadu</option>
-                        <option value="CHHATTISGARH">Chhattisgarh</option>
+                        {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                   </div>
                   <div style={formRowStyle}>
                     <PanelField label="District">
-                      <input
+                      <select
                         value={draft.district}
                         onChange={(e) => set("district", e.target.value)}
                         style={S.input}
-                        placeholder="District"
-                      />
+                        disabled={districtDisabled(draft.state)}
+                      >
+                        <option value="">
+                          {districtDisabled(draft.state) ? "—" : "Select district…"}
+                        </option>
+                        {districtsForState(draft.state).map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
                     </PanelField>
                     <PanelField label="School">
                       <input
@@ -448,12 +450,9 @@ export function UserDetailPanel({
               {isPMorZM && (
                 <>
                   <PanelField label="State">
-                    <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
                       <option value="">Select…</option>
-                      <option value="KERALA">Kerala</option>
-                      <option value="KARNATAKA">Karnataka</option>
-                      <option value="TAMIL_NADU">Tamil Nadu</option>
-                      <option value="CHHATTISGARH">Chhattisgarh</option>
+                      {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </PanelField>
                   {user.role === 'ZONAL_MANAGER' && (
