@@ -86,3 +86,89 @@ export function isValidDistrictForState(
   if (!d) return false;
   return districtsForState(state).includes(d);
 }
+
+export type ResolveStatus = "exact" | "corrected" | "ambiguous" | "unknown" | "none";
+export type ResolveResult = { status: ResolveStatus; value: string; candidates?: string[] };
+
+/** Lowercase, trim, collapse whitespace, strip non-alphanumerics. */
+export function normalizeForMatch(s: string): string {
+  return (s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+/** Levenshtein edit distance. */
+export function editDistance(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  let curr = new Array<number>(n + 1);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+const FUZZY_THRESHOLD = 2;
+
+// Resolve a raw string against a list of canonical candidates.
+function resolveAgainst(raw: string, canonicals: string[]): ResolveResult {
+  const r = (raw ?? "").trim();
+  if (!r) return { status: "none", value: "" };
+  const nraw = normalizeForMatch(r);
+  const exact = canonicals.find((c) => normalizeForMatch(c) === nraw);
+  if (exact) return { status: "exact", value: exact };
+  let best = Infinity;
+  let winners: string[] = [];
+  for (const c of canonicals) {
+    const d = editDistance(nraw, normalizeForMatch(c));
+    if (d < best) { best = d; winners = [c]; }
+    else if (d === best) winners.push(c);
+  }
+  if (best <= FUZZY_THRESHOLD) {
+    if (winners.length === 1) return { status: "corrected", value: winners[0] };
+    return { status: "ambiguous", value: r, candidates: [...winners].sort() };
+  }
+  return { status: "unknown", value: r };
+}
+
+/** Resolve a district against the chosen state's official list. */
+export function resolveDistrict(state: string, rawDistrict: string): ResolveResult {
+  const r = (rawDistrict ?? "").trim();
+  if (!r) return { status: "none", value: "" };
+  if (!isKnownState(state)) return { status: "unknown", value: r };
+  return resolveAgainst(r, STATE_DISTRICTS[normState(state)]);
+}
+
+/** Resolve a state against STATES (value or label form; "all" -> ALL). */
+export function resolveState(rawState: string): ResolveResult {
+  const r = (rawState ?? "").trim();
+  if (!r) return { status: "none", value: "" };
+  const nraw = normalizeForMatch(r);
+  const exact = STATES.find(
+    (s) => normalizeForMatch(s.value) === nraw || normalizeForMatch(s.label) === nraw,
+  );
+  if (exact) return { status: "exact", value: exact.value };
+  let best = Infinity;
+  let winners: StateOption[] = [];
+  for (const s of STATES) {
+    const d = Math.min(
+      editDistance(nraw, normalizeForMatch(s.value)),
+      editDistance(nraw, normalizeForMatch(s.label)),
+    );
+    if (d < best) { best = d; winners = [s]; }
+    else if (d === best) winners.push(s);
+  }
+  if (best <= FUZZY_THRESHOLD) {
+    if (winners.length === 1) return { status: "corrected", value: winners[0].value };
+    return { status: "ambiguous", value: r, candidates: winners.map((w) => w.value).sort() };
+  }
+  return { status: "unknown", value: r };
+}
