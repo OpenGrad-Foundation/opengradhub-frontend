@@ -121,7 +121,6 @@ export default function SchoolsPage() {
                 district={filterDistrict}
                 onStateChange={setFilterState}
                 onDistrictChange={setFilterDistrict}
-                includeAll={false}
                 blankStateLabel="All states"
                 inputStyle={inputStyle}
               />
@@ -269,7 +268,6 @@ function SchoolFormModal({
                 district={district}
                 onStateChange={setState}
                 onDistrictChange={setDistrict}
-                includeAll={false}
                 inputStyle={inputStyle}
               />
             </div>
