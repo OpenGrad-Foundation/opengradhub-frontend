@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react";
 import type { SafeUser, ManagerOption } from "@/lib/api";
-import { updateUser, deleteUser, getManagers } from "@/lib/api";
+import { updateUser, deleteUser, archiveUser, getManagers } from "@/lib/api";
 import {
   fetchRoles,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
 
 interface UserDetailPanelProps {
@@ -72,7 +74,14 @@ export function UserDetailPanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveErr, setArchiveErr] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
+
+  const { has } = usePermissions();
+  const canArchive = has(PERM.user_management.archive);
+  const canDelete = has(PERM.user_management.delete);
 
   const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
   const isMobile = useIsMobile(640);
@@ -94,6 +103,8 @@ export function UserDetailPanel({
     setRoleErr(null);
     setConfirmDelete(false);
     setDeleteErr(null);
+    setConfirmArchive(false);
+    setArchiveErr(null);
     setConfirmClose(false);
     setPanelTab("details");
   }, [user]);
@@ -186,6 +197,20 @@ export function UserDetailPanel({
       setConfirmDelete(false);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    setArchiveErr(null);
+    try {
+      await archiveUser(user.id);
+      onDeleted();
+    } catch (e) {
+      setArchiveErr(e instanceof Error ? e.message : "Failed to archive user.");
+      setConfirmArchive(false);
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -512,41 +537,87 @@ export function UserDetailPanel({
           )}
 
           {/* ── Danger Zone ─────────────────────────────────── */}
-          {!isSelf && (
+          {!isSelf && (canArchive || canDelete) && (
             <div style={{ padding: `${padV} ${padH}` }}>
               <p style={{ ...S.label, color: "#c53030", marginBottom: "10px" }}>Danger Zone</p>
-              {confirmDelete ? (
-                <div style={{
-                  background: "rgba(229,62,62,0.06)",
-                  border: "1px solid rgba(229,62,62,0.25)",
-                  borderRadius: "12px", padding: "14px 16px",
-                }}>
-                  <p style={{ fontSize: "13px", color: "#c53030", fontWeight: 600, margin: "0 0 10px" }}>
-                    Delete {user.name}? This cannot be undone.
-                  </p>
-                  {deleteErr && (
-                    <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{deleteErr}</p>
+
+              {/* Archive (soft delete) — reversible */}
+              {canArchive && user.status === "ACTIVE" && (
+                <div style={{ marginBottom: canDelete ? "12px" : 0 }}>
+                  {confirmArchive ? (
+                    <div style={{
+                      background: "rgba(245,158,11,0.08)",
+                      border: "1px solid rgba(245,158,11,0.3)",
+                      borderRadius: "12px", padding: "14px 16px",
+                    }}>
+                      <p style={{ fontSize: "13px", color: "#8a5a00", fontWeight: 600, margin: "0 0 10px" }}>
+                        Archive {user.name}? They will be set inactive and lose access. This can be reversed.
+                      </p>
+                      {archiveErr && (
+                        <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{archiveErr}</p>
+                      )}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          onClick={() => void handleArchive()}
+                          disabled={archiving}
+                          style={{ ...S.smallBtn, background: "rgba(245,158,11,0.14)", color: "#8a5a00", border: "1px solid rgba(245,158,11,0.3)", opacity: archiving ? 0.65 : 1 }}
+                        >
+                          {archiving ? "Archiving…" : "Yes, Archive"}
+                        </button>
+                        <button
+                          onClick={() => { setConfirmArchive(false); setArchiveErr(null); }}
+                          style={S.smallBtn}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmArchive(true)}
+                      style={{ ...S.smallBtn, background: "rgba(245,158,11,0.1)", color: "#8a5a00", border: "1px solid rgba(245,158,11,0.28)" }}
+                    >
+                      Archive User
+                    </button>
                   )}
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      onClick={() => void handleDelete()}
-                      disabled={deleting}
-                      style={{ ...S.dangerBtn, background: "rgba(229,62,62,0.1)", opacity: deleting ? 0.65 : 1 }}
-                    >
-                      {deleting ? "Deleting…" : "Yes, Delete"}
-                    </button>
-                    <button
-                      onClick={() => { setConfirmDelete(false); setDeleteErr(null); }}
-                      style={S.smallBtn}
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} style={S.dangerBtn}>
-                  Delete User
-                </button>
+              )}
+
+              {/* Hard delete — irreversible */}
+              {canDelete && (
+                confirmDelete ? (
+                  <div style={{
+                    background: "rgba(229,62,62,0.06)",
+                    border: "1px solid rgba(229,62,62,0.25)",
+                    borderRadius: "12px", padding: "14px 16px",
+                  }}>
+                    <p style={{ fontSize: "13px", color: "#c53030", fontWeight: 600, margin: "0 0 10px" }}>
+                      Permanently delete {user.name}? This removes their account and all data, and cannot be undone.
+                    </p>
+                    {deleteErr && (
+                      <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{deleteErr}</p>
+                    )}
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => void handleDelete()}
+                        disabled={deleting}
+                        style={{ ...S.dangerBtn, background: "rgba(229,62,62,0.1)", opacity: deleting ? 0.65 : 1 }}
+                      >
+                        {deleting ? "Deleting…" : "Yes, Delete Permanently"}
+                      </button>
+                      <button
+                        onClick={() => { setConfirmDelete(false); setDeleteErr(null); }}
+                        style={S.smallBtn}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)} style={S.dangerBtn}>
+                    Delete User Permanently
+                  </button>
+                )
               )}
             </div>
           )}
