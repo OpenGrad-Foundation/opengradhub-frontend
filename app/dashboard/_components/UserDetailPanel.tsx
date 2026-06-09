@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { SafeUser, ManagerOption } from "@/lib/api";
-import { updateUser, deleteUser, archiveUser, getManagers } from "@/lib/api";
+import type { SafeUser, ManagerOption, SchoolOption } from "@/lib/api";
+import { updateUser, deleteUser, archiveUser, getManagers, fetchSchools } from "@/lib/api";
 import {
   fetchRoles,
   patchRole,
@@ -11,7 +11,7 @@ import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEdit
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
+import { STATES, districtsForState, districtDisabled, normState } from "@/lib/geo";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -84,6 +84,7 @@ export function UserDetailPanel({
   const canDelete = has(PERM.user_management.delete);
 
   const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
   const isMobile = useIsMobile(640);
   const padH = isMobile ? "16px" : "28px";
   const padV = isMobile ? "14px" : "16px";
@@ -129,9 +130,23 @@ export function UserDetailPanel({
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((rows) => { if (!cancelled) setSchools(rows); })
+      .catch(() => { if (!cancelled) setSchools([]); });
+    return () => { cancelled = true; };
+  }, []);
+
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
+
+  const schoolOptions = (() => {
+    if (normState(draft.state) === "ALL") return schools.filter((s) => normState(s.state) === "ALL");
+    if (!draft.state || !draft.district) return [] as SchoolOption[];
+    return schools.filter((s) => normState(s.state) === draft.state && s.district === draft.district);
+  })();
 
   function handleClose() {
     if (dirty) {
@@ -392,18 +407,33 @@ export function UserDetailPanel({
                   </div>
                   <div style={formRowStyle}>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                         <option value="">Select…</option>
                         {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                     <PanelField label="School">
-                      <input
+                      <select
                         value={draft.school_id}
                         onChange={(e) => set("school_id", e.target.value)}
                         style={S.input}
-                        placeholder="School name"
-                      />
+                        disabled={!draft.district && normState(draft.state) !== "ALL"}
+                      >
+                        <option value="">
+                          {!draft.state
+                            ? "Select a state first"
+                            : normState(draft.state) === "ALL"
+                              ? (schoolOptions.length === 0 ? "No All-state schools" : "Select a school")
+                              : !draft.district
+                                ? "Select a district first"
+                                : schoolOptions.length === 0
+                                  ? "No schools here"
+                                  : "Select a school"}
+                        </option>
+                        {schoolOptions.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
                     </PanelField>
                   </div>
                   <PanelField label="School Code">
@@ -428,7 +458,7 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                         <option value="">Select…</option>
                         {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
@@ -438,7 +468,7 @@ export function UserDetailPanel({
                     <PanelField label="District">
                       <select
                         value={draft.district}
-                        onChange={(e) => set("district", e.target.value)}
+                        onChange={(e) => { set("district", e.target.value); set("school_id", ""); }}
                         style={S.input}
                         disabled={districtDisabled(draft.state)}
                       >
@@ -451,12 +481,27 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="School">
-                      <input
+                      <select
                         value={draft.school_id}
                         onChange={(e) => set("school_id", e.target.value)}
                         style={S.input}
-                        placeholder="School name"
-                      />
+                        disabled={!draft.district && normState(draft.state) !== "ALL"}
+                      >
+                        <option value="">
+                          {!draft.state
+                            ? "Select a state first"
+                            : normState(draft.state) === "ALL"
+                              ? (schoolOptions.length === 0 ? "No All-state schools" : "Select a school")
+                              : !draft.district
+                                ? "Select a district first"
+                                : schoolOptions.length === 0
+                                  ? "No schools here"
+                                  : "Select a school"}
+                        </option>
+                        {schoolOptions.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
                     </PanelField>
                   </div>
                   <PanelField label="Zonal Manager">
@@ -475,7 +520,7 @@ export function UserDetailPanel({
               {isPMorZM && (
                 <>
                   <PanelField label="State">
-                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
+                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                       <option value="">Select…</option>
                       {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
