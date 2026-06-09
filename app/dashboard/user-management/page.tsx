@@ -311,6 +311,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     return Array.from(set).sort();
   }, [schools, state]);
   const filteredSchools = useMemo(() => {
+    if (normState(state) === "ALL") {
+      return schools.filter((s) => normState(s.state) === "ALL");
+    }
     if (!state || !district) return [] as SchoolOption[];
     return schools.filter(
       (s) => normState(s.state) === state && s.district === district,
@@ -484,18 +487,20 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         value={schoolId}
                         onChange={(e) => setSchoolId(e.target.value)}
                         style={inputStyle}
-                        disabled={!district}
+                        disabled={!district && normState(state) !== "ALL"}
                       >
                         <option value="">
                           {schoolsError
                             ? "Failed to load schools"
                             : !state
                               ? "Select a state first"
-                              : !district
-                                ? "Select a district first"
-                                : filteredSchools.length === 0
-                                  ? "No schools in this district"
-                                  : "Select a school (optional)"}
+                              : normState(state) === "ALL"
+                                ? (filteredSchools.length === 0 ? "No All-state schools" : "Select a school (optional)")
+                                : !district
+                                  ? "Select a district first"
+                                  : filteredSchools.length === 0
+                                    ? "No schools in this district"
+                                    : "Select a school (optional)"}
                         </option>
                         {filteredSchools.map((s) => (
                           <option key={s.id} value={s.id}>{s.name}</option>
@@ -550,18 +555,20 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={schoolId}
                           onChange={(e) => setSchoolId(e.target.value)}
                           style={inputStyle}
-                          disabled={!district}
+                          disabled={!district && normState(state) !== "ALL"}
                         >
                           <option value="">
                             {schoolsError
                               ? "Failed to load schools"
                               : !state
                                 ? "Select a state first"
-                                : !district
-                                  ? "Select a district first"
-                                  : filteredSchools.length === 0
-                                    ? "No schools in this district"
-                                    : "Select a school (optional)"}
+                                : normState(state) === "ALL"
+                                  ? (filteredSchools.length === 0 ? "No All-state schools" : "Select a school (optional)")
+                                  : !district
+                                    ? "Select a district first"
+                                    : filteredSchools.length === 0
+                                      ? "No schools in this district"
+                                      : "Select a school (optional)"}
                           </option>
                           {filteredSchools.map((s) => (
                             <option key={s.id} value={s.id}>{s.name}</option>
