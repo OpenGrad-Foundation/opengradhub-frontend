@@ -32,6 +32,7 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['test/**/*.spec.tsx'],
           setupFiles: ['fake-indexeddb/auto'],
+          globals: true,
         },
       },
     ],

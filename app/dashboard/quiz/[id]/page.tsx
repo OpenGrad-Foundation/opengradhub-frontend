@@ -24,6 +24,7 @@ import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
+import { Calculator } from "@/components/calculator";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
 // The report endpoints are bearer-token protected, so `window.open` cannot fetch
@@ -223,6 +224,7 @@ export default function QuizTakingPage() {
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showReloadWarning, setShowReloadWarning] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   // Sectioned quiz state
   const [sections, setSections] = useState<StartedAttemptSection[]>([]);
@@ -248,11 +250,16 @@ export default function QuizTakingPage() {
   const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionStartRef    = useRef<number>(Date.now());
   const suppressFsExitRef  = useRef(false);
+  // Set once the student confirms "Leave Quiz" so the navigation guards below
+  // stop intercepting (otherwise history.back() re-fires popstate → re-opens the
+  // dialog → the page never actually leaves).
+  const leavingRef         = useRef(false);
 
   // Warn before browser reload/close during an active attempt
   useEffect(() => {
     if (phase !== "taking") return;
     function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (leavingRef.current) return;
       e.preventDefault();
       e.returnValue = "";
     }
@@ -266,6 +273,7 @@ export default function QuizTakingPage() {
     // Intercept anchor clicks (Next.js Link, plain <a>) so client-side route
     // changes during a live attempt prompt the student before leaving.
     function onClickCapture(e: MouseEvent) {
+      if (leavingRef.current) return;
       const path = e.composedPath() as EventTarget[];
       const anchor = path.find(
         (el): el is HTMLAnchorElement =>
@@ -287,17 +295,28 @@ export default function QuizTakingPage() {
         title: "Leave this quiz?",
         body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
         confirmLabel: "Leave Quiz",
-        onConfirm: () => { window.location.href = targetHref; },
+        onConfirm: () => {
+          leavingRef.current = true;
+          if (beforeUnloadRef.current) window.removeEventListener("beforeunload", beforeUnloadRef.current);
+          router.push(targetHref);
+        },
       });
     }
     // popstate fires on back/forward — push state back immediately, then ask.
     function onPopState() {
+      if (leavingRef.current) return;
       window.history.pushState(null, "", window.location.href);
       askConfirm({
         title: "Leave this quiz?",
         body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
         confirmLabel: "Leave Quiz",
-        onConfirm: () => { window.history.back(); },
+        onConfirm: () => {
+          leavingRef.current = true;
+          if (beforeUnloadRef.current) window.removeEventListener("beforeunload", beforeUnloadRef.current);
+          // Leave to the assessments hub — a definite destination avoids the
+          // history.back() → popstate → re-prompt loop.
+          router.push("/dashboard/assessments");
+        },
       });
     }
     // Seed a sentinel history entry so the first Back press is catchable.
@@ -1340,6 +1359,34 @@ export default function QuizTakingPage() {
                     {submitting ? "Submitting…" : "Submit Quiz"}
                   </button>
                 )}
+              </div>
+              {/* On-screen calculator */}
+              <div style={{ ...card, padding: "16px" }}>
+                <button
+                  type="button"
+                  onClick={() => setCalcOpen((o) => !o)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: calcOpen ? "#034852" : "rgba(3,72,82,0.06)",
+                    color: calcOpen ? "#fff" : "#034852",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxSizing: "border-box",
+                  }}
+                  aria-expanded={calcOpen}
+                  aria-label="Toggle calculator"
+                >
+                  🧮 Calculator
+                </button>
+                {calcOpen && <Calculator style={{ marginTop: "12px" }} />}
               </div>
             </div>
           </div>
