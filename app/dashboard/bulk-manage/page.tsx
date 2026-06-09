@@ -16,12 +16,7 @@ import {
   type EnrolledItems,
 } from "@/lib/api";
 import { useCourses } from "@/lib/queries/courses";
-
-const STATES = [
-  { value: "TAMIL_NADU",    label: "Tamil Nadu" },
-  { value: "CHHATTISGARH", label: "Chhattisgarh" },
-  { value: "KERALA",        label: "Kerala" },
-];
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 type Mode = "assign" | "remove";
 
@@ -309,18 +304,16 @@ export default function BulkManagePage() {
       <div style={{ ...glassCard, marginBottom: "20px" }}>
         <p style={{ ...labelStyle, marginBottom: "16px" }}>Step 1 — Filter Students</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-          <div>
-            <label style={fieldLabel}>State</label>
-            <select value={filterState} onChange={(e) => setFilterState(e.target.value)} style={inputStyle}>
-              <option value="">All States</option>
-              {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={fieldLabel}>District</label>
-            <input type="text" placeholder="e.g. Chennai" value={filterDistrict}
-              onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle}
-              onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <div style={{ gridColumn: "span 2" }}>
+            <label style={fieldLabel}>State &amp; District</label>
+            <StateDistrictPicker
+              state={filterState}
+              district={filterDistrict}
+              onStateChange={setFilterState}
+              onDistrictChange={setFilterDistrict}
+              blankStateLabel="All States"
+              inputStyle={inputStyle}
+            />
           </div>
           <div>
             <label style={fieldLabel}>School</label>
