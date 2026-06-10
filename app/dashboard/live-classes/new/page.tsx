@@ -7,6 +7,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 type Target = "course" | "programme";
 
@@ -26,6 +27,7 @@ export default function NewLiveClassPage() {
   const [courses,  setCourses]  = useState<Course[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     getCourses(undefined, undefined, undefined, true)
@@ -61,6 +63,7 @@ export default function NewLiveClassPage() {
         course_id:        target === "course" ? courseId : undefined,
         programme_type:   target === "programme" ? progType : undefined,
       });
+      invalidate('calendar');
       router.replace("/dashboard/live-classes");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to schedule.");

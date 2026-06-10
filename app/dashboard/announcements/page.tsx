@@ -10,6 +10,7 @@ import {
   type Announcement,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -146,6 +147,7 @@ function CreateAnnouncementModal({
   const [programme, setProgramme] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   const handleRoleToggle = (code: string) => {
     setTargetRoles((prev) => prev.includes(code) ? prev.filter((r) => r !== code) : [...prev, code]);
@@ -168,6 +170,7 @@ function CreateAnnouncementModal({
         created_by: userId,
         role: roleCode,
       });
+      invalidate('announcements');
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create announcement.");

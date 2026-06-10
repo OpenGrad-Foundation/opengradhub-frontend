@@ -10,6 +10,7 @@ import {
   getUserTemplateUrl,
   getCourses,
   assignCourse,
+  getStudentEnrolments,
   getBundles,
   enrolStudentInBundle,
   getStudentsForBulk,
@@ -23,9 +24,11 @@ import {
   type SchoolOption,
   type ManagerOption,
 } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
+import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { STATES, districtDisabled, resolveState, resolveDistrict } from "@/lib/geo";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
@@ -240,6 +243,7 @@ export default function UserManagementPage() {
 // ── Add User Form ──────────────────────────────────────────────
 
 function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
@@ -310,16 +314,6 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     }
     return Array.from(set).sort();
   }, [schools, state]);
-  const filteredSchools = useMemo(() => {
-    if (normState(state) === "ALL") {
-      return schools.filter((s) => normState(s.state) === "ALL");
-    }
-    if (!state || !district) return [] as SchoolOption[];
-    return schools.filter(
-      (s) => normState(s.state) === state && s.district === district,
-    );
-  }, [schools, state, district]);
-
   function handleStateChange(value: string) {
     setState(value);
     setDistrict("");
@@ -383,6 +377,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         if (state) payload.state = state;
       }
       const user = await createUser(payload);
+      invalidate('users');
       if (user.tempPassword) {
         setCreatedUser(user);
       } else {
@@ -482,30 +477,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       </Field>
                     </Row>
                     <Field label="School" id="user-school">
-                      <select
-                        id="user-school"
-                        value={schoolId}
-                        onChange={(e) => setSchoolId(e.target.value)}
-                        style={inputStyle}
-                        disabled={!district && normState(state) !== "ALL"}
-                      >
-                        <option value="">
-                          {schoolsError
-                            ? "Failed to load schools"
-                            : !state
-                              ? "Select a state first"
-                              : normState(state) === "ALL"
-                                ? (filteredSchools.length === 0 ? "No All-state schools" : "Select a school (optional)")
-                                : !district
-                                  ? "Select a district first"
-                                  : filteredSchools.length === 0
-                                    ? "No schools in this district"
-                                    : "Select a school (optional)"}
-                        </option>
-                        {filteredSchools.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                      {schoolsError
+                        ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                        : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code (optional)…" inputStyle={inputStyle} />}
                     </Field>
                   </>
                 )}
@@ -550,30 +524,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="School" id="user-school">
-                        <select
-                          id="user-school"
-                          value={schoolId}
-                          onChange={(e) => setSchoolId(e.target.value)}
-                          style={inputStyle}
-                          disabled={!district && normState(state) !== "ALL"}
-                        >
-                          <option value="">
-                            {schoolsError
-                              ? "Failed to load schools"
-                              : !state
-                                ? "Select a state first"
-                                : normState(state) === "ALL"
-                                  ? (filteredSchools.length === 0 ? "No All-state schools" : "Select a school (optional)")
-                                  : !district
-                                    ? "Select a district first"
-                                    : filteredSchools.length === 0
-                                      ? "No schools in this district"
-                                      : "Select a school (optional)"}
-                          </option>
-                          {filteredSchools.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
+                        {schoolsError
+                          ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                          : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code…" inputStyle={inputStyle} />}
                       </Field>
                     </Row>
                   </>
@@ -796,8 +749,11 @@ function AssignCourseModal({
   assignedBy: string;
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -807,11 +763,17 @@ function AssignCourseModal({
 
   useEffect(() => {
     setCoursesLoading(true);
-    getCourses(student.programme_type ?? undefined)
-      .then((data) => setCourses(data))
-      .catch(() => setCourses([]))
+    Promise.all([
+      getCourses(student.programme_type ?? undefined).catch(() => [] as Course[]),
+      getStudentEnrolments(student.id).catch(() => [] as Course[]),
+    ])
+      .then(([all, enrolled]) => {
+        setCourses(all);
+        setEnrolledCourses(enrolled);
+        setEnrolledIds(new Set(enrolled.map((c) => c.id)));
+      })
       .finally(() => setCoursesLoading(false));
-  }, [student.programme_type]);
+  }, [student.id, student.programme_type]);
 
   const filtered = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -824,6 +786,8 @@ function AssignCourseModal({
     setIsAlreadyEnrolled(false);
     try {
       await assignCourse(student.id, selectedCourseId, assignedBy);
+      invalidate('enrolment');
+      setEnrolledIds((prev) => new Set(prev).add(selectedCourseId));
       setSuccess(true);
     } catch (err) {
       // 409 Conflict = already enrolled — show a soft warning, not a red error
@@ -895,6 +859,35 @@ function AssignCourseModal({
           </div>
         ) : (
           <>
+            {/* Already-enrolled summary */}
+            {!coursesLoading && (
+              <div style={{ marginBottom: "12px" }}>
+                <p style={{ ...labelStyle, fontSize: "10px", marginBottom: "6px" }}>
+                  Already enrolled ({enrolledCourses.length})
+                </p>
+                {enrolledCourses.length === 0 ? (
+                  <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                    Not enrolled in any course yet.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {enrolledCourses.map((c) => (
+                      <span
+                        key={c.id}
+                        style={{
+                          padding: "3px 10px", borderRadius: "100px", fontSize: "11px", fontWeight: 600,
+                          background: "rgba(10,190,98,0.1)", color: "#0a944e",
+                          border: "1px solid rgba(10,190,98,0.22)",
+                        }}
+                      >
+                        {c.title}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Search */}
             <input
               type="text"
@@ -921,14 +914,16 @@ function AssignCourseModal({
                 </p>
               ) : (
                 filtered.map((course) => {
+                  const enrolled = enrolledIds.has(course.id);
                   const active = selectedCourseId === course.id;
                   return (
                     <div
                       key={course.id}
-                      onClick={() => setSelectedCourseId(course.id)}
+                      onClick={() => { if (!enrolled) setSelectedCourseId(course.id); }}
                       style={{
                         padding: "12px 16px",
-                        cursor: "pointer",
+                        cursor: enrolled ? "not-allowed" : "pointer",
+                        opacity: enrolled ? 0.6 : 1,
                         background: active ? "rgba(10,190,98,0.08)" : "transparent",
                         borderLeft: active ? "3px solid #0abe62" : "3px solid transparent",
                         transition: "all 150ms ease",
@@ -945,9 +940,16 @@ function AssignCourseModal({
                           {course.programme_type} · {course.lesson_count} lesson{course.lesson_count !== 1 ? "s" : ""}
                         </p>
                       </div>
-                      {active && (
+                      {enrolled ? (
+                        <span style={{
+                          fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "100px",
+                          background: "rgba(10,190,98,0.1)", color: "#0a944e", whiteSpace: "nowrap",
+                        }}>
+                          Enrolled
+                        </span>
+                      ) : active ? (
                         <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>
-                      )}
+                      ) : null}
                     </div>
                   );
                 })
@@ -1000,6 +1002,7 @@ function AssignBundleModal({
   student: SafeUser;
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [enrolledBundles, setEnrolledBundles] = useState<Bundle[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(true);
@@ -1032,6 +1035,7 @@ function AssignBundleModal({
     setError(null);
     try {
       const result = await enrolStudentInBundle(selectedBundleId, student.id);
+      invalidate('bundles', 'enrolment');
       setSuccessMsg(`Enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
       setSuccess(true);
     } catch (err) {
@@ -1194,6 +1198,7 @@ function BulkAssignPanel({
 }: {
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1298,6 +1303,7 @@ function BulkAssignPanel({
         course_ids:  Array.from(selectedCourseIds),
         bundle_ids:  Array.from(selectedBundleIds),
       });
+      invalidate('enrolment');
       setShowConfirm(false);
       const nC = selectedCourseIds.size;
       const nB = selectedBundleIds.size;
@@ -1723,6 +1729,7 @@ function csvEscape(val: string): string {
 }
 
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
@@ -1798,6 +1805,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       const blob    = new Blob([csvContent], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "upload.csv", { type: "text/csv" });
       const res     = await bulkUploadUsers(newFile);
+      invalidate('users');
       setResult(res);
       onDone();
     } catch (err) {

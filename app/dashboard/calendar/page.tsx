@@ -11,6 +11,7 @@ import {
   type CalendarItem, type CreateCalendarEventPayload,
 } from "@/lib/api";
 import { useCalendar } from "@/lib/queries/calendar";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export default function CalendarPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
+  const invalidate = useInvalidate();
 
   // Stable range (start-of-today → +90 days) so the cache key doesn't churn
   // on every render from a moving `now` timestamp.
@@ -113,6 +115,7 @@ export default function CalendarPage() {
                       if (!confirm(`Delete "${ev.title}"?`)) return;
                       await deleteCalendarEvent(ev.id);
                       void queryClient.invalidateQueries({ queryKey: ["og","calendar"] });
+                      invalidate('calendar');
                     }}
                   />
                 ))}
@@ -201,6 +204,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -221,6 +225,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
     };
     try {
       await createCalendarEvent(payload);
+      invalidate('calendar');
       onCreated();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to create event.");

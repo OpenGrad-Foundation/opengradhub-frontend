@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
-import { isKnownState, isValidDistrictForState, normState, STATES, resolveState, resolveDistrict } from "@/lib/geo";
+import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 const HEADERS = ["name", "district", "state", "code"] as const;
 const HEADER_LABELS: Record<string, string> = {
@@ -41,6 +42,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   const [parseError, setParseError] = useState<string | null>(null);
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> } | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     if (!file) { setRows([]); setParseError(null); return; }
@@ -87,6 +89,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   function rowErrors(r: Record<string, string>): string[] {
     const errs: string[] = [];
     if (!r.name?.trim()) errs.push("Name");
+    if (!r.state?.trim()) errs.push("State");
+    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push("District");
     const c = (r.code ?? "").trim().toLowerCase();
     if (c && (codeCounts.get(c) ?? 0) > 1) errs.push("Duplicate code");
     return errs;
@@ -131,6 +135,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       const blob = new Blob([csv], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "schools.csv", { type: "text/csv" });
       const res = await bulkUploadSchools(newFile);
+      invalidate('schools');
       setResult(res);
       onDone();
     } catch (err) {
@@ -211,7 +216,10 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                       </td>
                       {HEADERS.map((col) => {
                         const val = row[col] ?? "";
-                        const cellErr = col === "name" && !val.trim();
+                        const cellErr =
+                          (col === "name" && !val.trim()) ||
+                          (col === "state" && !val.trim()) ||
+                          (col === "district" && !val.trim() && !!row.state?.trim() && normState(row.state) !== ALL_STATE);
                         const res = col === "state" ? resolved[idx].stateStatus
                                   : col === "district" ? resolved[idx].districtStatus : null;
                         if (res && res.status === "ambiguous" && res.candidates) {

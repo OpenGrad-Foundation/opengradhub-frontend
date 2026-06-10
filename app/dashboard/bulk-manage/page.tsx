@@ -16,6 +16,7 @@ import {
   type EnrolledItems,
 } from "@/lib/api";
 import { useCourses } from "@/lib/queries/courses";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 type Mode = "assign" | "remove";
@@ -23,6 +24,7 @@ type Mode = "assign" | "remove";
 export default function BulkManagePage() {
   const { isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const invalidate = useInvalidate();
   const canManage  = has(PERM.bulk_assign.run);
 
   // ── Mode toggle ────────────────────────────────────────────────
@@ -179,6 +181,7 @@ export default function BulkManagePage() {
           course_ids:  Array.from(selectedCourseIds),
           bundle_ids:  Array.from(selectedBundleIds),
         });
+        invalidate('enrolment');
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);
         if (nB > 0) parts.push(`${nB} bundle${nB !== 1 ? "s" : ""}`);
@@ -192,6 +195,7 @@ export default function BulkManagePage() {
           course_ids:  Array.from(selectedCourseIds),
           bundle_ids:  Array.from(selectedBundleIds),
         });
+        invalidate('enrolment');
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);
         if (nB > 0) parts.push(`${nB} bundle${nB !== 1 ? "s" : ""}`);

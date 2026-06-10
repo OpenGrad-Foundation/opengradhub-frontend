@@ -50,7 +50,7 @@ export function useDoubtsActivity(role: Role, userId: string) {
           d.status === "ANSWERED"
             ? `Answered: ${d.subject}`
             : `New doubt${d.student_name ? ` from ${d.student_name}` : ""}: ${d.subject}`,
-        href: `/dashboard/doubts/${d.id}`,
+        href: `/dashboard/doubts?focus=${d.id}`,
       }));
 
       const annItems: FeedRow[] = (Array.isArray(anns) ? anns : []).map((a) => ({

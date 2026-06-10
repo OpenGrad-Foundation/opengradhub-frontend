@@ -126,7 +126,7 @@ export default function LessonPage() {
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
   const [lesson, setLesson]           = useState<LessonDetail | null>(null);
-  const [attempts, setAttempts]       = useState<QuizAttempt[]>([]);
+  const [attemptsByQuiz, setAttemptsByQuiz] = useState<Record<string, QuizAttempt[]>>({});
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [lockingMode, setLockingMode] = useState<string>("FREE");
@@ -180,14 +180,21 @@ export default function LessonPage() {
         setWatchedPct(l.watched_percent ?? 0);
         completionFiredRef.current = Boolean(l.is_complete);
 
-        const [course, quizAttempts] = await Promise.all([
+        const quizIds = l.module_quiz_ids ?? [];
+        const [course, ...attemptLists] = await Promise.all([
           getCourseById(l.course_id).catch(() => null),
-          l.module_quiz_id && studentId ? getQuizAttempts(l.module_quiz_id, studentId).catch(() => []) : Promise.resolve([]),
+          ...quizIds.map((qid) =>
+            studentId ? getQuizAttempts(qid, studentId).catch(() => []) : Promise.resolve([]),
+          ),
         ]);
 
         if (cancelled) return;
         if (course) setLockingMode(course.locking_mode ?? "FREE");
-        setAttempts(quizAttempts as QuizAttempt[]);
+        const map: Record<string, QuizAttempt[]> = {};
+        quizIds.forEach((qid, i) => {
+          map[qid] = (attemptLists[i] ?? []) as QuizAttempt[];
+        });
+        setAttemptsByQuiz(map);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load lesson.");
@@ -402,14 +409,20 @@ export default function LessonPage() {
   const isUnlocked = isComplete || watchedPct >= 80;
   const isSequentialCourse = lockingMode === "SEQUENTIAL";
   const isStudent = roleCode === "STUDENT";
-  // In sequential mode, students must complete this lesson before navigating to the next
-  const nextLessonLocked = isStudent && isSequentialCourse && !isUnlocked;
+  // Non-students view lessons as a read-only preview (no quiz-taking, no gating).
+  const isPreview = !isStudent;
+  // In sequential mode, students must complete this lesson before navigating to the
+  // next; AND if the next lesson starts a new module, the current module must be
+  // fully complete (all lessons + all module quizzes passed) to cross over.
+  const crossModuleBlocked =
+    isStudent && isSequentialCourse && Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
+  const nextLessonLocked = isStudent && isSequentialCourse && (!isUnlocked || crossModuleBlocked);
 
   return (
     <div>
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
-        <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>My Courses</Link>
+        <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{isPreview ? "Courses" : "My Courses"}</Link>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
         <Link href={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</Link>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
@@ -502,53 +515,60 @@ export default function LessonPage() {
             )}
           </div>
 
-          {/* Take Module Test */}
-          {lesson.module_quiz_id && (
+          {/* Take Module Test(s) — a module can have several */}
+          {lesson.module_quiz_ids.length > 0 && (
             <div style={glassCard}>
-              <p style={S.sectionLabel}>Module Quiz</p>
-              {isUnlocked ? (
-                <>
-                  <Link
-                    href={`/dashboard/quiz/${lesson.module_quiz_id}`}
-                    style={{
-                      ...S.btn, display: "block", textAlign: "center",
-                      textDecoration: "none", marginTop: "10px",
-                    }}
-                  >
-                    Take Module Test →
-                  </Link>
-                  {/* Previous attempts */}
-                  {attempts.length > 0 && (
-                    <div style={{ marginTop: "14px" }}>
-                      <p style={{ ...S.sectionLabel, marginBottom: "8px" }}>Previous Scores</p>
-                      {attempts.slice(0, 5).map((a) => (
-                        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "12px" }}>
-                          <span style={{ color: "rgba(3,72,82,0.55)" }}>
-                            Attempt {a.attempt_number}
-                          </span>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            {a.is_complete ? (
-                              <>
-                                <span style={{ fontWeight: 700, color: "#034852" }}>
-                                  {a.score ?? "—"} / {a.max_score ?? "—"}
+              <p style={S.sectionLabel}>{lesson.module_quiz_ids.length > 1 ? "Module Quizzes" : "Module Quiz"}</p>
+              {isPreview ? (
+                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", marginTop: "10px" }}>
+                  {lesson.module_quiz_ids.length} module test{lesson.module_quiz_ids.length !== 1 ? "s" : ""} attached. Quiz-taking is available to students only.
+                </p>
+              ) : isUnlocked ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "10px" }}>
+                  {lesson.module_quiz_ids.map((quizId, qi) => {
+                    const attempts = attemptsByQuiz[quizId] ?? [];
+                    return (
+                      <div key={quizId}>
+                        <Link
+                          href={`/dashboard/quiz/${quizId}`}
+                          style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
+                        >
+                          {lesson.module_quiz_ids.length > 1 ? `Take Module Test ${qi + 1} →` : "Take Module Test →"}
+                        </Link>
+                        {attempts.length > 0 && (
+                          <div style={{ marginTop: "14px" }}>
+                            <p style={{ ...S.sectionLabel, marginBottom: "8px" }}>Previous Scores</p>
+                            {attempts.slice(0, 5).map((a) => (
+                              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "12px" }}>
+                                <span style={{ color: "rgba(3,72,82,0.55)" }}>
+                                  Attempt {a.attempt_number}
                                 </span>
-                                <span style={{
-                                  padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-                                  background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.1)",
-                                  color: a.passed ? "#0abe62" : "#dc2626",
-                                }}>
-                                  {a.passed ? "Pass" : "Fail"}
-                                </span>
-                              </>
-                            ) : (
-                              <span style={{ color: "rgba(3,72,82,0.4)" }}>In progress</span>
-                            )}
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                  {a.is_complete ? (
+                                    <>
+                                      <span style={{ fontWeight: 700, color: "#034852" }}>
+                                        {a.score ?? "—"} / {a.max_score ?? "—"}
+                                      </span>
+                                      <span style={{
+                                        padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
+                                        background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.1)",
+                                        color: a.passed ? "#0abe62" : "#dc2626",
+                                      }}>
+                                        {a.passed ? "Pass" : "Fail"}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span style={{ color: "rgba(3,72,82,0.4)" }}>In progress</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div style={{ marginTop: "10px" }}>
                   <div style={{
@@ -581,14 +601,16 @@ export default function LessonPage() {
                   fontSize: "13px", color: "rgba(3,72,82,0.45)", textAlign: "center",
                   cursor: "not-allowed",
                 }}>
-                  🔒 Watch 80% to unlock Next Lesson
+                  {crossModuleBlocked
+                    ? "🔒 Complete this module's lessons & test to start the next module"
+                    : "🔒 Watch 80% to unlock Next Lesson"}
                 </div>
               ) : (
                 <Link
                   href={`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`}
                   style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
                 >
-                  Next Lesson →
+                  {lesson.next_in_new_module ? "Next Module →" : "Next Lesson →"}
                 </Link>
               )
             )}

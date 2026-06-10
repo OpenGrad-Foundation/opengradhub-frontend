@@ -190,6 +190,10 @@ export function StaffReportsView() {
   }
 
   async function handleBulkDownload() {
+    if (total === 0) {
+      setBulkError("No students match the selected filters.");
+      return;
+    }
     setBulkBusy(true);
     setBulkError(null);
     setBulkPercent(0);
@@ -325,13 +329,13 @@ export function StaffReportsView() {
           <button
             type="button"
             onClick={handleBulkDownload}
-            disabled={bulkBusy || (bulkScope === "course" && !bulkCourseId)}
+            disabled={bulkBusy || total === 0 || (bulkScope === "course" && !bulkCourseId)}
             style={{
               ...inputStyle,
               background: BRAND.mid,
               color: "#fff",
-              cursor: bulkBusy || (bulkScope === "course" && !bulkCourseId) ? "not-allowed" : "pointer",
-              opacity: bulkBusy || (bulkScope === "course" && !bulkCourseId) ? 0.6 : 1,
+              cursor: bulkBusy || total === 0 || (bulkScope === "course" && !bulkCourseId) ? "not-allowed" : "pointer",
+              opacity: bulkBusy || total === 0 || (bulkScope === "course" && !bulkCourseId) ? 0.6 : 1,
             }}
           >
             {bulkBusy ? `Preparing… ${bulkPercent}%` : "Download all (ZIP)"}

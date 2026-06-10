@@ -19,7 +19,7 @@ function toTasks(r: TasksResponse): TaskRow[] {
     icon: "review",
     title: c.title,
     subtitle: c.created_by_name ? `Submitted by ${c.created_by_name}` : "Awaiting approval",
-    href: `/dashboard/courses/${c.id}`,
+    href: `/dashboard/course-management/${c.id}`,
     actionLabel: "Approve",
   }));
   const doubts: TaskRow[] = (r.openDoubts ?? []).map((d) => ({
@@ -27,7 +27,7 @@ function toTasks(r: TasksResponse): TaskRow[] {
     icon: "doubt",
     title: d.title,
     subtitle: "Open doubt",
-    href: `/dashboard/doubts/${d.id}`,
+    href: `/dashboard/doubts?focus=${d.id}`,
     actionLabel: "Review",
   }));
   return [...approvals, ...doubts];

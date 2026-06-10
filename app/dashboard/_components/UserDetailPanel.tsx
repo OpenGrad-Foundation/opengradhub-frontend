@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import type { SafeUser, ManagerOption, SchoolOption } from "@/lib/api";
 import { updateUser, deleteUser, archiveUser, getManagers, fetchSchools } from "@/lib/api";
 import {
@@ -11,7 +11,9 @@ import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEdit
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { STATES, districtsForState, districtDisabled, normState } from "@/lib/geo";
+import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
+import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -79,6 +81,7 @@ export function UserDetailPanel({
   const [archiveErr, setArchiveErr] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
 
+  const invalidate = useInvalidate();
   const { has } = usePermissions();
   const canArchive = has(PERM.user_management.archive);
   const canDelete = has(PERM.user_management.delete);
@@ -142,15 +145,6 @@ export function UserDetailPanel({
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
 
-  const schoolOptions = useMemo(() => {
-    const st = normState(draft.state);
-    if (st === "ALL") return schools.filter((s) => normState(s.state) === "ALL");
-    if (!st) return [] as SchoolOption[];
-    // Student blocks have no district field; fellows do. Show all schools in the
-    // state, narrowing by district only when one is actually selected.
-    return schools.filter((s) => normState(s.state) === st && (!draft.district || s.district === draft.district));
-  }, [schools, draft.state, draft.district]);
-
   function handleClose() {
     if (dirty) {
       setConfirmClose(true);
@@ -195,6 +189,7 @@ export function UserDetailPanel({
             : undefined,
         },
       );
+      invalidate('users');
       setDraft(makeDraft(updated));
       onUpdated(updated);
     } catch (e) {
@@ -209,6 +204,7 @@ export function UserDetailPanel({
     setDeleteErr(null);
     try {
       await deleteUser(user.id);
+      invalidate('users');
       onDeleted();
     } catch (e) {
       setDeleteErr(e instanceof Error ? e.message : "Failed to delete user.");
@@ -223,6 +219,7 @@ export function UserDetailPanel({
     setArchiveErr(null);
     try {
       await archiveUser(user.id);
+      invalidate('users');
       onDeleted();
     } catch (e) {
       setArchiveErr(e instanceof Error ? e.message : "Failed to archive user.");
@@ -416,23 +413,12 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="School">
-                      <select
+                      <SchoolSearchPicker
+                        schools={schools}
                         value={draft.school_id}
-                        onChange={(e) => set("school_id", e.target.value)}
-                        style={S.input}
-                        disabled={!draft.state}
-                      >
-                        <option value="">
-                          {!draft.state
-                            ? "Select a state first"
-                            : schoolOptions.length === 0
-                              ? (normState(draft.state) === "ALL" ? "No All-state schools" : "No schools in this state")
-                              : "Select a school"}
-                        </option>
-                        {schoolOptions.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={(id) => set("school_id", id)}
+                        inputStyle={S.input}
+                      />
                     </PanelField>
                   </div>
                   <PanelField label="School Code">
@@ -480,23 +466,12 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="School">
-                      <select
+                      <SchoolSearchPicker
+                        schools={schools}
                         value={draft.school_id}
-                        onChange={(e) => set("school_id", e.target.value)}
-                        style={S.input}
-                        disabled={!draft.state}
-                      >
-                        <option value="">
-                          {!draft.state
-                            ? "Select a state first"
-                            : schoolOptions.length === 0
-                              ? (normState(draft.state) === "ALL" ? "No All-state schools" : "No schools in this state")
-                              : "Select a school"}
-                        </option>
-                        {schoolOptions.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                        onChange={(id) => set("school_id", id)}
+                        inputStyle={S.input}
+                      />
                     </PanelField>
                   </div>
                   <PanelField label="Zonal Manager">

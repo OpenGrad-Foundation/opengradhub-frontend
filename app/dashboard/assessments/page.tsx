@@ -723,6 +723,8 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
   const [tab, setTab] = useState<'leaderboard' | 'questions'>('leaderboard');
+  const { has } = usePermissions();
+  const router = useRouter();
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
@@ -743,7 +745,22 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
       }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Test Details</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {has(PERM.test_bank.edit) && (
+              <button
+                onClick={() => router.push(`/dashboard/quiz-builder/${quizId}`)}
+                style={{
+                  padding: '7px 14px', border: 'none', borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0abe62 0%, #006d6c 100%)',
+                  color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '12px',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(10,190,98,0.2)', whiteSpace: 'nowrap',
+                }}
+              >
+                Edit in Builder →
+              </button>
+            )}
+            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>

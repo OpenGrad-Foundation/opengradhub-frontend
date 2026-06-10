@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
   QuestionSlideOver,
   stripHtml,
@@ -39,6 +40,7 @@ export default function QuizBuilderPage() {
 
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
+  const invalidate = useInvalidate();
   const userId   = userData?.user?.id ?? "";
 
   const [quiz, setQuiz]       = useState<Quiz | null>(null);
@@ -156,6 +158,7 @@ export default function QuizBuilderPage() {
         correct_marks:          correctMarks ? Number(correctMarks) : 1,
         wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
       });
+      invalidate('quizzes');
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2500);
       await reload();
@@ -172,6 +175,7 @@ export default function QuizBuilderPage() {
     if (!confirm(`Remove question: "${stripHtml(content).slice(0, 60)}…"?`)) return;
     try {
       await removeQuizQuestion(quizId, qId);
+      invalidate('quizzes');
       await reload();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Remove failed.");
@@ -205,6 +209,7 @@ export default function QuizBuilderPage() {
     setPublishErr(null);
     try {
       await publishQuiz(quizId);
+      invalidate('quizzes');
       await reload();
     } catch (err) {
       setPublishErr(err instanceof Error ? err.message : "Publish failed.");
@@ -232,6 +237,7 @@ export default function QuizBuilderPage() {
     dragIdx.current = null;
     try {
       await reorderQuizQuestions(quizId, questions.map(q => q.id));
+      invalidate('quizzes');
     } catch (err) {
       alert(err instanceof Error ? err.message : "Reorder failed.");
       await reload();
@@ -448,6 +454,7 @@ function SectionSettingsForm({
   const [editDuration, setEditDuration] = useState(section.duration_minutes?.toString() ?? "");
   const [editThreshold, setEditThreshold] = useState(section.pass_threshold_percent?.toString() ?? "");
   const [saving, setSaving]             = useState(false);
+  const invalidate = useInvalidate();
 
   async function handleSave() {
     setSaving(true);
@@ -457,6 +464,7 @@ function SectionSettingsForm({
         duration_minutes: editDuration ? Number(editDuration) : null,
         pass_threshold_percent: editThreshold ? Number(editThreshold) : null,
       });
+      invalidate('quizzes');
       await onReload();
     } finally {
       setSaving(false);
@@ -536,6 +544,7 @@ function SectionsView({
   const sections = quiz.sections;
   const active = sections.find((s) => s.id === activeSectionId) ?? sections[0] ?? null;
 
+  const invalidate = useInvalidate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSectionTitle, setNewSectionTitle] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
@@ -557,6 +566,7 @@ function SectionsView({
     setAddError(null);
     try {
       const created = await createQuizSection(quiz.id, { title });
+      invalidate('quizzes');
       await onReload();
       setActiveSectionId(created.id);
       setShowAddModal(false);
@@ -576,6 +586,7 @@ function SectionsView({
     if (!active) return;
     if (!window.confirm(`Delete section "${active.title}"? Its questions stay in the bank but the section + its question links are removed.`)) return;
     await deleteQuizSection(quiz.id, active.id);
+    invalidate('quizzes');
     setActiveSectionId(null);
     await onReload();
   }
@@ -583,6 +594,7 @@ function SectionsView({
   async function handleRemoveQuestion(questionId: string) {
     if (!active) return;
     await removeQuestionFromSection(quiz.id, active.id, questionId);
+    invalidate('quizzes');
     await onReload();
   }
 

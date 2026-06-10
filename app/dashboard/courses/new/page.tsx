@@ -5,12 +5,14 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createCourse } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import CourseMetaForm from "../_components/CourseMetaForm";
 
 export default function NewCoursePage() {
   const router = useRouter();
   const { data, isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
+  const invalidate = useInvalidate();
 
   const userId = data?.user?.id ?? "";
 
@@ -39,6 +41,7 @@ export default function NewCoursePage() {
       ...fields,
       created_by: userId,
     });
+    invalidate('courses');
     router.push(`/dashboard/courses/${course.id}/builder`);
   }
 

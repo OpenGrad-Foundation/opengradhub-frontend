@@ -24,7 +24,7 @@ export default function AssignmentsPage() {
 
   if (isLoading) return <LoadingState />;
   if (isManager) {
-    return <SubmissionQueue canCreate={canCreate} />;
+    return <ManagerAssignmentsView canCreate={canCreate} />;
   }
 
   return (
@@ -83,6 +83,96 @@ export default function AssignmentsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ManagerAssignmentsView({ canCreate }: { canCreate: boolean }) {
+  const [tab, setTab] = useState<"all" | "queue">("all");
+
+  return (
+    <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
+        <div>
+          <p style={S.label}>Assignments</p>
+          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
+          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+            All assignments you manage, and the queue of submissions to grade.
+          </p>
+        </div>
+        {canCreate && (
+          <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
+            + New Assignment
+          </Link>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        {([["all", "All assignments"], ["queue", "Submission queue"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{
+              padding: "9px 16px",
+              borderRadius: "10px",
+              border: "1px solid " + (tab === key ? "rgba(32,147,121,0.3)" : "rgba(3,72,82,0.12)"),
+              background: tab === key ? "linear-gradient(135deg, rgba(10,190,98,0.16), rgba(32,147,121,0.16))" : "#fff",
+              color: tab === key ? "#034852" : "rgba(3,72,82,0.6)",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "all" ? <ManagerAssignmentsList /> : <SubmissionQueue canCreate={false} />}
+    </div>
+  );
+}
+
+function ManagerAssignmentsList() {
+  const { data: assignments = [], isPending, error: queryError } = useAssignments();
+  const error = queryError ? (queryError as Error).message : null;
+
+  if (isPending) return <LoadingState />;
+  if (error) {
+    return (
+      <div style={{ ...glassCard, textAlign: "center" }}>
+        <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
+      </div>
+    );
+  }
+  if (assignments.length === 0) {
+    return (
+      <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
+        <p style={S.label}>No Assignments</p>
+        <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>Create your first assignment.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+      <div className="overflow-x-auto">
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
+              {["Title", "Course", "Due", "Status", "Submissions", ""].map(h => (
+                <th key={h} style={thStyle}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map(a => (
+              <AssignmentRow key={a.id} assignment={a} isManager={true} />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

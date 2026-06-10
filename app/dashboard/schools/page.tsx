@@ -14,7 +14,8 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { SchoolBulkUploadPanel } from "./BulkUploadPanel";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
-import { normState } from "@/lib/geo";
+import { normState, ALL_STATE } from "@/lib/geo";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function SchoolsPage() {
   const { has } = usePermissions();
@@ -188,6 +189,7 @@ function SchoolFormModal({
   const [fellows, setFellows] = useState<SafeUser[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     let cancelled = false;
@@ -201,6 +203,11 @@ function SchoolFormModal({
 
   async function save() {
     if (!name.trim()) { setErr("Name is required."); return; }
+    if (!state.trim()) { setErr("State is required."); return; }
+    if (normState(state) !== ALL_STATE && !district.trim()) {
+      setErr("District is required (except for All-state schools).");
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
@@ -213,6 +220,7 @@ function SchoolFormModal({
           await setSchoolFellow(school.id, fellowId || null);
         }
       }
+      invalidate('schools', 'users');
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed.");

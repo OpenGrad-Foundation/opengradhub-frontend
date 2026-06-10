@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { createQuiz } from "@/lib/api";
 
 export default function NewQuizPage() {
@@ -15,6 +16,7 @@ export default function NewQuizPage() {
 
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
+  const invalidate = useInvalidate();
   const userId   = data?.user?.id ?? "";
 
   const [title, setTitle]                   = useState("");
@@ -71,6 +73,7 @@ export default function NewQuizPage() {
         correct_marks:          correctMarks ? Number(correctMarks) : 1,
         wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
       });
+      invalidate('quizzes');
       // Redirect to the full builder with course context preserved
       const target = `/dashboard/quiz-builder/${quiz.id}${courseId ? `?course_id=${courseId}` : ""}`;
       router.replace(target);

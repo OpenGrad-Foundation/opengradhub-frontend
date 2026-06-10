@@ -7,9 +7,11 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createBundle } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function NewBundlePage() {
   const router = useRouter();
+  const invalidate = useInvalidate();
   const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
 
@@ -41,6 +43,7 @@ export default function NewBundlePage() {
         name: name.trim(),
         description: description.trim() || undefined,
       });
+      invalidate('bundles');
       router.replace(`/dashboard/bundles/${bundle.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create bundle.");

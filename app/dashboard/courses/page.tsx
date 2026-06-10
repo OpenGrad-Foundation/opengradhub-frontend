@@ -110,8 +110,9 @@ export default function CoursesPage() {
     try {
       const params: CourseListParams = {
         programmeType: programmeFilter === "ALL" ? undefined : programmeFilter,
-        createdBy: roleCode === "PROGRAM_MANAGER" ? userId : undefined,
-        allStatuses: roleCode === "SUPER_ADMIN",
+        // PBAC: anyone who can manage courses (courses.edit) sees the full
+        // catalogue across all statuses — not just courses they authored.
+        allStatuses: canManage,
         search: deferredSearch.trim() || undefined,
         accessType: accessFilter === "ALL" ? undefined : accessFilter,
         lockingMode: lockingFilter === "ALL" ? undefined : lockingFilter,
@@ -135,13 +136,13 @@ export default function CoursesPage() {
     }
   }, [
     accessFilter,
+    canManage,
     deferredSearch,
     isStudent,
     lockingFilter,
     page,
     pageSize,
     programmeFilter,
-    roleCode,
     statusFilter,
     supportsFullStatusFilter,
     userId,
@@ -155,7 +156,7 @@ export default function CoursesPage() {
 
   const subtitle = useMemo(() => {
     if (isStudent) return "Your enrolled courses";
-    if (roleCode === "PROGRAM_MANAGER") return "Search and manage the courses you own";
+    if (roleCode === "PROGRAM_MANAGER") return "Search and manage the full course catalogue";
     if (roleCode === "SUPER_ADMIN") return "Search and manage the full OpenGrad course catalogue";
     return "Browse the active course catalogue with cleaner search and filtering";
   }, [isStudent, roleCode]);

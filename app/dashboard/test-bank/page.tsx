@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, type Question } from "@/lib/api";
+import { getQuestions, deleteQuestion, getQuizzes, type Question, type Quiz } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
   QuestionSlideOver,
   QUESTION_TYPES,
@@ -20,6 +21,7 @@ import {
 export default function TestBankPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const userId = data?.user?.id ?? "";
+  const invalidate = useInvalidate();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +35,9 @@ export default function TestBankPage() {
 
   const [panelOpen, setPanelOpen]     = useState(false);
   const [editTarget, setEditTarget]   = useState<Question | null>(null);
+
+  // Created Global/Program tests — entry point to re-open them in the builder.
+  const [globalTests, setGlobalTests] = useState<Omit<Quiz, "questions">[]>([]);
 
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
@@ -56,6 +61,18 @@ export default function TestBankPage() {
     if (!userLoading) void fetchQuestions();
   }, [userLoading, fetchQuestions]);
 
+  const fetchGlobalTests = useCallback(async () => {
+    try {
+      setGlobalTests(await getQuizzes({ quiz_type: "GLOBAL_TEST" }));
+    } catch {
+      setGlobalTests([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!userLoading) void fetchGlobalTests();
+  }, [userLoading, fetchGlobalTests]);
+
   if (userLoading) return <LoadingState />;
 
   function openAdd()  { setEditTarget(null); setPanelOpen(true); }
@@ -66,6 +83,7 @@ export default function TestBankPage() {
     if (!confirm(`Delete question: "${stripHtml(content).slice(0, 60)}…"?`)) return;
     try {
       await deleteQuestion(id);
+      invalidate('quizzes');
       void fetchQuestions();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Delete failed.");
@@ -90,6 +108,21 @@ export default function TestBankPage() {
           <button style={primaryBtn} onClick={openAdd}>+ Add Question</button>
         </div>
       </div>
+
+      {/* ── Program / Global tests ────────────────────────── */}
+      {globalTests.length > 0 && (
+        <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
+          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
+            <p style={labelStyle}>Program Tests</p>
+            <p style={{ ...mutedStyle, fontSize: "13px", marginTop: "2px" }}>
+              {globalTests.length} created · click Edit to manage questions &amp; settings
+            </p>
+          </div>
+          {globalTests.map((t, i) => (
+            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} />
+          ))}
+        </div>
+      )}
 
       {/* ── Filter bar ────────────────────────────────────── */}
       <div style={{ ...glassCard, padding: "18px 24px", marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -148,6 +181,38 @@ export default function TestBankPage() {
           onSaved={() => { closePanel(); void fetchQuestions(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ── Global Test Row ────────────────────────────────────────────
+
+function GlobalTestRow({ quiz, isLast }: { quiz: Omit<Quiz, "questions">; isLast: boolean }) {
+  const created = new Date(quiz.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <div
+      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3.5 px-6 py-4"
+      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)" }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>{quiz.title}</p>
+        <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{
+            fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
+            background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
+            color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
+          }}>
+            {quiz.published ? "Published" : "Draft"}
+          </span>
+          {quiz.duration_minutes != null && <Tag>{quiz.duration_minutes} min</Tag>}
+          <Tag>Created {created}</Tag>
+        </div>
+      </div>
+      <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto">
+        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
+          Edit →
+        </Link>
+      </div>
     </div>
   );
 }

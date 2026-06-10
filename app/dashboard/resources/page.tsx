@@ -7,6 +7,7 @@ import { PERM } from "@/lib/permissions";
 import { createResource, type Resource } from "@/lib/api";
 import { useResources } from "@/lib/queries/resources";
 import { useQueryClient } from "@tanstack/react-query";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Type → colour mapping ──────────────────────────────────────
@@ -295,9 +296,10 @@ function CreateResourceForm({
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [type, setType] = useState("PDF");
-  const [programmeType, setProgrammeType] = useState("UG");
+  const [programmeType, setProgrammeType] = useState("ALL");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -310,10 +312,12 @@ function CreateResourceForm({
         description: description.trim() || undefined,
         url: url.trim(),
         type,
-        programme_type: programmeType,
+        // "ALL" → null on the backend = visible to every programme.
+        programme_type: programmeType === "ALL" ? undefined : programmeType,
         uploaded_by: userId,
         role: roleCode,
       });
+      invalidate('resources');
       onCreated();
     } catch (err) {
       setError(
@@ -409,6 +413,7 @@ function CreateResourceForm({
                 onChange={(e) => setProgrammeType(e.target.value)}
                 style={formInputStyle}
               >
+                <option value="ALL">All programmes</option>
                 <option value="UG">UG</option>
                 <option value="PG">PG</option>
               </select>

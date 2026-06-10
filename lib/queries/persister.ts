@@ -78,8 +78,11 @@ export function makeIdbPersister() {
       setItem: (key: string, value: string) => idbSet(key, value),
       removeItem: (key: string) => idbDel(key),
     },
-    // Entries older than 24h are treated as expired on restore.
-    maxAge: 1000 * 60 * 60 * 24,
+    // Entries older than 2h are treated as expired on restore. Bounds how
+    // stale a cold page load (browser restart, hydrating from IDB) can be:
+    // beyond this the persisted copy is discarded and the query refetches.
+    // Was 24h, which could surface day-old reference data on first paint.
+    maxAge: 1000 * 60 * 60 * 2,
     buster: APP_VERSION,
   });
   return p.persisterFn;

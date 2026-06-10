@@ -24,7 +24,8 @@ import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
-import { Calculator } from "@/components/calculator";
+import { CalculatorWindow } from "@/components/calculator-window";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
 // The report endpoints are bearer-token protected, so `window.open` cannot fetch
@@ -203,6 +204,7 @@ export default function QuizTakingPage() {
   const { id: quizId } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const invalidate = useInvalidate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempt, setAttempt] = useState<StartedAttempt | null>(null);
@@ -538,6 +540,7 @@ export default function QuizTakingPage() {
         submit_kind: 'full',
       }).catch(() => {});
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
+      invalidate('quizAttempt');
       // Draft cleanup is best-effort — a failure here must not error a successful submit.
       void clearDraft(attempt.attempt_id).catch(() => {});
       setResult({
@@ -1261,11 +1264,18 @@ export default function QuizTakingPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",
                       }}>{title}</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "10px", fontSize: "13px", color: "#034852" }}>
-                        <span><strong>{showStats.answered}</strong> Answered</span>
-                        <span><strong>{showStats.unanswered}</strong> Unanswered</span>
-                        <span><strong>{showStats.flagged}</strong> Flagged</span>
-                        <span><strong>{showStats.flaggedAndAnswered}</strong> Flagged + Answered</span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                        {([
+                          ["Answered", showStats.answered],
+                          ["Unanswered", showStats.unanswered],
+                          ["Flagged", showStats.flagged],
+                          ["Flagged + Answered", showStats.flaggedAndAnswered],
+                        ] as const).map(([label, value]) => (
+                          <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(3,72,82,0.55)" }}>{label}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -1386,11 +1396,11 @@ export default function QuizTakingPage() {
                 >
                   🧮 Calculator
                 </button>
-                {calcOpen && <Calculator style={{ marginTop: "12px" }} />}
               </div>
             </div>
           </div>
         </div>
+        {calcOpen && <CalculatorWindow onClose={() => setCalcOpen(false)} />}
       </div>
     );
   }

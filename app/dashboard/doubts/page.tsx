@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { submitDoubt, answerDoubt, deleteDoubt, type Doubt } from "@/lib/api";
 import { useStaffDoubts } from "@/lib/queries/doubts";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function DoubtsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
@@ -15,6 +16,15 @@ export default function DoubtsPage() {
   const userId = data?.user?.id ?? "";
 
   const [showModal, setShowModal] = useState(false);
+
+  // Deep-link target from the dashboard tasks/activity bar (?focus=<doubtId>).
+  // Read from window to avoid the useSearchParams Suspense requirement.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const f = new URLSearchParams(window.location.search).get("focus");
+    if (f) setFocusId(f);
+  }, []);
 
   // PBAC view gate:
   //   - canRespond OR canDelete => staff view (filters + per-doubt action buttons)
@@ -49,6 +59,7 @@ export default function DoubtsPage() {
         onReload={reload}
         canRespond={canRespond}
         canDelete={canDelete}
+        focusId={focusId}
       />
     );
   }
@@ -106,23 +117,40 @@ export default function DoubtsPage() {
 
 type StaffFilter = 'ALL' | 'OPEN' | 'ESCALATED' | 'ANSWERED' | 'ORPHAN';
 
-function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete }: {
+function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId }: {
   doubts: Doubt[];
   loading: boolean;
   error: string | null;
   onReload: () => void;
   canRespond: boolean;
   canDelete: boolean;
+  focusId: string | null;
 }) {
-  const [filter, setFilter] = useState<StaffFilter>('OPEN');
+  // When deep-linked to a specific doubt, show ALL so it isn't hidden by the
+  // default OPEN filter (it may already be answered/escalated).
+  const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : 'OPEN');
   const [answering, setAnswering] = useState<Doubt | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const invalidate = useInvalidate();
+
+  // Scroll to and briefly highlight the focused doubt once the list has loaded.
+  useEffect(() => {
+    if (!focusId || loading) return;
+    const el = document.getElementById(`doubt-${focusId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.style.transition = "box-shadow 300ms ease";
+    el.style.boxShadow = "0 0 0 3px rgba(10,190,98,0.55)";
+    const t = setTimeout(() => { el.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; }, 2200);
+    return () => clearTimeout(t);
+  }, [focusId, loading, doubts]);
 
   async function handleDelete(doubt: Doubt) {
     if (!confirm(`Delete this doubt from ${doubt.student_name ?? "this student"}? This cannot be undone.`)) return;
     setDeletingId(doubt.id);
     try {
       await deleteDoubt(doubt.id);
+      invalidate('doubts');
       onReload();
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete doubt.");
@@ -216,7 +244,7 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
                                      { label: `Open · ${daysOpen}d`, color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
 
   return (
-    <div style={{
+    <div id={`doubt-${doubt.id}`} style={{
       background: "rgba(255,255,255,0.75)",
       border: "1px solid rgba(255,255,255,0.2)",
       borderRadius: 14, padding: "16px 20px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
@@ -390,6 +418,7 @@ function SubmitDoubtModal({
   const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -402,6 +431,7 @@ function SubmitDoubtModal({
         body: body.trim(),
         role: "STUDENT",
       });
+      invalidate('doubts');
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit doubt.");

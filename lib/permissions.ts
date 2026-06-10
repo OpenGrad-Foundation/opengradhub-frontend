@@ -105,6 +105,7 @@ export const PERM = {
     view: "user_management.view",
     create: "user_management.create",
     edit: "user_management.edit",
+    archive: "user_management.archive",
     delete: "user_management.delete",
     bulk_import: "user_management.bulk_import",
   },

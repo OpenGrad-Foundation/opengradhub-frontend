@@ -11,6 +11,7 @@ import {
   type CreateQuestionPayload,
 } from "@/lib/api";
 import { MathContent } from "./MathContent";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Shared constants ───────────────────────────────────────────
 
@@ -206,6 +207,7 @@ export function QuestionSlideOver({
 }) {
   const isEdit = !!initial;
   const inQuiz = !!quizId;
+  const invalidate = useInvalidate();
 
   const [qType, setQType] = useState<QType>((initial?.question_type as QType) ?? "MCQ");
   const [content, setContent] = useState(initial ? stripHtml(initial.content_html) : "");
@@ -323,6 +325,7 @@ export function QuestionSlideOver({
           patch.tolerance = qType === "NUMERICAL" && tolerance ? Number(tolerance) : null;
         }
         await updateQuestion(initial!.id, patch);
+        invalidate('quizzes');
       } else {
         const payload: CreateQuestionPayload = { question_type: qType, created_by: createdBy || undefined, ...base };
         if (qType === "MCQ") {
@@ -344,8 +347,10 @@ export function QuestionSlideOver({
         // Route to quiz or bank depending on context
         if (inQuiz && quizId) {
           await addQuizQuestion(quizId, payload);
+          invalidate('quizzes');
         } else {
           const created = await createQuestion(payload);
+          invalidate('quizzes');
           if (onCreated) await onCreated(created);
         }
       }
