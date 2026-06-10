@@ -17,18 +17,18 @@ export default defineConfig({
     globals: true,
     projects: [
       {
-        name: 'node',
         resolve: resolveConfig,
         test: {
+          name: 'node',
           environment: 'node',
           include: ['test/**/*.spec.ts'],
           setupFiles: ['fake-indexeddb/auto'],
         },
       },
       {
-        name: 'dom',
         resolve: resolveConfig,
         test: {
+          name: 'dom',
           environment: 'jsdom',
           include: ['test/**/*.spec.tsx'],
           setupFiles: ['fake-indexeddb/auto'],
