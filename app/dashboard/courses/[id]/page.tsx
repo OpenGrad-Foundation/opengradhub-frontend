@@ -7,6 +7,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -149,6 +151,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
   isPreview: boolean;
   prevModuleTitle: string;
 }) {
+  const currentUrl = useCurrentUrl();
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
   // is_module_complete from backend (lessons + quiz)
@@ -252,7 +255,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
         return isPreview || locked ? (
           <div key={quiz.id}>{row}</div>
         ) : (
-          <Link key={quiz.id} href={`/dashboard/quiz/${quiz.id}`} style={{ textDecoration: "none" }}>
+          <Link key={quiz.id} href={withFrom(`/dashboard/quiz/${quiz.id}`, currentUrl)} style={{ textDecoration: "none" }}>
             {row}
           </Link>
         );
@@ -275,6 +278,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
   prevModuleTitle: string;
 }) {
   const [tooltip, setTooltip] = useState(false);
+  const currentUrl = useCurrentUrl();
 
   const isStudent = roleCode === "STUDENT";
   // Locked if the whole module is blocked by previous module, OR if prior lesson within module is incomplete
@@ -350,7 +354,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
   if (isLocked) return content;
 
   return (
-    <Link href={`/dashboard/courses/${courseId}/lessons/${lesson.id}`} style={{ textDecoration: "none" }}>
+    <Link href={withFrom(`/dashboard/courses/${courseId}/lessons/${lesson.id}`, currentUrl)} style={{ textDecoration: "none" }}>
       {content}
     </Link>
   );

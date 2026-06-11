@@ -332,9 +332,9 @@ export default function CourseManagementPage() {
 
       <div className="course-mgmt-header-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
         <div>
-          <Link href="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 700 }}>
+          <BackLink fallback="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 700 }}>
             ← Courses
-          </Link>
+          </BackLink>
           <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
           <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
           <p style={subtitle}>

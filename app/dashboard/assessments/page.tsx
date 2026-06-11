@@ -7,13 +7,14 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type AvailableQuiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
   type QuizLeaderboard,
 } from "@/lib/api";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
+import { useBatches } from "@/lib/queries/batches";
 import { useQuestionStats } from "@/lib/queries/quizzes";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
@@ -37,7 +38,7 @@ export default function AssessmentsPage() {
   // Attempters get the quiz list; others with `assessments.view` get the admin view.
   const canAttempt = has(PERM.assessments.attempt);
 
-  const [quizzes, setQuizzes]           = useState<Omit<Quiz, "questions">[]>([]);
+  const [quizzes, setQuizzes]           = useState<AvailableQuiz[]>([]);
   const [moduleQuizzes, setModuleQuizzes] = useState<ModuleQuiz[]>([]);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState<string | null>(null);
@@ -162,6 +163,23 @@ export default function AssessmentsPage() {
                     quiz={q}
                     label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
+                    locked={q.attemptable === false}
+                    lockedTitle={
+                      q.available_from && new Date(q.available_from) > new Date()
+                        ? `Opens ${new Date(q.available_from).toLocaleString()}`
+                        : q.due_at && new Date(q.due_at) <= new Date()
+                          ? `Due date passed (${new Date(q.due_at).toLocaleString()})`
+                          : undefined
+                    }
+                    windowInfo={
+                      q.attemptable === false && q.available_from && new Date(q.available_from) > new Date()
+                        ? `Opens ${new Date(q.available_from).toLocaleDateString()}`
+                        : q.due_at
+                          ? new Date(q.due_at) > new Date()
+                            ? `Due ${new Date(q.due_at).toLocaleDateString()}`
+                            : "Past due"
+                          : undefined
+                    }
                     onStart={() => router.push(withFrom(`/dashboard/quiz/${q.id}`, currentUrl))}
                     onReview={(attemptId) => router.push(withFrom(`/dashboard/quiz/${q.id}/review/${attemptId}`, currentUrl))}
                     onPractice={() => router.push(withFrom(`/dashboard/quiz/${q.id}/practice`, currentUrl))}
@@ -195,13 +213,17 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, locked, onStart, onReview, onPractice,
+  quiz, label, attempts, locked, lockedTitle, windowInfo, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
   attempts: QuizAttempt[];
-  /** Module test still gated by the course's sequential flow. */
+  /** Module test gated by sequential flow, or batch test outside its window. */
   locked?: boolean;
+  /** Tooltip for the disabled Start button (defaults to the module-lock hint). */
+  lockedTitle?: string;
+  /** Optional “Opens …” / “Due …” badge for batch-windowed tests. */
+  windowInfo?: string;
   onStart: () => void;
   onReview: (attemptId: string) => void;
   onPractice: () => void;
@@ -264,6 +286,9 @@ function QuizRow({
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 }}>
+          {windowInfo && (
+            <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
+          )}
           {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
           {maxAttempts != null ? (
             <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
@@ -280,7 +305,7 @@ function QuizRow({
         <button
           onClick={onStart}
           disabled={exhausted || isLocked}
-          title={isLocked ? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz" : undefined}
+          title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
           style={{
             flexShrink: 0,
             padding: "9px 18px", border: "none", borderRadius: "10px",
@@ -506,6 +531,7 @@ function BatchComparisonPanel({ courses, selectedCourseId, onCourseChange, data,
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.4)", textAlign: "center", padding: "24px 0" }}>Loading…</p>
       ) : !data ? null : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+          {data.cohort_batch && <ComparisonCard label={`My Batch · ${data.cohort_batch.batch_name}`} dim={data.cohort_batch} />}
           <ComparisonCard label="Course Batch" dim={data.course_batch} />
           {data.school_peers && <ComparisonCard label="School Peers" dim={data.school_peers} />}
           {data.programme_peers && <ComparisonCard label="Programme Peers" dim={data.programme_peers} />}
@@ -560,16 +586,20 @@ function MonitorView() {
   const type      = (params.get('type') as 'MODULE' | 'PROGRAM' | null) ?? null;
   const courseId  = params.get('course_id') ?? '';
   const bundleId  = params.get('bundle_id') ?? '';
+  const batchId   = params.get('batch_id') ?? '';
   const from      = params.get('from') ?? '';
   const to        = params.get('to')   ?? '';
   const q         = params.get('q')    ?? '';
   const page      = Number(params.get('page') ?? '1');
   const drawerId  = params.get('drawer');
 
+  const { data: batches = [] } = useBatches('ACTIVE');
+
   const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
     type: type ?? undefined,
     course_id: courseId || undefined,
     bundle_id: bundleId || undefined,
+    batch_id: batchId || undefined,
     from: from || undefined,
     to:   to   || undefined,
     q:    q    || undefined,
@@ -612,6 +642,20 @@ function MonitorView() {
             type="date" value={to}   onChange={(e) => setParam('to', e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
           />
+
+          {batches.length > 0 && (
+            <select
+              value={batchId}
+              onChange={(e) => setParam('batch_id', e.target.value || null)}
+              aria-label="Filter by batch"
+              style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px', background: '#fff', maxWidth: '200px' }}
+            >
+              <option value="">All batches</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
 
           <button
             onClick={() => router.replace(pathname)}
@@ -733,6 +777,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
   const [tab, setTab] = useState<'leaderboard' | 'questions'>('leaderboard');
   const { has } = usePermissions();
   const router = useRouter();
+  const currentUrl = useCurrentUrl();
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
@@ -756,7 +801,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {has(PERM.test_bank.edit) && (
               <button
-                onClick={() => router.push(`/dashboard/quiz-builder/${quizId}`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz-builder/${quizId}`, currentUrl))}
                 style={{
                   padding: '7px 14px', border: 'none', borderRadius: '8px',
                   background: 'linear-gradient(135deg, #0abe62 0%, #006d6c 100%)',

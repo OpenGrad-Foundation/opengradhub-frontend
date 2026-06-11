@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import * as Sentry from "@sentry/nextjs";
 import DOMPurify from "isomorphic-dompurify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getLessonById,
@@ -17,7 +18,7 @@ import {
 } from "@/lib/api";
 import { qk } from "@/lib/queries/keys";
 import type { RoleCode } from "@/lib/moduleAccess";
-import { withFrom } from "@/lib/nav";
+import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── YouTube IFrame API type declarations ───────────────────────
@@ -126,6 +127,9 @@ export default function LessonPage() {
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
   const currentUrl = useCurrentUrl();
+  const from = useSearchParams().get("from");
+  // Sibling-lesson nav re-attaches the original origin so BackLink keeps working.
+  const carryFrom = (href: string) => (from ? `${href}?from=${encodeURIComponent(from)}` : href);
   const studentId = userData?.user?.id ?? "";
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
@@ -138,7 +142,7 @@ export default function LessonPage() {
 
   // Progress tracking state
   const [watchedPct, setWatchedPct]   = useState(0);
-  const [playerError, setPlayerError] = useState(false);
+  const [playerError, setPlayerError] = useState<number | null>(null);
   const [playerFrameNonce, setPlayerFrameNonce] = useState(0);
   const completionFiredRef   = useRef(false);
   const coursesInvalidatedRef = useRef(false);
@@ -269,14 +273,14 @@ export default function LessonPage() {
   const initPlayer = useCallback(async (videoId: string) => {
     const initToken = ++playerInitTokenRef.current;
     videoIdRef.current = videoId;
-    setPlayerError(false);
+    setPlayerError(null);
 
     try {
       await ensureYouTubeIframeApi();
     } catch (loadError) {
       if (playerInitTokenRef.current !== initToken) return;
       console.error("[YT Player] API load failed:", loadError);
-      setPlayerError(true);
+      setPlayerError(-1);
       return;
     }
 
@@ -307,7 +311,7 @@ export default function LessonPage() {
         onReady: () => {
           if (playerInitTokenRef.current !== initToken) return;
           reinitAttemptsRef.current = 0;
-          setPlayerError(false);
+          setPlayerError(null);
         },
         onStateChange: (e) => {
           if (playerInitTokenRef.current !== initToken) return;
@@ -326,11 +330,24 @@ export default function LessonPage() {
         onError: (e) => {
           if (playerInitTokenRef.current !== initToken) return;
 
-          console.error("[YT Player] error code:", e.data);
+          // YT error codes:
+          //   2   — invalid videoId param
+          //   5   — HTML5 player error (transient)
+          //   100 — video not found / private
+          //   101 — embed disabled by video owner
+          //   150 — same as 101 (different host)
+          // 100/101/150/2 are permanent. Retry only helps for 5.
+          const permanent = e.data === 2 || e.data === 100 || e.data === 101 || e.data === 150;
+          if (permanent) {
+            destroyPlayer();
+            setPlayerError(e.data);
+            return;
+          }
+
           reinitAttemptsRef.current += 1;
           if (reinitAttemptsRef.current >= 3) {
             destroyPlayer();
-            setPlayerError(true);
+            setPlayerError(e.data);
             return;
           }
 
@@ -470,14 +487,37 @@ export default function LessonPage() {
             <div id="yt-player-wrapper" />
           </div>
 
-          {/* Fix 5: visible error state after 3 failed re-init attempts */}
-          {playerError && (
+          {/* Permanent YT failures (embed disabled, video unavailable) and
+              repeated transient failures both surface here. */}
+          {playerError !== null && (
             <div style={{
               marginTop: "10px", padding: "10px 14px", borderRadius: "10px",
               background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
               fontSize: "13px", color: "#c53030", fontWeight: 500, textAlign: "center",
+              display: "flex", flexDirection: "column", gap: "6px",
             }}>
-              Video failed to load. Reload the page to try again.
+              <span>This class is not available right now.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const fb = Sentry.getFeedback?.();
+                  if (!fb) return;
+                  const ctx = `Lesson: ${lesson?.title ?? lesson?.id ?? "unknown"}\nVideo: ${lesson?.video_id ?? "unknown"}\nYT error code: ${playerError}`;
+                  fb.createForm().then((form) => {
+                    form.appendToDom();
+                    form.open();
+                    const ta = document.querySelector<HTMLTextAreaElement>("textarea[name='message']");
+                    if (ta) ta.value = ctx;
+                  }).catch(() => {});
+                }}
+                style={{
+                  background: "none", border: "none", color: "#c53030",
+                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  textDecoration: "underline", padding: 0,
+                }}
+              >
+                Report?
+              </button>
             </div>
           )}
 
@@ -527,24 +567,16 @@ export default function LessonPage() {
             )}
           </div>
 
-          {/* Take Module Test(s) — a module can have several */}
-          {lesson.module_quiz_ids.length > 0 && (
+          {/* Take Module Test(s) — a module can have several. Hidden while other
+              lessons in the module are incomplete: the quiz isn't the next
+              milestone yet, so the Next Lesson CTA below is the real action. */}
+          {lesson.module_quiz_ids.length > 0 && !quizBlockedByOtherLessons && (
             <div style={glassCard}>
               <p style={S.sectionLabel}>{lesson.module_quiz_ids.length > 1 ? "Module Quizzes" : "Module Quiz"}</p>
               {isPreview ? (
                 <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", marginTop: "10px" }}>
                   {lesson.module_quiz_ids.length} module quiz{lesson.module_quiz_ids.length !== 1 ? "zes" : ""} attached. Quiz-taking is available to students only.
                 </p>
-              ) : quizBlockedByOtherLessons ? (
-                <div style={{ marginTop: "10px" }}>
-                  <div style={{
-                    padding: "12px 14px", borderRadius: "10px",
-                    background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
-                    fontSize: "13px", color: "rgba(3,72,82,0.5)", textAlign: "center",
-                  }}>
-                    🔒 Complete all lessons in this module to unlock the quiz
-                  </div>
-                </div>
               ) : isUnlocked ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "10px" }}>
                   {lesson.module_quiz_ids.map((quizId, qi) => {
@@ -609,7 +641,7 @@ export default function LessonPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {lesson.prev_lesson_id && (
               <Link
-                href={`/dashboard/courses/${courseId}/lessons/${lesson.prev_lesson_id}`}
+                href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.prev_lesson_id}`)}
                 style={{ ...S.outlineBtn, display: "block", textAlign: "center", textDecoration: "none" }}
               >
                 ← Previous Lesson
@@ -629,7 +661,7 @@ export default function LessonPage() {
                 </div>
               ) : (
                 <Link
-                  href={`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`}
+                  href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`)}
                   style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
                 >
                   {lesson.next_in_new_module ? "Next Module →" : "Next Lesson →"}
@@ -637,7 +669,7 @@ export default function LessonPage() {
               )
             )}
             <Link
-              href={`/dashboard/courses/${courseId}`}
+              href={getBackHref(from, `/dashboard/courses/${courseId}`)}
               style={{ textAlign: "center", fontSize: "12px", color: "#209379", textDecoration: "none", fontWeight: 600, padding: "6px 0" }}
             >
               ↑ Back to Course Overview

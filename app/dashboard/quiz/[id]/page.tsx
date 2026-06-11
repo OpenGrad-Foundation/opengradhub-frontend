@@ -823,7 +823,7 @@ export default function QuizTakingPage() {
                       </span>
                       {quiz?.show_answers_after && (
                         <button
-                          onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${a.id}`)}
+                          onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
                           style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
                         >
                           Review →

@@ -8,8 +8,9 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 
-type Target = "course" | "programme";
+type Target = "course" | "programme" | "batch";
 
 export default function NewLiveClassPage() {
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function NewLiveClassPage() {
   const [target,   setTarget]   = useState<Target>("course");
   const [courseId, setCourseId] = useState("");
   const [progType, setProgType] = useState("UG");
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [courses,  setCourses]  = useState<Course[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
@@ -51,6 +53,7 @@ export default function NewLiveClassPage() {
     if (!datetime)       { setError("Date & time is required."); return; }
     if (!meetUrl.trim()) { setError("Meeting URL is required."); return; }
     if (target === "course" && !courseId) { setError("Select a course."); return; }
+    if (target === "batch" && batchIds.length === 0) { setError("Select at least one batch."); return; }
     setSubmitting(true);
     setError(null);
     try {
@@ -62,6 +65,7 @@ export default function NewLiveClassPage() {
         meeting_url:      meetUrl.trim(),
         course_id:        target === "course" ? courseId : undefined,
         programme_type:   target === "programme" ? progType : undefined,
+        batch_ids:        target === "batch" ? batchIds : undefined,
       });
       invalidate('calendar');
       router.replace("/dashboard/live-classes");
@@ -107,7 +111,7 @@ export default function NewLiveClassPage() {
           <div>
             <p style={fieldLabel}>Target Audience *</p>
             <div style={{ display: "flex", gap: "10px" }}>
-              {(["course", "programme"] as Target[]).map(t => (
+              {(["course", "programme", "batch"] as Target[]).map(t => (
                 <button key={t} type="button" onClick={() => setTarget(t)} style={{
                   padding: "8px 18px", borderRadius: "10px", cursor: "pointer",
                   border: target === t ? "1.5px solid #034852" : "1.5px solid rgba(3,72,82,0.18)",
@@ -116,7 +120,7 @@ export default function NewLiveClassPage() {
                   fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: target === t ? 700 : 500,
                   transition: "all 180ms ease",
                 }}>
-                  {t === "course" ? "Specific Course" : "All students in programme"}
+                  {t === "course" ? "Specific Course" : t === "programme" ? "All students in programme" : "Specific Batches"}
                 </button>
               ))}
             </div>
@@ -131,12 +135,16 @@ export default function NewLiveClassPage() {
                 ))}
               </select>
             </Field>
-          ) : (
+          ) : target === "programme" ? (
             <Field label="Programme Type">
               <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
                 <option value="UG">UG</option>
                 <option value="PG">PG</option>
               </select>
+            </Field>
+          ) : (
+            <Field label="Batches">
+              <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={S.input} />
             </Field>
           )}
 

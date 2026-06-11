@@ -8,6 +8,7 @@ import { createResource, type Resource } from "@/lib/api";
 import { useResources } from "@/lib/queries/resources";
 import { useQueryClient } from "@tanstack/react-query";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Type → colour mapping ──────────────────────────────────────
@@ -297,6 +298,7 @@ function CreateResourceForm({
   const [url, setUrl] = useState("");
   const [type, setType] = useState("PDF");
   const [programmeType, setProgrammeType] = useState("ALL");
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const invalidate = useInvalidate();
@@ -314,6 +316,7 @@ function CreateResourceForm({
         type,
         // "ALL" → null on the backend = visible to every programme.
         programme_type: programmeType === "ALL" ? undefined : programmeType,
+        batch_ids: batchIds.length > 0 ? batchIds : undefined,
         uploaded_by: userId,
         role: roleCode,
       });
@@ -418,6 +421,12 @@ function CreateResourceForm({
                 <option value="PG">PG</option>
               </select>
             </div>
+          </div>
+
+          {/* Batches */}
+          <div>
+            <label style={formLabelStyle}>Target Batches (optional — empty = everyone)</label>
+            <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={formInputStyle} />
           </div>
         </div>
 

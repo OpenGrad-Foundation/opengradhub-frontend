@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
-import Link from "next/link";
 import { useParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getAssignmentById,
@@ -43,9 +43,9 @@ export default function AssignmentDetailPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Assignment not found."}</p>
-        <Link href="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
-          ← Assignments
-        </Link>
+        <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
+          ← Back
+        </BackLink>
       </div>
     );
   }
@@ -62,9 +62,9 @@ export default function AssignmentDetailPage() {
   return (
     <div style={{ maxWidth: "760px" }}>
       {/* Back */}
-      <Link href="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Assignments
-      </Link>
+      <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+        ← Back
+      </BackLink>
 
       {/* Header card */}
       <div style={{ ...glassCard, marginTop: "16px", marginBottom: "20px" }}>

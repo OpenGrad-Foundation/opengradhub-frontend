@@ -6,7 +6,7 @@ import { bulkUploadQuestions, getQuestionTemplateUrl, type BulkQuestionResult } 
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
 const HEADERS = [
-  "question_type", "content_html",
+  "question_type", "question_text",
   "option_1", "option_2", "option_3", "option_4", "option_5", "option_6",
   "correct_options", "correct_answer", "tolerance",
   "programme_type", "subject", "topic", "difficulty", "explanation_video_url",
@@ -21,7 +21,7 @@ function rowErrors(r: Record<string, string>): string[] {
   if (type === "GROUP") return ["GROUP not supported"];
   if (!BULK_TYPES.includes(type)) return ["Bad type"];
   const errs: string[] = [];
-  if (!(r.content_html ?? "").trim()) errs.push("Content required");
+  if (!(r.question_text ?? "").trim()) errs.push("Question text required");
   const options = OPTION_COLS.map((c) => (r[c] ?? "").trim());
   const filled = options.filter(Boolean);
   const correctRaw = (r.correct_options ?? "").trim();
@@ -104,7 +104,10 @@ export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
         });
         if (parsed.errors?.length) { setParseError(parsed.errors[0].message || "Invalid CSV format."); return; }
         const data = (parsed.data ?? []).filter((r) => r && Object.keys(r).length > 0);
-        setRows(data.map((r) => Object.fromEntries(HEADERS.map((h) => [h, r[h] ?? ""]))));
+        // "content_html" is the legacy header name for question_text — keep old sheets working.
+        setRows(data.map((r) => Object.fromEntries(
+          HEADERS.map((h) => [h, (h === "question_text" ? r[h] || r.content_html : r[h]) ?? ""]),
+        )));
       } catch {
         setParseError("Failed to parse CSV. Please use the downloaded template.");
       }
@@ -154,7 +157,8 @@ export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
       </div>
 
       <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 14px" }}>
-        Supports MCQ, Fill-in-the-blank, and Numerical questions. Uploaded questions land in the
+        Supports MCQ, Fill-in-the-blank, and Numerical questions. Write questions as plain text —
+        no HTML needed (HTML is still accepted for rich formatting). Uploaded questions land in the
         question bank — attach them to quizzes from the quiz builder.
       </p>
 
@@ -221,7 +225,7 @@ export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
                       </td>
                       <td style={tdStyle}>{type}</td>
                       <td style={{ ...tdStyle, maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {(row.content_html ?? "").replace(/<[^>]+>/g, "")}
+                        {(row.question_text ?? "").replace(/<[^>]+>/g, "")}
                       </td>
                       <td style={{ ...tdStyle, maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {opts.join(" | ")}

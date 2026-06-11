@@ -43,7 +43,6 @@ function toQuizQuestion(p: PracticePayloadQuestion): QuizAttemptQuestion {
     section_id: p.section_id,
     question_type: p.question_type,
     content_html: p.content_html,
-    correct_answer: p.correct_answer,
     tolerance: p.tolerance,
     options: (p.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
     children: (p.children ?? []).map((c) => ({
@@ -51,7 +50,6 @@ function toQuizQuestion(p: PracticePayloadQuestion): QuizAttemptQuestion {
       section_id: c.section_id,
       question_type: c.question_type,
       content_html: c.content_html,
-      correct_answer: c.correct_answer,
       tolerance: c.tolerance,
       options: (c.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
     })),
@@ -275,7 +273,7 @@ export default function PracticePage() {
               {state.message}
             </p>
             <Link
-              href="/dashboard/assessments"
+              href={getBackHref(from, "/dashboard/assessments")}
               style={{ ...primaryBtn, display: "inline-block", textDecoration: "none" }}
             >
               ← Back to quizzes

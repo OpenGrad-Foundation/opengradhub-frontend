@@ -23,6 +23,7 @@ interface UserDetailPanelProps {
   onDeleted: () => void;
   onAssignCourse: (user: SafeUser) => void;
   onAssignBundle: (user: SafeUser) => void;
+  onAssignBatch?: (user: SafeUser) => void;
 }
 
 type Draft = {
@@ -61,6 +62,7 @@ export function UserDetailPanel({
   onDeleted,
   onAssignCourse,
   onAssignBundle,
+  onAssignBatch,
 }: UserDetailPanelProps) {
   const [draft, setDraft] = useState<Draft>(() => makeDraft(user));
   const [panelTab, setPanelTab] = useState<"details" | "permissions">("details");
@@ -547,6 +549,21 @@ export function UserDetailPanel({
                 >
                   Assign Bundle
                 </button>
+                {onAssignBatch && (
+                  <button
+                    onClick={() => onAssignBatch(user)}
+                    style={{
+                      flex: 1, padding: "10px 16px",
+                      border: "1.5px solid rgba(3,72,82,0.3)",
+                      borderRadius: "10px", background: "rgba(3,72,82,0.04)",
+                      color: "#034852", fontFamily: "var(--font-body)",
+                      fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                      transition: "all 150ms",
+                    }}
+                  >
+                    Add to Batch
+                  </button>
+                )}
               </div>
             </div>
           )}

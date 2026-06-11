@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -392,18 +394,34 @@ function StudentTable({
         <tbody>
           {students.map((s) => (
             <tr key={s.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)" }}>
-              <td style={tdSt}><strong style={{ color: "#034852" }}>{s.name}</strong></td>
+              <td style={tdSt}>
+                <strong style={{ color: "#034852" }}>{s.name}</strong>
+                {s.via_batch_name && (
+                  <span style={{ marginLeft: "8px", padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.65)" }}>
+                    via {s.via_batch_name}
+                  </span>
+                )}
+              </td>
               <td style={tdSt}>{s.roll_number ?? "—"}</td>
               <td style={tdSt}>{s.email || "—"}</td>
               <td style={tdSt}>{new Date(s.enrolled_at).toLocaleDateString()}</td>
               <td style={{ ...tdSt, textAlign: "right" }}>
-                <button
-                  onClick={() => void handleRemove(s.id, s.name)}
-                  style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
-                  title={`Remove ${s.name} from bundle`}
-                >
-                  Remove
-                </button>
+                {s.via_batch_name ? (
+                  <span
+                    style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", fontWeight: 600 }}
+                    title="Granted via a batch — remove the student or bundle from the batch instead"
+                  >
+                    Managed by batch
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => void handleRemove(s.id, s.name)}
+                    style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
+                    title={`Remove ${s.name} from bundle`}
+                  >
+                    Remove
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -710,6 +728,7 @@ function TestList({
 }) {
   const invalidate = useInvalidate();
   const { has } = usePermissions();
+  const currentUrl = useCurrentUrl();
   async function handleRemove(quizId: string, title: string) {
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
@@ -761,7 +780,7 @@ function TestList({
           </span>
           {has(PERM.test_bank.edit) && (
             <Link
-              href={`/dashboard/quiz-builder/${test.id}`}
+              href={withFrom(`/dashboard/quiz-builder/${test.id}`, currentUrl)}
               style={{
                 flexShrink: 0, padding: "5px 12px", borderRadius: "8px",
                 border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent",

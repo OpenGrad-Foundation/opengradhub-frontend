@@ -8,6 +8,7 @@ import {
   type Notification,
 } from "@/lib/api";
 import { useInboxUnreadCount } from "@/lib/queries/inbox";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Type icon map ──────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ function relativeTime(iso: string): string {
 export default function NotificationBell({ recipientId }: { recipientId: string }) {
   const { data: unreadData } = useInboxUnreadCount(recipientId);
   const count = unreadData?.count ?? 0;
+  const invalidate = useInvalidate();
 
   const [items,    setItems]    = useState<Notification[]>([]);
   const [open,     setOpen]     = useState(false);
@@ -67,12 +69,14 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
 
   async function handleMarkAll() {
     // Optimistic: flip the list to read immediately, then confirm with the server.
-    // The badge count is derived from useInboxUnreadCount hook and will update
-    // on next poll cycle. Restore local list state on failure.
+    // After server confirms, invalidate the notifications domain so the badge
+    // (driven by useInboxUnreadCount) refetches now instead of waiting for the
+    // 30s poll cycle. Restore local list state on failure.
     const snapshot = items;
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
       await markAllNotificationsRead(recipientId);
+      invalidate("notifications");
     } catch {
       setItems(snapshot);
     }

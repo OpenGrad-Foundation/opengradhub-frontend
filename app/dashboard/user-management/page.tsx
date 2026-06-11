@@ -17,6 +17,9 @@ import {
   bulkEnrol,
   fetchSchools,
   getManagers,
+  getBatches,
+  addBatchMembers,
+  type Batch,
   type SafeUser,
   type Course,
   type Bundle,
@@ -56,6 +59,7 @@ export default function UserManagementPage() {
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [assignStudent, setAssignStudent] = useState<SafeUser | null>(null);
   const [assignBundleStudent, setAssignBundleStudent] = useState<SafeUser | null>(null);
+  const [assignBatchStudent, setAssignBatchStudent] = useState<SafeUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const currentUserId = data?.user?.id ?? "";
 
@@ -157,6 +161,14 @@ export default function UserManagementPage() {
         />
       )}
 
+      {/* ── Assign Batch Modal ────────────────────────────── */}
+      {assignBatchStudent && (
+        <AssignBatchModal
+          student={assignBatchStudent}
+          onClose={() => setAssignBatchStudent(null)}
+        />
+      )}
+
       {/* ── User Detail Panel ─────────────────────────────── */}
       {selectedUser && (
         <UserDetailPanel
@@ -173,6 +185,7 @@ export default function UserManagementPage() {
           }}
           onAssignCourse={(u) => setAssignStudent(u)}
           onAssignBundle={(u) => setAssignBundleStudent(u)}
+          onAssignBatch={(u) => setAssignBatchStudent(u)}
         />
       )}
 
@@ -2242,3 +2255,163 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "12px 20px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px",
 };
+
+// ── Assign Batch Modal ─────────────────────────────────────────
+
+function AssignBatchModal({
+  student,
+  onClose,
+}: {
+  student: SafeUser;
+  onClose: () => void;
+}) {
+  const invalidate = useInvalidate();
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    getBatches("ACTIVE")
+      .then(setBatches)
+      .catch(() => setBatches([]))
+      .finally(() => setBatchesLoading(false));
+  }, []);
+
+  const filtered = batches.filter((b) =>
+    [b.name, b.school_name].some((v) => (v ?? "").toLowerCase().includes(search.toLowerCase()))
+  );
+
+  async function handleAssign() {
+    if (!selectedBatchId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await addBatchMembers(selectedBatchId, [student.id]);
+      invalidate('batches', 'enrolment');
+      if (result.enrolled === 0) {
+        setError("Student is already in this batch.");
+      } else {
+        setSuccess(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add to batch.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", backdropFilter: "blur(4px)", zIndex: 50 }}
+      />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
+        <div style={{
+          background: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+          opacity: 0, transform: "translateY(12px)",
+          animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+            <div>
+              <p style={labelStyle}>Add to Batch</p>
+              <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>{student.name}</h3>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
+              </p>
+            </div>
+            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          </div>
+
+          {success ? (
+            <div>
+              <div style={{
+                background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
+                borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
+              }}>
+                <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
+                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+                  Added to batch
+                </p>
+                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>
+                  All batch content (courses, bundles, tests) is now assigned to this student.
+                </p>
+              </div>
+              <button onClick={onClose} style={{ ...primaryButton, width: "100%" }}>Done</button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="text"
+                autoFocus
+                aria-label="Search batches"
+                placeholder="Search batches…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "12px" }}
+              />
+
+              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", marginBottom: "16px" }}>
+                {batchesLoading ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading batches…</p>
+                ) : filtered.length === 0 ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                    {search ? "No batches match your search." : "No active batches available."}
+                  </p>
+                ) : (
+                  filtered.map((batch) => {
+                    const active = selectedBatchId === batch.id;
+                    return (
+                      <div
+                        key={batch.id}
+                        onClick={() => { setSelectedBatchId(batch.id); setError(null); }}
+                        style={{
+                          padding: "12px 16px", cursor: "pointer",
+                          background: active ? "rgba(10,190,98,0.08)" : "transparent",
+                          borderLeft: active ? "3px solid #0abe62" : "3px solid transparent",
+                          transition: "all 150ms ease",
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{batch.name}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            {batch.school_name ?? "Independent"} · {batch.member_count} student{batch.member_count !== 1 ? "s" : ""} · {batch.course_count + batch.bundle_count + batch.test_count} item{batch.course_count + batch.bundle_count + batch.test_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        {active && <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {error && (
+                <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+              )}
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleAssign()}
+                  disabled={!selectedBatchId || submitting}
+                  style={{ ...primaryButton, flex: 2, opacity: (!selectedBatchId || submitting) ? 0.5 : 1 }}
+                >
+                  {submitting ? "Adding…" : "Add to Batch"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}

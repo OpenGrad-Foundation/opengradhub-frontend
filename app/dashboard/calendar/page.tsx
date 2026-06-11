@@ -12,6 +12,8 @@ import {
 } from "@/lib/api";
 import { useCalendar } from "@/lib/queries/calendar";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -143,13 +145,14 @@ function EventRow({ item, canDelete, onDelete }: {
   onDelete: () => void;
 }) {
   const c = cfg(item.event_type);
+  const currentUrl = useCurrentUrl();
   const time = item.is_all_day
     ? "All day"
     : new Date(item.starts_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   const href =
     item.source === "live_class"  ? "/dashboard/live-classes" :
-    item.source === "assignment"  ? `/dashboard/assignments/${item.ref_id}` :
+    item.source === "assignment"  ? withFrom(`/dashboard/assignments/${item.ref_id}`, currentUrl) :
     null;
 
   const inner = (
