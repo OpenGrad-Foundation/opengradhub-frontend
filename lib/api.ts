@@ -1344,6 +1344,8 @@ export type ModuleQuiz = Omit<Quiz, "questions"> & {
   course_id: string;
   course_title: string;
   module_title: string;
+  /** SEQUENTIAL courses: prior module incomplete or this module's lessons unfinished. */
+  is_locked: boolean;
 };
 
 export type BatchDimension = {
@@ -1418,7 +1420,7 @@ export async function getBatchComparison(studentId: string, courseId: string): P
 
 export async function getModuleQuizzes(): Promise<ModuleQuiz[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/module-tests`);
-  if (!r.ok) throw new ApiError("Failed to fetch module tests.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch module quizzes.", r.status);
   return (await r.json()) as ModuleQuiz[];
 }
 
@@ -1664,6 +1666,8 @@ export type LessonDetail = {
   next_in_new_module?: boolean;
   /** Whether the caller has finished this lesson's module (lessons + quizzes). */
   current_module_complete?: boolean;
+  /** Every OTHER lesson in this module is complete — combine with live watched% to unlock the module test. */
+  module_other_lessons_complete?: boolean;
 };
 
 export async function getLessonById(lessonId: string): Promise<LessonDetail> {
@@ -2663,7 +2667,7 @@ export async function addTestToBundle(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add test to bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add quiz to bundle.", r.status);
   }
   return (await r.json()) as { added: boolean };
 }
@@ -2678,7 +2682,7 @@ export async function removeTestFromBundle(
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove test from bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove quiz from bundle.", r.status);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -2834,7 +2838,7 @@ export async function downloadStudentTestReportPdf(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download test report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download quiz report.", r.status);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "test-report.pdf") };
 }
@@ -3019,7 +3023,7 @@ export async function getAssessmentsOverview(
   const r = await apiFetch(`${API_BASE_URL}/analytics/assessments-overview?${qs.toString()}`, { cache: 'no-store' });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? 'Failed to load assessments overview.', r.status);
+    throw new ApiError(err?.message ?? 'Failed to load quizzes overview.', r.status);
   }
   return r.json();
 }

@@ -90,7 +90,7 @@ export default function NewQuizPage() {
         <a href={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
           ← Back
         </a>
-        <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Test" : "Global Test"}</p>
+        <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
         <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
           Set up the quiz — you can add questions after saving.
@@ -100,7 +100,7 @@ export default function NewQuizPage() {
       <form onSubmit={(e) => void handleCreate(e)}>
         <div style={{ ...glassCard, display: "flex", flexDirection: "column", gap: "18px" }}>
           <Field label="Quiz Title *">
-            <input value={title} onChange={e => setTitle(e.target.value)} style={input} placeholder="e.g. Chapter 3 Revision Test" required />
+            <input value={title} onChange={e => setTitle(e.target.value)} style={input} placeholder="e.g. Chapter 3 Revision Quiz" required />
           </Field>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>

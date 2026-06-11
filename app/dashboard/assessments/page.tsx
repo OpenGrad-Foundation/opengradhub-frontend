@@ -69,7 +69,7 @@ export default function AssessmentsPage() {
           if (courses.length > 0) setSelectedCourseId(courses[0].id);
         }).catch(() => {});
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load assessments."))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quizzes."))
       .finally(() => setLoading(false));
   }, [userLoading, canAttempt, studentId]);
 
@@ -109,16 +109,16 @@ export default function AssessmentsPage() {
 
       {loading ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading your tests…</p>
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading your quizzes…</p>
         </div>
       ) : quizzes.length === 0 && moduleQuizzes.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62", marginBottom: "12px" }}>
-            No Tests Yet
+            No Quizzes Yet
           </p>
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#034852" }}>No assessments assigned to you yet</p>
+          <p style={{ fontSize: "16px", fontWeight: 700, color: "#034852" }}>No quizzes assigned to you yet</p>
           <p style={{ marginTop: "8px", fontSize: "14px", color: "rgba(3,72,82,0.6)", maxWidth: "380px", margin: "8px auto 0" }}>
-            Tests will appear here once you are enrolled in courses with module tests or program bundles.
+            Quizzes will appear here once you are enrolled in courses with module quizzes or program bundles.
           </p>
         </div>
       ) : (
@@ -127,7 +127,7 @@ export default function AssessmentsPage() {
           {moduleQuizzes.length > 0 && (
             <div>
               <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 14px" }}>
-                Module Tests
+                Module Quizzes
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {moduleQuizzes.map((q) => (
@@ -136,6 +136,7 @@ export default function AssessmentsPage() {
                     quiz={q}
                     label={`${q.course_title} · ${q.module_title}`}
                     attempts={attemptsByQuiz[q.id] ?? []}
+                    locked={q.is_locked === true}
                     onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
                     onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
                     onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
@@ -149,14 +150,14 @@ export default function AssessmentsPage() {
           {quizzes.length > 0 && (
             <div>
               <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 14px" }}>
-                Program Tests
+                Program Quizzes
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {quizzes.map((q) => (
                   <QuizRow
                     key={q.id}
                     quiz={q}
-                    label="Global Test"
+                    label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
                     onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
                     onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
@@ -191,11 +192,13 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, onStart, onReview, onPractice,
+  quiz, label, attempts, locked, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
   attempts: QuizAttempt[];
+  /** Module test still gated by the course's sequential flow. */
+  locked?: boolean;
   onStart: () => void;
   onReview: (attemptId: string) => void;
   onPractice: () => void;
@@ -205,6 +208,7 @@ function QuizRow({
   const maxAttempts  = quiz.max_attempts;
   const attemptsUsed = attempts.length;
   const exhausted    = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const isLocked     = locked === true;
   const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
   const sorted = [...attempts].sort((a, b) => {
@@ -272,20 +276,21 @@ function QuizRow({
 
         <button
           onClick={onStart}
-          disabled={exhausted}
+          disabled={exhausted || isLocked}
+          title={isLocked ? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz" : undefined}
           style={{
             flexShrink: 0,
             padding: "9px 18px", border: "none", borderRadius: "10px",
-            background: exhausted
+            background: exhausted || isLocked
               ? "rgba(3,72,82,0.08)"
               : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-            color: exhausted ? "rgba(3,72,82,0.35)" : "#fff",
+            color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
             fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-            cursor: exhausted ? "default" : "pointer",
-            boxShadow: exhausted ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
+            cursor: exhausted || isLocked ? "default" : "pointer",
+            boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
           }}
         >
-          {exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
+          {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
         </button>
       </div>
 
@@ -344,13 +349,13 @@ function PageHeader() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
-            Assessments
+            Quizzes
           </p>
           <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
-            Assessments
+            Quizzes
           </h1>
           <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-            Module tests from your courses and programme-wide mock tests.
+            Module quizzes from your courses and programme-wide mock quizzes.
           </p>
         </div>
         {has(PERM.test_bank.create) && (
@@ -364,7 +369,7 @@ function PageHeader() {
               cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap",
             }}
           >
-            + Create Program Test
+            + Create Program Quiz
           </button>
         )}
       </div>
@@ -666,8 +671,8 @@ function MonitorRow({ item, onClick }: { item: AssessmentsOverviewItem; onClick:
     ? new Date(item.last_attempted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
   const label = item.type === 'MODULE'
-    ? `${item.course_title ?? ''} · Module Test`
-    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Test';
+    ? `${item.course_title ?? ''} · Module Quiz`
+    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Quiz';
 
   return (
     <button
@@ -744,7 +749,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         zIndex: 51, display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Test Details</h2>
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Quiz Details</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {has(PERM.test_bank.edit) && (
               <button

@@ -742,11 +742,11 @@ export default function QuizTakingPage() {
           href="/dashboard/assessments"
           style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}
         >
-          ← Back to Assessments
+          ← Back to Quizzes
         </a>
         <div style={card}>
           <p style={{ ...subtext, marginBottom: "6px" }}>
-            {quiz.quiz_type === "MODULE_TEST" ? "Module Test" : "Global Test"}
+            {quiz.quiz_type === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}
           </p>
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -1466,7 +1466,7 @@ export default function QuizTakingPage() {
 
           <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
             <button onClick={() => router.push("/dashboard/assessments")} style={primaryBtn}>
-              Back to Assessments
+              Back to Quizzes
             </button>
             {result.show_answers_after && (
               <button

@@ -276,7 +276,7 @@ export default function PracticePage() {
               href="/dashboard/assessments"
               style={{ ...primaryBtn, display: "inline-block", textDecoration: "none" }}
             >
-              ← Back to assessments
+              ← Back to quizzes
             </Link>
           </div>
         </div>
@@ -390,7 +390,7 @@ function AnsweringView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to assessments
+          ← Back to quizzes
         </button>
         <button onClick={onSubmit} style={primaryBtn}>
           Submit practice →
@@ -490,7 +490,7 @@ function ResultsView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to assessments
+          ← Back to quizzes
         </button>
         <button onClick={onPracticeAgain} style={primaryBtn}>
           Practice again ↻

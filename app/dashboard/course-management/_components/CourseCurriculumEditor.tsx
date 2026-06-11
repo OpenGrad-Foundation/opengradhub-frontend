@@ -53,7 +53,7 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
       <div style={{ marginBottom: "18px" }}>
         <p style={labelSt}>Curriculum</p>
         <h3 style={{ ...headingSt, fontSize: "20px", marginTop: "4px" }}>Modules and lessons</h3>
-        <p style={subSt}>Reorder modules, edit lessons, and manage module tests inside the course workspace.</p>
+        <p style={subSt}>Reorder modules, edit lessons, and manage module quizzes inside the course workspace.</p>
       </div>
 
       <ModuleList
@@ -368,7 +368,7 @@ function ModuleItem({
 
       <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", margin: "-6px 0 14px", paddingLeft: "28px", flexWrap: "wrap" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)", paddingTop: "2px" }}>
-          Module Tests
+          Module Quizzes
         </span>
         {module.module_quizzes.length > 0 ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
@@ -457,7 +457,7 @@ function ModuleItem({
             borderColor: "rgba(32,147,121,0.3)",
           }}
         >
-          + Add Module Test
+          + Add Module Quiz
         </Link>
       </div>
     </div>

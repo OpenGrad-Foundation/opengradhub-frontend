@@ -153,6 +153,10 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
   // is_module_complete from backend (lessons + quiz)
   const allDone = module.is_module_complete;
   const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
+  // Module tests sit at the END of the sequential flow: every lesson in this
+  // module must be complete before a test is attemptable (backend enforces too).
+  const quizLockedByLessons =
+    isSequential && roleCode === "STUDENT" && !module.lessons.every((l) => l.is_complete);
 
   return (
     <div style={{ ...glassCard, opacity: isModuleLocked ? 0.7 : 1 }}>
@@ -213,32 +217,38 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
       {/* Module quiz rows — a module can have several published tests.
           In staff preview they are listed read-only (no attempt link). */}
       {!isModuleLocked && module.module_quizzes.filter((q) => q.published).map((quiz) => {
+        const locked = quizLockedByLessons && !isPreview;
         const row = (
           <div style={{
             display: "flex", alignItems: "center", gap: "12px",
             padding: "12px 4px",
             borderTop: "1px solid rgba(3,72,82,0.08)",
-            cursor: isPreview ? "default" : "pointer",
+            opacity: locked ? 0.5 : 1,
+            cursor: isPreview ? "default" : locked ? "not-allowed" : "pointer",
           }}>
             <div style={{
               width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(10,190,98,0.1)",
-              border: "1.5px solid #0abe62",
-              fontSize: "11px", color: "#0abe62", fontWeight: 700,
+              background: locked ? "rgba(3,72,82,0.06)" : "rgba(10,190,98,0.1)",
+              border: `1.5px solid ${locked ? "rgba(3,72,82,0.15)" : "#0abe62"}`,
+              fontSize: "11px", color: locked ? "rgba(3,72,82,0.3)" : "#0abe62", fontWeight: 700,
             }}>✎</div>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
                 {quiz.title}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
-                Module test
+                {locked ? "Complete all lessons in this module to unlock" : "Module quiz"}
               </p>
             </div>
-            {!isPreview && <span style={{ fontSize: "14px", color: "#209379", flexShrink: 0 }}>▶</span>}
+            {!isPreview && (
+              <span style={{ fontSize: "14px", color: locked ? "rgba(3,72,82,0.3)" : "#209379", flexShrink: 0 }}>
+                {locked ? "🔒" : "▶"}
+              </span>
+            )}
           </div>
         );
-        return isPreview ? (
+        return isPreview || locked ? (
           <div key={quiz.id}>{row}</div>
         ) : (
           <Link key={quiz.id} href={`/dashboard/quiz/${quiz.id}`} style={{ textDecoration: "none" }}>

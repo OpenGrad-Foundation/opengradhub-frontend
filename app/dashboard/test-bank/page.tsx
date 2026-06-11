@@ -95,7 +95,7 @@ export default function TestBankPage() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Assessments</p>
+          <p style={labelStyle}>Quizzes</p>
           <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
           <p style={{ ...mutedStyle, marginTop: "4px" }}>
             Reusable questions not yet attached to any quiz · {questions.length} question{questions.length !== 1 ? "s" : ""}
@@ -103,7 +103,7 @@ export default function TestBankPage() {
         </div>
         <div className="flex flex-wrap gap-2.5">
           <Link href="/dashboard/quiz-builder/new" style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)", textDecoration: "none" }}>
-            + New Global Test
+            + New Global Quiz
           </Link>
           <button style={primaryBtn} onClick={openAdd}>+ Add Question</button>
         </div>
@@ -113,7 +113,7 @@ export default function TestBankPage() {
       {globalTests.length > 0 && (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
           <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-            <p style={labelStyle}>Program Tests</p>
+            <p style={labelStyle}>Program Quizzes</p>
             <p style={{ ...mutedStyle, fontSize: "13px", marginTop: "2px" }}>
               {globalTests.length} created · click Edit to manage questions &amp; settings
             </p>

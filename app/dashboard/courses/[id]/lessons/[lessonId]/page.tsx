@@ -381,7 +381,8 @@ export default function LessonPage() {
     const nextId = lesson?.next_lesson_id;
     if (!nextId || watchedPct < 60) return;
     const unlocked = isComplete || watchedPct >= 80;
-    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && !unlocked;
+    const crossBlocked = Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
+    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && (!unlocked || crossBlocked);
     if (seqLocked) return;
     nextPrefetchedRef.current = true;
     void queryClient.prefetchQuery({
@@ -417,6 +418,13 @@ export default function LessonPage() {
   const crossModuleBlocked =
     isStudent && isSequentialCourse && Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
   const nextLessonLocked = isStudent && isSequentialCourse && (!isUnlocked || crossModuleBlocked);
+  // Module test gate (sequential): EVERY lesson in the module must be complete,
+  // not just this one. Other lessons come from the server; this lesson uses the
+  // live watched% so finishing the last video unlocks the test without a refetch.
+  // Strict === false: a cached pre-upgrade payload without the field falls back
+  // to the old 80% gate — the backend still blocks the attempt either way.
+  const quizBlockedByOtherLessons =
+    isStudent && isSequentialCourse && lesson.module_other_lessons_complete === false;
 
   return (
     <div>
@@ -521,8 +529,18 @@ export default function LessonPage() {
               <p style={S.sectionLabel}>{lesson.module_quiz_ids.length > 1 ? "Module Quizzes" : "Module Quiz"}</p>
               {isPreview ? (
                 <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", marginTop: "10px" }}>
-                  {lesson.module_quiz_ids.length} module test{lesson.module_quiz_ids.length !== 1 ? "s" : ""} attached. Quiz-taking is available to students only.
+                  {lesson.module_quiz_ids.length} module quiz{lesson.module_quiz_ids.length !== 1 ? "zes" : ""} attached. Quiz-taking is available to students only.
                 </p>
+              ) : quizBlockedByOtherLessons ? (
+                <div style={{ marginTop: "10px" }}>
+                  <div style={{
+                    padding: "12px 14px", borderRadius: "10px",
+                    background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
+                    fontSize: "13px", color: "rgba(3,72,82,0.5)", textAlign: "center",
+                  }}>
+                    🔒 Complete all lessons in this module to unlock the quiz
+                  </div>
+                </div>
               ) : isUnlocked ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "10px" }}>
                   {lesson.module_quiz_ids.map((quizId, qi) => {
@@ -533,7 +551,7 @@ export default function LessonPage() {
                           href={`/dashboard/quiz/${quizId}`}
                           style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
                         >
-                          {lesson.module_quiz_ids.length > 1 ? `Take Module Test ${qi + 1} →` : "Take Module Test →"}
+                          {lesson.module_quiz_ids.length > 1 ? `Take Module Quiz ${qi + 1} →` : "Take Module Quiz →"}
                         </Link>
                         {attempts.length > 0 && (
                           <div style={{ marginTop: "14px" }}>
@@ -602,7 +620,7 @@ export default function LessonPage() {
                   cursor: "not-allowed",
                 }}>
                   {crossModuleBlocked
-                    ? "🔒 Complete this module's lessons & test to start the next module"
+                    ? "🔒 Complete this module's lessons & quiz to start the next module"
                     : "🔒 Watch 80% to unlock Next Lesson"}
                 </div>
               ) : (

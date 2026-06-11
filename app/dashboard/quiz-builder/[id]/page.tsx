@@ -259,7 +259,7 @@ export default function QuizBuilderPage() {
         </a>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px" }}>
           <div>
-            <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Test" : "Global Test"}</p>
+            <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
             <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>{quiz?.title ?? "Quiz Builder"}</h1>
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
               {questions.length} question{questions.length !== 1 ? "s" : ""}

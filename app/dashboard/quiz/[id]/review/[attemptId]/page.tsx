@@ -335,7 +335,7 @@ export default function AttemptReviewPage() {
 
       {/* Summary card */}
       <div style={card}>
-        <p style={label}>Post-Test Review</p>
+        <p style={label}>Post-Quiz Review</p>
         <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginTop: "16px" }}>
           <div style={{ textAlign: "center" }}>
             <p style={{ fontSize: "40px", fontWeight: 900, color: "#034852", margin: 0 }}>
@@ -390,7 +390,7 @@ export default function AttemptReviewPage() {
           onClick={() => router.push("/dashboard/assessments")}
           style={{ padding: "11px 22px", border: "none", borderRadius: "12px", background: "rgba(3,72,82,0.07)", color: "#034852", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
         >
-          Back to Assessments
+          Back to Quizzes
         </button>
       </div>
     </div>

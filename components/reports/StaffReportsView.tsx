@@ -488,7 +488,7 @@ function StudentReportsMenu({
   const testsError = testsIsError
     ? testsErrorObj instanceof Error
       ? testsErrorObj.message
-      : "Failed to load tests."
+      : "Failed to load quizzes."
     : null;
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -569,11 +569,11 @@ function StudentReportsMenu({
     setBusy(true);
     try {
       openPdf(await downloadStudentTestReportPdf(studentId, quizId));
-      onToast(`Test report opened: ${quizTitle}.`);
+      onToast(`Quiz report opened: ${quizTitle}.`);
       setOpen(false);
     } catch (e) {
       onToast(
-        e instanceof Error ? e.message : "Failed to download test report.",
+        e instanceof Error ? e.message : "Failed to download quiz report.",
       );
     } finally {
       setBusy(false);
@@ -664,13 +664,13 @@ function StudentReportsMenu({
 
           <div style={menuDivider} />
 
-          <p style={menuSectionLabel}>Test report</p>
+          <p style={menuSectionLabel}>Quiz report</p>
           {testsError ? (
             <p style={menuHint}>{testsError}</p>
           ) : tests === null ? (
-            <p style={menuHint}>Loading tests…</p>
+            <p style={menuHint}>Loading quizzes…</p>
           ) : tests.length === 0 ? (
-            <p style={menuHint}>No completed tests yet.</p>
+            <p style={menuHint}>No completed quizzes yet.</p>
           ) : (
             tests.map((t) => (
               <button

@@ -76,7 +76,7 @@ export default function BundleDetailPage() {
   const handleDelete = useCallback(async () => {
     if (!bundle) return;
     const ok = window.confirm(
-      `Delete bundle "${bundle.name}"? This removes the bundle and its course/test groupings. Students keep access to courses they were already enrolled in. This cannot be undone.`,
+      `Delete bundle "${bundle.name}"? This removes the bundle and its course/quiz groupings. Students keep access to courses they were already enrolled in. This cannot be undone.`,
     );
     if (!ok) return;
     setDeleting(true);
@@ -124,7 +124,7 @@ export default function BundleDetailPage() {
           <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
             <Chip icon="📚" value={bundle.courses.length} label="course" />
             <Chip icon="👤" value={bundle.enrolled_students.length} label="student" />
-            <Chip icon="📝" value={bundle.tests.length} label="test" />
+            <Chip icon="📝" value={bundle.tests.length} label="quiz" />
           </div>
         </div>
         {has(PERM.bundles.delete) && (
@@ -176,11 +176,11 @@ export default function BundleDetailPage() {
 
       {/* ── Section 3: Tests ─────────────────────────────────── */}
       <Section
-        title="Tests in this Bundle"
-        subtitle="Published global tests attached to this bundle. Enrolled students can see and take these from their Assessments page."
+        title="Quizzes in this Bundle"
+        subtitle="Published global quizzes attached to this bundle. Enrolled students can see and take these from their Quizzes page."
         action={
           <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
-            + Add Test
+            + Add Quiz
           </button>
         }
       >
@@ -716,14 +716,14 @@ function TestList({
       invalidate('bundles');
       onRemoved();
     } catch (e) {
-      setGlobalError(e instanceof Error ? e.message : "Failed to remove test.");
+      setGlobalError(e instanceof Error ? e.message : "Failed to remove quiz.");
     }
   }
 
   if (tests.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
-        No tests yet. Click &quot;+ Add Test&quot; to attach a global test.
+        No quizzes yet. Click &quot;+ Add Quiz&quot; to attach a global quiz.
       </p>
     );
   }
@@ -823,28 +823,28 @@ function AddTestModal({
       invalidate('bundles');
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add test.");
+      setError(e instanceof Error ? e.message : "Failed to add quiz.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal onClose={onClose} title="Add Test to Bundle">
+    <Modal onClose={onClose} title="Add Quiz to Bundle">
       <input
         autoFocus
         type="text"
-        placeholder="Search published global tests…"
+        placeholder="Search published global quizzes…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ ...inputSt, marginBottom: "12px" }}
       />
       <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
         {loadingQuizzes ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading tests…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading quizzes…</p>
         ) : filtered.length === 0 ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
-            {search ? "No matching tests." : "No published global tests available."}
+            {search ? "No matching quizzes." : "No published global quizzes available."}
           </p>
         ) : filtered.map((q) => {
           const active = selected?.id === q.id;
@@ -880,7 +880,7 @@ function AddTestModal({
           disabled={!selected || submitting}
           style={{ ...primaryBtnSm, opacity: (!selected || submitting) ? 0.45 : 1 }}
         >
-          {submitting ? "Adding…" : "Add Test"}
+          {submitting ? "Adding…" : "Add Quiz"}
         </button>
       </div>
     </Modal>
@@ -942,7 +942,7 @@ function Chip({ icon, value, label }: { icon: string; value: number; label: stri
       background: "rgba(3,72,82,0.06)", fontSize: "12px",
       fontWeight: 600, color: "#034852",
     }}>
-      {icon} {value} {label}{value !== 1 ? "s" : ""}
+      {icon} {value} {label}{value !== 1 ? (label.endsWith("z") ? "zes" : "s") : ""}
     </span>
   );
 }

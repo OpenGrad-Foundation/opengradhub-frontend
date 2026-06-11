@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useClerk } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   BookOpen,
@@ -24,7 +23,6 @@ import {
   Shield,
   UserPlus,
   School,
-  LogOut,
   X,
   ChevronUp,
   ChevronDown,
@@ -32,9 +30,8 @@ import {
   PanelLeftOpen,
   type LucideIcon,
 } from "lucide-react";
-import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser } from "@/hooks/use-current-user";
 import { MODULE_META, type ModuleKey } from "@/lib/moduleAccess";
-import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 
 // Nav order = the order MODULE_META is declared in.
 const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
@@ -83,8 +80,6 @@ export default function Sidebar({
   onToggleCollapsed?: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const clerk = useClerk();
   const { data } = useCurrentUser();
 
   // Nav is driven entirely by the server's effective module list (role defaults
@@ -153,20 +148,6 @@ export default function Sidebar({
       navRef.current.scrollBy({ top: 120, behavior: "smooth" });
     }
   };
-
-  async function handleSignOut() {
-    // Sign out first so any in-flight refetch loses its token and can't
-    // re-populate the cache with the previous user's data. Then AWAIT the
-    // cache wipe so IDB is empty before the next user's useCurrentUser
-    // mounts and the persister tries to restore.
-    if (isClerkMode()) {
-      await clerk.signOut();
-    } else {
-      clearStoredAuthToken();
-    }
-    await clearUserCache();
-    router.replace("/");
-  }
 
   return (
     <aside
@@ -301,22 +282,6 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Sign out */}
-      <div className="px-3 pb-5 pt-3 border-t border-gray-100">
-        <button
-          id="sidebar-sign-out-btn"
-          type="button"
-          onClick={handleSignOut}
-          title={collapsed ? "Sign Out" : undefined}
-          className={
-            "flex w-full items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 " +
-            (collapsed ? "lg:justify-center lg:px-0" : "")
-          }
-        >
-          <LogOut size={16} aria-hidden="true" />
-          <span className={collapsed ? "lg:hidden" : ""}>Sign Out</span>
-        </button>
-      </div>
     </aside>
   );
 }

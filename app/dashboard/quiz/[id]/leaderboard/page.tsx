@@ -120,7 +120,7 @@ export default function LeaderboardPage() {
         onClick={() => router.push("/dashboard/assessments")}
         style={{ marginTop: "24px", padding: "11px 22px", border: "none", borderRadius: "12px", background: "rgba(3,72,82,0.07)", color: "#034852", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
       >
-        Back to Assessments
+        Back to Quizzes
       </button>
     </div>
   );
