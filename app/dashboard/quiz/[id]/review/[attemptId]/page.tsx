@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
@@ -274,6 +276,8 @@ function SectionHeader({ section }: { section: AttemptReviewSection }) {
 export default function AttemptReviewPage() {
   const { id: quizId, attemptId } = useParams<{ id: string; attemptId: string }>();
   const router = useRouter();
+  const from = useSearchParams().get("from");
+  const currentUrl = useCurrentUrl();
 
   const { data: userData } = useCurrentUser();
   const [review, setReview] = useState<AttemptReview | null>(null);
@@ -300,7 +304,7 @@ export default function AttemptReviewPage() {
     <div style={page}>
       <div style={card}>
         <p style={{ color: "#e53e3e", fontSize: "15px", fontWeight: 600 }}>{error}</p>
-        <button onClick={() => router.back()} style={{ marginTop: "16px", padding: "10px 20px", borderRadius: "10px", border: "none", background: "rgba(3,72,82,0.08)", color: "#034852", fontWeight: 700, cursor: "pointer" }}>Go back</button>
+        <button onClick={() => router.push(getBackHref(from, `/dashboard/quiz/${quizId}`))} style={{ marginTop: "16px", padding: "10px 20px", borderRadius: "10px", border: "none", background: "rgba(3,72,82,0.08)", color: "#034852", fontWeight: 700, cursor: "pointer" }}>Go back</button>
       </div>
     </div>
   );
@@ -327,7 +331,7 @@ export default function AttemptReviewPage() {
   return (
     <div style={page}>
       <button
-        onClick={() => router.push(`/dashboard/quiz/${quizId}`)}
+        onClick={() => router.push(getBackHref(from, `/dashboard/quiz/${quizId}`))}
         style={{ fontSize: "13px", color: "#209379", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "20px", display: "block" }}
       >
         ← Back to Quiz
@@ -380,7 +384,7 @@ export default function AttemptReviewPage() {
       <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
         {userData?.user?.programme === "PG" && (
           <button
-            onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
+            onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/leaderboard`, currentUrl))}
             style={{ padding: "11px 22px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg,#0abe62,#006d6c)", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
           >
             View Leaderboard
