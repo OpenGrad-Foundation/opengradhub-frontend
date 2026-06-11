@@ -23,6 +23,7 @@ import {
   Shield,
   UserPlus,
   School,
+  Layers,
   X,
   ChevronUp,
   ChevronDown,
@@ -49,7 +50,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   calendar:        Calendar,
   resources:       FolderOpen,
   doubts:          HelpCircle,
-  announcements:   Bell,
+  inbox:           Bell,
   analytics:       BarChart2,
   reports:         FileBarChart,
   student_export:  Download,
@@ -57,6 +58,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   role_management: Shield,
   bulk_assign:     UserPlus,
   schools:         School,
+  batches:         Layers,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────

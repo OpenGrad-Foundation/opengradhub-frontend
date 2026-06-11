@@ -29,14 +29,15 @@ export type ModuleKey =
   | "calendar"
   | "resources"
   | "doubts"
-  | "announcements"
+  | "inbox"
   | "analytics"
   | "reports"
   | "student_export"
   | "user_management"
   | "role_management"
   | "bulk_assign"
-  | "schools";
+  | "schools"
+  | "batches";
 
 export type ModuleMeta = { label: string; href: string };
 
@@ -51,7 +52,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   calendar:         { label: "Calendar",        href: "/dashboard/calendar" },
   resources:        { label: "Resources",       href: "/dashboard/resources" },
   doubts:           { label: "Doubts",          href: "/dashboard/doubts" },
-  announcements:    { label: "Announcements",   href: "/dashboard/announcements" },
+  inbox:            { label: "Inbox",            href: "/dashboard/inbox" },
   analytics:        { label: "Analytics",       href: "/dashboard/analytics" },
   reports:          { label: "Reports",         href: "/dashboard/reports" },
   student_export:   { label: "Student Export",  href: "/dashboard/student-export" },
@@ -59,4 +60,5 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
   bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
+  batches:          { label: "Batches",         href: "/dashboard/batches" },
 };
