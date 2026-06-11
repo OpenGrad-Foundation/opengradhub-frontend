@@ -7,6 +7,7 @@ import { LogOut, Menu } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import NotificationBell from "@/components/NotificationBell";
+import ReportBugButton from "./ReportBugButton";
 
 // ── Role badge colour map ────────────────────────────────────────────────────
 
@@ -88,8 +89,10 @@ export default function DashboardTopbar({
       </button>
       <div className="hidden lg:block" />
 
-      {/* Right — role badge + notification bell + avatar */}
+      {/* Right — bug report + role badge + notification bell + avatar */}
       <div className="flex items-center gap-3">
+        <ReportBugButton />
+
         {roleName && (
           <span
             className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold tracking-wide ${badgeClass}`}
