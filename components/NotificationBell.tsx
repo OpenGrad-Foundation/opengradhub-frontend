@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   getNotifications,
   markAllNotificationsRead,
+  markAllAnnouncementsRead,
   type Notification,
 } from "@/lib/api";
 import { useInboxUnreadCount } from "@/lib/queries/inbox";
@@ -68,15 +69,19 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
   }
 
   async function handleMarkAll() {
-    // Optimistic: flip the list to read immediately, then confirm with the server.
-    // After server confirms, invalidate the notifications domain so the badge
-    // (driven by useInboxUnreadCount) refetches now instead of waiting for the
-    // 30s poll cycle. Restore local list state on failure.
+    // The badge count = notification unread + announcement unread, so clearing
+    // it means marking BOTH read. Optimistic: flip the list to read immediately,
+    // then confirm with the server. After confirm, invalidate both domains so
+    // the badge (driven by useInboxUnreadCount) refetches now instead of waiting
+    // for the 30s poll cycle. Restore local list state on failure.
     const snapshot = items;
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
-      await markAllNotificationsRead(recipientId);
-      invalidate("notifications");
+      await Promise.all([
+        markAllNotificationsRead(recipientId),
+        markAllAnnouncementsRead(),
+      ]);
+      invalidate("notifications", "announcements");
     } catch {
       setItems(snapshot);
     }

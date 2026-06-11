@@ -2479,6 +2479,14 @@ export async function markAnnouncementRead(id: string): Promise<void> {
   });
 }
 
+export async function markAllAnnouncementsRead(): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/announcements/mark-all-read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+}
+
 // ── Doubts API ─────────────────────────────────────────────────
 
 export type Doubt = {
