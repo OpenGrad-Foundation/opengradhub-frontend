@@ -62,3 +62,31 @@ export function MathContent({
     />
   );
 }
+
+/**
+ * MathContent clamped to N lines via CSS for list rows. CSS clamping (not
+ * string slicing) because slicing can cut a `$…$` pair in half and break
+ * KaTeX rendering.
+ */
+export function MathSnippet({
+  html,
+  lines = 2,
+  style,
+}: {
+  html: string;
+  lines?: number;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <MathContent
+      html={html}
+      style={{
+        display: "-webkit-box",
+        WebkitLineClamp: lines,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        ...style,
+      }}
+    />
+  );
+}

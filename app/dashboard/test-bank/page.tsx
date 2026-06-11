@@ -13,6 +13,7 @@ import {
   typeBadge,
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
+import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
 
 // ── Page ───────────────────────────────────────────────────────
@@ -245,9 +246,7 @@ function QuestionRow({ question, isLast, onEdit, onDelete }: { question: Questio
       >
         <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>
-            {stripHtml(question.content_html).slice(0, 120)}{stripHtml(question.content_html).length > 120 ? "…" : ""}
-          </p>
+          <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
           <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
             {question.programme_type && <Tag>{question.programme_type}</Tag>}
             {question.subject && <Tag>{question.subject}</Tag>}
@@ -267,7 +266,7 @@ function QuestionRow({ question, isLast, onEdit, onDelete }: { question: Questio
           {question.children.map((child, ci) => (
             <div key={child.id} style={{ display: "flex", gap: "12px", padding: "10px 24px 10px 48px", borderBottom: ci < question.children.length - 1 ? "1px solid rgba(3,72,82,0.04)" : "none" }}>
               <span style={{ ...typeBadge(child.question_type), fontSize: "9px", flexShrink: 0, marginTop: "2px" }}>{child.question_type}</span>
-              <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.75)" }}>{stripHtml(child.content_html).slice(0, 100)}</p>
+              <MathSnippet html={child.content_html} lines={2} style={{ fontSize: "13px", color: "rgba(3,72,82,0.75)" }} />
             </div>
           ))}
         </div>

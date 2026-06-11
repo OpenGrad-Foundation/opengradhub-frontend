@@ -29,6 +29,7 @@ import {
   typeBadge,
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
+import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -254,10 +255,10 @@ export default function QuizBuilderPage() {
       <div style={{ marginBottom: "28px" }}>
         {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
         <a
-          href={backHref}
+          href={getBackHref(from, backHref)}
           style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}
         >
-          ← {courseId ? "Back to Course Builder" : "Back to Question Bank"}
+          ← {courseId ? "Back to Course Builder" : from ? "Back" : "Back to Question Bank"}
         </a>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px" }}>
           <div>
@@ -678,7 +679,7 @@ function SectionsView({
               {activeQuestions.map((q, idx) => (
                 <div key={q.id} style={{ padding: "12px 16px", background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "8px", display: "flex", gap: "12px", alignItems: "center" }}>
                   <span style={{ minWidth: "32px", fontWeight: 700, color: "rgba(3,72,82,0.5)" }}>{idx + 1}.</span>
-                  <span style={{ flex: 1 }}>{stripHtml(q.content_html).slice(0, 120)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}><MathSnippet html={q.content_html} lines={1} /></div>
                   <span style={{ ...typeBadge(q.question_type), flexShrink: 0 }}>{q.question_type}</span>
                   <button
                     onClick={() => { setEditTarget(q); setPanelOpen(true); }}
@@ -837,9 +838,7 @@ function QuizQuestionRow({
 
       {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>
-          {stripHtml(question.content_html).slice(0, 100)}{stripHtml(question.content_html).length > 100 ? "…" : ""}
-        </p>
+        <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
         <div style={{ display: "flex", gap: "6px", marginTop: "5px", flexWrap: "wrap" }}>
           {question.programme_type && <Tag>{question.programme_type}</Tag>}
           {question.subject && <Tag>{question.subject}</Tag>}
@@ -970,9 +969,7 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
                 <input type="checkbox" checked={checked} readOnly style={{ marginTop: "3px", accentColor: "#0abe62", flexShrink: 0 }} />
                 <span style={{ ...typeBadge(q.question_type), flexShrink: 0, marginTop: "1px" }}>{q.question_type}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>
-                    {stripHtml(q.content_html).slice(0, 90)}{stripHtml(q.content_html).length > 90 ? "…" : ""}
-                  </p>
+                  <MathSnippet html={q.content_html} lines={2} style={{ fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
                   <div style={{ display: "flex", gap: "5px", marginTop: "4px", flexWrap: "wrap" }}>
                     {q.programme_type && <Tag>{q.programme_type}</Tag>}
                     {q.subject && <Tag>{q.subject}</Tag>}
