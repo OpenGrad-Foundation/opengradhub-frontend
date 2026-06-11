@@ -21,6 +21,7 @@ export const qk = {
   user: (userId: string) => ['og', 'user', userId] as const,
 
   announcements: (role: string) => ['og', 'announcements', role] as const,
+  announcementUnreadCount: () => ['og', 'announcements', 'unread-count'] as const,
 
   notifications: (recipientId: string) => ['og', 'notifications', recipientId] as const,
   unreadCount: (recipientId: string) =>
@@ -50,6 +51,8 @@ export const qk = {
     ['og', 'quiz-attempts', 'mine', studentId ?? 'self'] as const,
   availableQuizzes: () => ['og', 'quizzes', 'available'] as const,
   bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
+  batches: (status?: string) => ['og', 'batches', status ?? 'ACTIVE'] as const,
+  batch: (id: string) => ['og', 'batches', 'detail', id] as const,
   liveClasses: () => ['og', 'live-classes'] as const,
   nextLiveClass: (studentId: string) =>
     ['og', 'live-classes', 'next', studentId] as const,

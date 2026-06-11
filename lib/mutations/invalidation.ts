@@ -24,12 +24,15 @@ const DOMAIN_KEYS = {
   users: [['og', 'user'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard']],
   // school CRUD / fellow assignment
   schools: [['og', 'schools'], ['og', 'managers'], ['og', 'analytics']],
-  announcements: [['og', 'announcements'], ['og', 'analytics'], ['og', 'dashboard']],
+  announcements: [['og', 'announcements'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'inbox']],
   // quiz authoring (create/update/publish/sections/questions)
   quizzes: [['og', 'quizzes'], ['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'analytics'], ['og', 'dashboard']],
   // a student submitting an attempt
   quizAttempt: [['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   bundles: [['og', 'bundles'], ['og', 'student'], ['og', 'dashboard']],
+  // batch CRUD / membership / content assignment — cascades write
+  // course/bundle enrolments, so student views + rosters + analytics go stale
+  batches: [['og', 'batches'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
   calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
   resources: [['og', 'resources']],
