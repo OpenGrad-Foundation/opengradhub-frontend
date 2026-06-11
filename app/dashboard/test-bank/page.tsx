@@ -13,6 +13,7 @@ import {
   typeBadge,
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
+import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
 
 // ── Page ───────────────────────────────────────────────────────
 // Access (`test_bank.view`) is enforced by the backend and the dashboard
@@ -35,6 +36,7 @@ export default function TestBankPage() {
 
   const [panelOpen, setPanelOpen]     = useState(false);
   const [editTarget, setEditTarget]   = useState<Question | null>(null);
+  const [bulkOpen, setBulkOpen]       = useState(false);
 
   // Created Global/Program tests — entry point to re-open them in the builder.
   const [globalTests, setGlobalTests] = useState<Omit<Quiz, "questions">[]>([]);
@@ -106,8 +108,19 @@ export default function TestBankPage() {
             + New Global Quiz
           </Link>
           <button style={primaryBtn} onClick={openAdd}>+ Add Question</button>
+          <button style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }} onClick={() => setBulkOpen((v) => !v)}>
+            ⬆ Upload CSV
+          </button>
         </div>
       </div>
+
+      {bulkOpen && (
+        <QuestionBulkUploadPanel
+          createdBy={userId}
+          onClose={() => setBulkOpen(false)}
+          onDone={() => void fetchQuestions()}
+        />
+      )}
 
       {/* ── Program / Global tests ────────────────────────── */}
       {globalTests.length > 0 && (
