@@ -13,6 +13,9 @@ import {
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { SchoolBulkUploadPanel } from "./BulkUploadPanel";
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { normState, ALL_STATE } from "@/lib/geo";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function SchoolsPage() {
   const { has } = usePermissions();
@@ -27,14 +30,17 @@ export default function SchoolsPage() {
   const [showBulk, setShowBulk] = useState(false);
   const [editSchool, setEditSchool] = useState<SchoolOption | null>(null);
   const [query, setQuery] = useState("");
+  const [filterState, setFilterState] = useState("");
+  const [filterDistrict, setFilterDistrict] = useState("");
 
   const q = query.trim().toLowerCase();
-  const visibleSchools = q
-    ? schools.filter((s) =>
-        [s.name, s.district, s.state, s.code, s.fellow_name]
-          .some((v) => (v ?? "").toLowerCase().includes(q)),
-      )
-    : schools;
+  const visibleSchools = schools.filter((s) => {
+    if (q && ![s.name, s.district, s.state, s.code, s.fellow_name]
+      .some((v) => (v ?? "").toLowerCase().includes(q))) return false;
+    if (filterState && normState(s.state) !== filterState) return false;
+    if (filterDistrict && (s.district ?? "") !== filterDistrict) return false;
+    return true;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,8 +116,20 @@ export default function SchoolsPage() {
               />
               <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
             </div>
+            <div style={{ flex: "1 1 320px", maxWidth: "420px" }}>
+              <StateDistrictPicker
+                state={filterState}
+                district={filterDistrict}
+                onStateChange={setFilterState}
+                onDistrictChange={setFilterDistrict}
+                blankStateLabel="All states"
+                inputStyle={inputStyle}
+              />
+            </div>
             <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
-              {q ? `${visibleSchools.length} of ${schools.length}` : `${schools.length} school${schools.length === 1 ? "" : "s"}`}
+              {q || filterState || filterDistrict
+                ? `${visibleSchools.length} of ${schools.length}`
+                : `${schools.length} school${schools.length === 1 ? "" : "s"}`}
             </span>
           </div>
 
@@ -171,6 +189,7 @@ function SchoolFormModal({
   const [fellows, setFellows] = useState<SafeUser[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +203,11 @@ function SchoolFormModal({
 
   async function save() {
     if (!name.trim()) { setErr("Name is required."); return; }
+    if (!state.trim()) { setErr("State is required."); return; }
+    if (normState(state) !== ALL_STATE && !district.trim()) {
+      setErr("District is required (except for All-state schools).");
+      return;
+    }
     setSaving(true);
     setErr(null);
     try {
@@ -196,6 +220,7 @@ function SchoolFormModal({
           await setSchoolFellow(school.id, fellowId || null);
         }
       }
+      invalidate('schools', 'users');
       onSaved();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed.");
@@ -245,12 +270,14 @@ function SchoolFormModal({
               <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
             </div>
             <div>
-              <label style={formLabelStyle}>District</label>
-              <input value={district} onChange={(e) => setDistrict(e.target.value)} style={inputStyle} />
-            </div>
-            <div>
-              <label style={formLabelStyle}>State</label>
-              <input value={state} onChange={(e) => setState(e.target.value)} style={inputStyle} />
+              <label style={formLabelStyle}>State &amp; District</label>
+              <StateDistrictPicker
+                state={state}
+                district={district}
+                onStateChange={setState}
+                onDistrictChange={setDistrict}
+                inputStyle={inputStyle}
+              />
             </div>
             <div>
               <label style={formLabelStyle}>Code (optional — auto-generated if blank)</label>

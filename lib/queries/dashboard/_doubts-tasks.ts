@@ -43,7 +43,7 @@ export function useDoubtsTasks(role: Role, userId: string) {
           icon: "doubt" as const,
           title: d.subject,
           subtitle: [d.student_name, d.school_name].filter(Boolean).join(" · ") || undefined,
-          href: `/dashboard/doubts/${d.id}`,
+          href: `/dashboard/doubts?focus=${d.id}`,
           actionLabel: "Answer",
         }));
     },

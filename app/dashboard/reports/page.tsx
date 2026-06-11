@@ -184,7 +184,7 @@ export default function ReportsPage() {
           Reports
         </h1>
         <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-          Download your performance reports as a PDF — month-to-date, by course, or by test.
+          Download your performance reports as a PDF — month-to-date, by course, or by quiz.
         </p>
       </div>
 
@@ -214,7 +214,7 @@ export default function ReportsPage() {
             >
               <option value="month">This month</option>
               <option value="course">By course</option>
-              <option value="test">By test</option>
+              <option value="test">By quiz</option>
             </select>
           </label>
 
@@ -246,7 +246,7 @@ export default function ReportsPage() {
           {/* Test selector */}
           {scope === "test" && (
             <label style={fieldLabel}>
-              Test
+              Quiz
               <select
                 value={selectedQuizId}
                 onChange={(e) => setSelectedQuizId(e.target.value)}
@@ -254,9 +254,9 @@ export default function ReportsPage() {
                 style={selectStyle}
               >
                 {picklistsLoading ? (
-                  <option value="">Loading tests…</option>
+                  <option value="">Loading quizzes…</option>
                 ) : completedQuizzes.length === 0 ? (
-                  <option value="">No completed tests yet</option>
+                  <option value="">No completed quizzes yet</option>
                 ) : (
                   completedQuizzes.map((q) => (
                     <option key={q.id} value={q.id}>
@@ -288,7 +288,7 @@ export default function ReportsPage() {
           <p style={hintText}>You are not enrolled in any courses yet.</p>
         )}
         {scope === "test" && !picklistsLoading && completedQuizzes.length === 0 && (
-          <p style={hintText}>Complete a test to generate a test report.</p>
+          <p style={hintText}>Complete a quiz to generate a quiz report.</p>
         )}
       </div>
 

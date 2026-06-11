@@ -25,13 +25,13 @@ export function PerformanceHistoryTable({ rows }: { rows: PerformanceHistoryRow[
       <table style={tableStyle}>
         <thead>
           <tr>
-            <th style={thStyle}>Test</th>
+            <th style={thStyle}>Quiz</th>
             <th style={thStyle}>Date</th>
             <th style={thStyle}>Pattern</th>
             <th style={thStyle}>Subjects</th>
             <th style={thStyle}>Total</th>
             <th style={thStyle}>%</th>
-            <th style={thStyle}>Test Rank</th>
+            <th style={thStyle}>Quiz Rank</th>
             <th style={thStyle}>School Rank</th>
             <th style={thStyle}>Programme Rank</th>
             <th style={thStyle}>Percentile</th>

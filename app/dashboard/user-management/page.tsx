@@ -10,12 +10,16 @@ import {
   getUserTemplateUrl,
   getCourses,
   assignCourse,
+  getStudentEnrolments,
   getBundles,
   enrolStudentInBundle,
   getStudentsForBulk,
   bulkEnrol,
   fetchSchools,
   getManagers,
+  getBatches,
+  addBatchMembers,
+  type Batch,
   type SafeUser,
   type Course,
   type Bundle,
@@ -23,10 +27,14 @@ import {
   type SchoolOption,
   type ManagerOption,
 } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
+import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { STATES, districtDisabled, resolveState, resolveDistrict } from "@/lib/geo";
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -51,6 +59,7 @@ export default function UserManagementPage() {
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [assignStudent, setAssignStudent] = useState<SafeUser | null>(null);
   const [assignBundleStudent, setAssignBundleStudent] = useState<SafeUser | null>(null);
+  const [assignBatchStudent, setAssignBatchStudent] = useState<SafeUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const currentUserId = data?.user?.id ?? "";
 
@@ -152,6 +161,14 @@ export default function UserManagementPage() {
         />
       )}
 
+      {/* ── Assign Batch Modal ────────────────────────────── */}
+      {assignBatchStudent && (
+        <AssignBatchModal
+          student={assignBatchStudent}
+          onClose={() => setAssignBatchStudent(null)}
+        />
+      )}
+
       {/* ── User Detail Panel ─────────────────────────────── */}
       {selectedUser && (
         <UserDetailPanel
@@ -168,6 +185,7 @@ export default function UserManagementPage() {
           }}
           onAssignCourse={(u) => setAssignStudent(u)}
           onAssignBundle={(u) => setAssignBundleStudent(u)}
+          onAssignBatch={(u) => setAssignBatchStudent(u)}
         />
       )}
 
@@ -238,6 +256,7 @@ export default function UserManagementPage() {
 // ── Add User Form ──────────────────────────────────────────────
 
 function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
@@ -308,13 +327,6 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
     }
     return Array.from(set).sort();
   }, [schools, state]);
-  const filteredSchools = useMemo(() => {
-    if (!state || !district) return [] as SchoolOption[];
-    return schools.filter(
-      (s) => normState(s.state) === state && s.district === district,
-    );
-  }, [schools, state, district]);
-
   function handleStateChange(value: string) {
     setState(value);
     setDistrict("");
@@ -378,6 +390,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         if (state) payload.state = state;
       }
       const user = await createUser(payload);
+      invalidate('users');
       if (user.tempPassword) {
         setCreatedUser(user);
       } else {
@@ -452,9 +465,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="State" id="user-state">
                         <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="KERALA">Kerala</option>
-                          <option value="KARNATAKA">Karnataka</option>
-                          <option value="TAMIL_NADU">Tamil Nadu</option>
+                          {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
                       <Field label="District" id="user-district">
@@ -463,10 +474,10 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={district}
                           onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={!state}
+                          disabled={districtDisabled(state)}
                         >
                           <option value="">
-                            {!state
+                            {districtDisabled(state)
                               ? "Select a state first"
                               : districtOptions.length === 0
                                 ? "No districts available"
@@ -479,28 +490,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       </Field>
                     </Row>
                     <Field label="School" id="user-school">
-                      <select
-                        id="user-school"
-                        value={schoolId}
-                        onChange={(e) => setSchoolId(e.target.value)}
-                        style={inputStyle}
-                        disabled={!district}
-                      >
-                        <option value="">
-                          {schoolsError
-                            ? "Failed to load schools"
-                            : !state
-                              ? "Select a state first"
-                              : !district
-                                ? "Select a district first"
-                                : filteredSchools.length === 0
-                                  ? "No schools in this district"
-                                  : "Select a school (optional)"}
-                        </option>
-                        {filteredSchools.map((s) => (
-                          <option key={s.id} value={s.id}>{s.name}</option>
-                        ))}
-                      </select>
+                      {schoolsError
+                        ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                        : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code (optional)…" inputStyle={inputStyle} />}
                     </Field>
                   </>
                 )}
@@ -519,9 +511,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="State" id="user-state">
                         <select id="user-state" value={state} onChange={(e) => handleStateChange(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="KERALA">Kerala</option>
-                          <option value="KARNATAKA">Karnataka</option>
-                          <option value="TAMIL_NADU">Tamil Nadu</option>
+                          {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
                     </Row>
@@ -532,10 +522,10 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           value={district}
                           onChange={(e) => handleDistrictChange(e.target.value)}
                           style={inputStyle}
-                          disabled={!state}
+                          disabled={districtDisabled(state)}
                         >
                           <option value="">
-                            {!state
+                            {districtDisabled(state)
                               ? "Select a state first"
                               : districtOptions.length === 0
                                 ? "No districts available"
@@ -547,28 +537,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                         </select>
                       </Field>
                       <Field label="School" id="user-school">
-                        <select
-                          id="user-school"
-                          value={schoolId}
-                          onChange={(e) => setSchoolId(e.target.value)}
-                          style={inputStyle}
-                          disabled={!district}
-                        >
-                          <option value="">
-                            {schoolsError
-                              ? "Failed to load schools"
-                              : !state
-                                ? "Select a state first"
-                                : !district
-                                  ? "Select a district first"
-                                  : filteredSchools.length === 0
-                                    ? "No schools in this district"
-                                    : "Select a school (optional)"}
-                          </option>
-                          {filteredSchools.map((s) => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
+                        {schoolsError
+                          ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                          : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code…" inputStyle={inputStyle} />}
                       </Field>
                     </Row>
                   </>
@@ -579,9 +550,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                   <Field label="State" id="user-state">
                     <select id="user-state" value={state} onChange={(e) => setState(e.target.value)} style={inputStyle}>
                       <option value="">Select…</option>
-                      <option value="KERALA">Kerala</option>
-                      <option value="KARNATAKA">Karnataka</option>
-                      <option value="TAMIL_NADU">Tamil Nadu</option>
+                      {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </Field>
                 )}
@@ -793,8 +762,11 @@ function AssignCourseModal({
   assignedBy: string;
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [courses, setCourses] = useState<Course[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [search, setSearch] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -804,11 +776,17 @@ function AssignCourseModal({
 
   useEffect(() => {
     setCoursesLoading(true);
-    getCourses(student.programme_type ?? undefined)
-      .then((data) => setCourses(data))
-      .catch(() => setCourses([]))
+    Promise.all([
+      getCourses(student.programme_type ?? undefined).catch(() => [] as Course[]),
+      getStudentEnrolments(student.id).catch(() => [] as Course[]),
+    ])
+      .then(([all, enrolled]) => {
+        setCourses(all);
+        setEnrolledCourses(enrolled);
+        setEnrolledIds(new Set(enrolled.map((c) => c.id)));
+      })
       .finally(() => setCoursesLoading(false));
-  }, [student.programme_type]);
+  }, [student.id, student.programme_type]);
 
   const filtered = courses.filter((c) =>
     c.title.toLowerCase().includes(search.toLowerCase())
@@ -821,6 +799,8 @@ function AssignCourseModal({
     setIsAlreadyEnrolled(false);
     try {
       await assignCourse(student.id, selectedCourseId, assignedBy);
+      invalidate('enrolment');
+      setEnrolledIds((prev) => new Set(prev).add(selectedCourseId));
       setSuccess(true);
     } catch (err) {
       // 409 Conflict = already enrolled — show a soft warning, not a red error
@@ -892,6 +872,35 @@ function AssignCourseModal({
           </div>
         ) : (
           <>
+            {/* Already-enrolled summary */}
+            {!coursesLoading && (
+              <div style={{ marginBottom: "12px" }}>
+                <p style={{ ...labelStyle, fontSize: "10px", marginBottom: "6px" }}>
+                  Already enrolled ({enrolledCourses.length})
+                </p>
+                {enrolledCourses.length === 0 ? (
+                  <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                    Not enrolled in any course yet.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                    {enrolledCourses.map((c) => (
+                      <span
+                        key={c.id}
+                        style={{
+                          padding: "3px 10px", borderRadius: "100px", fontSize: "11px", fontWeight: 600,
+                          background: "rgba(10,190,98,0.1)", color: "#0a944e",
+                          border: "1px solid rgba(10,190,98,0.22)",
+                        }}
+                      >
+                        {c.title}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Search */}
             <input
               type="text"
@@ -918,14 +927,16 @@ function AssignCourseModal({
                 </p>
               ) : (
                 filtered.map((course) => {
+                  const enrolled = enrolledIds.has(course.id);
                   const active = selectedCourseId === course.id;
                   return (
                     <div
                       key={course.id}
-                      onClick={() => setSelectedCourseId(course.id)}
+                      onClick={() => { if (!enrolled) setSelectedCourseId(course.id); }}
                       style={{
                         padding: "12px 16px",
-                        cursor: "pointer",
+                        cursor: enrolled ? "not-allowed" : "pointer",
+                        opacity: enrolled ? 0.6 : 1,
                         background: active ? "rgba(10,190,98,0.08)" : "transparent",
                         borderLeft: active ? "3px solid #0abe62" : "3px solid transparent",
                         transition: "all 150ms ease",
@@ -942,9 +953,16 @@ function AssignCourseModal({
                           {course.programme_type} · {course.lesson_count} lesson{course.lesson_count !== 1 ? "s" : ""}
                         </p>
                       </div>
-                      {active && (
+                      {enrolled ? (
+                        <span style={{
+                          fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "100px",
+                          background: "rgba(10,190,98,0.1)", color: "#0a944e", whiteSpace: "nowrap",
+                        }}>
+                          Enrolled
+                        </span>
+                      ) : active ? (
                         <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>
-                      )}
+                      ) : null}
                     </div>
                   );
                 })
@@ -997,6 +1015,7 @@ function AssignBundleModal({
   student: SafeUser;
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [enrolledBundles, setEnrolledBundles] = useState<Bundle[]>([]);
   const [bundlesLoading, setBundlesLoading] = useState(true);
@@ -1029,6 +1048,7 @@ function AssignBundleModal({
     setError(null);
     try {
       const result = await enrolStudentInBundle(selectedBundleId, student.id);
+      invalidate('bundles', 'enrolment');
       setSuccessMsg(`Enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
       setSuccess(true);
     } catch (err) {
@@ -1185,17 +1205,13 @@ function AssignBundleModal({
 
 // ── Bulk Assign Panel ──────────────────────────────────────────
 
-const BULK_STATES = [
-  { value: "TAMIL_NADU",    label: "Tamil Nadu" },
-  { value: "CHHATTISGARH", label: "Chhattisgarh" },
-  { value: "KERALA",        label: "Kerala" },
-];
 
 function BulkAssignPanel({
   onClose,
 }: {
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   // Filters
   const [filterState,    setFilterState]    = useState("");
@@ -1300,6 +1316,7 @@ function BulkAssignPanel({
         course_ids:  Array.from(selectedCourseIds),
         bundle_ids:  Array.from(selectedBundleIds),
       });
+      invalidate('enrolment');
       setShowConfirm(false);
       const nC = selectedCourseIds.size;
       const nB = selectedBundleIds.size;
@@ -1362,16 +1379,16 @@ function BulkAssignPanel({
 
       {/* ── Filter bar ─────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px", marginBottom: "14px" }}>
-        <div>
-          <label style={formLabelStyle}>State</label>
-          <select value={filterState} onChange={(e) => setFilterState(e.target.value)} style={inputStyle}>
-            <option value="">All States</option>
-            {BULK_STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="filter-district" style={formLabelStyle}>District</label>
-          <input id="filter-district" type="text" placeholder="e.g. Chennai" value={filterDistrict} onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle} onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+        <div style={{ gridColumn: "span 2" }}>
+          <label style={formLabelStyle}>State &amp; District</label>
+          <StateDistrictPicker
+            state={filterState}
+            district={filterDistrict}
+            onStateChange={setFilterState}
+            onDistrictChange={setFilterDistrict}
+            blankStateLabel="All States"
+            inputStyle={inputStyle}
+          />
         </div>
         <div>
           <label htmlFor="filter-school" style={formLabelStyle}>School</label>
@@ -1695,6 +1712,27 @@ function isCellRequired(row: Record<string, string>, col: string): boolean {
   return false;
 }
 
+function downloadErroredUsersCsv(
+  result: { skippedRows: Array<Record<string, string>>; errors: string[] },
+  headers: string[],
+) {
+  const cols = [...headers, "error"];
+  const lines = [cols.join(",")];
+  for (const row of result.skippedRows) {
+    const reason = result.errors.find((e) => row.name && e.includes(`"${row.name}"`)) ?? "see report";
+    lines.push([...headers.map((h) => csvEscape(row[h] ?? "")), csvEscape(reason)].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "users_errored_rows.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 // Minimal CSV value escaper
 function csvEscape(val: string): string {
   if (val.includes(",") || val.includes('"') || val.includes("\n")) {
@@ -1704,10 +1742,11 @@ function csvEscape(val: string): string {
 }
 
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
-  const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
+  const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>>; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
   const [templateRole, setTemplateRole] = useState<string>("COMMON");
   const [parseError,   setParseError]   = useState<string | null>(null);
   const [csvHeaders,   setCsvHeaders]   = useState<string[]>([]);
@@ -1779,10 +1818,11 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       const blob    = new Blob([csvContent], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "upload.csv", { type: "text/csv" });
       const res     = await bulkUploadUsers(newFile);
+      invalidate('users');
       setResult(res);
       onDone();
     } catch (err) {
-      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."] });
+      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."], corrections: [], skippedRows: [] });
     } finally {
       setUploading(false);
     }
@@ -1809,6 +1849,17 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const errorCount = rowErrors.filter((e) => e.length  > 0).length;
   const readyRows  = editableRows.filter((_, i) => rowErrors[i].length === 0);
   const hasData    = csvHeaders.length > 0 && editableRows.length > 0;
+
+  // Geo resolution (runs only when state/district columns exist in CSV)
+  const resolved = editableRows.map((r) => {
+    const rs = resolveState(r.state ?? "");
+    const state = rs.status === "exact" || rs.status === "corrected" ? rs.value : (r.state ?? "");
+    const rd = resolveDistrict(state, r.district ?? "");
+    const district = rd.status === "exact" || rd.status === "corrected" ? rd.value : (r.district ?? "");
+    return { state, district, stateStatus: rs, districtStatus: rd };
+  });
+  const resolvedRows = editableRows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
+  const readyResolved = resolvedRows.filter((_, i) => rowErrors[i].length === 0);
 
   return (
     <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
@@ -1882,7 +1933,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                 <>
                   <button
                     id="bulk-submit-btn"
-                    onClick={() => void doUpload(readyRows)}
+                    onClick={() => void doUpload(readyResolved)}
                     disabled={uploading || readyCount === 0}
                     style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1, cursor: uploading || readyCount === 0 ? "not-allowed" : "pointer" }}
                   >
@@ -1895,7 +1946,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
               ) : (
                 <button
                   id="bulk-submit-btn"
-                  onClick={() => void doUpload(editableRows)}
+                  onClick={() => void doUpload(resolvedRows)}
                   disabled={uploading}
                   style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading ? 0.5 : 1, cursor: uploading ? "not-allowed" : "pointer" }}
                 >
@@ -1967,6 +2018,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                           cursor: "text",
                         };
 
+                        const geoRes = col === "state" ? resolved[rowIdx].stateStatus
+                                     : col === "district" ? resolved[rowIdx].districtStatus : null;
+
                         return (
                           <td key={col} style={cellBase} title={tooltipMsg}>
                             {isDropRole ? (
@@ -1988,6 +2042,27 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 <option value="UG">UG</option>
                                 <option value="PG">PG</option>
                               </select>
+                            ) : geoRes && geoRes.status === "ambiguous" && geoRes.candidates ? (
+                              <select
+                                value={val}
+                                onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #b7791f" }}
+                              >
+                                <option value={val}>{val} (keep)</option>
+                                {geoRes.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            ) : geoRes && geoRes.status === "corrected" ? (
+                              <>
+                                <input
+                                  type="text"
+                                  aria-label={col}
+                                  value={val}
+                                  onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                  style={{ ...controlBase, border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #0abe62" }}
+                                  placeholder={cellErr ? "Required" : ""}
+                                />
+                                <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
+                              </>
                             ) : (
                               <input
                                 type="text"
@@ -2033,6 +2108,21 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
+          )}
+          {result.corrections.length > 0 && (
+            <details style={{ marginTop: "8px" }}>
+              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+                {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
+              </summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
+                {result.corrections.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </details>
+          )}
+          {result.skippedRows.length > 0 && (
+            <button onClick={() => downloadErroredUsersCsv(result, csvHeaders)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
+              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            </button>
           )}
           {result.credentials?.some((c) => c.tempPassword) && (
             <div style={{ marginTop: "16px", padding: "12px", background: "rgba(10,190,98,0.08)", borderRadius: "8px" }}>
@@ -2165,3 +2255,163 @@ const thStyle: React.CSSProperties = {
 const tdStyle: React.CSSProperties = {
   padding: "12px 20px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px",
 };
+
+// ── Assign Batch Modal ─────────────────────────────────────────
+
+function AssignBatchModal({
+  student,
+  onClose,
+}: {
+  student: SafeUser;
+  onClose: () => void;
+}) {
+  const invalidate = useInvalidate();
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [selectedBatchId, setSelectedBatchId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  useEffect(() => {
+    getBatches("ACTIVE")
+      .then(setBatches)
+      .catch(() => setBatches([]))
+      .finally(() => setBatchesLoading(false));
+  }, []);
+
+  const filtered = batches.filter((b) =>
+    [b.name, b.school_name].some((v) => (v ?? "").toLowerCase().includes(search.toLowerCase()))
+  );
+
+  async function handleAssign() {
+    if (!selectedBatchId) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const result = await addBatchMembers(selectedBatchId, [student.id]);
+      invalidate('batches', 'enrolment');
+      if (result.enrolled === 0) {
+        setError("Student is already in this batch.");
+      } else {
+        setSuccess(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add to batch.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", backdropFilter: "blur(4px)", zIndex: 50 }}
+      />
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
+        <div style={{
+          background: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+          opacity: 0, transform: "translateY(12px)",
+          animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
+            <div>
+              <p style={labelStyle}>Add to Batch</p>
+              <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>{student.name}</h3>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
+              </p>
+            </div>
+            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          </div>
+
+          {success ? (
+            <div>
+              <div style={{
+                background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
+                borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
+              }}>
+                <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
+                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+                  Added to batch
+                </p>
+                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>
+                  All batch content (courses, bundles, tests) is now assigned to this student.
+                </p>
+              </div>
+              <button onClick={onClose} style={{ ...primaryButton, width: "100%" }}>Done</button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="text"
+                autoFocus
+                aria-label="Search batches"
+                placeholder="Search batches…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ ...inputStyle, marginBottom: "12px" }}
+              />
+
+              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", marginBottom: "16px" }}>
+                {batchesLoading ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading batches…</p>
+                ) : filtered.length === 0 ? (
+                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                    {search ? "No batches match your search." : "No active batches available."}
+                  </p>
+                ) : (
+                  filtered.map((batch) => {
+                    const active = selectedBatchId === batch.id;
+                    return (
+                      <div
+                        key={batch.id}
+                        onClick={() => { setSelectedBatchId(batch.id); setError(null); }}
+                        style={{
+                          padding: "12px 16px", cursor: "pointer",
+                          background: active ? "rgba(10,190,98,0.08)" : "transparent",
+                          borderLeft: active ? "3px solid #0abe62" : "3px solid transparent",
+                          transition: "all 150ms ease",
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                        }}
+                      >
+                        <div>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{batch.name}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            {batch.school_name ?? "Independent"} · {batch.member_count} student{batch.member_count !== 1 ? "s" : ""} · {batch.course_count + batch.bundle_count + batch.test_count} item{batch.course_count + batch.bundle_count + batch.test_count !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        {active && <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {error && (
+                <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+              )}
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleAssign()}
+                  disabled={!selectedBatchId || submitting}
+                  style={{ ...primaryButton, flex: 2, opacity: (!selectedBatchId || submitting) ? 0.5 : 1 }}
+                >
+                  {submitting ? "Adding…" : "Add to Batch"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}

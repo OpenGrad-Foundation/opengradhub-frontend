@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -64,9 +64,9 @@ export default function SubmissionsPage() {
     return (
       <div style={glassCard}>
         <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error ?? "Not found."}</p>
-        <Link href="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
+        <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
           ← Back
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -80,9 +80,9 @@ export default function SubmissionsPage() {
       <div>
         {/* Header */}
         <div style={{ marginBottom: "20px" }}>
-          <Link href="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+          <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
             ← Assignments
-          </Link>
+          </BackLink>
           <div style={{ marginTop: "10px" }}>
             <p style={S.label}>Grading</p>
             <h1 style={{ ...S.heading, fontSize: "24px", margin: "4px 0 4px" }}>{assignment.title}</h1>

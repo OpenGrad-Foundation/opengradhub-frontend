@@ -19,7 +19,7 @@ function toTasks(r: TasksResponse): TaskRow[] {
     icon: "doubt",
     title: d.title,
     subtitle: "Escalated to you",
-    href: `/dashboard/doubts/${d.id}`,
+    href: `/dashboard/doubts?focus=${d.id}`,
     actionLabel: "Review",
   }));
   const checkIns: TaskRow[] = (r.overdueCheckIns ?? []).map((f) => ({

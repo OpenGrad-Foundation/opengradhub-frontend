@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { submitQuizAttempt, advanceQuizSection, ApiError } from '@/lib/api';
 import { listPendingSubmits, clearDraft, type QuizDraft } from '@/lib/quiz-draft';
+import { useInvalidate } from '@/lib/mutations/invalidation';
 
 // Skip drafts whose submit is likely still in flight in another tab.
 const STALE_MS = 15_000;
@@ -33,6 +34,7 @@ export function QuizSubmitRecovery() {
   const [pending, setPending] = useState<QuizDraft[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -55,6 +57,7 @@ export function QuizSubmitRecovery() {
         await advanceQuizSection(current.attempt_id, payload);
       } else {
         await submitQuizAttempt(current.attempt_id, payload);
+        invalidate('quizAttempt');
       }
       await clearDraft(current.attempt_id).catch(() => {});
       setPending((p) => p.slice(1));

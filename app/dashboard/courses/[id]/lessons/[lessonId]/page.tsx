@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import * as Sentry from "@sentry/nextjs";
 import DOMPurify from "isomorphic-dompurify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getLessonById,
@@ -16,6 +18,8 @@ import {
 } from "@/lib/api";
 import { qk } from "@/lib/queries/keys";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { getBackHref, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── YouTube IFrame API type declarations ───────────────────────
 // (Minimal — only what we use. Avoids a third-party @types package.)
@@ -122,11 +126,15 @@ export default function LessonPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
+  const currentUrl = useCurrentUrl();
+  const from = useSearchParams().get("from");
+  // Sibling-lesson nav re-attaches the original origin so BackLink keeps working.
+  const carryFrom = (href: string) => (from ? `${href}?from=${encodeURIComponent(from)}` : href);
   const studentId = userData?.user?.id ?? "";
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
   const [lesson, setLesson]           = useState<LessonDetail | null>(null);
-  const [attempts, setAttempts]       = useState<QuizAttempt[]>([]);
+  const [attemptsByQuiz, setAttemptsByQuiz] = useState<Record<string, QuizAttempt[]>>({});
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [lockingMode, setLockingMode] = useState<string>("FREE");
@@ -134,7 +142,7 @@ export default function LessonPage() {
 
   // Progress tracking state
   const [watchedPct, setWatchedPct]   = useState(0);
-  const [playerError, setPlayerError] = useState(false);
+  const [playerError, setPlayerError] = useState<number | null>(null);
   const [playerFrameNonce, setPlayerFrameNonce] = useState(0);
   const completionFiredRef   = useRef(false);
   const coursesInvalidatedRef = useRef(false);
@@ -180,14 +188,21 @@ export default function LessonPage() {
         setWatchedPct(l.watched_percent ?? 0);
         completionFiredRef.current = Boolean(l.is_complete);
 
-        const [course, quizAttempts] = await Promise.all([
+        const quizIds = l.module_quiz_ids ?? [];
+        const [course, ...attemptLists] = await Promise.all([
           getCourseById(l.course_id).catch(() => null),
-          l.module_quiz_id && studentId ? getQuizAttempts(l.module_quiz_id, studentId).catch(() => []) : Promise.resolve([]),
+          ...quizIds.map((qid) =>
+            studentId ? getQuizAttempts(qid, studentId).catch(() => []) : Promise.resolve([]),
+          ),
         ]);
 
         if (cancelled) return;
         if (course) setLockingMode(course.locking_mode ?? "FREE");
-        setAttempts(quizAttempts as QuizAttempt[]);
+        const map: Record<string, QuizAttempt[]> = {};
+        quizIds.forEach((qid, i) => {
+          map[qid] = (attemptLists[i] ?? []) as QuizAttempt[];
+        });
+        setAttemptsByQuiz(map);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load lesson.");
@@ -258,14 +273,14 @@ export default function LessonPage() {
   const initPlayer = useCallback(async (videoId: string) => {
     const initToken = ++playerInitTokenRef.current;
     videoIdRef.current = videoId;
-    setPlayerError(false);
+    setPlayerError(null);
 
     try {
       await ensureYouTubeIframeApi();
     } catch (loadError) {
       if (playerInitTokenRef.current !== initToken) return;
       console.error("[YT Player] API load failed:", loadError);
-      setPlayerError(true);
+      setPlayerError(-1);
       return;
     }
 
@@ -296,7 +311,7 @@ export default function LessonPage() {
         onReady: () => {
           if (playerInitTokenRef.current !== initToken) return;
           reinitAttemptsRef.current = 0;
-          setPlayerError(false);
+          setPlayerError(null);
         },
         onStateChange: (e) => {
           if (playerInitTokenRef.current !== initToken) return;
@@ -315,11 +330,24 @@ export default function LessonPage() {
         onError: (e) => {
           if (playerInitTokenRef.current !== initToken) return;
 
-          console.error("[YT Player] error code:", e.data);
+          // YT error codes:
+          //   2   — invalid videoId param
+          //   5   — HTML5 player error (transient)
+          //   100 — video not found / private
+          //   101 — embed disabled by video owner
+          //   150 — same as 101 (different host)
+          // 100/101/150/2 are permanent. Retry only helps for 5.
+          const permanent = e.data === 2 || e.data === 100 || e.data === 101 || e.data === 150;
+          if (permanent) {
+            destroyPlayer();
+            setPlayerError(e.data);
+            return;
+          }
+
           reinitAttemptsRef.current += 1;
           if (reinitAttemptsRef.current >= 3) {
             destroyPlayer();
-            setPlayerError(true);
+            setPlayerError(e.data);
             return;
           }
 
@@ -374,7 +402,8 @@ export default function LessonPage() {
     const nextId = lesson?.next_lesson_id;
     if (!nextId || watchedPct < 60) return;
     const unlocked = isComplete || watchedPct >= 80;
-    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && !unlocked;
+    const crossBlocked = Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
+    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && (!unlocked || crossBlocked);
     if (seqLocked) return;
     nextPrefetchedRef.current = true;
     void queryClient.prefetchQuery({
@@ -391,9 +420,9 @@ export default function LessonPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Lesson not found."}</p>
-        <Link href={`/dashboard/courses/${courseId}`} style={{ ...S.btn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ ...S.btn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
           ← Back to Course
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -402,16 +431,29 @@ export default function LessonPage() {
   const isUnlocked = isComplete || watchedPct >= 80;
   const isSequentialCourse = lockingMode === "SEQUENTIAL";
   const isStudent = roleCode === "STUDENT";
-  // In sequential mode, students must complete this lesson before navigating to the next
-  const nextLessonLocked = isStudent && isSequentialCourse && !isUnlocked;
+  // Non-students view lessons as a read-only preview (no quiz-taking, no gating).
+  const isPreview = !isStudent;
+  // In sequential mode, students must complete this lesson before navigating to the
+  // next; AND if the next lesson starts a new module, the current module must be
+  // fully complete (all lessons + all module quizzes passed) to cross over.
+  const crossModuleBlocked =
+    isStudent && isSequentialCourse && Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
+  const nextLessonLocked = isStudent && isSequentialCourse && (!isUnlocked || crossModuleBlocked);
+  // Module test gate (sequential): EVERY lesson in the module must be complete,
+  // not just this one. Other lessons come from the server; this lesson uses the
+  // live watched% so finishing the last video unlocks the test without a refetch.
+  // Strict === false: a cached pre-upgrade payload without the field falls back
+  // to the old 80% gate — the backend still blocks the attempt either way.
+  const quizBlockedByOtherLessons =
+    isStudent && isSequentialCourse && lesson.module_other_lessons_complete === false;
 
   return (
     <div>
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
-        <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>My Courses</Link>
+        <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{isPreview ? "Courses" : "My Courses"}</Link>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
-        <Link href={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</Link>
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</BackLink>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
         <span style={{ color: "rgba(3,72,82,0.55)" }}>{lesson.title}</span>
       </div>
@@ -445,14 +487,37 @@ export default function LessonPage() {
             <div id="yt-player-wrapper" />
           </div>
 
-          {/* Fix 5: visible error state after 3 failed re-init attempts */}
-          {playerError && (
+          {/* Permanent YT failures (embed disabled, video unavailable) and
+              repeated transient failures both surface here. */}
+          {playerError !== null && (
             <div style={{
               marginTop: "10px", padding: "10px 14px", borderRadius: "10px",
               background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
               fontSize: "13px", color: "#c53030", fontWeight: 500, textAlign: "center",
+              display: "flex", flexDirection: "column", gap: "6px",
             }}>
-              Video failed to load. Reload the page to try again.
+              <span>This class is not available right now.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  const fb = Sentry.getFeedback?.();
+                  if (!fb) return;
+                  const ctx = `Lesson: ${lesson?.title ?? lesson?.id ?? "unknown"}\nVideo: ${lesson?.video_id ?? "unknown"}\nYT error code: ${playerError}`;
+                  fb.createForm().then((form) => {
+                    form.appendToDom();
+                    form.open();
+                    const ta = document.querySelector<HTMLTextAreaElement>("textarea[name='message']");
+                    if (ta) ta.value = ctx;
+                  }).catch(() => {});
+                }}
+                style={{
+                  background: "none", border: "none", color: "#c53030",
+                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  textDecoration: "underline", padding: 0,
+                }}
+              >
+                Report?
+              </button>
             </div>
           )}
 
@@ -502,53 +567,62 @@ export default function LessonPage() {
             )}
           </div>
 
-          {/* Take Module Test */}
-          {lesson.module_quiz_id && (
+          {/* Take Module Test(s) — a module can have several. Hidden while other
+              lessons in the module are incomplete: the quiz isn't the next
+              milestone yet, so the Next Lesson CTA below is the real action. */}
+          {lesson.module_quiz_ids.length > 0 && !quizBlockedByOtherLessons && (
             <div style={glassCard}>
-              <p style={S.sectionLabel}>Module Quiz</p>
-              {isUnlocked ? (
-                <>
-                  <Link
-                    href={`/dashboard/quiz/${lesson.module_quiz_id}`}
-                    style={{
-                      ...S.btn, display: "block", textAlign: "center",
-                      textDecoration: "none", marginTop: "10px",
-                    }}
-                  >
-                    Take Module Test →
-                  </Link>
-                  {/* Previous attempts */}
-                  {attempts.length > 0 && (
-                    <div style={{ marginTop: "14px" }}>
-                      <p style={{ ...S.sectionLabel, marginBottom: "8px" }}>Previous Scores</p>
-                      {attempts.slice(0, 5).map((a) => (
-                        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "12px" }}>
-                          <span style={{ color: "rgba(3,72,82,0.55)" }}>
-                            Attempt {a.attempt_number}
-                          </span>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            {a.is_complete ? (
-                              <>
-                                <span style={{ fontWeight: 700, color: "#034852" }}>
-                                  {a.score ?? "—"} / {a.max_score ?? "—"}
+              <p style={S.sectionLabel}>{lesson.module_quiz_ids.length > 1 ? "Module Quizzes" : "Module Quiz"}</p>
+              {isPreview ? (
+                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", marginTop: "10px" }}>
+                  {lesson.module_quiz_ids.length} module quiz{lesson.module_quiz_ids.length !== 1 ? "zes" : ""} attached. Quiz-taking is available to students only.
+                </p>
+              ) : isUnlocked ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "10px" }}>
+                  {lesson.module_quiz_ids.map((quizId, qi) => {
+                    const attempts = attemptsByQuiz[quizId] ?? [];
+                    return (
+                      <div key={quizId}>
+                        <Link
+                          href={withFrom(`/dashboard/quiz/${quizId}`, currentUrl)}
+                          style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
+                        >
+                          {lesson.module_quiz_ids.length > 1 ? `Take Module Quiz ${qi + 1} →` : "Take Module Quiz →"}
+                        </Link>
+                        {attempts.length > 0 && (
+                          <div style={{ marginTop: "14px" }}>
+                            <p style={{ ...S.sectionLabel, marginBottom: "8px" }}>Previous Scores</p>
+                            {attempts.slice(0, 5).map((a) => (
+                              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "12px" }}>
+                                <span style={{ color: "rgba(3,72,82,0.55)" }}>
+                                  Attempt {a.attempt_number}
                                 </span>
-                                <span style={{
-                                  padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-                                  background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.1)",
-                                  color: a.passed ? "#0abe62" : "#dc2626",
-                                }}>
-                                  {a.passed ? "Pass" : "Fail"}
-                                </span>
-                              </>
-                            ) : (
-                              <span style={{ color: "rgba(3,72,82,0.4)" }}>In progress</span>
-                            )}
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                  {a.is_complete ? (
+                                    <>
+                                      <span style={{ fontWeight: 700, color: "#034852" }}>
+                                        {a.score ?? "—"} / {a.max_score ?? "—"}
+                                      </span>
+                                      <span style={{
+                                        padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
+                                        background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.1)",
+                                        color: a.passed ? "#0abe62" : "#dc2626",
+                                      }}>
+                                        {a.passed ? "Pass" : "Fail"}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span style={{ color: "rgba(3,72,82,0.4)" }}>In progress</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div style={{ marginTop: "10px" }}>
                   <div style={{
@@ -567,7 +641,7 @@ export default function LessonPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {lesson.prev_lesson_id && (
               <Link
-                href={`/dashboard/courses/${courseId}/lessons/${lesson.prev_lesson_id}`}
+                href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.prev_lesson_id}`)}
                 style={{ ...S.outlineBtn, display: "block", textAlign: "center", textDecoration: "none" }}
               >
                 ← Previous Lesson
@@ -581,19 +655,21 @@ export default function LessonPage() {
                   fontSize: "13px", color: "rgba(3,72,82,0.45)", textAlign: "center",
                   cursor: "not-allowed",
                 }}>
-                  🔒 Watch 80% to unlock Next Lesson
+                  {crossModuleBlocked
+                    ? "🔒 Complete this module's lessons & quiz to start the next module"
+                    : "🔒 Watch 80% to unlock Next Lesson"}
                 </div>
               ) : (
                 <Link
-                  href={`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`}
+                  href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`)}
                   style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
                 >
-                  Next Lesson →
+                  {lesson.next_in_new_module ? "Next Module →" : "Next Lesson →"}
                 </Link>
               )
             )}
             <Link
-              href={`/dashboard/courses/${courseId}`}
+              href={getBackHref(from, `/dashboard/courses/${courseId}`)}
               style={{ textAlign: "center", fontSize: "12px", color: "#209379", textDecoration: "none", fontWeight: 600, padding: "6px 0" }}
             >
               ↑ Back to Course Overview

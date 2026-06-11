@@ -1,11 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getBundleById,
+  deleteBundle,
   addCourseToBundle,
   removeCourseFromBundle,
   reorderBundleCourses,
@@ -26,13 +31,18 @@ import {
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BundleDetailPage() {
   const { id: bundleId } = useParams<{ id: string }>();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidate();
   const { isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const [deleting, setDeleting] = useState(false);
 
   const [bundle, setBundle] = useState<BundleDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,6 +76,24 @@ export default function BundleDetailPage() {
     reload().finally(() => setLoading(false));
   }, [userLoading, reload]);
 
+  const handleDelete = useCallback(async () => {
+    if (!bundle) return;
+    const ok = window.confirm(
+      `Delete bundle "${bundle.name}"? This removes the bundle and its course/quiz groupings. Students keep access to courses they were already enrolled in. This cannot be undone.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteBundle(bundleId);
+      invalidate('bundles');
+      await queryClient.invalidateQueries({ queryKey: ["og", "bundles"] });
+      router.push("/dashboard/bundles");
+    } catch (e) {
+      setGlobalError(e instanceof Error ? e.message : "Failed to delete bundle.");
+      setDeleting(false);
+    }
+  }, [bundle, bundleId, queryClient, router]);
+
   if (userLoading || loading) return <Shell><LoadingCard /></Shell>;
   if (!has(PERM.bundles.edit)) {
     return (
@@ -86,20 +114,27 @@ export default function BundleDetailPage() {
   return (
     <Shell>
       {/* ── Header ───────────────────────────────────────────── */}
-      <Link href="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
         ← Back to Bundles
-      </Link>
-      <div style={{ margin: "16px 0 28px" }}>
-        <p style={labelSt}>Bundle</p>
-        <h1 style={{ ...headingSt, fontSize: "26px", margin: "4px 0 0" }}>{bundle.name}</h1>
-        {bundle.description && (
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "6px" }}>{bundle.description}</p>
-        )}
-        <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-          <Chip icon="📚" value={bundle.courses.length} label="course" />
-          <Chip icon="👤" value={bundle.enrolled_students.length} label="student" />
-          <Chip icon="📝" value={bundle.tests.length} label="test" />
+      </BackLink>
+      <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
+        <div>
+          <p style={labelSt}>Bundle</p>
+          <h1 style={{ ...headingSt, fontSize: "26px", margin: "4px 0 0" }}>{bundle.name}</h1>
+          {bundle.description && (
+            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "6px" }}>{bundle.description}</p>
+          )}
+          <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+            <Chip icon="📚" value={bundle.courses.length} label="course" />
+            <Chip icon="👤" value={bundle.enrolled_students.length} label="student" />
+            <Chip icon="📝" value={bundle.tests.length} label="quiz" />
+          </div>
         </div>
+        {has(PERM.bundles.delete) && (
+          <button onClick={handleDelete} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
+            {deleting ? "Deleting…" : "Delete Bundle"}
+          </button>
+        )}
       </div>
 
       {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
@@ -144,11 +179,11 @@ export default function BundleDetailPage() {
 
       {/* ── Section 3: Tests ─────────────────────────────────── */}
       <Section
-        title="Tests in this Bundle"
-        subtitle="Published global tests attached to this bundle. Enrolled students can see and take these from their Assessments page."
+        title="Quizzes in this Bundle"
+        subtitle="Published global quizzes attached to this bundle. Enrolled students can see and take these from their Quizzes page."
         action={
           <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
-            + Add Test
+            + Add Quiz
           </button>
         }
       >
@@ -219,6 +254,7 @@ function CourseList({
   onReordered: () => void;
   setGlobalError: (e: string | null) => void;
 }) {
+  const invalidate = useInvalidate();
   const [localCourses, setLocalCourses] = useState(courses);
   const dragIdx = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
@@ -236,6 +272,7 @@ function CourseList({
     dragIdx.current = null;
     try {
       await reorderBundleCourses(bundleId, next.map((c) => c.id));
+      invalidate('bundles');
       onReordered();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Reorder failed.");
@@ -247,6 +284,7 @@ function CourseList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nStudents already enrolled will keep their individual course access.`)) return;
     try {
       await removeCourseFromBundle(bundleId, courseId);
+      invalidate('bundles');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
@@ -324,10 +362,12 @@ function StudentTable({
   onRemoved: () => void;
   setGlobalError: (e: string | null) => void;
 }) {
+  const invalidate = useInvalidate();
   async function handleRemove(studentId: string, studentName: string) {
     if (!confirm(`Remove ${studentName} from this bundle? They will lose access to courses not assigned elsewhere.`)) return;
     try {
       await removeStudentFromBundle(bundleId, studentId);
+      invalidate('bundles', 'enrolment');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove student.");
@@ -354,18 +394,34 @@ function StudentTable({
         <tbody>
           {students.map((s) => (
             <tr key={s.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)" }}>
-              <td style={tdSt}><strong style={{ color: "#034852" }}>{s.name}</strong></td>
+              <td style={tdSt}>
+                <strong style={{ color: "#034852" }}>{s.name}</strong>
+                {s.via_batch_name && (
+                  <span style={{ marginLeft: "8px", padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.65)" }}>
+                    via {s.via_batch_name}
+                  </span>
+                )}
+              </td>
               <td style={tdSt}>{s.roll_number ?? "—"}</td>
               <td style={tdSt}>{s.email || "—"}</td>
               <td style={tdSt}>{new Date(s.enrolled_at).toLocaleDateString()}</td>
               <td style={{ ...tdSt, textAlign: "right" }}>
-                <button
-                  onClick={() => void handleRemove(s.id, s.name)}
-                  style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
-                  title={`Remove ${s.name} from bundle`}
-                >
-                  Remove
-                </button>
+                {s.via_batch_name ? (
+                  <span
+                    style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", fontWeight: 600 }}
+                    title="Granted via a batch — remove the student or bundle from the batch instead"
+                  >
+                    Managed by batch
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => void handleRemove(s.id, s.name)}
+                    style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
+                    title={`Remove ${s.name} from bundle`}
+                  >
+                    Remove
+                  </button>
+                )}
               </td>
             </tr>
           ))}
@@ -386,6 +442,7 @@ function AddCourseModal({
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
+  const invalidate = useInvalidate();
   const [allCourses,    setAllCourses]    = useState<Course[]>([]);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [search,        setSearch]        = useState("");
@@ -438,6 +495,7 @@ function AddCourseModal({
         const result = await addCourseToBundle(bundleId, c.id);
         totalStudentsEnrolled += result.students_enrolled;
       }
+      invalidate('bundles');
       const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
       const msg = totalStudentsEnrolled > 0
         ? `${noun} added and ${totalStudentsEnrolled} student${totalStudentsEnrolled !== 1 ? "s" : ""} enrolled.`
@@ -565,6 +623,7 @@ function AssignStudentModal({
   onClose: () => void;
   onAssigned: (msg: string) => void;
 }) {
+  const invalidate = useInvalidate();
   const [students, setStudents] = useState<SafeUser[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [search, setSearch] = useState("");
@@ -590,6 +649,7 @@ function AssignStudentModal({
     setError(null);
     try {
       const result = await enrolStudentInBundle(bundleId, selected.id);
+      invalidate('bundles', 'enrolment');
       onAssigned(`${selected.name} enrolled in bundle (${result.courses_enrolled} course${result.courses_enrolled !== 1 ? "s" : ""} assigned).`);
     } catch (e) {
       const status = (e instanceof Error && "status" in e) ? (e as { status: number }).status : 0;
@@ -666,20 +726,24 @@ function TestList({
   onRemoved: () => void;
   setGlobalError: (e: string | null) => void;
 }) {
+  const invalidate = useInvalidate();
+  const { has } = usePermissions();
+  const currentUrl = useCurrentUrl();
   async function handleRemove(quizId: string, title: string) {
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
       await removeTestFromBundle(bundleId, quizId);
+      invalidate('bundles');
       onRemoved();
     } catch (e) {
-      setGlobalError(e instanceof Error ? e.message : "Failed to remove test.");
+      setGlobalError(e instanceof Error ? e.message : "Failed to remove quiz.");
     }
   }
 
   if (tests.length === 0) {
     return (
       <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
-        No tests yet. Click &quot;+ Add Test&quot; to attach a global test.
+        No quizzes yet. Click &quot;+ Add Quiz&quot; to attach a global quiz.
       </p>
     );
   }
@@ -714,6 +778,20 @@ function TestList({
           }}>
             {test.published ? "Published" : "Draft"}
           </span>
+          {has(PERM.test_bank.edit) && (
+            <Link
+              href={withFrom(`/dashboard/quiz-builder/${test.id}`, currentUrl)}
+              style={{
+                flexShrink: 0, padding: "5px 12px", borderRadius: "8px",
+                border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent",
+                color: "#034852", fontWeight: 600, fontSize: "12px",
+                textDecoration: "none", whiteSpace: "nowrap",
+              }}
+              title="Edit questions & settings in the builder"
+            >
+              Edit →
+            </Link>
+          )}
           <button
             onClick={() => void handleRemove(test.id, test.title)}
             style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
@@ -737,6 +815,7 @@ function AddTestModal({
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
+  const invalidate = useInvalidate();
   const [quizzes, setQuizzes] = useState<Omit<Quiz, "questions">[]>([]);
   const [loadingQuizzes, setLoadingQuizzes] = useState(true);
   const [search, setSearch] = useState("");
@@ -761,30 +840,31 @@ function AddTestModal({
     setError(null);
     try {
       await addTestToBundle(bundleId, selected.id);
+      invalidate('bundles');
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add test.");
+      setError(e instanceof Error ? e.message : "Failed to add quiz.");
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <Modal onClose={onClose} title="Add Test to Bundle">
+    <Modal onClose={onClose} title="Add Quiz to Bundle">
       <input
         autoFocus
         type="text"
-        placeholder="Search published global tests…"
+        placeholder="Search published global quizzes…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ ...inputSt, marginBottom: "12px" }}
       />
       <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
         {loadingQuizzes ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading tests…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading quizzes…</p>
         ) : filtered.length === 0 ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
-            {search ? "No matching tests." : "No published global tests available."}
+            {search ? "No matching quizzes." : "No published global quizzes available."}
           </p>
         ) : filtered.map((q) => {
           const active = selected?.id === q.id;
@@ -820,7 +900,7 @@ function AddTestModal({
           disabled={!selected || submitting}
           style={{ ...primaryBtnSm, opacity: (!selected || submitting) ? 0.45 : 1 }}
         >
-          {submitting ? "Adding…" : "Add Test"}
+          {submitting ? "Adding…" : "Add Quiz"}
         </button>
       </div>
     </Modal>
@@ -882,7 +962,7 @@ function Chip({ icon, value, label }: { icon: string; value: number; label: stri
       background: "rgba(3,72,82,0.06)", fontSize: "12px",
       fontWeight: 600, color: "#034852",
     }}>
-      {icon} {value} {label}{value !== 1 ? "s" : ""}
+      {icon} {value} {label}{value !== 1 ? (label.endsWith("z") ? "zes" : "s") : ""}
     </span>
   );
 }
@@ -921,6 +1001,14 @@ const primaryBtn: React.CSSProperties = {
   color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
   fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
   boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
+};
+
+const dangerBtn: React.CSSProperties = {
+  padding: "9px 18px", borderRadius: "10px",
+  border: "1px solid rgba(229,62,62,0.35)",
+  background: "rgba(229,62,62,0.06)",
+  color: "#c53030", fontFamily: "var(--font-heading)", fontWeight: 700,
+  fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
 };
 
 const primaryBtnSm: React.CSSProperties = {

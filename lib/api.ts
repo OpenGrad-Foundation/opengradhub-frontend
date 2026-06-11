@@ -315,7 +315,7 @@ export async function downloadAnalyticsStudentsCsv(
   studentIds?: string[],
   includeMarks?: boolean,
 ): Promise<{ blob: Blob; filename: string }> {
-  const response = await apiFetch(`${API_BASE_URL}/analytics/students/export/csv`, {
+  const response = await apiFetch(`${API_BASE_URL}/analytics/students/export`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -336,13 +336,11 @@ export async function downloadAnalyticsStudentsCsv(
     );
   }
 
-  const blob = await response.blob();
-  const header = response.headers.get("content-disposition");
-  let filename = "opengrad_export.csv";
-  if (header) {
-    const match = /filename="?([^";]+)"?/i.exec(header);
-    if (match?.[1]) filename = match[1];
-  }
+  // Backend returns JSON { filename, data } where data is the CSV string — not a
+  // binary blob with a Content-Disposition header. Build the Blob from data.
+  const body = (await response.json()) as { filename?: string; data?: string };
+  const blob = new Blob([body.data ?? ""], { type: "text/csv;charset=utf-8;" });
+  const filename = body.filename || "opengrad_export.csv";
 
   return { blob, filename };
 }
@@ -601,6 +599,26 @@ export async function assignCourse(
 }
 
 /**
+ * Remove a single student's enrolment from a single course.
+ */
+export async function unassignCourse(
+  studentId: string,
+  courseId: string,
+): Promise<{ removed: true; student_id: string; course_id: string }> {
+  const response = await apiFetch(`${API_BASE_URL}/enrolments`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ student_id: studentId, course_id: courseId }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to remove student from course.", response.status);
+  }
+  return (await response.json()) as { removed: true; student_id: string; course_id: string };
+}
+
+/**
  * Get all courses a student is enrolled in.
  */
 export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
@@ -781,7 +799,7 @@ export type ModuleWithProgress = {
   lessons: LessonWithProgress[];
   is_module_complete: boolean;
   is_locked: boolean;
-  module_quiz: { id: string; title: string; published: boolean } | null;
+  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
 };
 
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
@@ -987,6 +1005,35 @@ export async function deleteQuestion(id: string): Promise<void> {
   }
 }
 
+export type BulkQuestionResult = {
+  created: number;
+  skipped: number;
+  errors: string[];
+  skippedRows: Array<Record<string, string>>;
+};
+
+/** CSV bulk upload to the question bank. `createdBy` = current user's DB id. */
+export async function bulkUploadQuestions(file: File, createdBy?: string): Promise<BulkQuestionResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (createdBy) formData.append("created_by", createdBy);
+  const response = await apiFetch(`${API_BASE_URL}/questions/bulk`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to upload questions.", response.status);
+  }
+  return (await response.json()) as BulkQuestionResult;
+}
+
+/** Download URL for the bulk question upload CSV template. */
+export function getQuestionTemplateUrl(): string {
+  return `${API_BASE_URL}/questions/template`;
+}
+
 // ── Live Classes API ───────────────────────────────────────────
 
 export type LiveClass = {
@@ -1043,6 +1090,7 @@ export async function createLiveClass(payload: {
   meeting_url: string;
   course_id?: string;
   programme_type?: string;
+  batch_ids?: string[];
 }): Promise<LiveClass> {
   const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
     method: "POST",
@@ -1109,6 +1157,17 @@ export type Assignment = {
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
+  /** The caller's own submission + grade (only populated by getAssignmentById). */
+  my_submission?: {
+    response_text: string | null;
+    file_urls: string[];
+    status: string;
+    score: number | null;
+    feedback: string | null;
+    graded_at: string | null;
+    is_late: boolean;
+    submitted_at: string | null;
+  } | null;
 };
 
 export type Submission = {
@@ -1315,6 +1374,8 @@ export type ModuleQuiz = Omit<Quiz, "questions"> & {
   course_id: string;
   course_title: string;
   module_title: string;
+  /** SEQUENTIAL courses: prior module incomplete or this module's lessons unfinished. */
+  is_locked: boolean;
 };
 
 export type BatchDimension = {
@@ -1328,6 +1389,8 @@ export type BatchComparison = {
   course_batch:    BatchDimension;
   school_peers:    BatchDimension | null;
   programme_peers: BatchDimension | null;
+  /** Real cohort (batch_enrolments) peers — null when the student has no batch. */
+  cohort_batch:    (BatchDimension & { batch_name: string }) | null;
 };
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
@@ -1389,7 +1452,7 @@ export async function getBatchComparison(studentId: string, courseId: string): P
 
 export async function getModuleQuizzes(): Promise<ModuleQuiz[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/module-tests`);
-  if (!r.ok) throw new ApiError("Failed to fetch module tests.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch module quizzes.", r.status);
   return (await r.json()) as ModuleQuiz[];
 }
 
@@ -1624,13 +1687,19 @@ export type LessonDetail = {
   /** Extracted server-side — the raw YouTube URL is never returned. */
   video_id: string;
   order_index: number;
-  module_quiz_id: string | null;
+  module_quiz_ids: string[];
   prev_lesson_id: string | null;
   next_lesson_id: string | null;
   /** Whether this student has already completed the lesson (watched ≥ 80%). */
   is_complete?: boolean;
   /** Percentage watched in the most recent session, if returned by the API. */
   watched_percent?: number;
+  /** True when next_lesson_id belongs to a different module. */
+  next_in_new_module?: boolean;
+  /** Whether the caller has finished this lesson's module (lessons + quizzes). */
+  current_module_complete?: boolean;
+  /** Every OTHER lesson in this module is complete — combine with live watched% to unlock the module test. */
+  module_other_lessons_complete?: boolean;
 };
 
 export async function getLessonById(lessonId: string): Promise<LessonDetail> {
@@ -1696,12 +1765,13 @@ export async function getMyQuizAttempts(studentId?: string): Promise<QuizAttempt
   return (await r.json()) as QuizAttempt[];
 }
 
+// Live-attempt question payload. Intentionally has NO correct_answer / is_correct
+// — the server never sends the answer key during an attempt (anti-cheat).
 export type QuizAttemptQuestion = {
   snapshot_id: string;
   section_id?: string | null;
   question_type: string;
   content_html: string;
-  correct_answer: string | null;
   tolerance: number | null;
   options: { id: string; option_text: string }[];
   children: {
@@ -1709,7 +1779,6 @@ export type QuizAttemptQuestion = {
     section_id?: string | null;
     question_type: string;
     content_html: string;
-    correct_answer: string | null;
     tolerance: number | null;
     options: { id: string; option_text: string }[];
   }[];
@@ -1890,7 +1959,7 @@ export type CourseModule = {
   title: string;
   order_index: number;
   lessons: CourseLesson[];
-  module_quiz: { id: string; title: string; published: boolean } | null;
+  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
 };
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
@@ -2002,6 +2071,7 @@ export async function createResource(payload: {
   url: string;
   type?: string;
   programme_type?: string;
+  batch_ids?: string[];
   uploaded_by: string;
   role: string;
 }): Promise<Resource> {
@@ -2093,7 +2163,7 @@ export async function updateSchool(
 /** Bulk-upload schools from a CSV file. */
 export async function bulkUploadSchools(
   file: File,
-): Promise<{ created: number; skipped: number; errors: string[] }> {
+): Promise<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
   const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
@@ -2105,7 +2175,7 @@ export async function bulkUploadSchools(
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to upload schools.", response.status);
   }
-  return (await response.json()) as { created: number; skipped: number; errors: string[] };
+  return (await response.json()) as { created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> };
 }
 
 /** Download URL for the bulk school upload CSV template. */
@@ -2197,6 +2267,7 @@ export async function updateUser(
   return (await response.json()) as SafeUser;
 }
 
+/** Hard-delete: removes the user row + Clerk account. Irreversible. */
 export async function deleteUser(userId: string): Promise<void> {
   const response = await apiFetch(
     `${API_BASE_URL}/users/${userId}`,
@@ -2205,6 +2276,18 @@ export async function deleteUser(userId: string): Promise<void> {
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
+  }
+}
+
+/** Archive (soft-delete): sets status → INACTIVE. Reversible. */
+export async function archiveUser(userId: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/${userId}/archive`,
+    { method: "PATCH", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to archive user.", response.status);
   }
 }
 
@@ -2237,7 +2320,7 @@ export async function getManagers(
  */
 export async function bulkUploadUsers(
   file: File,
-): Promise<{ created: number; skipped: number; errors: string[]; credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }> }> {
+): Promise<{ created: number; skipped: number; errors: string[]; credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }>; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
 
@@ -2263,6 +2346,8 @@ export async function bulkUploadUsers(
     skipped: number;
     errors: string[];
     credentials: Array<{ name: string; rollNumber: string; tempPassword?: string }>;
+    corrections: string[];
+    skippedRows: Array<Record<string, string>>;
   };
 }
 
@@ -2311,6 +2396,7 @@ export async function createAnnouncement(payload: {
   body: string;
   target_roles: string[];
   programme_type?: string;
+  batch_ids?: string[];
   created_by: string;
   role: string;
 }): Promise<Announcement> {
@@ -2332,6 +2418,73 @@ export async function createAnnouncement(payload: {
   }
 
   return (await response.json()) as Announcement;
+}
+
+export type SendNotificationDto = {
+  title: string;
+  body: string;
+  scope: "all_my_students" | "schools" | "users";
+  school_ids?: string[];
+  user_ids?: string[];
+  link?: string;
+};
+
+export async function sendNotification(
+  dto: SendNotificationDto,
+): Promise<{ delivered: number; dropped: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/notifications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dto),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+    throw new ApiError(
+      errorBody?.message ?? "Failed to send notification.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as { delivered: number; dropped: number };
+}
+
+export async function getAnnouncementUnreadCount(): Promise<{ count: number }> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/announcements/unread-count`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new ApiError(
+      "Failed to fetch announcement unread count.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as { count: number };
+}
+
+export async function markAnnouncementRead(id: string): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/announcements/${id}/read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+}
+
+export async function markAllAnnouncementsRead(): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/announcements/mark-all-read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
 }
 
 // ── Doubts API ─────────────────────────────────────────────────
@@ -2448,6 +2601,9 @@ export type BundleEnrolledStudent = {
   email: string;
   roll_number: string | null;
   enrolled_at: string;
+  /** Set when the enrolment was granted via a batch — managed there, not here. */
+  via_batch_id?: string | null;
+  via_batch_name?: string | null;
 };
 
 export type BundleTest = {
@@ -2503,6 +2659,18 @@ export async function createBundle(payload: {
     throw new ApiError(err?.message ?? "Failed to create bundle.", r.status);
   }
   return (await r.json()) as Bundle;
+}
+
+export async function deleteBundle(id: string): Promise<{ deleted: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/bundles/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete bundle.", r.status);
+  }
+  return (await r.json()) as { deleted: boolean };
 }
 
 export async function addCourseToBundle(
@@ -2603,7 +2771,7 @@ export async function addTestToBundle(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add test to bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add quiz to bundle.", r.status);
   }
   return (await r.json()) as { added: boolean };
 }
@@ -2618,15 +2786,22 @@ export async function removeTestFromBundle(
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove test from bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove quiz from bundle.", r.status);
   }
   return (await r.json()) as { removed: boolean };
 }
 
-export async function getAvailableQuizzes(): Promise<Omit<Quiz, "questions">[]> {
+export type AvailableQuiz = Omit<Quiz, "questions"> & {
+  /** false when the quiz is batch-granted and outside its availability window. */
+  attemptable?: boolean;
+  available_from?: string | null;
+  due_at?: string | null;
+};
+
+export async function getAvailableQuizzes(): Promise<AvailableQuiz[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/available`);
   if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r.status);
-  return (await r.json()) as Omit<Quiz, "questions">[];
+  return (await r.json()) as AvailableQuiz[];
 }
 
 // ── Bulk Assign API ────────────────────────────────────────────
@@ -2774,7 +2949,7 @@ export async function downloadStudentTestReportPdf(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download test report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download quiz report.", r.status);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "test-report.pdf") };
 }
@@ -2942,6 +3117,7 @@ export type AssessmentsOverviewFilters = {
   type?: 'MODULE' | 'PROGRAM' | 'ALL';
   course_id?: string;
   bundle_id?: string;
+  batch_id?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -2959,7 +3135,7 @@ export async function getAssessmentsOverview(
   const r = await apiFetch(`${API_BASE_URL}/analytics/assessments-overview?${qs.toString()}`, { cache: 'no-store' });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? 'Failed to load assessments overview.', r.status);
+    throw new ApiError(err?.message ?? 'Failed to load quizzes overview.', r.status);
   }
   return r.json();
 }
@@ -2985,4 +3161,272 @@ export async function getQuestionStats(quizId: string): Promise<QuestionStat[]> 
     throw new ApiError(err?.message ?? 'Failed to load question stats.', r.status);
   }
   return r.json();
+}
+
+// ── Batches API ────────────────────────────────────────────────
+
+export type Batch = {
+  id: string;
+  name: string;
+  school_id: string | null;
+  school_name: string | null;
+  programme_type: string | null;
+  status: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  created_by: string | null;
+  created_at: string;
+  member_count: number;
+  course_count: number;
+  bundle_count: number;
+  test_count: number;
+};
+
+export type BatchMember = {
+  id: string;
+  name: string;
+  email: string;
+  roll_number: string | null;
+  enrolled_at: string;
+};
+
+export type BatchCourseEntry = {
+  id: string;
+  title: string;
+  programme_type: string;
+  status: string;
+};
+
+export type BatchBundleEntry = {
+  id: string;
+  name: string;
+  course_count: number;
+};
+
+export type BatchTestEntry = {
+  id: string;
+  title: string;
+  published: boolean;
+  available_from: string | null;
+  due_at: string | null;
+};
+
+export type BatchDetail = Batch & {
+  members: BatchMember[];
+  courses: BatchCourseEntry[];
+  bundles: BatchBundleEntry[];
+  tests: BatchTestEntry[];
+};
+
+export type BatchPayload = {
+  name?: string;
+  school_id?: string | null;
+  programme_type?: string | null;
+  status?: string;
+  starts_on?: string | null;
+  ends_on?: string | null;
+};
+
+export async function getBatches(status?: "ACTIVE" | "ARCHIVED" | "all"): Promise<Batch[]> {
+  const url = new URL(`${API_BASE_URL}/batches`);
+  if (status) url.searchParams.set("status", status);
+  const r = await apiFetch(url.toString());
+  if (!r.ok) throw new ApiError("Failed to fetch batches.", r.status);
+  return (await r.json()) as Batch[];
+}
+
+export async function getBatchById(id: string): Promise<BatchDetail> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${id}`);
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch batch.", r.status);
+  }
+  return (await r.json()) as BatchDetail;
+}
+
+export async function createBatch(payload: BatchPayload): Promise<Batch> {
+  const r = await apiFetch(`${API_BASE_URL}/batches`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to create batch.", r.status);
+  }
+  return (await r.json()) as Batch;
+}
+
+export async function updateBatch(id: string, payload: BatchPayload): Promise<Batch> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update batch.", r.status);
+  }
+  return (await r.json()) as Batch;
+}
+
+export async function deleteBatch(id: string): Promise<{ deleted: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete batch.", r.status);
+  }
+  return (await r.json()) as { deleted: boolean };
+}
+
+export async function addBatchMembers(
+  batchId: string,
+  userIds: string[],
+): Promise<{ enrolled: number; already_enrolled: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add students to batch.", r.status);
+  }
+  return (await r.json()) as { enrolled: number; already_enrolled: number };
+}
+
+export async function removeBatchMember(
+  batchId: string,
+  userId: string,
+): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/members/${userId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove student from batch.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
+export async function addCourseToBatch(
+  batchId: string,
+  courseId: string,
+): Promise<{ added: boolean; students_enrolled: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/courses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ course_id: courseId }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add course to batch.", r.status);
+  }
+  return (await r.json()) as { added: boolean; students_enrolled: number };
+}
+
+export async function removeCourseFromBatch(
+  batchId: string,
+  courseId: string,
+): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/courses/${courseId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove course from batch.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
+export async function addBundleToBatch(
+  batchId: string,
+  bundleId: string,
+): Promise<{ added: boolean; students_enrolled: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/bundles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ bundle_id: bundleId }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add bundle to batch.", r.status);
+  }
+  return (await r.json()) as { added: boolean; students_enrolled: number };
+}
+
+export async function removeBundleFromBatch(
+  batchId: string,
+  bundleId: string,
+): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/bundles/${bundleId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove bundle from batch.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
+export async function addTestToBatch(
+  batchId: string,
+  quizId: string,
+  window?: { available_from?: string | null; due_at?: string | null },
+): Promise<{ added: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/tests`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quiz_id: quizId, ...window }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to add quiz to batch.", r.status);
+  }
+  return (await r.json()) as { added: boolean };
+}
+
+export async function updateBatchTest(
+  batchId: string,
+  quizId: string,
+  window: { available_from?: string | null; due_at?: string | null },
+): Promise<{ updated: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/tests/${quizId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(window),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update quiz window.", r.status);
+  }
+  return (await r.json()) as { updated: boolean };
+}
+
+export async function removeTestFromBatch(
+  batchId: string,
+  quizId: string,
+): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/tests/${quizId}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to remove quiz from batch.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
 }

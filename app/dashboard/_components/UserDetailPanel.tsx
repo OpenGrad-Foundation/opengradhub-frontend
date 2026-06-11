@@ -1,14 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { SafeUser, ManagerOption } from "@/lib/api";
-import { updateUser, deleteUser, getManagers } from "@/lib/api";
+import type { SafeUser, ManagerOption, SchoolOption } from "@/lib/api";
+import { updateUser, deleteUser, archiveUser, getManagers, fetchSchools } from "@/lib/api";
 import {
   fetchRoles,
   patchRole,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { UserOverrideEditor } from "@/app/dashboard/_components/UserOverrideEditor";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
+import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -18,6 +23,7 @@ interface UserDetailPanelProps {
   onDeleted: () => void;
   onAssignCourse: (user: SafeUser) => void;
   onAssignBundle: (user: SafeUser) => void;
+  onAssignBatch?: (user: SafeUser) => void;
 }
 
 type Draft = {
@@ -56,6 +62,7 @@ export function UserDetailPanel({
   onDeleted,
   onAssignCourse,
   onAssignBundle,
+  onAssignBatch,
 }: UserDetailPanelProps) {
   const [draft, setDraft] = useState<Draft>(() => makeDraft(user));
   const [panelTab, setPanelTab] = useState<"details" | "permissions">("details");
@@ -71,9 +78,18 @@ export function UserDetailPanel({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveErr, setArchiveErr] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
 
+  const invalidate = useInvalidate();
+  const { has } = usePermissions();
+  const canArchive = has(PERM.user_management.archive);
+  const canDelete = has(PERM.user_management.delete);
+
   const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
   const isMobile = useIsMobile(640);
   const padH = isMobile ? "16px" : "28px";
   const padV = isMobile ? "14px" : "16px";
@@ -93,6 +109,8 @@ export function UserDetailPanel({
     setRoleErr(null);
     setConfirmDelete(false);
     setDeleteErr(null);
+    setConfirmArchive(false);
+    setArchiveErr(null);
     setConfirmClose(false);
     setPanelTab("details");
   }, [user]);
@@ -114,6 +132,14 @@ export function UserDetailPanel({
     fetchRoles()
       .then((rs) => { if (!cancelled) setRoleOptions(rs); })
       .catch(() => { if (!cancelled) setRoleOptions([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((rows) => { if (!cancelled) setSchools(rows); })
+      .catch(() => { if (!cancelled) setSchools([]); });
     return () => { cancelled = true; };
   }, []);
 
@@ -165,6 +191,7 @@ export function UserDetailPanel({
             : undefined,
         },
       );
+      invalidate('users');
       setDraft(makeDraft(updated));
       onUpdated(updated);
     } catch (e) {
@@ -179,12 +206,28 @@ export function UserDetailPanel({
     setDeleteErr(null);
     try {
       await deleteUser(user.id);
+      invalidate('users');
       onDeleted();
     } catch (e) {
       setDeleteErr(e instanceof Error ? e.message : "Failed to delete user.");
       setConfirmDelete(false);
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleArchive() {
+    setArchiving(true);
+    setArchiveErr(null);
+    try {
+      await archiveUser(user.id);
+      invalidate('users');
+      onDeleted();
+    } catch (e) {
+      setArchiveErr(e instanceof Error ? e.message : "Failed to archive user.");
+      setConfirmArchive(false);
+    } finally {
+      setArchiving(false);
     }
   }
 
@@ -366,20 +409,17 @@ export function UserDetailPanel({
                   </div>
                   <div style={formRowStyle}>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="KERALA">Kerala</option>
-                        <option value="KARNATAKA">Karnataka</option>
-                        <option value="TAMIL_NADU">Tamil Nadu</option>
-                        <option value="CHHATTISGARH">Chhattisgarh</option>
+                        {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                     <PanelField label="School">
-                      <input
+                      <SchoolSearchPicker
+                        schools={schools}
                         value={draft.school_id}
-                        onChange={(e) => set("school_id", e.target.value)}
-                        style={S.input}
-                        placeholder="School name"
+                        onChange={(id) => set("school_id", id)}
+                        inputStyle={S.input}
                       />
                     </PanelField>
                   </div>
@@ -405,30 +445,34 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="KERALA">Kerala</option>
-                        <option value="KARNATAKA">Karnataka</option>
-                        <option value="TAMIL_NADU">Tamil Nadu</option>
-                        <option value="CHHATTISGARH">Chhattisgarh</option>
+                        {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                   </div>
                   <div style={formRowStyle}>
                     <PanelField label="District">
-                      <input
+                      <select
                         value={draft.district}
-                        onChange={(e) => set("district", e.target.value)}
+                        onChange={(e) => { set("district", e.target.value); set("school_id", ""); }}
                         style={S.input}
-                        placeholder="District"
-                      />
+                        disabled={districtDisabled(draft.state)}
+                      >
+                        <option value="">
+                          {districtDisabled(draft.state) ? "—" : "Select district…"}
+                        </option>
+                        {districtsForState(draft.state).map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
                     </PanelField>
                     <PanelField label="School">
-                      <input
+                      <SchoolSearchPicker
+                        schools={schools}
                         value={draft.school_id}
-                        onChange={(e) => set("school_id", e.target.value)}
-                        style={S.input}
-                        placeholder="School name"
+                        onChange={(id) => set("school_id", id)}
+                        inputStyle={S.input}
                       />
                     </PanelField>
                   </div>
@@ -448,12 +492,9 @@ export function UserDetailPanel({
               {isPMorZM && (
                 <>
                   <PanelField label="State">
-                    <select value={draft.state} onChange={(e) => set("state", e.target.value)} style={S.input}>
+                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
                       <option value="">Select…</option>
-                      <option value="KERALA">Kerala</option>
-                      <option value="KARNATAKA">Karnataka</option>
-                      <option value="TAMIL_NADU">Tamil Nadu</option>
-                      <option value="CHHATTISGARH">Chhattisgarh</option>
+                      {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </PanelField>
                   {user.role === 'ZONAL_MANAGER' && (
@@ -508,46 +549,107 @@ export function UserDetailPanel({
                 >
                   Assign Bundle
                 </button>
+                {onAssignBatch && (
+                  <button
+                    onClick={() => onAssignBatch(user)}
+                    style={{
+                      flex: 1, padding: "10px 16px",
+                      border: "1.5px solid rgba(3,72,82,0.3)",
+                      borderRadius: "10px", background: "rgba(3,72,82,0.04)",
+                      color: "#034852", fontFamily: "var(--font-body)",
+                      fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                      transition: "all 150ms",
+                    }}
+                  >
+                    Add to Batch
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           {/* ── Danger Zone ─────────────────────────────────── */}
-          {!isSelf && (
+          {!isSelf && (canArchive || canDelete) && (
             <div style={{ padding: `${padV} ${padH}` }}>
               <p style={{ ...S.label, color: "#c53030", marginBottom: "10px" }}>Danger Zone</p>
-              {confirmDelete ? (
-                <div style={{
-                  background: "rgba(229,62,62,0.06)",
-                  border: "1px solid rgba(229,62,62,0.25)",
-                  borderRadius: "12px", padding: "14px 16px",
-                }}>
-                  <p style={{ fontSize: "13px", color: "#c53030", fontWeight: 600, margin: "0 0 10px" }}>
-                    Delete {user.name}? This cannot be undone.
-                  </p>
-                  {deleteErr && (
-                    <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{deleteErr}</p>
+
+              {/* Archive (soft delete) — reversible */}
+              {canArchive && user.status === "ACTIVE" && (
+                <div style={{ marginBottom: canDelete ? "12px" : 0 }}>
+                  {confirmArchive ? (
+                    <div style={{
+                      background: "rgba(245,158,11,0.08)",
+                      border: "1px solid rgba(245,158,11,0.3)",
+                      borderRadius: "12px", padding: "14px 16px",
+                    }}>
+                      <p style={{ fontSize: "13px", color: "#8a5a00", fontWeight: 600, margin: "0 0 10px" }}>
+                        Archive {user.name}? They will be set inactive and lose access. This can be reversed.
+                      </p>
+                      {archiveErr && (
+                        <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{archiveErr}</p>
+                      )}
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          onClick={() => void handleArchive()}
+                          disabled={archiving}
+                          style={{ ...S.smallBtn, background: "rgba(245,158,11,0.14)", color: "#8a5a00", border: "1px solid rgba(245,158,11,0.3)", opacity: archiving ? 0.65 : 1 }}
+                        >
+                          {archiving ? "Archiving…" : "Yes, Archive"}
+                        </button>
+                        <button
+                          onClick={() => { setConfirmArchive(false); setArchiveErr(null); }}
+                          style={S.smallBtn}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmArchive(true)}
+                      style={{ ...S.smallBtn, background: "rgba(245,158,11,0.1)", color: "#8a5a00", border: "1px solid rgba(245,158,11,0.28)" }}
+                    >
+                      Archive User
+                    </button>
                   )}
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      onClick={() => void handleDelete()}
-                      disabled={deleting}
-                      style={{ ...S.dangerBtn, background: "rgba(229,62,62,0.1)", opacity: deleting ? 0.65 : 1 }}
-                    >
-                      {deleting ? "Deleting…" : "Yes, Delete"}
-                    </button>
-                    <button
-                      onClick={() => { setConfirmDelete(false); setDeleteErr(null); }}
-                      style={S.smallBtn}
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} style={S.dangerBtn}>
-                  Delete User
-                </button>
+              )}
+
+              {/* Hard delete — irreversible */}
+              {canDelete && (
+                confirmDelete ? (
+                  <div style={{
+                    background: "rgba(229,62,62,0.06)",
+                    border: "1px solid rgba(229,62,62,0.25)",
+                    borderRadius: "12px", padding: "14px 16px",
+                  }}>
+                    <p style={{ fontSize: "13px", color: "#c53030", fontWeight: 600, margin: "0 0 10px" }}>
+                      Permanently delete {user.name}? This removes their account and all data, and cannot be undone.
+                    </p>
+                    {deleteErr && (
+                      <p style={{ fontSize: "12px", color: "#e53e3e", margin: "0 0 10px" }}>{deleteErr}</p>
+                    )}
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <button
+                        onClick={() => void handleDelete()}
+                        disabled={deleting}
+                        style={{ ...S.dangerBtn, background: "rgba(229,62,62,0.1)", opacity: deleting ? 0.65 : 1 }}
+                      >
+                        {deleting ? "Deleting…" : "Yes, Delete Permanently"}
+                      </button>
+                      <button
+                        onClick={() => { setConfirmDelete(false); setDeleteErr(null); }}
+                        style={S.smallBtn}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmDelete(true)} style={S.dangerBtn}>
+                    Delete User Permanently
+                  </button>
+                )
               )}
             </div>
           )}
