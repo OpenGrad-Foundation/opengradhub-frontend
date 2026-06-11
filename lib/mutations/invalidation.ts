@@ -37,6 +37,8 @@ const DOMAIN_KEYS = {
   calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
   resources: [['og', 'resources']],
   doubts: [['og', 'doubts'], ['og', 'dashboard']],
+  // notifications sent (send-notification write) — bust the recipient lists and counts
+  notifications: [['og', 'notifications'], ['og', 'inbox'], ['og', 'dashboard']],
   // enrolment changes (assign course, bulk enrol/remove) — affect both the
   // student's view and roster/analytics
   enrolment: [['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
