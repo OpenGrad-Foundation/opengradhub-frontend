@@ -3385,7 +3385,7 @@ export async function addTestToBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add test to batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add quiz to batch.", r.status);
   }
   return (await r.json()) as { added: boolean };
 }
@@ -3403,7 +3403,7 @@ export async function updateBatchTest(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update test window.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update quiz window.", r.status);
   }
   return (await r.json()) as { updated: boolean };
 }
@@ -3418,7 +3418,7 @@ export async function removeTestFromBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove test from batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove quiz from batch.", r.status);
   }
   return (await r.json()) as { removed: boolean };
 }
