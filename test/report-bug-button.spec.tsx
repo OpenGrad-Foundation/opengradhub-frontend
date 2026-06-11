@@ -54,4 +54,14 @@ describe("ReportBugButton", () => {
     expect(form.open).not.toHaveBeenCalled();
     errSpy.mockRestore();
   });
+
+  it("does not create duplicate forms on rapid double-click", async () => {
+    render(<ReportBugButton />);
+    const btn = screen.getByRole("button", { name: /report a bug/i });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    await waitFor(() => expect(form.open).toHaveBeenCalledTimes(2));
+    expect(createForm).toHaveBeenCalledTimes(1);
+    expect(form.appendToDom).toHaveBeenCalledTimes(1);
+  });
 });
