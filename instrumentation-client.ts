@@ -23,7 +23,7 @@ Sentry.init({
   tracesSampleRate: isDev ? 0 : 0.1,
   debug: false,
   integrations: isDev ? [feedback] : [Sentry.replayIntegration(), feedback],
-  replaysSessionSampleRate: isDev ? 0 : 0.1,
+  replaysSessionSampleRate: 0.0, // Disabled by default to save quota
   replaysOnErrorSampleRate: isDev ? 0 : 1.0,
 });
 
