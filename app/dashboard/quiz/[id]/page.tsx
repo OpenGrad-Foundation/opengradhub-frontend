@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
@@ -203,6 +206,8 @@ function TimingBreakdown({ questions, timings }: { questions: QuizAttemptQuestio
 export default function QuizTakingPage() {
   const { id: quizId } = useParams<{ id: string }>();
   const router = useRouter();
+  const from = useSearchParams().get("from");
+  const currentUrl = useCurrentUrl();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const invalidate = useInvalidate();
 
@@ -724,7 +729,7 @@ export default function QuizTakingPage() {
             </button>
           )}
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push(getBackHref(from, "/dashboard/assessments"))}
             style={retrySubmitRef.current ? secondaryBtn : primaryBtn}
           >
             Go back
@@ -738,12 +743,9 @@ export default function QuizTakingPage() {
     const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
     return (
       <div style={pageCentered}>
-        <a
-          href="/dashboard/assessments"
-          style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}
-        >
+        <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
           ← Back to Quizzes
-        </a>
+        </BackLink>
         <div style={card}>
           <p style={{ ...subtext, marginBottom: "6px" }}>
             {quiz.quiz_type === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}
@@ -1465,12 +1467,12 @@ export default function QuizTakingPage() {
           )}
 
           <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/dashboard/assessments")} style={primaryBtn}>
+            <button onClick={() => router.push(getBackHref(from, "/dashboard/assessments"))} style={primaryBtn}>
               Back to Quizzes
             </button>
             {result.show_answers_after && (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`, currentUrl))}
                 style={secondaryBtn}
               >
                 Review Answers →
@@ -1489,7 +1491,7 @@ export default function QuizTakingPage() {
             </button>
             {userData?.user?.programme === "PG" && (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/leaderboard`, currentUrl))}
                 style={secondaryBtn}
               >
                 Leaderboard
@@ -1497,7 +1499,7 @@ export default function QuizTakingPage() {
             )}
             {quiz?.first_attempt_counts ? (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/practice`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/practice`, currentUrl))}
                 style={secondaryBtn}
               >
                 Practice again
