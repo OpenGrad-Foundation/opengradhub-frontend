@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
@@ -24,6 +27,8 @@ import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
+import { CalculatorWindow } from "@/components/calculator-window";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
 // The report endpoints are bearer-token protected, so `window.open` cannot fetch
@@ -201,7 +206,10 @@ function TimingBreakdown({ questions, timings }: { questions: QuizAttemptQuestio
 export default function QuizTakingPage() {
   const { id: quizId } = useParams<{ id: string }>();
   const router = useRouter();
+  const from = useSearchParams().get("from");
+  const currentUrl = useCurrentUrl();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const invalidate = useInvalidate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempt, setAttempt] = useState<StartedAttempt | null>(null);
@@ -223,6 +231,7 @@ export default function QuizTakingPage() {
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showReloadWarning, setShowReloadWarning] = useState(false);
+  const [calcOpen, setCalcOpen] = useState(false);
 
   // Sectioned quiz state
   const [sections, setSections] = useState<StartedAttemptSection[]>([]);
@@ -248,11 +257,16 @@ export default function QuizTakingPage() {
   const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionStartRef    = useRef<number>(Date.now());
   const suppressFsExitRef  = useRef(false);
+  // Set once the student confirms "Leave Quiz" so the navigation guards below
+  // stop intercepting (otherwise history.back() re-fires popstate → re-opens the
+  // dialog → the page never actually leaves).
+  const leavingRef         = useRef(false);
 
   // Warn before browser reload/close during an active attempt
   useEffect(() => {
     if (phase !== "taking") return;
     function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (leavingRef.current) return;
       e.preventDefault();
       e.returnValue = "";
     }
@@ -266,6 +280,7 @@ export default function QuizTakingPage() {
     // Intercept anchor clicks (Next.js Link, plain <a>) so client-side route
     // changes during a live attempt prompt the student before leaving.
     function onClickCapture(e: MouseEvent) {
+      if (leavingRef.current) return;
       const path = e.composedPath() as EventTarget[];
       const anchor = path.find(
         (el): el is HTMLAnchorElement =>
@@ -287,17 +302,28 @@ export default function QuizTakingPage() {
         title: "Leave this quiz?",
         body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
         confirmLabel: "Leave Quiz",
-        onConfirm: () => { window.location.href = targetHref; },
+        onConfirm: () => {
+          leavingRef.current = true;
+          if (beforeUnloadRef.current) window.removeEventListener("beforeunload", beforeUnloadRef.current);
+          router.push(targetHref);
+        },
       });
     }
     // popstate fires on back/forward — push state back immediately, then ask.
     function onPopState() {
+      if (leavingRef.current) return;
       window.history.pushState(null, "", window.location.href);
       askConfirm({
         title: "Leave this quiz?",
         body: "Your answers are saved, but the timer keeps running and this counts against your attempt.",
         confirmLabel: "Leave Quiz",
-        onConfirm: () => { window.history.back(); },
+        onConfirm: () => {
+          leavingRef.current = true;
+          if (beforeUnloadRef.current) window.removeEventListener("beforeunload", beforeUnloadRef.current);
+          // Leave to the assessments hub — a definite destination avoids the
+          // history.back() → popstate → re-prompt loop.
+          router.push("/dashboard/assessments");
+        },
       });
     }
     // Seed a sentinel history entry so the first Back press is catchable.
@@ -519,6 +545,7 @@ export default function QuizTakingPage() {
         submit_kind: 'full',
       }).catch(() => {});
       const res = await submitQuizAttempt(attempt.attempt_id, answerList);
+      invalidate('quizAttempt');
       // Draft cleanup is best-effort — a failure here must not error a successful submit.
       void clearDraft(attempt.attempt_id).catch(() => {});
       setResult({
@@ -702,7 +729,7 @@ export default function QuizTakingPage() {
             </button>
           )}
           <button
-            onClick={() => router.back()}
+            onClick={() => router.push(getBackHref(from, "/dashboard/assessments"))}
             style={retrySubmitRef.current ? secondaryBtn : primaryBtn}
           >
             Go back
@@ -716,15 +743,12 @@ export default function QuizTakingPage() {
     const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
     return (
       <div style={pageCentered}>
-        <a
-          href="/dashboard/assessments"
-          style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}
-        >
-          ← Back to Assessments
-        </a>
+        <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
+          ← Back to Quizzes
+        </BackLink>
         <div style={card}>
           <p style={{ ...subtext, marginBottom: "6px" }}>
-            {quiz.quiz_type === "MODULE_TEST" ? "Module Test" : "Global Test"}
+            {quiz.quiz_type === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}
           </p>
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
@@ -799,7 +823,7 @@ export default function QuizTakingPage() {
                       </span>
                       {quiz?.show_answers_after && (
                         <button
-                          onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${a.id}`)}
+                          onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
                           style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
                         >
                           Review →
@@ -1242,11 +1266,18 @@ export default function QuizTakingPage() {
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",
                       }}>{title}</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: "10px", fontSize: "13px", color: "#034852" }}>
-                        <span><strong>{showStats.answered}</strong> Answered</span>
-                        <span><strong>{showStats.unanswered}</strong> Unanswered</span>
-                        <span><strong>{showStats.flagged}</strong> Flagged</span>
-                        <span><strong>{showStats.flaggedAndAnswered}</strong> Flagged + Answered</span>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
+                        {([
+                          ["Answered", showStats.answered],
+                          ["Unanswered", showStats.unanswered],
+                          ["Flagged", showStats.flagged],
+                          ["Flagged + Answered", showStats.flaggedAndAnswered],
+                        ] as const).map(([label, value]) => (
+                          <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(3,72,82,0.55)" }}>{label}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   );
@@ -1341,9 +1372,37 @@ export default function QuizTakingPage() {
                   </button>
                 )}
               </div>
+              {/* On-screen calculator */}
+              <div style={{ ...card, padding: "16px" }}>
+                <button
+                  type="button"
+                  onClick={() => setCalcOpen((o) => !o)}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: calcOpen ? "#034852" : "rgba(3,72,82,0.06)",
+                    color: calcOpen ? "#fff" : "#034852",
+                    fontSize: "14px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxSizing: "border-box",
+                  }}
+                  aria-expanded={calcOpen}
+                  aria-label="Toggle calculator"
+                >
+                  🧮 Calculator
+                </button>
+              </div>
             </div>
           </div>
         </div>
+        {calcOpen && <CalculatorWindow onClose={() => setCalcOpen(false)} />}
       </div>
     );
   }
@@ -1408,12 +1467,12 @@ export default function QuizTakingPage() {
           )}
 
           <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
-            <button onClick={() => router.push("/dashboard/assessments")} style={primaryBtn}>
-              Back to Assessments
+            <button onClick={() => router.push(getBackHref(from, "/dashboard/assessments"))} style={primaryBtn}>
+              Back to Quizzes
             </button>
             {result.show_answers_after && (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`, currentUrl))}
                 style={secondaryBtn}
               >
                 Review Answers →
@@ -1432,7 +1491,7 @@ export default function QuizTakingPage() {
             </button>
             {userData?.user?.programme === "PG" && (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/leaderboard`, currentUrl))}
                 style={secondaryBtn}
               >
                 Leaderboard
@@ -1440,7 +1499,7 @@ export default function QuizTakingPage() {
             )}
             {quiz?.first_attempt_counts ? (
               <button
-                onClick={() => router.push(`/dashboard/quiz/${quizId}/practice`)}
+                onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/practice`, currentUrl))}
                 style={secondaryBtn}
               >
                 Practice again

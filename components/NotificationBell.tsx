@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   getNotifications,
-  getUnreadCount,
   markAllNotificationsRead,
   type Notification,
 } from "@/lib/api";
+import { useInboxUnreadCount } from "@/lib/queries/inbox";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Type icon map ──────────────────────────────────────────────
 
@@ -34,24 +35,14 @@ function relativeTime(iso: string): string {
 // ── Component ──────────────────────────────────────────────────
 
 export default function NotificationBell({ recipientId }: { recipientId: string }) {
-  const [count,    setCount]    = useState(0);
+  const { data: unreadData } = useInboxUnreadCount(recipientId);
+  const count = unreadData?.count ?? 0;
+  const invalidate = useInvalidate();
+
   const [items,    setItems]    = useState<Notification[]>([]);
   const [open,     setOpen]     = useState(false);
   const [loading,  setLoading]  = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const refreshCount = useCallback(async () => {
-    if (!recipientId) return;
-    const n = await getUnreadCount(recipientId).catch(() => 0);
-    setCount(n);
-  }, [recipientId]);
-
-  // Poll every 30 s
-  useEffect(() => {
-    void refreshCount();
-    const interval = setInterval(() => void refreshCount(), 30_000);
-    return () => clearInterval(interval);
-  }, [refreshCount]);
 
   // Close on outside click
   useEffect(() => {
@@ -77,16 +68,17 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
   }
 
   async function handleMarkAll() {
-    // Optimistic: clear the badge and flip the list immediately, then confirm
-    // with the server. Restore on failure.
+    // Optimistic: flip the list to read immediately, then confirm with the server.
+    // After server confirms, invalidate the notifications domain so the badge
+    // (driven by useInboxUnreadCount) refetches now instead of waiting for the
+    // 30s poll cycle. Restore local list state on failure.
     const snapshot = items;
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
-    setCount(0);
     try {
       await markAllNotificationsRead(recipientId);
+      invalidate("notifications");
     } catch {
       setItems(snapshot);
-      setCount(snapshot.filter(n => !n.is_read).length);
     }
   }
 
@@ -175,10 +167,13 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
           </div>
 
           {/* Footer */}
-          <div style={{ padding: "10px 18px", borderTop: "1px solid rgba(3,72,82,0.06)", textAlign: "center" }}>
-            <Link href="/dashboard/notifications" onClick={() => setOpen(false)} style={{ fontSize: "12px", color: "#209379", fontWeight: 700, textDecoration: "none" }}>
-              View all notifications →
+          <div style={{ padding: "10px 18px", borderTop: "1px solid rgba(3,72,82,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Link href="/dashboard/inbox" onClick={() => setOpen(false)} style={{ fontSize: "12px", color: "#209379", fontWeight: 700, textDecoration: "none" }}>
+              View all →
             </Link>
+            <a href="/dashboard/inbox" target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#209379", fontWeight: 700, textDecoration: "none" }}>
+              Open in new tab ↗
+            </a>
           </div>
         </div>
       )}

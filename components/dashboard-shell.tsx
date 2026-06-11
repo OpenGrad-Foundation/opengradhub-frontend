@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Sidebar from "./sidebar";
 import DashboardTopbar from "@/app/dashboard/_components/DashboardTopbar";
 import { DashboardRouteGuard } from "@/components/require-permission";
+import SentryUserSync from "@/components/sentry-user-sync";
 
 export default function DashboardShell({
   children,
@@ -28,6 +29,7 @@ export default function DashboardShell({
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+      <SentryUserSync />
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div

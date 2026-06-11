@@ -3,13 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createBundle } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function NewBundlePage() {
   const router = useRouter();
+  const invalidate = useInvalidate();
   const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
 
@@ -41,6 +44,7 @@ export default function NewBundlePage() {
         name: name.trim(),
         description: description.trim() || undefined,
       });
+      invalidate('bundles');
       router.replace(`/dashboard/bundles/${bundle.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create bundle.");
@@ -51,9 +55,9 @@ export default function NewBundlePage() {
   return (
     <div style={{ maxWidth: "600px" }}>
       {/* ── Back ───────────────────────────────────────────────── */}
-      <Link href="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
         ← Back to Bundles
-      </Link>
+      </BackLink>
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ margin: "16px 0 28px" }}>

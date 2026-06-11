@@ -7,6 +7,8 @@ import { PERM } from "@/lib/permissions";
 import { createResource, type Resource } from "@/lib/api";
 import { useResources } from "@/lib/queries/resources";
 import { useQueryClient } from "@tanstack/react-query";
+import { useInvalidate } from "@/lib/mutations/invalidation";
+import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import type { RoleCode } from "@/lib/moduleAccess";
 
 // ── Type → colour mapping ──────────────────────────────────────
@@ -295,9 +297,11 @@ function CreateResourceForm({
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [type, setType] = useState("PDF");
-  const [programmeType, setProgrammeType] = useState("UG");
+  const [programmeType, setProgrammeType] = useState("ALL");
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -310,10 +314,13 @@ function CreateResourceForm({
         description: description.trim() || undefined,
         url: url.trim(),
         type,
-        programme_type: programmeType,
+        // "ALL" → null on the backend = visible to every programme.
+        programme_type: programmeType === "ALL" ? undefined : programmeType,
+        batch_ids: batchIds.length > 0 ? batchIds : undefined,
         uploaded_by: userId,
         role: roleCode,
       });
+      invalidate('resources');
       onCreated();
     } catch (err) {
       setError(
@@ -409,10 +416,17 @@ function CreateResourceForm({
                 onChange={(e) => setProgrammeType(e.target.value)}
                 style={formInputStyle}
               >
+                <option value="ALL">All programmes</option>
                 <option value="UG">UG</option>
                 <option value="PG">PG</option>
               </select>
             </div>
+          </div>
+
+          {/* Batches */}
+          <div>
+            <label style={formLabelStyle}>Target Batches (optional — empty = everyone)</label>
+            <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={formInputStyle} />
           </div>
         </div>
 

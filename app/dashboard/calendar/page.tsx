@@ -11,6 +11,9 @@ import {
   type CalendarItem, type CreateCalendarEventPayload,
 } from "@/lib/api";
 import { useCalendar } from "@/lib/queries/calendar";
+import { useInvalidate } from "@/lib/mutations/invalidation";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -36,6 +39,7 @@ export default function CalendarPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
+  const invalidate = useInvalidate();
 
   // Stable range (start-of-today → +90 days) so the cache key doesn't churn
   // on every render from a moving `now` timestamp.
@@ -113,6 +117,7 @@ export default function CalendarPage() {
                       if (!confirm(`Delete "${ev.title}"?`)) return;
                       await deleteCalendarEvent(ev.id);
                       void queryClient.invalidateQueries({ queryKey: ["og","calendar"] });
+                      invalidate('calendar');
                     }}
                   />
                 ))}
@@ -140,13 +145,14 @@ function EventRow({ item, canDelete, onDelete }: {
   onDelete: () => void;
 }) {
   const c = cfg(item.event_type);
+  const currentUrl = useCurrentUrl();
   const time = item.is_all_day
     ? "All day"
     : new Date(item.starts_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   const href =
     item.source === "live_class"  ? "/dashboard/live-classes" :
-    item.source === "assignment"  ? `/dashboard/assignments/${item.ref_id}` :
+    item.source === "assignment"  ? withFrom(`/dashboard/assignments/${item.ref_id}`, currentUrl) :
     null;
 
   const inner = (
@@ -201,6 +207,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
   });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -221,6 +228,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
     };
     try {
       await createCalendarEvent(payload);
+      invalidate('calendar');
       onCreated();
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to create event.");

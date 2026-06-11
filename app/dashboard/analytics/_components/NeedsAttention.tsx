@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { InsightsResponse } from "@/lib/api";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 const card: React.CSSProperties = {
   background: "#ffffff",
@@ -27,6 +29,7 @@ function timeAgo(iso: string | null): string {
 export function NeedsAttention({
   data,
 }: { data: NonNullable<InsightsResponse["needs_attention"]> }) {
+  const currentUrl = useCurrentUrl();
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
       <div style={card}>
@@ -61,7 +64,7 @@ export function NeedsAttention({
             {data.worst_quizzes.map((q) => (
               <li key={q.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
                 <Link
-                  href={`/dashboard/quiz/${q.id}/leaderboard` as any}
+                  href={withFrom(`/dashboard/quiz/${q.id}/leaderboard`, currentUrl) as any}
                   style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{q.title}</span>

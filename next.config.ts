@@ -11,4 +11,8 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   tunnelRoute: "/sentry-tunnel",
   silent: !process.env.CI,
+  disableLogger: true,
+  sourcemaps: {
+    disable: process.env.NODE_ENV === "development",
+  },
 });

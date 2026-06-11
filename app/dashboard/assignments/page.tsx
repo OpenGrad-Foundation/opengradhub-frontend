@@ -8,6 +8,8 @@ import { PERM } from "@/lib/permissions";
 import { type Assignment, type SubmissionQueueRow, type Submission } from "@/lib/api";
 import { useAssignments, useSubmissionQueue } from "@/lib/queries/assignments";
 import { GradePanel, StatusBadge } from "@/app/dashboard/assignments/_components/GradePanel";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 export default function AssignmentsPage() {
   const { isLoading } = useCurrentUser();
@@ -24,7 +26,7 @@ export default function AssignmentsPage() {
 
   if (isLoading) return <LoadingState />;
   if (isManager) {
-    return <SubmissionQueue canCreate={canCreate} />;
+    return <ManagerAssignmentsView canCreate={canCreate} />;
   }
 
   return (
@@ -87,7 +89,98 @@ export default function AssignmentsPage() {
   );
 }
 
+function ManagerAssignmentsView({ canCreate }: { canCreate: boolean }) {
+  const [tab, setTab] = useState<"all" | "queue">("all");
+
+  return (
+    <div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
+        <div>
+          <p style={S.label}>Assignments</p>
+          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
+          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+            All assignments you manage, and the queue of submissions to grade.
+          </p>
+        </div>
+        {canCreate && (
+          <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
+            + New Assignment
+          </Link>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
+        {([["all", "All assignments"], ["queue", "Submission queue"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{
+              padding: "9px 16px",
+              borderRadius: "10px",
+              border: "1px solid " + (tab === key ? "rgba(32,147,121,0.3)" : "rgba(3,72,82,0.12)"),
+              background: tab === key ? "linear-gradient(135deg, rgba(10,190,98,0.16), rgba(32,147,121,0.16))" : "#fff",
+              color: tab === key ? "#034852" : "rgba(3,72,82,0.6)",
+              fontWeight: 700,
+              fontSize: "13px",
+              cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "all" ? <ManagerAssignmentsList /> : <SubmissionQueue canCreate={false} />}
+    </div>
+  );
+}
+
+function ManagerAssignmentsList() {
+  const { data: assignments = [], isPending, error: queryError } = useAssignments();
+  const error = queryError ? (queryError as Error).message : null;
+
+  if (isPending) return <LoadingState />;
+  if (error) {
+    return (
+      <div style={{ ...glassCard, textAlign: "center" }}>
+        <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
+      </div>
+    );
+  }
+  if (assignments.length === 0) {
+    return (
+      <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
+        <p style={S.label}>No Assignments</p>
+        <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>Create your first assignment.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+      <div className="overflow-x-auto">
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+          <thead>
+            <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
+              {["Title", "Course", "Due", "Status", "Submissions", ""].map(h => (
+                <th key={h} style={thStyle}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {assignments.map(a => (
+              <AssignmentRow key={a.id} assignment={a} isManager={true} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; isManager: boolean }) {
+  const currentUrl = useCurrentUrl();
   const due      = new Date(a.due_at);
   const isPast   = due < new Date();
   const status   = a.submission_status ?? (isManager ? "—" : "NOT_STARTED");
@@ -106,7 +199,7 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
       <td style={tdStyle}><StatusBadge status={status} /></td>
       <td style={tdStyle}>
         {isManager ? (
-          <Link href={`/dashboard/assignments/${a.id}/submissions`} style={{ fontSize: "12px", color: "#209379", fontWeight: 600, textDecoration: "none" }}>
+          <Link href={withFrom(`/dashboard/assignments/${a.id}/submissions`, currentUrl)} style={{ fontSize: "12px", color: "#209379", fontWeight: 600, textDecoration: "none" }}>
             View Submissions →
           </Link>
         ) : (
@@ -115,7 +208,7 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
       </td>
       <td style={tdStyle}>
         <Link
-          href={isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`}
+          href={withFrom(isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`, currentUrl)}
           style={{ padding: "5px 12px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}
         >
           {isManager ? "Grade" : "Open"}

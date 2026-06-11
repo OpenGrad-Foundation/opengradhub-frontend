@@ -19,6 +19,7 @@ export default defineConfig({
       {
         resolve: resolveConfig,
         test: {
+          name: 'node',
           environment: 'node',
           include: ['test/**/*.spec.ts'],
           setupFiles: ['fake-indexeddb/auto'],
@@ -27,9 +28,11 @@ export default defineConfig({
       {
         resolve: resolveConfig,
         test: {
+          name: 'dom',
           environment: 'jsdom',
           include: ['test/**/*.spec.tsx'],
           setupFiles: ['fake-indexeddb/auto'],
+          globals: true,
         },
       },
     ],

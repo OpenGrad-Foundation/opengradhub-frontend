@@ -2,15 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ───────────────────────────────────────────────────────
 
 export default function CourseOverviewPage() {
   const { id: courseId } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const fromManagement = searchParams.get("from") === "management";
+  const backHref = fromManagement ? `/dashboard/course-management/${courseId}` : "/dashboard/courses";
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
   const studentId = userData?.user?.id ?? "";
@@ -39,7 +45,7 @@ export default function CourseOverviewPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Course not found."}</p>
-        <Link href="/dashboard/courses" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>← Back to Courses</Link>
+        <BackLink fallback={backHref} style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>{fromManagement ? "← Back to Course Management" : "← Back to Courses"}</BackLink>
       </div>
     );
   }
@@ -49,13 +55,16 @@ export default function CourseOverviewPage() {
   const completedLessons = modules.reduce((sum, m) => sum + m.lessons.filter(l => l.is_complete).length, 0);
   const pct = totalLessons === 0 ? 0 : Math.round(100 * completedLessons / totalLessons);
   const isSequential = course.locking_mode === "SEQUENTIAL";
+  // Non-students (ZM/FELLOW/GOV/etc. with courses.view) get a read-only preview:
+  // course structure + content, no personal progress, no locking, no quiz-taking.
+  const isPreview = roleCode !== "STUDENT";
 
   return (
     <div>
       {/* ── Back link ─────────────────────────────────────── */}
-      <Link href="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← My Courses
-      </Link>
+      <BackLink fallback={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+        {fromManagement ? "← Course Management" : isPreview ? "← Courses" : "← My Courses"}
+      </BackLink>
 
       {/* ── Course header ─────────────────────────────────── */}
       <div style={{ ...glassCard, marginTop: "16px", marginBottom: "24px" }}>
@@ -79,15 +88,28 @@ export default function CourseOverviewPage() {
             )}
           </div>
 
-          {/* Progress summary */}
-          <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
-            <p style={{ ...S.label, marginBottom: "6px" }}>Progress</p>
-            <p style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: pct === 100 ? "#0abe62" : "#034852", margin: 0 }}>{pct}%</p>
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "4px 0 10px" }}>{completedLessons} / {totalLessons} lessons</p>
-            <div style={{ height: "6px", borderRadius: "3px", background: "rgba(3,72,82,0.1)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${pct}%`, borderRadius: "3px", background: pct === 100 ? "#0abe62" : "linear-gradient(90deg, #0abe62, #209379)", transition: "width 600ms ease" }} />
+          {/* Progress summary (students) / preview badge (staff) */}
+          {isPreview ? (
+            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
+              <span style={{
+                display: "inline-block", padding: "4px 12px", borderRadius: "100px",
+                fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
+                background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.6)",
+              }}>
+                STAFF PREVIEW
+              </span>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "8px 0 0" }}>{totalLessons} lessons</p>
             </div>
-          </div>
+          ) : (
+            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
+              <p style={{ ...S.label, marginBottom: "6px" }}>Progress</p>
+              <p style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: pct === 100 ? "#0abe62" : "#034852", margin: 0 }}>{pct}%</p>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "4px 0 10px" }}>{completedLessons} / {totalLessons} lessons</p>
+              <div style={{ height: "6px", borderRadius: "3px", background: "rgba(3,72,82,0.1)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, borderRadius: "3px", background: pct === 100 ? "#0abe62" : "linear-gradient(90deg, #0abe62, #209379)", transition: "width 600ms ease" }} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -108,6 +130,7 @@ export default function CourseOverviewPage() {
                 courseId={courseId}
                 isSequential={isSequential}
                 roleCode={roleCode}
+                isPreview={isPreview}
                 prevModuleTitle={prevMod?.title ?? ""}
               />
             );
@@ -120,18 +143,24 @@ export default function CourseOverviewPage() {
 
 // ── Module Section ─────────────────────────────────────────────
 
-function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTitle }: {
+function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, prevModuleTitle }: {
   module: ModuleWithProgress;
   courseId: string;
   isSequential: boolean;
   roleCode: RoleCode;
+  isPreview: boolean;
   prevModuleTitle: string;
 }) {
+  const currentUrl = useCurrentUrl();
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
   // is_module_complete from backend (lessons + quiz)
   const allDone = module.is_module_complete;
   const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
+  // Module tests sit at the END of the sequential flow: every lesson in this
+  // module must be complete before a test is attemptable (backend enforces too).
+  const quizLockedByLessons =
+    isSequential && roleCode === "STUDENT" && !module.lessons.every((l) => l.is_complete);
 
   return (
     <div style={{ ...glassCard, opacity: isModuleLocked ? 0.7 : 1 }}>
@@ -142,10 +171,18 @@ function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTit
           {isModuleLocked && <span style={{ fontSize: "14px" }}>🔒</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "12px", color: allDone ? "#0abe62" : "rgba(3,72,82,0.5)", fontWeight: 600 }}>
-            {done} / {total} complete
-          </span>
-          {allDone && <span style={{ fontSize: "14px" }}>✓</span>}
+          {isPreview ? (
+            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>
+              {total} lesson{total !== 1 ? "s" : ""}
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: "12px", color: allDone ? "#0abe62" : "rgba(3,72,82,0.5)", fontWeight: 600 }}>
+                {done} / {total} complete
+              </span>
+              {allDone && <span style={{ fontSize: "14px" }}>✓</span>}
+            </>
+          )}
         </div>
       </div>
 
@@ -172,7 +209,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTit
               module={module}
               courseId={courseId}
               isSequential={isSequential}
-              isLast={idx === module.lessons.length - 1 && !module.module_quiz}
+              isLast={idx === module.lessons.length - 1 && module.module_quizzes.every((q) => !q.published)}
               roleCode={roleCode}
               isModuleLocked={isModuleLocked}
               prevModuleTitle={prevModuleTitle}
@@ -181,37 +218,48 @@ function ModuleSection({ module, courseId, isSequential, roleCode, prevModuleTit
         </div>
       )}
 
-      {/* Module quiz row */}
-      {module.module_quiz?.published && !isModuleLocked && (
-        <Link
-          href={`/dashboard/quiz/${module.module_quiz.id}`}
-          style={{ textDecoration: "none" }}
-        >
+      {/* Module quiz rows — a module can have several published tests.
+          In staff preview they are listed read-only (no attempt link). */}
+      {!isModuleLocked && module.module_quizzes.filter((q) => q.published).map((quiz) => {
+        const locked = quizLockedByLessons && !isPreview;
+        const row = (
           <div style={{
             display: "flex", alignItems: "center", gap: "12px",
             padding: "12px 4px",
             borderTop: "1px solid rgba(3,72,82,0.08)",
-            cursor: "pointer",
+            opacity: locked ? 0.5 : 1,
+            cursor: isPreview ? "default" : locked ? "not-allowed" : "pointer",
           }}>
             <div style={{
               width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
               display: "flex", alignItems: "center", justifyContent: "center",
-              background: "rgba(10,190,98,0.1)",
-              border: "1.5px solid #0abe62",
-              fontSize: "11px", color: "#0abe62", fontWeight: 700,
+              background: locked ? "rgba(3,72,82,0.06)" : "rgba(10,190,98,0.1)",
+              border: `1.5px solid ${locked ? "rgba(3,72,82,0.15)" : "#0abe62"}`,
+              fontSize: "11px", color: locked ? "rgba(3,72,82,0.3)" : "#0abe62", fontWeight: 700,
             }}>✎</div>
             <div style={{ flex: 1 }}>
               <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
-                {module.module_quiz.title}
+                {quiz.title}
               </p>
               <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
-                Module test
+                {locked ? "Complete all lessons in this module to unlock" : "Module quiz"}
               </p>
             </div>
-            <span style={{ fontSize: "14px", color: "#209379", flexShrink: 0 }}>▶</span>
+            {!isPreview && (
+              <span style={{ fontSize: "14px", color: locked ? "rgba(3,72,82,0.3)" : "#209379", flexShrink: 0 }}>
+                {locked ? "🔒" : "▶"}
+              </span>
+            )}
           </div>
-        </Link>
-      )}
+        );
+        return isPreview || locked ? (
+          <div key={quiz.id}>{row}</div>
+        ) : (
+          <Link key={quiz.id} href={withFrom(`/dashboard/quiz/${quiz.id}`, currentUrl)} style={{ textDecoration: "none" }}>
+            {row}
+          </Link>
+        );
+      })}
     </div>
   );
 }
@@ -230,6 +278,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
   prevModuleTitle: string;
 }) {
   const [tooltip, setTooltip] = useState(false);
+  const currentUrl = useCurrentUrl();
 
   const isStudent = roleCode === "STUDENT";
   // Locked if the whole module is blocked by previous module, OR if prior lesson within module is incomplete
@@ -305,7 +354,7 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
   if (isLocked) return content;
 
   return (
-    <Link href={`/dashboard/courses/${courseId}/lessons/${lesson.id}`} style={{ textDecoration: "none" }}>
+    <Link href={withFrom(`/dashboard/courses/${courseId}/lessons/${lesson.id}`, currentUrl)} style={{ textDecoration: "none" }}>
       {content}
     </Link>
   );

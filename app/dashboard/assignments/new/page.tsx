@@ -7,8 +7,10 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createAssignment, getCourses, type Course } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 export default function NewAssignmentPage() {
   const router = useRouter();
+  const invalidate = useInvalidate();
   const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
 
@@ -51,6 +53,7 @@ export default function NewAssignmentPage() {
         due_at:            new Date(dueAt).toISOString(),
         course_id:         courseId || undefined,
       });
+      invalidate('assignments');
       router.replace(`/dashboard/assignments/${a.id}/submissions`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create assignment.");

@@ -6,6 +6,8 @@ import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { type Bundle } from "@/lib/api";
 import { useBundles } from "@/lib/queries/bundles";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 export default function BundlesPage() {
   const { isLoading } = useCurrentUser();
@@ -23,7 +25,7 @@ export default function BundlesPage() {
         <div>
           <p style={label}>Curriculum</p>
           <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Bundles</h1>
-          <p style={sub}>Group courses and tests together and assign them to students in one action.</p>
+          <p style={sub}>Group courses and quizzes together and assign them to students in one action.</p>
         </div>
         {canCreate && (
           <Link href="/dashboard/bundles/new" style={primaryBtn}>
@@ -60,8 +62,9 @@ export default function BundlesPage() {
 }
 
 function BundleCard({ bundle }: { bundle: Bundle }) {
+  const currentUrl = useCurrentUrl();
   return (
-    <Link href={`/dashboard/bundles/${bundle.id}`} style={{ textDecoration: "none" }}>
+    <Link href={withFrom(`/dashboard/bundles/${bundle.id}`, currentUrl)} style={{ textDecoration: "none" }}>
       <div
         style={{
           ...glassCard,

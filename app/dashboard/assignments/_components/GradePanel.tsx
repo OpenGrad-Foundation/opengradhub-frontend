@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { patchSubmission, type Submission } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
@@ -28,6 +29,7 @@ export function GradePanel({
   onSaved: () => Promise<void>;
   onClose: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [sub, setSub]           = useState(initialSub);
   const [score, setScore]       = useState(initialSub.score?.toString() ?? "");
   const [feedback, setFeedback] = useState(initialSub.feedback ?? "");
@@ -56,6 +58,7 @@ export function GradePanel({
         status:    "GRADED",
         graded_by: graderId,
       });
+      invalidate('assignments');
       setSub(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);

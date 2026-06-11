@@ -15,6 +15,7 @@ import {
   type CourseLesson,
   type CourseModule,
 } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function CourseCurriculumEditor({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -52,7 +53,7 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
       <div style={{ marginBottom: "18px" }}>
         <p style={labelSt}>Curriculum</p>
         <h3 style={{ ...headingSt, fontSize: "20px", marginTop: "4px" }}>Modules and lessons</h3>
-        <p style={subSt}>Reorder modules, edit lessons, and manage module tests inside the course workspace.</p>
+        <p style={subSt}>Reorder modules, edit lessons, and manage module quizzes inside the course workspace.</p>
       </div>
 
       <ModuleList
@@ -91,6 +92,7 @@ function ModuleList({
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
 }) {
+  const invalidate = useInvalidate();
   const [addingModule, setAddingModule] = useState(false);
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [savingModule, setSavingModule] = useState(false);
@@ -123,6 +125,7 @@ function ModuleList({
 
     try {
       await reorderModules(courseId, reordered.map((item) => item.id));
+      invalidate('courses');
     } catch (error) {
       setGlobalError(error instanceof Error ? error.message : "Module reorder failed.");
     }
@@ -133,6 +136,7 @@ function ModuleList({
     setSavingModule(true);
     try {
       const created = await createModule(courseId, newModuleTitle.trim());
+      invalidate('courses');
       setModules((prev) => [...prev, created]);
       setNewModuleTitle("");
       setAddingModule(false);
@@ -233,6 +237,7 @@ function ModuleItem({
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
 }) {
+  const invalidate = useInvalidate();
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(module.title);
   const [saving, setSaving] = useState(false);
@@ -248,6 +253,7 @@ function ModuleItem({
     setSaving(true);
     try {
       await updateModule(module.id, editTitle.trim());
+      invalidate('courses');
       setModules((prev) => prev.map((item) => (item.id === module.id ? { ...item, title: editTitle.trim() } : item)));
       setEditing(false);
     } catch (error) {
@@ -261,6 +267,7 @@ function ModuleItem({
     setDeleteError(null);
     try {
       await deleteModule(module.id);
+      invalidate('courses');
       setModules((prev) => prev.filter((item) => item.id !== module.id));
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Cannot delete module.");
@@ -271,6 +278,7 @@ function ModuleItem({
     if (!confirm("Delete this lesson?")) return;
     try {
       await deleteLesson(lessonId);
+      invalidate('courses');
       setModules((prev) =>
         prev.map((item) =>
           item.id === module.id ? { ...item, lessons: item.lessons.filter((lesson) => lesson.id !== lessonId) } : item,
@@ -297,6 +305,7 @@ function ModuleItem({
     dragLessonIdx.current = null;
     try {
       await reorderLessons(module.id, reordered.map((lesson) => lesson.id));
+      invalidate('courses');
     } catch (error) {
       setGlobalError(error instanceof Error ? error.message : "Lesson reorder failed.");
     }
@@ -357,33 +366,37 @@ function ModuleItem({
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", margin: "-6px 0 14px", paddingLeft: "28px", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)" }}>
-          Module Test
+      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", margin: "-6px 0 14px", paddingLeft: "28px", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)", paddingTop: "2px" }}>
+          Module Quizzes
         </span>
-        {module.module_quiz ? (
-          <>
-            <span style={{ fontSize: "12px", fontWeight: 700, color: "#034852" }}>{module.module_quiz.title}</span>
-            <span
-              style={{
-                padding: "2px 8px",
-                borderRadius: "999px",
-                fontSize: "10px",
-                fontWeight: 800,
-                letterSpacing: "0.06em",
-                background: module.module_quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
-                color: module.module_quiz.published ? "#0abe62" : "#956f00",
-              }}
-            >
-              {module.module_quiz.published ? "Published" : "Unpublished"}
-            </span>
-            <Link
-              href={`/dashboard/quiz-builder/${module.module_quiz.id}?course_id=${courseId}`}
-              style={{ fontSize: "12px", fontWeight: 700, color: "#209379", textDecoration: "none" }}
-            >
-              Edit →
-            </Link>
-          </>
+        {module.module_quizzes.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {module.module_quizzes.map((quiz) => (
+              <div key={quiz.id} style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#034852" }}>{quiz.title}</span>
+                <span
+                  style={{
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                    fontSize: "10px",
+                    fontWeight: 800,
+                    letterSpacing: "0.06em",
+                    background: quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
+                    color: quiz.published ? "#0abe62" : "#956f00",
+                  }}
+                >
+                  {quiz.published ? "Published" : "Unpublished"}
+                </span>
+                <Link
+                  href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`}
+                  style={{ fontSize: "12px", fontWeight: 700, color: "#209379", textDecoration: "none" }}
+                >
+                  Edit →
+                </Link>
+              </div>
+            ))}
+          </div>
         ) : (
           <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>None</span>
         )}
@@ -444,7 +457,7 @@ function ModuleItem({
             borderColor: "rgba(32,147,121,0.3)",
           }}
         >
-          {module.module_quiz ? "+ New Module Test" : "+ Add Module Test"}
+          + Add Module Quiz
         </Link>
       </div>
     </div>
@@ -499,6 +512,7 @@ function LessonSlideOver({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const invalidate = useInvalidate();
   const [title, setTitle] = useState(lesson?.title ?? "");
   const [youtubeUrl, setYoutubeUrl] = useState(lesson?.youtube_url ?? "");
   const [duration, setDuration] = useState(lesson?.duration_minutes?.toString() ?? "");
@@ -525,6 +539,7 @@ function LessonSlideOver({
           duration_minutes: duration ? Number(duration) : null,
           notes_html: notes.trim() || null,
         });
+        invalidate('courses');
       } else {
         await createLesson(moduleId, {
           title: title.trim(),
@@ -532,6 +547,7 @@ function LessonSlideOver({
           duration_minutes: duration ? Number(duration) : undefined,
           notes_html: notes.trim() || undefined,
         });
+        invalidate('courses');
       }
       onSaved();
     } catch (saveError) {

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
-import Link from "next/link";
 import { useParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getAssignmentById,
@@ -11,6 +11,7 @@ import {
   type Assignment,
   type Submission,
 } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -42,9 +43,9 @@ export default function AssignmentDetailPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Assignment not found."}</p>
-        <Link href="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
-          ← Assignments
-        </Link>
+        <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
+          ← Back
+        </BackLink>
       </div>
     );
   }
@@ -61,9 +62,9 @@ export default function AssignmentDetailPage() {
   return (
     <div style={{ maxWidth: "760px" }}>
       {/* Back */}
-      <Link href="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Assignments
-      </Link>
+      <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+        ← Back
+      </BackLink>
 
       {/* Header card */}
       <div style={{ ...glassCard, marginTop: "16px", marginBottom: "20px" }}>
@@ -117,9 +118,15 @@ export default function AssignmentDetailPage() {
         )}
       </div>
 
-      {/* Graded result */}
-      {isGraded && isStudent && (
-        <GradedResult assignmentId={assignmentId} studentId={studentId} />
+      {/* Graded result — read from the caller's own submission (no grader API). */}
+      {isGraded && isStudent && assignment.my_submission && (
+        <GradedResult sub={assignment.my_submission} />
+      )}
+
+      {/* Prior submission (submitted but not yet graded) so students can see what
+          they sent before resubmitting. */}
+      {isSubmitted && isStudent && assignment.my_submission && (
+        <PriorSubmission sub={assignment.my_submission} />
       )}
 
       {/* Submission form — only for students, hidden once GRADED */}
@@ -135,21 +142,43 @@ export default function AssignmentDetailPage() {
   );
 }
 
+type MySubmission = NonNullable<Assignment["my_submission"]>;
+
+// ── Prior submission (submitted, pre-grading) ──────────────────
+
+function PriorSubmission({ sub }: { sub: MySubmission }) {
+  return (
+    <div style={{ ...glassCard, marginBottom: "20px", border: "1px solid rgba(3,72,82,0.1)" }}>
+      <p style={{ ...S.sectionLabel, marginBottom: "10px" }}>
+        Your Submission{sub.is_late ? " · Late" : ""}
+      </p>
+      {sub.response_text && (
+        <p style={{ fontSize: "14px", color: "#034852", lineHeight: 1.7, margin: "0 0 10px", whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
+      )}
+      <SubmissionFiles files={sub.file_urls} />
+      {sub.submitted_at && (
+        <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "10px 0 0" }}>
+          Submitted {new Date(sub.submitted_at).toLocaleString()}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SubmissionFiles({ files }: { files: string[] }) {
+  if (!files || files.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {files.map((f, i) => (
+        <span key={i} style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)" }}>📄 {f}</span>
+      ))}
+    </div>
+  );
+}
+
 // ── Graded result banner ───────────────────────────────────────
 
-function GradedResult({ assignmentId, studentId }: { assignmentId: string; studentId: string }) {
-  const [sub, setSub] = useState<Submission | null>(null);
-
-  useEffect(() => {
-    import("@/lib/api").then(({ getSubmissions }) =>
-      getSubmissions(assignmentId)
-        .then(list => setSub(list.find(s => s.student_id === studentId) ?? null))
-        .catch(() => {})
-    );
-  }, [assignmentId, studentId]);
-
-  if (!sub) return null;
-
+function GradedResult({ sub }: { sub: MySubmission }) {
   return (
     <div style={{
       ...glassCard, marginBottom: "20px",
@@ -177,7 +206,8 @@ function GradedResult({ assignmentId, studentId }: { assignmentId: string; stude
       {sub.response_text && (
         <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
           <p style={{ ...S.sectionLabel, margin: "0 0 8px" }}>Your Submission</p>
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.7, margin: 0 }}>{sub.response_text}</p>
+          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
+          <div style={{ marginTop: "8px" }}><SubmissionFiles files={sub.file_urls} /></div>
         </div>
       )}
     </div>
@@ -207,6 +237,7 @@ function SubmissionForm({
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const [submitted, setSubmitted]       = useState(false);
+  const invalidate = useInvalidate();
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFileError(null);
@@ -247,6 +278,7 @@ function SubmissionForm({
         response_text: responseText.trim() || undefined,
         file_urls:     fileUrls,
       });
+      invalidate('assignments');
       setSubmitted(true);
       onSubmitted(sub);
     } catch (err) {

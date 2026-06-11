@@ -34,7 +34,7 @@ export default function StudentTasks({ userId }: { userId: string }) {
                 ? `Starts ${new Date(nextLiveClass.startsAt).toLocaleString()}`
                 : undefined
             }
-            actionHref={`/dashboard/live-classes/${nextLiveClass.id}`}
+            actionHref="/dashboard/live-classes"
             actionLabel="Join"
           />
         ) : null}

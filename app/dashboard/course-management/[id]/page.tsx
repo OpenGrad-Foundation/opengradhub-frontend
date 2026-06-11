@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import CourseCurriculumEditor from "../_components/CourseCurriculumEditor";
 import CourseMetaForm from "../../courses/_components/CourseMetaForm";
@@ -14,6 +15,7 @@ import {
   getCourseManagementStudentDetail,
   getCourseManagementStudents,
   getCourseManagementSummary,
+  unassignCourse,
   updateCourse,
   type CourseManagementAnalytics,
   type CourseManagementModuleSummary,
@@ -22,6 +24,7 @@ import {
   type CourseManagementSummary,
 } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 const TABS = ["curriculum", "overview", "students", "analytics", "settings"] as const;
 type TabKey = (typeof TABS)[number];
@@ -32,6 +35,7 @@ export default function CourseManagementPage() {
   const searchParams = useSearchParams();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const invalidate = useInvalidate();
 
   const courseId = params.id;
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
@@ -39,6 +43,8 @@ export default function CourseManagementPage() {
   const tabParam = searchParams.get("tab");
   const activeTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
   const canAccess = has(PERM.courses.edit);
+  const canEnrol = has(PERM.courses.enrol);
+  const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
   const [analytics, setAnalytics] = useState<CourseManagementAnalytics | null>(null);
@@ -85,6 +91,26 @@ export default function CourseManagementPage() {
       setStudentsLoading(false);
     }
   }, [assignmentStatus, courseId, page, progressBucket, search, sort]);
+
+  const handleRemoveStudent = useCallback(
+    async (studentId: string, studentName: string) => {
+      if (!window.confirm(`Remove ${studentName} from this course? Their enrolment will be deleted.`)) {
+        return;
+      }
+      setRemovingStudentId(studentId);
+      setError(null);
+      try {
+        await unassignCourse(studentId, courseId);
+        if (selectedStudentId === studentId) setSelectedStudentId(null);
+        await loadStudents();
+      } catch (removeError) {
+        setError(removeError instanceof Error ? removeError.message : "Failed to remove student.");
+      } finally {
+        setRemovingStudentId(null);
+      }
+    },
+    [courseId, loadStudents, selectedStudentId],
+  );
 
   useEffect(() => {
     if (userLoading || !callerId || !canAccess) return;
@@ -150,6 +176,7 @@ export default function CourseManagementPage() {
         caller_id: callerId,
         caller_role: roleCode,
       });
+      invalidate('courses');
       await loadSummary();
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "Failed to update course status.");
@@ -175,9 +202,9 @@ export default function CourseManagementPage() {
         <div style={{ ...card, textAlign: "center" }}>
           <p style={eyebrow}>Access denied</p>
           <p style={{ ...title, marginTop: "12px" }}>This workspace is available to Super Admins and Program Managers only.</p>
-          <Link href="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
+          <BackLink fallback="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
             Back to Courses
-          </Link>
+          </BackLink>
         </div>
       </div>
     );
@@ -189,9 +216,9 @@ export default function CourseManagementPage() {
         <div style={{ ...card, textAlign: "center" }}>
           <p style={eyebrow}>Course Management</p>
           <p style={{ ...title, marginTop: "12px" }}>{error}</p>
-          <Link href="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
+          <BackLink fallback="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
             Back to Courses
-          </Link>
+          </BackLink>
         </div>
       </div>
     );
@@ -305,9 +332,9 @@ export default function CourseManagementPage() {
 
       <div className="course-mgmt-header-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
         <div>
-          <Link href="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 700 }}>
+          <BackLink fallback="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 700 }}>
             ← Courses
-          </Link>
+          </BackLink>
           <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
           <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
           <p style={subtitle}>
@@ -318,7 +345,7 @@ export default function CourseManagementPage() {
         <div className="course-mgmt-header-buttons" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
           {currentCourse && (
             <>
-              <Link href={`/dashboard/courses/${currentCourse.id}`} style={ghostLinkBtn}>
+              <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} style={ghostLinkBtn}>
                 Preview as student
               </Link>
               <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
@@ -459,6 +486,7 @@ export default function CourseManagementPage() {
                     {["Student", "Enrolled", "Progress", "Quiz marks", "Assignments", "Last active"].map((heading) => (
                       <th key={heading} style={tableHead}>{heading}</th>
                     ))}
+                    {canEnrol && <th style={tableHead}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -486,6 +514,18 @@ export default function CourseManagementPage() {
                         <span style={statusBadge(student.assignment_status)}>{humanizeStatus(student.assignment_status)}</span>
                       </td>
                       <td style={tableCell}>{student.last_active_at ? formatRelativeTime(student.last_active_at) : "No recent activity"}</td>
+                      {canEnrol && (
+                        <td style={tableCell} onClick={(event) => event.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => void handleRemoveStudent(student.id, student.name)}
+                            disabled={removingStudentId === student.id}
+                            style={removeBtn}
+                          >
+                            {removingStudentId === student.id ? "Removing…" : "Remove"}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -558,6 +598,7 @@ export default function CourseManagementPage() {
                 caller_id: callerId,
                 caller_role: roleCode,
               });
+              invalidate('courses');
               await loadSummary();
             }}
           />
@@ -996,6 +1037,18 @@ const ghostBtn: React.CSSProperties = {
   fontWeight: 700,
   fontSize: "13px",
   cursor: "pointer",
+};
+
+const removeBtn: React.CSSProperties = {
+  padding: "7px 12px",
+  border: "1px solid rgba(229,62,62,0.28)",
+  borderRadius: "10px",
+  background: "rgba(229,62,62,0.06)",
+  color: "#b83232",
+  fontWeight: 700,
+  fontSize: "12px",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
 const ghostLinkBtn: React.CSSProperties = {

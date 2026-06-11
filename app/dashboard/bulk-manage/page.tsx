@@ -10,24 +10,24 @@ import {
   bulkRemove,
   getEnrolledItemsForStudents,
   getBundles,
+  getBatches,
+  addBatchMembers,
   type StudentForBulk,
   type Course,
   type Bundle,
+  type Batch,
   type EnrolledItems,
 } from "@/lib/api";
 import { useCourses } from "@/lib/queries/courses";
-
-const STATES = [
-  { value: "TAMIL_NADU",    label: "Tamil Nadu" },
-  { value: "CHHATTISGARH", label: "Chhattisgarh" },
-  { value: "KERALA",        label: "Kerala" },
-];
+import { useInvalidate } from "@/lib/mutations/invalidation";
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 
 type Mode = "assign" | "remove";
 
 export default function BulkManagePage() {
   const { isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const invalidate = useInvalidate();
   const canManage  = has(PERM.bulk_assign.run);
 
   // ── Mode toggle ────────────────────────────────────────────────
@@ -51,6 +51,7 @@ export default function BulkManagePage() {
     { allStatuses: true },
   );
   const [allBundles,        setAllBundles]        = useState<Bundle[]>([]);
+  const [allBatches,        setAllBatches]        = useState<Batch[]>([]);
 
   // ── Step 2 — Remove mode: enrolled items only ─────────────────
   const [enrolledItems,     setEnrolledItems]     = useState<EnrolledItems>({ courses: [], bundles: [] });
@@ -59,8 +60,10 @@ export default function BulkManagePage() {
   // ── Step 2: shared selection state ─────────────────────────��──
   const [courseSearch,      setCourseSearch]      = useState("");
   const [bundleSearch,      setBundleSearch]      = useState("");
+  const [batchSearch,       setBatchSearch]       = useState("");
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   const [selectedBundleIds, setSelectedBundleIds] = useState<Set<string>>(new Set());
+  const [selectedBatchIds,  setSelectedBatchIds]  = useState<Set<string>>(new Set());
 
   // ── Step 3: modal + toast ──────────────────────────────────────
   const [showModal, setShowModal] = useState(false);
@@ -74,6 +77,7 @@ export default function BulkManagePage() {
   useEffect(() => {
     if (userLoading || !canManage) return;
     getBundles().then(setAllBundles).catch(() => {});
+    getBatches("ACTIVE").then(setAllBatches).catch(() => {});
   }, [userLoading, canManage]);
 
   // ── Fetch enrolled items when Remove mode + students selected ──
@@ -108,8 +112,10 @@ export default function BulkManagePage() {
     setMode(next);
     setSelectedCourseIds(new Set());
     setSelectedBundleIds(new Set());
+    setSelectedBatchIds(new Set());
     setCourseSearch("");
     setBundleSearch("");
+    setBatchSearch("");
   }
 
   // ── Handlers ───────────────────────────────────────────────────
@@ -172,6 +178,15 @@ export default function BulkManagePage() {
     });
   }
 
+  function toggleBatch(id: string) {
+    setSelectedBatchIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function handleAction() {
     setActing(true);
     const nC = selectedCourseIds.size;
@@ -179,16 +194,27 @@ export default function BulkManagePage() {
     const nS = selectedIds.size;
     try {
       if (mode === "assign") {
-        const result = await bulkEnrol({
-          student_ids: Array.from(selectedIds),
-          course_ids:  Array.from(selectedCourseIds),
-          bundle_ids:  Array.from(selectedBundleIds),
-        });
+        const nBt = selectedBatchIds.size;
+        let skipped = 0;
+        if (nC > 0 || nB > 0) {
+          const result = await bulkEnrol({
+            student_ids: Array.from(selectedIds),
+            course_ids:  Array.from(selectedCourseIds),
+            bundle_ids:  Array.from(selectedBundleIds),
+          });
+          skipped = result.skipped;
+        }
+        // Batches: bulk member add per batch — cascades each batch's content.
+        for (const batchId of selectedBatchIds) {
+          await addBatchMembers(batchId, Array.from(selectedIds));
+        }
+        invalidate('enrolment', 'batches');
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);
         if (nB > 0) parts.push(`${nB} bundle${nB !== 1 ? "s" : ""}`);
+        if (nBt > 0) parts.push(`${nBt} batch${nBt !== 1 ? "es" : ""}`);
         setToast({
-          msg: `Done. Assigned ${parts.join(" and ")} to ${nS} student${nS !== 1 ? "s" : ""}. ${result.skipped} already enrolled, skipped.`,
+          msg: `Done. Assigned ${parts.join(" and ")} to ${nS} student${nS !== 1 ? "s" : ""}.${nC > 0 || nB > 0 ? ` ${skipped} already enrolled, skipped.` : ""}`,
           ok: true,
         });
       } else {
@@ -197,6 +223,7 @@ export default function BulkManagePage() {
           course_ids:  Array.from(selectedCourseIds),
           bundle_ids:  Array.from(selectedBundleIds),
         });
+        invalidate('enrolment');
         const parts: string[] = [];
         if (nC > 0) parts.push(`${nC} course${nC !== 1 ? "s" : ""}`);
         if (nB > 0) parts.push(`${nB} bundle${nB !== 1 ? "s" : ""}`);
@@ -209,6 +236,7 @@ export default function BulkManagePage() {
       setSelectedIds(new Set());
       setSelectedCourseIds(new Set());
       setSelectedBundleIds(new Set());
+      setSelectedBatchIds(new Set());
     } catch (e) {
       setShowModal(false);
       setToast({ msg: e instanceof Error ? e.message : "Action failed.", ok: false });
@@ -233,13 +261,16 @@ export default function BulkManagePage() {
 
   const filteredCourses  = coursePool.filter((c) => c.title.toLowerCase().includes(courseSearch.toLowerCase()));
   const filteredBundles  = bundlePool.filter((b) => b.name.toLowerCase().includes(bundleSearch.toLowerCase()));
+  const filteredBatches  = mode === "assign" ? allBatches.filter((b) => b.name.toLowerCase().includes(batchSearch.toLowerCase())) : [];
   const selectedCourses  = coursePool.filter((c) => selectedCourseIds.has(c.id));
   const selectedBundles  = bundlePool.filter((b) => selectedBundleIds.has(b.id));
-  const canAct           = selectedCount > 0 && (selectedCourseIds.size > 0 || selectedBundleIds.size > 0);
+  const selectedBatches  = allBatches.filter((b) => selectedBatchIds.has(b.id));
+  const canAct           = selectedCount > 0 && (selectedCourseIds.size > 0 || selectedBundleIds.size > 0 || (mode === "assign" && selectedBatchIds.size > 0));
   const selectionSummary = (() => {
     const parts: string[] = [];
     if (selectedCourseIds.size > 0) parts.push(`${selectedCourseIds.size} course${selectedCourseIds.size !== 1 ? "s" : ""}`);
     if (selectedBundleIds.size > 0) parts.push(`${selectedBundleIds.size} bundle${selectedBundleIds.size !== 1 ? "s" : ""}`);
+    if (mode === "assign" && selectedBatchIds.size > 0) parts.push(`${selectedBatchIds.size} batch${selectedBatchIds.size !== 1 ? "es" : ""}`);
     return parts.length > 0 ? parts.join(", ") + " selected" : null;
   })();
 
@@ -309,18 +340,16 @@ export default function BulkManagePage() {
       <div style={{ ...glassCard, marginBottom: "20px" }}>
         <p style={{ ...labelStyle, marginBottom: "16px" }}>Step 1 — Filter Students</p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "12px", marginBottom: "16px" }}>
-          <div>
-            <label style={fieldLabel}>State</label>
-            <select value={filterState} onChange={(e) => setFilterState(e.target.value)} style={inputStyle}>
-              <option value="">All States</option>
-              {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label style={fieldLabel}>District</label>
-            <input type="text" placeholder="e.g. Chennai" value={filterDistrict}
-              onChange={(e) => setFilterDistrict(e.target.value)} style={inputStyle}
-              onKeyDown={(e) => e.key === "Enter" && void handleSearch()} />
+          <div style={{ gridColumn: "span 2" }}>
+            <label style={fieldLabel}>State &amp; District</label>
+            <StateDistrictPicker
+              state={filterState}
+              district={filterDistrict}
+              onStateChange={setFilterState}
+              onDistrictChange={setFilterDistrict}
+              blankStateLabel="All States"
+              inputStyle={inputStyle}
+            />
           </div>
           <div>
             <label style={fieldLabel}>School</label>
@@ -553,6 +582,59 @@ export default function BulkManagePage() {
                   </div>
                 )}
               </div>
+
+              {/* Batches column — assign mode only (membership removal lives on the batch page) */}
+              {mode === "assign" && (
+                <div>
+                  <label style={{ ...fieldLabel, marginBottom: "8px" }}>
+                    Batches <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(adds students as members)</span>
+                  </label>
+                  <input type="text" placeholder="Search batches…" value={batchSearch}
+                    onChange={(e) => setBatchSearch(e.target.value)}
+                    style={{ ...inputStyle, marginBottom: "8px" }} />
+                  <div style={{ maxHeight: "220px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.12)", borderRadius: "10px" }}>
+                    {filteredBatches.length === 0 ? (
+                      <p style={{ padding: "16px", margin: 0, color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>
+                        {batchSearch ? "No batches match." : "No active batches."}
+                      </p>
+                    ) : filteredBatches.map((b) => {
+                      const checked = selectedBatchIds.has(b.id);
+                      return (
+                        <label key={b.id} style={{
+                          display: "flex", alignItems: "center", gap: "10px",
+                          padding: "9px 12px", cursor: "pointer",
+                          borderBottom: "1px solid rgba(3,72,82,0.05)",
+                          background: checked ? "rgba(10,190,98,0.06)" : "transparent",
+                          transition: "background 100ms",
+                        }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={() => toggleBatch(b.id)}
+                            style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0 }} />
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontWeight: 600, color: "#034852", fontSize: "13px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {b.name}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                              {b.school_name ?? "Independent"} · {b.member_count} member{b.member_count !== 1 ? "s" : ""}
+                            </span>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {selectedBatches.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+                      {selectedBatches.map((b) => (
+                        <span key={b.id} style={{ ...tagStyle(mode) }}>
+                          {b.name}
+                          <button onClick={() => toggleBatch(b.id)} style={tagRemoveBtn} title="Remove">×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

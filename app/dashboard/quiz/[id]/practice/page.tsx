@@ -8,7 +8,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref } from "@/lib/nav";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { ApiError, getPracticePayload, type QuizAttemptQuestion } from "@/lib/api";
 import {
@@ -42,7 +43,6 @@ function toQuizQuestion(p: PracticePayloadQuestion): QuizAttemptQuestion {
     section_id: p.section_id,
     question_type: p.question_type,
     content_html: p.content_html,
-    correct_answer: p.correct_answer,
     tolerance: p.tolerance,
     options: (p.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
     children: (p.children ?? []).map((c) => ({
@@ -50,7 +50,6 @@ function toQuizQuestion(p: PracticePayloadQuestion): QuizAttemptQuestion {
       section_id: c.section_id,
       question_type: c.question_type,
       content_html: c.content_html,
-      correct_answer: c.correct_answer,
       tolerance: c.tolerance,
       options: (c.options ?? []).map((o) => ({ id: o.id, option_text: o.option_text })),
     })),
@@ -158,6 +157,7 @@ type PageState =
 export default function PracticePage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const from = useSearchParams().get("from");
   const quizId = params?.id ?? "";
 
   const [state, setState] = useState<PageState>({ kind: "loading" });
@@ -273,10 +273,10 @@ export default function PracticePage() {
               {state.message}
             </p>
             <Link
-              href="/dashboard/assessments"
+              href={getBackHref(from, "/dashboard/assessments")}
               style={{ ...primaryBtn, display: "inline-block", textDecoration: "none" }}
             >
-              ← Back to assessments
+              ← Back to quizzes
             </Link>
           </div>
         </div>
@@ -329,14 +329,14 @@ export default function PracticePage() {
             answers={answers}
             setAnswer={setAnswer}
             onSubmit={handleSubmit}
-            onBack={() => router.push("/dashboard/assessments")}
+            onBack={() => router.push(getBackHref(from, "/dashboard/assessments"))}
           />
         ) : (
           <ResultsView
             payload={state.payload}
             answers={answers}
             onPracticeAgain={handlePracticeAgain}
-            onBack={() => router.push("/dashboard/assessments")}
+            onBack={() => router.push(getBackHref(from, "/dashboard/assessments"))}
           />
         )}
       </div>
@@ -390,7 +390,7 @@ function AnsweringView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to assessments
+          ← Back to quizzes
         </button>
         <button onClick={onSubmit} style={primaryBtn}>
           Submit practice →
@@ -490,7 +490,7 @@ function ResultsView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to assessments
+          ← Back to quizzes
         </button>
         <button onClick={onPracticeAgain} style={primaryBtn}>
           Practice again ↻

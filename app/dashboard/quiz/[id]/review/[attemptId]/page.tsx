@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
@@ -97,7 +99,7 @@ function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
   );
 }
 
-function QuestionReviewCard({ q, idx }: { q: AttemptReviewQuestion; idx: number }) {
+function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; idx: number; revealed: boolean }) {
   const borderColor =
     q.is_correct === true  ? "#0abe62" :
     q.is_correct === false ? "#e53e3e" :
@@ -141,30 +143,41 @@ function QuestionReviewCard({ q, idx }: { q: AttemptReviewQuestion; idx: number 
               {q.options.map((opt) => {
                 const isStudentAnswer = q.student_answer === opt.id;
                 const isCorrect = opt.is_correct;
+                // Correct answer only shows once revealed.
+                const showCorrect      = revealed && isCorrect;
+                const showStudentWrong = revealed && isStudentAnswer && !isCorrect;
+
                 const bg =
-                  isCorrect && isStudentAnswer ? "rgba(10,190,98,0.12)" :
-                  isCorrect                    ? "rgba(10,190,98,0.07)" :
-                  isStudentAnswer              ? "rgba(229,62,62,0.08)" :
+                  showCorrect      ? "rgba(10,190,98,0.12)" :
+                  showStudentWrong ? "rgba(229,62,62,0.08)" :
+                  isStudentAnswer  ? "rgba(3,72,82,0.06)" :
                   "rgba(3,72,82,0.03)";
                 const border =
-                  isCorrect && isStudentAnswer ? "#0abe62" :
-                  isCorrect                    ? "#0abe62" :
-                  isStudentAnswer              ? "#e53e3e" :
+                  showCorrect      ? "#0abe62" :
+                  showStudentWrong ? "#e53e3e" :
+                  isStudentAnswer  ? "rgba(3,72,82,0.2)" :
                   "rgba(3,72,82,0.08)";
+                const dot =
+                  showCorrect      ? "#0abe62" :
+                  showStudentWrong ? "#e53e3e" :
+                  isStudentAnswer  ? "#209379" :
+                  "rgba(3,72,82,0.25)";
+                const fillRadio = isStudentAnswer || showCorrect;
 
                 return (
                   <div key={opt.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 14px", borderRadius: "8px", background: bg, border: `1.5px solid ${border}` }}>
-                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0, background: isCorrect ? "#0abe62" : isStudentAnswer ? "#e53e3e" : "rgba(3,72,82,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {isCorrect && <span style={{ color: "#fff", fontSize: "10px", fontWeight: 900 }}>✓</span>}
-                      {!isCorrect && isStudentAnswer && <span style={{ color: "#fff", fontSize: "10px", fontWeight: 900 }}>✕</span>}
+                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${dot}`, background: "#fff", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {fillRadio && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot }} />}
                     </span>
                     <span style={{ fontSize: "14px", color: "#034852" }}>{opt.option_text}</span>
-                    {isStudentAnswer && !isCorrect && (
-                      <span style={{ fontSize: "11px", color: "#e53e3e", marginLeft: "auto" }}>Your answer</span>
-                    )}
-                    {isCorrect && (
-                      <span style={{ fontSize: "11px", color: "#0abe62", marginLeft: "auto" }}>Correct</span>
-                    )}
+                    <span style={{ marginLeft: "auto", display: "flex", gap: "8px", flexShrink: 0 }}>
+                      {isStudentAnswer && (
+                        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>Your answer</span>
+                      )}
+                      {showCorrect && (
+                        <span style={{ fontSize: "11px", color: "#0abe62" }}>Correct</span>
+                      )}
+                    </span>
                   </div>
                 );
               })}
@@ -180,10 +193,12 @@ function QuestionReviewCard({ q, idx }: { q: AttemptReviewQuestion; idx: number 
                   {q.student_answer ?? "—"}
                 </p>
               </div>
-              <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.2)" }}>
-                <p style={{ margin: 0, fontSize: "11px", color: "#0abe62", fontWeight: 600 }}>Correct answer</p>
-                <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>{q.correct_answer ?? "—"}</p>
-              </div>
+              {revealed && (
+                <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.2)" }}>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#0abe62", fontWeight: 600 }}>Correct answer</p>
+                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>{q.correct_answer ?? "—"}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -261,11 +276,16 @@ function SectionHeader({ section }: { section: AttemptReviewSection }) {
 export default function AttemptReviewPage() {
   const { id: quizId, attemptId } = useParams<{ id: string; attemptId: string }>();
   const router = useRouter();
+  const from = useSearchParams().get("from");
+  const currentUrl = useCurrentUrl();
 
   const { data: userData } = useCurrentUser();
   const [review, setReview] = useState<AttemptReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Correct answers hidden until the student reveals them — lets them re-think
+  // each question (no time limit) before checking.
+  const [revealed, setRevealed] = useState(false);
 
   useEffect(() => {
     getAttemptReview(attemptId)
@@ -284,7 +304,7 @@ export default function AttemptReviewPage() {
     <div style={page}>
       <div style={card}>
         <p style={{ color: "#e53e3e", fontSize: "15px", fontWeight: 600 }}>{error}</p>
-        <button onClick={() => router.back()} style={{ marginTop: "16px", padding: "10px 20px", borderRadius: "10px", border: "none", background: "rgba(3,72,82,0.08)", color: "#034852", fontWeight: 700, cursor: "pointer" }}>Go back</button>
+        <button onClick={() => router.push(getBackHref(from, `/dashboard/quiz/${quizId}`))} style={{ marginTop: "16px", padding: "10px 20px", borderRadius: "10px", border: "none", background: "rgba(3,72,82,0.08)", color: "#034852", fontWeight: 700, cursor: "pointer" }}>Go back</button>
       </div>
     </div>
   );
@@ -305,13 +325,13 @@ export default function AttemptReviewPage() {
     : null;
 
   const renderQuestionCard = (q: AttemptReviewQuestion, idx: number) => (
-    <QuestionReviewCard key={q.snapshot_id} q={q} idx={idx} />
+    <QuestionReviewCard key={q.snapshot_id} q={q} idx={idx} revealed={revealed} />
   );
 
   return (
     <div style={page}>
       <button
-        onClick={() => router.push(`/dashboard/quiz/${quizId}`)}
+        onClick={() => router.push(getBackHref(from, `/dashboard/quiz/${quizId}`))}
         style={{ fontSize: "13px", color: "#209379", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: "20px", display: "block" }}
       >
         ← Back to Quiz
@@ -319,7 +339,7 @@ export default function AttemptReviewPage() {
 
       {/* Summary card */}
       <div style={card}>
-        <p style={label}>Post-Test Review</p>
+        <p style={label}>Post-Quiz Review</p>
         <div style={{ display: "flex", gap: "24px", flexWrap: "wrap", marginTop: "16px" }}>
           <div style={{ textAlign: "center" }}>
             <p style={{ fontSize: "40px", fontWeight: 900, color: "#034852", margin: 0 }}>
@@ -334,6 +354,17 @@ export default function AttemptReviewPage() {
             {totalTime > 0 && <Stat label="Total time" value={`${Math.round(totalTime / 60)}m ${totalTime % 60}s`} color="#209379" />}
           </div>
         </div>
+      </div>
+
+      {/* Reveal-all toggle */}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+        <button
+          type="button"
+          onClick={() => setRevealed((v) => !v)}
+          style={{ display: "flex", alignItems: "center", gap: "7px", padding: "9px 18px", borderRadius: "10px", border: `1.5px solid ${revealed ? "rgba(3,72,82,0.15)" : "#0abe62"}`, background: revealed ? "rgba(3,72,82,0.04)" : "rgba(10,190,98,0.08)", color: revealed ? "#034852" : "#0abe62", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+        >
+          {revealed ? "Hide Answers" : "Reveal Answers"}
+        </button>
       </div>
 
       {/* Question-by-question */}
@@ -353,7 +384,7 @@ export default function AttemptReviewPage() {
       <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
         {userData?.user?.programme === "PG" && (
           <button
-            onClick={() => router.push(`/dashboard/quiz/${quizId}/leaderboard`)}
+            onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/leaderboard`, currentUrl))}
             style={{ padding: "11px 22px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg,#0abe62,#006d6c)", color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
           >
             View Leaderboard
@@ -363,7 +394,7 @@ export default function AttemptReviewPage() {
           onClick={() => router.push("/dashboard/assessments")}
           style={{ padding: "11px 22px", border: "none", borderRadius: "12px", background: "rgba(3,72,82,0.07)", color: "#034852", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}
         >
-          Back to Assessments
+          Back to Quizzes
         </button>
       </div>
     </div>

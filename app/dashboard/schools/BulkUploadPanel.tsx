@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
+import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 const HEADERS = ["name", "district", "state", "code"] as const;
 const HEADER_LABELS: Record<string, string> = {
@@ -16,12 +18,31 @@ function csvEscape(val: string): string {
   return val;
 }
 
+function downloadErroredCsv(result: { skippedRows: Array<Record<string, string>>; errors: string[] }) {
+  const cols = [...HEADERS, "error"];
+  const lines = [cols.join(",")];
+  for (const row of result.skippedRows) {
+    const reason = result.errors.find((e) => row.name && e.includes(`"${row.name}"`)) ?? "see report";
+    lines.push([...HEADERS.map((h) => csvEscape(row[h] ?? "")), csvEscape(reason)].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "schools_errored_rows.csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
 export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> } | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     if (!file) { setRows([]); setParseError(null); return; }
@@ -68,14 +89,40 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   function rowErrors(r: Record<string, string>): string[] {
     const errs: string[] = [];
     if (!r.name?.trim()) errs.push("Name");
+    if (!r.state?.trim()) errs.push("State");
+    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push("District");
     const c = (r.code ?? "").trim().toLowerCase();
     if (c && (codeCounts.get(c) ?? 0) > 1) errs.push("Duplicate code");
     return errs;
   }
   const errsPerRow = rows.map(rowErrors);
+  // Non-blocking geo warnings: unknown state, or district not in that state.
+  function rowWarnings(r: Record<string, string>): string[] {
+    const warns: string[] = [];
+    const st = (r.state ?? "").trim();
+    const di = (r.district ?? "").trim();
+    if (st && !isKnownState(st)) {
+      warns.push("Unknown state");
+    } else if (st && di && !isValidDistrictForState(st, di)) {
+      const label = STATES.find((s) => s.value === normState(st))?.label ?? st;
+      warns.push(`District not in ${label}`);
+    }
+    return warns;
+  }
+  const resolved = rows.map((r) => {
+    const rs = resolveState(r.state ?? "");
+    const state = rs.status === "exact" || rs.status === "corrected" ? rs.value : (r.state ?? "");
+    const rd = resolveDistrict(state, r.district ?? "");
+    const district = rd.status === "exact" || rd.status === "corrected" ? rd.value : (r.district ?? "");
+    return { state, district, stateStatus: rs, districtStatus: rd };
+  });
+  const resolvedRows = rows.map((r, i) => ({ ...r, state: resolved[i].state, district: resolved[i].district }));
+  const warnsPerRow = resolvedRows.map(rowWarnings);
+  const warnCount = warnsPerRow.filter((w) => w.length > 0).length;
   const readyRows = rows.filter((_, i) => errsPerRow[i].length === 0);
   const readyCount = readyRows.length;
   const errorCount = rows.length - readyCount;
+  const readyResolved = resolvedRows.filter((_, i) => errsPerRow[i].length === 0);
 
   async function doUpload(toUpload: Array<Record<string, string>>) {
     if (!toUpload.length) return;
@@ -88,10 +135,11 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       const blob = new Blob([csv], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "schools.csv", { type: "text/csv" });
       const res = await bulkUploadSchools(newFile);
+      invalidate('schools');
       setResult(res);
       onDone();
     } catch (err) {
-      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."] });
+      setResult({ created: 0, skipped: 0, errors: [err instanceof Error ? err.message : "Upload failed."], corrections: [], skippedRows: [] });
     } finally {
       setUploading(false);
     }
@@ -130,8 +178,13 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", padding: "12px 16px", borderRadius: "12px", marginBottom: "12px", background: errorCount > 0 ? "rgba(229,62,62,0.05)" : "rgba(10,190,98,0.06)", border: `1px solid ${errorCount > 0 ? "rgba(229,62,62,0.2)" : "rgba(10,190,98,0.2)"}` }}>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>✓ {readyCount} ready</span>
             {errorCount > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#e53e3e" }}>✗ {errorCount} with errors</span>}
+            {warnCount > 0 && (
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#b7791f" }}>
+                ⚠ {warnCount} to review
+              </span>
+            )}
             <div style={{ marginLeft: "auto" }}>
-              <button onClick={() => void doUpload(errorCount > 0 ? readyRows : rows)} disabled={uploading || readyCount === 0}
+              <button onClick={() => void doUpload(errorCount > 0 ? readyResolved : resolvedRows)} disabled={uploading || readyCount === 0}
                 style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1 }}>
                 {uploading ? "Uploading…" : errorCount > 0 ? `Import Ready Rows (${readyCount})` : `Import All (${rows.length})`}
               </button>
@@ -163,17 +216,48 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                       </td>
                       {HEADERS.map((col) => {
                         const val = row[col] ?? "";
-                        const cellErr = col === "name" && !val.trim();
+                        const cellErr =
+                          (col === "name" && !val.trim()) ||
+                          (col === "state" && !val.trim()) ||
+                          (col === "district" && !val.trim() && !!row.state?.trim() && normState(row.state) !== ALL_STATE);
+                        const res = col === "state" ? resolved[idx].stateStatus
+                                  : col === "district" ? resolved[idx].districtStatus : null;
+                        if (res && res.status === "ambiguous" && res.candidates) {
+                          return (
+                            <td key={col} style={{ padding: "4px 6px" }}>
+                              <select value={val} onChange={(e) => updateCell(idx, col, e.target.value)}
+                                style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", border: "1.5px solid #b7791f", color: "#034852", boxSizing: "border-box", minWidth: "90px" }}>
+                                <option value={val}>{val} (keep)</option>
+                                {res.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
+                              </select>
+                            </td>
+                          );
+                        }
+                        const corrected = !!res && res.status === "corrected";
                         return (
                           <td key={col} style={{ padding: "4px 6px" }}>
-                            <input type="text" value={val} onChange={(e) => updateCell(idx, col, e.target.value)}
-                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852", background: cellErr ? "rgba(229,62,62,0.04)" : "transparent", border: cellErr ? "1.5px solid #e53e3e" : "1px solid transparent", outline: "none", boxSizing: "border-box", minWidth: "90px" }}
+                            <input type="text" value={val}
+                              onChange={(e) => updateCell(idx, col, e.target.value)}
+                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852",
+                                background: cellErr ? "rgba(229,62,62,0.04)" : corrected ? "rgba(10,190,98,0.06)" : "transparent",
+                                border: cellErr ? "1.5px solid #e53e3e" : corrected ? "1.5px solid #0abe62" : "1px solid transparent",
+                                outline: "none", boxSizing: "border-box", minWidth: "90px" }}
                               placeholder={cellErr ? "Required" : ""} />
+                            {corrected && (
+                              <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>
+                                {val} → {res!.value}
+                              </span>
+                            )}
                           </td>
                         );
                       })}
                       <td style={{ padding: "6px 10px", minWidth: "120px" }}>
                         {hasErr && <span style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 600 }}>{errs.join(", ")}</span>}
+                        {warnsPerRow[idx].length > 0 && (
+                          <span style={{ display: "block", fontSize: "11px", color: "#b7791f", fontWeight: 600 }}>
+                            ⚠ {warnsPerRow[idx].join(", ")}
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "center" }}>
                         <button onClick={() => deleteRow(idx)} title="Remove row"
@@ -201,6 +285,21 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
             <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
+          )}
+          {result.corrections.length > 0 && (
+            <details style={{ marginTop: "8px" }}>
+              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+                {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
+              </summary>
+              <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
+                {result.corrections.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </details>
+          )}
+          {result.skippedRows.length > 0 && (
+            <button onClick={() => downloadErroredCsv(result)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
+              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            </button>
           )}
         </div>
       )}

@@ -7,14 +7,17 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type AvailableQuiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
   type QuizLeaderboard,
 } from "@/lib/api";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
+import { useBatches } from "@/lib/queries/batches";
 import { useQuestionStats } from "@/lib/queries/quizzes";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ export default function AssessmentsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const router = useRouter();
+  const currentUrl = useCurrentUrl();
 
   const studentId      = data?.user?.id ?? "";
 
@@ -34,7 +38,7 @@ export default function AssessmentsPage() {
   // Attempters get the quiz list; others with `assessments.view` get the admin view.
   const canAttempt = has(PERM.assessments.attempt);
 
-  const [quizzes, setQuizzes]           = useState<Omit<Quiz, "questions">[]>([]);
+  const [quizzes, setQuizzes]           = useState<AvailableQuiz[]>([]);
   const [moduleQuizzes, setModuleQuizzes] = useState<ModuleQuiz[]>([]);
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState<string | null>(null);
@@ -69,7 +73,7 @@ export default function AssessmentsPage() {
           if (courses.length > 0) setSelectedCourseId(courses[0].id);
         }).catch(() => {});
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load assessments."))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quizzes."))
       .finally(() => setLoading(false));
   }, [userLoading, canAttempt, studentId]);
 
@@ -109,16 +113,16 @@ export default function AssessmentsPage() {
 
       {loading ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading your tests…</p>
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading your quizzes…</p>
         </div>
       ) : quizzes.length === 0 && moduleQuizzes.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62", marginBottom: "12px" }}>
-            No Tests Yet
+            No Quizzes Yet
           </p>
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#034852" }}>No assessments assigned to you yet</p>
+          <p style={{ fontSize: "16px", fontWeight: 700, color: "#034852" }}>No quizzes assigned to you yet</p>
           <p style={{ marginTop: "8px", fontSize: "14px", color: "rgba(3,72,82,0.6)", maxWidth: "380px", margin: "8px auto 0" }}>
-            Tests will appear here once you are enrolled in courses with module tests or program bundles.
+            Quizzes will appear here once you are enrolled in courses with module quizzes or program bundles.
           </p>
         </div>
       ) : (
@@ -127,7 +131,7 @@ export default function AssessmentsPage() {
           {moduleQuizzes.length > 0 && (
             <div>
               <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 14px" }}>
-                Module Tests
+                Module Quizzes
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {moduleQuizzes.map((q) => (
@@ -136,9 +140,10 @@ export default function AssessmentsPage() {
                     quiz={q}
                     label={`${q.course_title} · ${q.module_title}`}
                     attempts={attemptsByQuiz[q.id] ?? []}
-                    onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
-                    onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
-                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
+                    locked={q.is_locked === true}
+                    onStart={() => router.push(withFrom(`/dashboard/quiz/${q.id}`, currentUrl))}
+                    onReview={(attemptId) => router.push(withFrom(`/dashboard/quiz/${q.id}/review/${attemptId}`, currentUrl))}
+                    onPractice={() => router.push(withFrom(`/dashboard/quiz/${q.id}/practice`, currentUrl))}
                   />
                 ))}
               </div>
@@ -149,18 +154,35 @@ export default function AssessmentsPage() {
           {quizzes.length > 0 && (
             <div>
               <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 14px" }}>
-                Program Tests
+                Program Quizzes
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {quizzes.map((q) => (
                   <QuizRow
                     key={q.id}
                     quiz={q}
-                    label="Global Test"
+                    label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
-                    onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
-                    onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
-                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
+                    locked={q.attemptable === false}
+                    lockedTitle={
+                      q.available_from && new Date(q.available_from) > new Date()
+                        ? `Opens ${new Date(q.available_from).toLocaleString()}`
+                        : q.due_at && new Date(q.due_at) <= new Date()
+                          ? `Due date passed (${new Date(q.due_at).toLocaleString()})`
+                          : undefined
+                    }
+                    windowInfo={
+                      q.attemptable === false && q.available_from && new Date(q.available_from) > new Date()
+                        ? `Opens ${new Date(q.available_from).toLocaleDateString()}`
+                        : q.due_at
+                          ? new Date(q.due_at) > new Date()
+                            ? `Due ${new Date(q.due_at).toLocaleDateString()}`
+                            : "Past due"
+                          : undefined
+                    }
+                    onStart={() => router.push(withFrom(`/dashboard/quiz/${q.id}`, currentUrl))}
+                    onReview={(attemptId) => router.push(withFrom(`/dashboard/quiz/${q.id}/review/${attemptId}`, currentUrl))}
+                    onPractice={() => router.push(withFrom(`/dashboard/quiz/${q.id}/practice`, currentUrl))}
                   />
                 ))}
               </div>
@@ -191,11 +213,17 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, onStart, onReview, onPractice,
+  quiz, label, attempts, locked, lockedTitle, windowInfo, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
   attempts: QuizAttempt[];
+  /** Module test gated by sequential flow, or batch test outside its window. */
+  locked?: boolean;
+  /** Tooltip for the disabled Start button (defaults to the module-lock hint). */
+  lockedTitle?: string;
+  /** Optional “Opens …” / “Due …” badge for batch-windowed tests. */
+  windowInfo?: string;
   onStart: () => void;
   onReview: (attemptId: string) => void;
   onPractice: () => void;
@@ -205,6 +233,7 @@ function QuizRow({
   const maxAttempts  = quiz.max_attempts;
   const attemptsUsed = attempts.length;
   const exhausted    = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const isLocked     = locked === true;
   const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
   const sorted = [...attempts].sort((a, b) => {
@@ -257,6 +286,9 @@ function QuizRow({
         </div>
 
         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 }}>
+          {windowInfo && (
+            <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
+          )}
           {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
           {maxAttempts != null ? (
             <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
@@ -272,20 +304,21 @@ function QuizRow({
 
         <button
           onClick={onStart}
-          disabled={exhausted}
+          disabled={exhausted || isLocked}
+          title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
           style={{
             flexShrink: 0,
             padding: "9px 18px", border: "none", borderRadius: "10px",
-            background: exhausted
+            background: exhausted || isLocked
               ? "rgba(3,72,82,0.08)"
               : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-            color: exhausted ? "rgba(3,72,82,0.35)" : "#fff",
+            color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
             fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-            cursor: exhausted ? "default" : "pointer",
-            boxShadow: exhausted ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
+            cursor: exhausted || isLocked ? "default" : "pointer",
+            boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
           }}
         >
-          {exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
+          {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
         </button>
       </div>
 
@@ -344,13 +377,13 @@ function PageHeader() {
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
           <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
-            Assessments
+            Quizzes
           </p>
           <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
-            Assessments
+            Quizzes
           </h1>
           <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-            Module tests from your courses and programme-wide mock tests.
+            Module quizzes from your courses and programme-wide mock quizzes.
           </p>
         </div>
         {has(PERM.test_bank.create) && (
@@ -364,7 +397,7 @@ function PageHeader() {
               cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap",
             }}
           >
-            + Create Program Test
+            + Create Program Quiz
           </button>
         )}
       </div>
@@ -498,6 +531,7 @@ function BatchComparisonPanel({ courses, selectedCourseId, onCourseChange, data,
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.4)", textAlign: "center", padding: "24px 0" }}>Loading…</p>
       ) : !data ? null : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
+          {data.cohort_batch && <ComparisonCard label={`My Batch · ${data.cohort_batch.batch_name}`} dim={data.cohort_batch} />}
           <ComparisonCard label="Course Batch" dim={data.course_batch} />
           {data.school_peers && <ComparisonCard label="School Peers" dim={data.school_peers} />}
           {data.programme_peers && <ComparisonCard label="Programme Peers" dim={data.programme_peers} />}
@@ -552,16 +586,20 @@ function MonitorView() {
   const type      = (params.get('type') as 'MODULE' | 'PROGRAM' | null) ?? null;
   const courseId  = params.get('course_id') ?? '';
   const bundleId  = params.get('bundle_id') ?? '';
+  const batchId   = params.get('batch_id') ?? '';
   const from      = params.get('from') ?? '';
   const to        = params.get('to')   ?? '';
   const q         = params.get('q')    ?? '';
   const page      = Number(params.get('page') ?? '1');
   const drawerId  = params.get('drawer');
 
+  const { data: batches = [] } = useBatches('ACTIVE');
+
   const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
     type: type ?? undefined,
     course_id: courseId || undefined,
     bundle_id: bundleId || undefined,
+    batch_id: batchId || undefined,
     from: from || undefined,
     to:   to   || undefined,
     q:    q    || undefined,
@@ -604,6 +642,20 @@ function MonitorView() {
             type="date" value={to}   onChange={(e) => setParam('to', e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
           />
+
+          {batches.length > 0 && (
+            <select
+              value={batchId}
+              onChange={(e) => setParam('batch_id', e.target.value || null)}
+              aria-label="Filter by batch"
+              style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px', background: '#fff', maxWidth: '200px' }}
+            >
+              <option value="">All batches</option>
+              {batches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          )}
 
           <button
             onClick={() => router.replace(pathname)}
@@ -666,8 +718,8 @@ function MonitorRow({ item, onClick }: { item: AssessmentsOverviewItem; onClick:
     ? new Date(item.last_attempted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
   const label = item.type === 'MODULE'
-    ? `${item.course_title ?? ''} · Module Test`
-    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Test';
+    ? `${item.course_title ?? ''} · Module Quiz`
+    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Quiz';
 
   return (
     <button
@@ -723,6 +775,9 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
   const [tab, setTab] = useState<'leaderboard' | 'questions'>('leaderboard');
+  const { has } = usePermissions();
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
@@ -742,8 +797,23 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         zIndex: 51, display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Test Details</h2>
-          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Quiz Details</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {has(PERM.test_bank.edit) && (
+              <button
+                onClick={() => router.push(withFrom(`/dashboard/quiz-builder/${quizId}`, currentUrl))}
+                style={{
+                  padding: '7px 14px', border: 'none', borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #0abe62 0%, #006d6c 100%)',
+                  color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '12px',
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(10,190,98,0.2)', whiteSpace: 'nowrap',
+                }}
+              >
+                Edit in Builder →
+              </button>
+            )}
+            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
