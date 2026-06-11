@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   createQuestion,
   updateQuestion,
@@ -10,7 +10,7 @@ import {
   type CreateChildPayload,
   type CreateQuestionPayload,
 } from "@/lib/api";
-import { MathContent } from "./MathContent";
+import { MathTextEditor } from "./MathTextEditor";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
 // ── Shared constants ───────────────────────────────────────────
@@ -91,94 +91,6 @@ export function FieldGroup({ label, children }: { label: string; children: React
   );
 }
 
-// ── Math toolbar ───────────────────────────────────────────────
-
-const MATH_SYMBOLS = [
-  { label: "x²",   snippet: "^{2}",          title: "Superscript / exponent" },
-  { label: "xₙ",   snippet: "_{n}",           title: "Subscript" },
-  { label: "a/b",  snippet: "\\frac{a}{b}",   title: "Fraction" },
-  { label: "√",    snippet: "\\sqrt{x}",      title: "Square root" },
-  { label: "ⁿ√",   snippet: "\\sqrt[n]{x}",   title: "Nth root" },
-  { label: "∫",    snippet: "\\int_{a}^{b}",  title: "Integral" },
-  { label: "∑",    snippet: "\\sum_{i=1}^{n}",title: "Summation" },
-  { label: "π",    snippet: "\\pi",           title: "Pi" },
-  { label: "α",    snippet: "\\alpha",        title: "Alpha" },
-  { label: "β",    snippet: "\\beta",         title: "Beta" },
-  { label: "∞",    snippet: "\\infty",        title: "Infinity" },
-  { label: "≠",    snippet: "\\neq",          title: "Not equal" },
-  { label: "≤",    snippet: "\\leq",          title: "Less than or equal" },
-  { label: "≥",    snippet: "\\geq",          title: "Greater than or equal" },
-  { label: "×",    snippet: "\\times",        title: "Multiplication" },
-  { label: "÷",    snippet: "\\div",          title: "Division" },
-  { label: "±",    snippet: "\\pm",           title: "Plus/minus" },
-  { label: "θ",    snippet: "\\theta",        title: "Theta" },
-];
-
-function insertAtCursor(
-  ref: React.RefObject<HTMLTextAreaElement | null>,
-  snippet: string,
-  setValue: (v: string) => void,
-) {
-  const el = ref.current;
-  if (!el) return;
-  const start = el.selectionStart ?? 0;
-  const end   = el.selectionEnd ?? 0;
-  const before = el.value.slice(0, start);
-  const after  = el.value.slice(end);
-  // Wrap snippet in $...$ if not already in a math context
-  const wrapped = `$${snippet}$`;
-  const next = before + wrapped + after;
-  setValue(next);
-  // Restore cursor inside the snippet
-  requestAnimationFrame(() => {
-    el.focus();
-    const pos = start + wrapped.length;
-    el.setSelectionRange(pos, pos);
-  });
-}
-
-function MathToolbar({
-  textareaRef,
-  setValue,
-}: {
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-  setValue: (v: string) => void;
-}) {
-  return (
-    <div style={{
-      display: "flex", flexWrap: "wrap", gap: "4px",
-      padding: "6px 8px", marginBottom: "4px",
-      background: "rgba(3,72,82,0.04)",
-      border: "1px solid rgba(3,72,82,0.1)",
-      borderRadius: "8px 8px 0 0",
-      borderBottom: "none",
-    }}>
-      {MATH_SYMBOLS.map((sym) => (
-        <button
-          key={sym.snippet}
-          type="button"
-          title={sym.title}
-          onMouseDown={(e) => {
-            e.preventDefault(); // don't blur textarea
-            insertAtCursor(textareaRef, sym.snippet, setValue);
-          }}
-          style={{
-            padding: "3px 7px", border: "1px solid rgba(3,72,82,0.15)",
-            borderRadius: "5px", background: "#fff", cursor: "pointer",
-            fontSize: "13px", fontFamily: "serif", color: "#034852",
-            lineHeight: 1.4, transition: "background 0.1s",
-          }}
-        >
-          {sym.label}
-        </button>
-      ))}
-      <span style={{ fontSize: "10px", color: "rgba(3,72,82,0.4)", alignSelf: "center", marginLeft: "4px" }}>
-        wrap in $…$ for math
-      </span>
-    </div>
-  );
-}
-
 // ── Main component ─────────────────────────────────────────────
 
 /**
@@ -244,10 +156,6 @@ export function QuestionSlideOver({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const contentRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => { contentRef.current?.focus(); }, []);
 
   function handleTypeChange(t: QType) {
     setQType(t);
@@ -393,37 +301,14 @@ export function QuestionSlideOver({
           </FieldGroup>
 
           {/* Content */}
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-              <p style={{ margin: 0, fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>Content *</p>
-              <button
-                type="button"
-                onClick={() => setShowPreview(p => !p)}
-                style={{ background: "none", border: "none", fontSize: "11px", fontWeight: 700, color: "#0abe62", cursor: "pointer", padding: 0 }}
-              >
-                {showPreview ? "Edit" : "Preview math"}
-              </button>
-            </div>
-            <MathToolbar textareaRef={contentRef} setValue={setContent} />
-            {showPreview ? (
-              <div style={{
-                ...S.input, minHeight: "80px", lineHeight: 1.6,
-                borderRadius: "0 0 10px 10px", borderTop: "none",
-                background: "rgba(3,72,82,0.02)",
-              }}>
-                <MathContent html={content || "<span style='color:rgba(3,72,82,0.3)'>Nothing to preview…</span>"} />
-              </div>
-            ) : (
-              <textarea
-                ref={contentRef}
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                rows={4}
-                placeholder="Enter question text… use $x^{2}$ for math"
-                style={{ ...S.input, resize: "vertical", lineHeight: 1.6, borderRadius: "0 0 10px 10px", borderTop: "none" }}
-              />
-            )}
-          </div>
+          <FieldGroup label="Content *">
+            <MathTextEditor
+              value={content}
+              onChange={setContent}
+              rows={4}
+              placeholder="Enter question text… click ƒx to add an equation"
+            />
+          </FieldGroup>
 
           {/* Tags */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
@@ -461,11 +346,13 @@ export function QuestionSlideOver({
               <p style={S.sectionLabel}>Options — click radio to mark correct</p>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {options.map((opt, i) => (
-                  <div key={opt._key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <input type="radio" name="correct-option" value={String(opt._key)} checked={opt.is_correct} onChange={() => setOptionCorrect(opt._key)} onClick={() => setOptionCorrect(opt._key)} style={{ accentColor: "#0abe62", width: "16px", height: "16px", flexShrink: 0, cursor: "pointer" }} title="Mark as correct" />
-                    <input value={opt.option_text} onChange={e => setOptionText(opt._key, e.target.value)} style={{ ...S.input, flex: 1 }} placeholder={`Option ${i + 1}`} />
+                  <div key={opt._key} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                    <input type="radio" name="correct-option" value={String(opt._key)} checked={opt.is_correct} onChange={() => setOptionCorrect(opt._key)} onClick={() => setOptionCorrect(opt._key)} style={{ accentColor: "#0abe62", width: "16px", height: "16px", flexShrink: 0, cursor: "pointer", marginTop: "32px" }} title="Mark as correct" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <MathTextEditor compact rows={1} value={opt.option_text} onChange={v => setOptionText(opt._key, v)} placeholder={`Option ${i + 1}`} />
+                    </div>
                     {options.length > 2 && (
-                      <button type="button" onClick={() => removeOption(opt._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "16px", padding: "0 4px" }}>✕</button>
+                      <button type="button" onClick={() => removeOption(opt._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "16px", padding: "0 4px", marginTop: "28px" }}>✕</button>
                     )}
                   </div>
                 ))}
@@ -477,7 +364,14 @@ export function QuestionSlideOver({
           {/* Fill */}
           {qType === "FILL" && (
             <FieldGroup label="Correct Answer *">
-              <input value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} style={S.input} placeholder="Expected answer" />
+              <MathTextEditor
+                compact
+                rows={1}
+                value={correctAnswer}
+                onChange={setCorrectAnswer}
+                placeholder="Expected answer"
+                hint="Math renders for display; grading compares the raw text."
+              />
             </FieldGroup>
           )}
 
@@ -506,7 +400,7 @@ export function QuestionSlideOver({
                         <option value="FILL">Fill in the Blank</option>
                         <option value="NUMERICAL">Numerical</option>
                       </select>
-                      <textarea value={child.content_html} onChange={e => setChildContent(child._key, e.target.value)} rows={2} placeholder="Sub-question content…" style={{ ...S.input, resize: "vertical" }} />
+                      <MathTextEditor compact rows={2} value={child.content_html} onChange={v => setChildContent(child._key, v)} placeholder="Sub-question content…" />
                       {(child.question_type === "FILL" || child.question_type === "NUMERICAL") && (
                         <input value={child.correct_answer ?? ""} onChange={e => setChildAnswer(child._key, e.target.value)} style={S.input} placeholder="Correct answer" />
                       )}

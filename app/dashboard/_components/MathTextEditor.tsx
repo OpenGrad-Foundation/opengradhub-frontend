@@ -12,6 +12,7 @@ import {
 // MathLive's <math-field> web component — minimal surface we use.
 type MathfieldEl = HTMLElement & { value: string; focus: () => void };
 
+/* eslint-disable @typescript-eslint/no-namespace -- JSX typing for the <math-field> custom element requires namespace augmentation */
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
@@ -26,6 +27,7 @@ declare module "react/jsx-runtime" {
     }
   }
 }
+/* eslint-enable @typescript-eslint/no-namespace */
 
 type MathSeg = Extract<MathSegment, { kind: "math" }>;
 
