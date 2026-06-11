@@ -58,6 +58,23 @@ describe("SentryUserSync", () => {
     expect(setTag).not.toHaveBeenCalled();
   });
 
+  it("clears the Sentry user when the user signs out (data change)", () => {
+    useCurrentUser.mockReturnValue({
+      data: {
+        user: { id: "u1", fullName: "Asha Rao", email: "asha@example.com" },
+        role: { code: "STUDENT", name: "Student" },
+      },
+    });
+    const { rerender } = render(<SentryUserSync />);
+    expect(setUser).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "u1" }),
+    );
+
+    useCurrentUser.mockReturnValue({ data: undefined });
+    rerender(<SentryUserSync />);
+    expect(setUser).toHaveBeenLastCalledWith(null);
+  });
+
   it("renders nothing", () => {
     useCurrentUser.mockReturnValue({ data: undefined });
     const { container } = render(<SentryUserSync />);
