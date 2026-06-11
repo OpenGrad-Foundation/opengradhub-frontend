@@ -15,6 +15,8 @@ import {
 } from "@/lib/api";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
 import { useQuestionStats } from "@/lib/queries/quizzes";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,7 @@ export default function AssessmentsPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const router = useRouter();
+  const currentUrl = useCurrentUrl();
 
   const studentId      = data?.user?.id ?? "";
 
@@ -137,9 +140,9 @@ export default function AssessmentsPage() {
                     label={`${q.course_title} · ${q.module_title}`}
                     attempts={attemptsByQuiz[q.id] ?? []}
                     locked={q.is_locked === true}
-                    onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
-                    onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
-                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
+                    onStart={() => router.push(withFrom(`/dashboard/quiz/${q.id}`, currentUrl))}
+                    onReview={(attemptId) => router.push(withFrom(`/dashboard/quiz/${q.id}/review/${attemptId}`, currentUrl))}
+                    onPractice={() => router.push(withFrom(`/dashboard/quiz/${q.id}/practice`, currentUrl))}
                   />
                 ))}
               </div>
@@ -159,9 +162,9 @@ export default function AssessmentsPage() {
                     quiz={q}
                     label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
-                    onStart={() => router.push(`/dashboard/quiz/${q.id}`)}
-                    onReview={(attemptId) => router.push(`/dashboard/quiz/${q.id}/review/${attemptId}`)}
-                    onPractice={() => router.push(`/dashboard/quiz/${q.id}/practice`)}
+                    onStart={() => router.push(withFrom(`/dashboard/quiz/${q.id}`, currentUrl))}
+                    onReview={(attemptId) => router.push(withFrom(`/dashboard/quiz/${q.id}/review/${attemptId}`, currentUrl))}
+                    onPractice={() => router.push(withFrom(`/dashboard/quiz/${q.id}/practice`, currentUrl))}
                   />
                 ))}
               </div>

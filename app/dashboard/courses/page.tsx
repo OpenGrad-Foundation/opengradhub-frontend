@@ -26,6 +26,8 @@ import {
 } from "@/lib/api";
 import { useStudentCourses } from "@/lib/queries/students";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 const GRID_PAGE_SIZE = 6;
 const LIST_PAGE_SIZE = 10;
@@ -432,6 +434,7 @@ function StudentCoursesSection({
 }
 
 function ManagerCourseCard({ course, canManage }: { course: Course; canManage: boolean }) {
+  const currentUrl = useCurrentUrl();
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
       <div className="border-b border-[rgba(3,72,82,0.08)] bg-(--dark-teal) px-4 py-4 text-white">
@@ -461,7 +464,7 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           <Link
-            href={canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`}
+            href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
             className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
               canManage
                 ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(10,190,98,0.22)]"
@@ -477,6 +480,7 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
 }
 
 function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boolean }) {
+  const currentUrl = useCurrentUrl();
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_18px_40px_rgba(3,72,82,0.06)]">
       <div className="overflow-x-auto">
@@ -517,7 +521,7 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`}
+                      href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
                         canManage
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
@@ -627,11 +631,12 @@ function PaginationBar({
 }
 
 function StudentCourseCard({ course }: { course: StudentCourse }) {
+  const currentUrl = useCurrentUrl();
   const completion = Math.max(0, Math.min(100, course.completion_percent));
 
   return (
     <Link
-      href={`/dashboard/courses/${course.id}`}
+      href={withFrom(`/dashboard/courses/${course.id}`, currentUrl)}
       className="group overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]"
     >
       <div className="bg-(--dark-teal) px-4 py-4 text-white">

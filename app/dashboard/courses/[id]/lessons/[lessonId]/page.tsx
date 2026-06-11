@@ -17,6 +17,8 @@ import {
 } from "@/lib/api";
 import { qk } from "@/lib/queries/keys";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── YouTube IFrame API type declarations ───────────────────────
 // (Minimal — only what we use. Avoids a third-party @types package.)
@@ -123,6 +125,7 @@ export default function LessonPage() {
   const { id: courseId, lessonId } = useParams<{ id: string; lessonId: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const queryClient = useQueryClient();
+  const currentUrl = useCurrentUrl();
   const studentId = userData?.user?.id ?? "";
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
 
@@ -549,7 +552,7 @@ export default function LessonPage() {
                     return (
                       <div key={quizId}>
                         <Link
-                          href={`/dashboard/quiz/${quizId}`}
+                          href={withFrom(`/dashboard/quiz/${quizId}`, currentUrl)}
                           style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
                         >
                           {lesson.module_quiz_ids.length > 1 ? `Take Module Quiz ${qi + 1} →` : "Take Module Quiz →"}

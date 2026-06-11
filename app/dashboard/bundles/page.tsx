@@ -6,6 +6,8 @@ import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { type Bundle } from "@/lib/api";
 import { useBundles } from "@/lib/queries/bundles";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 export default function BundlesPage() {
   const { isLoading } = useCurrentUser();
@@ -60,8 +62,9 @@ export default function BundlesPage() {
 }
 
 function BundleCard({ bundle }: { bundle: Bundle }) {
+  const currentUrl = useCurrentUrl();
   return (
-    <Link href={`/dashboard/bundles/${bundle.id}`} style={{ textDecoration: "none" }}>
+    <Link href={withFrom(`/dashboard/bundles/${bundle.id}`, currentUrl)} style={{ textDecoration: "none" }}>
       <div
         style={{
           ...glassCard,

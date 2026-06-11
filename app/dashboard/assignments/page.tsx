@@ -8,6 +8,8 @@ import { PERM } from "@/lib/permissions";
 import { type Assignment, type SubmissionQueueRow, type Submission } from "@/lib/api";
 import { useAssignments, useSubmissionQueue } from "@/lib/queries/assignments";
 import { GradePanel, StatusBadge } from "@/app/dashboard/assignments/_components/GradePanel";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 export default function AssignmentsPage() {
   const { isLoading } = useCurrentUser();
@@ -178,6 +180,7 @@ function ManagerAssignmentsList() {
 }
 
 function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; isManager: boolean }) {
+  const currentUrl = useCurrentUrl();
   const due      = new Date(a.due_at);
   const isPast   = due < new Date();
   const status   = a.submission_status ?? (isManager ? "—" : "NOT_STARTED");
@@ -196,7 +199,7 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
       <td style={tdStyle}><StatusBadge status={status} /></td>
       <td style={tdStyle}>
         {isManager ? (
-          <Link href={`/dashboard/assignments/${a.id}/submissions`} style={{ fontSize: "12px", color: "#209379", fontWeight: 600, textDecoration: "none" }}>
+          <Link href={withFrom(`/dashboard/assignments/${a.id}/submissions`, currentUrl)} style={{ fontSize: "12px", color: "#209379", fontWeight: 600, textDecoration: "none" }}>
             View Submissions →
           </Link>
         ) : (
@@ -205,7 +208,7 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
       </td>
       <td style={tdStyle}>
         <Link
-          href={isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`}
+          href={withFrom(isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`, currentUrl)}
           style={{ padding: "5px 12px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}
         >
           {isManager ? "Grade" : "Open"}
