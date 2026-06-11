@@ -2420,6 +2420,65 @@ export async function createAnnouncement(payload: {
   return (await response.json()) as Announcement;
 }
 
+export type SendNotificationDto = {
+  title: string;
+  body: string;
+  scope: "all_my_students" | "schools" | "users";
+  school_ids?: string[];
+  user_ids?: string[];
+  link?: string;
+};
+
+export async function sendNotification(
+  dto: SendNotificationDto,
+): Promise<{ delivered: number; dropped: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/notifications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(dto),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+    throw new ApiError(
+      errorBody?.message ?? "Failed to send notification.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as { delivered: number; dropped: number };
+}
+
+export async function getAnnouncementUnreadCount(): Promise<{ count: number }> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/announcements/unread-count`,
+    {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new ApiError(
+      "Failed to fetch announcement unread count.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as { count: number };
+}
+
+export async function markAnnouncementRead(id: string): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/announcements/${id}/read`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+  });
+}
+
 // ── Doubts API ─────────────────────────────────────────────────
 
 export type Doubt = {
@@ -2534,6 +2593,9 @@ export type BundleEnrolledStudent = {
   email: string;
   roll_number: string | null;
   enrolled_at: string;
+  /** Set when the enrolment was granted via a batch — managed there, not here. */
+  via_batch_id?: string | null;
+  via_batch_name?: string | null;
 };
 
 export type BundleTest = {
