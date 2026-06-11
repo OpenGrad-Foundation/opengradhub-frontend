@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
@@ -42,7 +43,7 @@ export default function CourseOverviewPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Course not found."}</p>
-        <Link href={backHref} style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>{fromManagement ? "← Back to Course Management" : "← Back to Courses"}</Link>
+        <BackLink fallback={backHref} style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>{fromManagement ? "← Back to Course Management" : "← Back to Courses"}</BackLink>
       </div>
     );
   }
@@ -59,9 +60,9 @@ export default function CourseOverviewPage() {
   return (
     <div>
       {/* ── Back link ─────────────────────────────────────── */}
-      <Link href={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+      <BackLink fallback={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
         {fromManagement ? "← Course Management" : isPreview ? "← Courses" : "← My Courses"}
-      </Link>
+      </BackLink>
 
       {/* ── Course header ─────────────────────────────────── */}
       <div style={{ ...glassCard, marginTop: "16px", marginBottom: "24px" }}>

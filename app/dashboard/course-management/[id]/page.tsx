@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import CourseCurriculumEditor from "../_components/CourseCurriculumEditor";
 import CourseMetaForm from "../../courses/_components/CourseMetaForm";
@@ -201,9 +202,9 @@ export default function CourseManagementPage() {
         <div style={{ ...card, textAlign: "center" }}>
           <p style={eyebrow}>Access denied</p>
           <p style={{ ...title, marginTop: "12px" }}>This workspace is available to Super Admins and Program Managers only.</p>
-          <Link href="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
+          <BackLink fallback="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
             Back to Courses
-          </Link>
+          </BackLink>
         </div>
       </div>
     );
@@ -215,9 +216,9 @@ export default function CourseManagementPage() {
         <div style={{ ...card, textAlign: "center" }}>
           <p style={eyebrow}>Course Management</p>
           <p style={{ ...title, marginTop: "12px" }}>{error}</p>
-          <Link href="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
+          <BackLink fallback="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
             Back to Courses
-          </Link>
+          </BackLink>
         </div>
       </div>
     );

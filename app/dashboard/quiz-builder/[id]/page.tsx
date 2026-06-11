@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { getBackHref } from "@/lib/nav";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
@@ -37,6 +38,7 @@ export default function QuizBuilderPage() {
   const router     = useRouter();
   const quizId     = params.id;
   const courseId   = searchParams.get("course_id") ?? "";
+  const from       = searchParams.get("from");
 
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
@@ -129,7 +131,7 @@ export default function QuizBuilderPage() {
     return (
       <div style={glassCard}>
         <p style={{ color: "#e53e3e", fontWeight: 600 }}>{globalErr}</p>
-        <button onClick={() => router.back()} style={{ ...S.primaryBtn, marginTop: "16px" }}>← Go Back</button>
+        <button onClick={() => router.push(getBackHref(from, backHref))} style={{ ...S.primaryBtn, marginTop: "16px" }}>← Go Back</button>
       </div>
     );
   }

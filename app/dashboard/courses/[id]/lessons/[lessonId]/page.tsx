@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -399,9 +400,9 @@ export default function LessonPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Lesson not found."}</p>
-        <Link href={`/dashboard/courses/${courseId}`} style={{ ...S.btn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ ...S.btn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
           ← Back to Course
-        </Link>
+        </BackLink>
       </div>
     );
   }
@@ -432,7 +433,7 @@ export default function LessonPage() {
       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
         <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{isPreview ? "Courses" : "My Courses"}</Link>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
-        <Link href={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</Link>
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</BackLink>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
         <span style={{ color: "rgba(3,72,82,0.55)" }}>{lesson.title}</span>
       </div>
