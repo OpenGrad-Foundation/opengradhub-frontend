@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -111,9 +112,9 @@ export default function BundleDetailPage() {
   return (
     <Shell>
       {/* ── Header ───────────────────────────────────────────── */}
-      <Link href="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
         ← Back to Bundles
-      </Link>
+      </BackLink>
       <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
           <p style={labelSt}>Bundle</p>

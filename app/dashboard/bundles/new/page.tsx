@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -54,9 +55,9 @@ export default function NewBundlePage() {
   return (
     <div style={{ maxWidth: "600px" }}>
       {/* ── Back ───────────────────────────────────────────────── */}
-      <Link href="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
+      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
         ← Back to Bundles
-      </Link>
+      </BackLink>
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ margin: "16px 0 28px" }}>
