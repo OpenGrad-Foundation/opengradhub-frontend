@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { Bell } from "lucide-react";
 import {
   getNotifications,
   markAllNotificationsRead,
   markAllAnnouncementsRead,
+  markNotificationRead,
   type Notification,
 } from "@/lib/api";
 import { useInboxUnreadCount } from "@/lib/queries/inbox";
@@ -35,8 +37,8 @@ function relativeTime(iso: string): string {
 
 // ── Component ──────────────────────────────────────────────────
 
-export default function NotificationBell({ recipientId }: { recipientId: string }) {
-  const { data: unreadData } = useInboxUnreadCount(recipientId);
+export default function NotificationBell() {
+  const { data: unreadData } = useInboxUnreadCount();
   const count = unreadData?.count ?? 0;
   const invalidate = useInvalidate();
 
@@ -61,7 +63,7 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     setOpen(true);
     setLoading(true);
     try {
-      const data = await getNotifications(recipientId);
+      const data = await getNotifications();
       setItems(data);
     } catch { /* ignore */ } finally {
       setLoading(false);
@@ -78,10 +80,24 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
       await Promise.all([
-        markAllNotificationsRead(recipientId),
+        markAllNotificationsRead(),
         markAllAnnouncementsRead(),
       ]);
       invalidate("notifications", "announcements");
+    } catch {
+      setItems(snapshot);
+    }
+  }
+
+  async function handleItemClick(n: Notification) {
+    if (n.is_read) return;
+    // Optimistic: flip locally, confirm with server, then invalidate so the
+    // badge count refetches. Restore on failure.
+    const snapshot = items;
+    setItems(prev => prev.map(x => (x.id === n.id ? { ...x, is_read: true } : x)));
+    try {
+      await markNotificationRead(n.id, true);
+      invalidate("notifications");
     } catch {
       setItems(snapshot);
     }
@@ -91,17 +107,13 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     <div ref={containerRef} style={{ position: "relative" }}>
       {/* Bell button */}
       <button
+        type="button"
         onClick={() => void handleOpen()}
-        style={{
-          position: "relative", background: "none", border: "none",
-          cursor: "pointer", padding: "6px", borderRadius: "10px",
-          color: "#034852", fontSize: "20px", lineHeight: 1,
-          transition: "background 150ms",
-        }}
+        className="relative flex items-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
         title="Notifications"
         aria-label="Notifications"
       >
-        🔔
+        <Bell size={18} aria-hidden="true" />
         {count > 0 && (
           <span style={{
             position: "absolute", top: "2px", right: "2px",
@@ -151,10 +163,12 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
               items.map(n => (
                 <div
                   key={n.id}
+                  onClick={() => void handleItemClick(n)}
                   style={{
                     display: "flex", gap: "10px", padding: "12px 18px",
                     borderBottom: "1px solid rgba(3,72,82,0.05)",
                     background: n.is_read ? "transparent" : "rgba(10,190,98,0.04)",
+                    cursor: n.is_read ? "default" : "pointer",
                   }}
                 >
                   <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type)}</span>

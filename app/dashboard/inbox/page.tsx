@@ -4,14 +4,22 @@ import { useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { useInboxFeed } from "@/lib/queries/inbox";
+import { useInboxFeed, type InboxItem } from "@/lib/queries/inbox";
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
+import {
+  useArchiveNotification,
+  useClearRead,
+  useMarkNotificationRead,
+} from "@/lib/queries/notifications";
+import { markAllAnnouncementsRead, markAllNotificationsRead } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { ComposeMessageModal } from "@/components/ComposeMessageModal";
 
-type Filter = "all" | "notifications" | "announcements";
+type Filter = "all" | "unread" | "notifications" | "announcements";
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all",           label: "All" },
+  { value: "unread",        label: "Unread" },
   { value: "notifications", label: "Notifications" },
   { value: "announcements", label: "Announcements" },
 ];
@@ -19,7 +27,6 @@ const FILTERS: { value: Filter; label: string }[] = [
 export default function InboxPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const roleCode    = data?.role?.code  ?? "";
-  const userId      = data?.user?.id    ?? "";
 
   const [filter,       setFilter]       = useState<Filter>("all");
   const [composeOpen,  setComposeOpen]  = useState(false);
@@ -28,11 +35,32 @@ export default function InboxPage() {
   const canCreateAnn = usePermission(PERM.announcements.create);
   const showCompose = canCompose || canCreateAnn;
 
-  const { items, isLoading } = useInboxFeed({ role: roleCode, recipientId: userId });
-  const markAnnRead = useMarkAnnouncementRead();
+  const { items, isLoading } = useInboxFeed({ role: roleCode });
+  const markAnnRead   = useMarkAnnouncementRead();
+  const markNotifRead = useMarkNotificationRead();
+  const archiveNotif  = useArchiveNotification();
+  const clearRead     = useClearRead();
+  const invalidate    = useInvalidate();
+
+  const hasUnread = items.some((i) => !i.is_read);
+  const hasReadNotifications = items.some(
+    (i) => i.source === "notification" && i.is_read,
+  );
+
+  async function handleMarkAllRead() {
+    await Promise.all([markAllNotificationsRead(), markAllAnnouncementsRead()]);
+    invalidate("notifications", "announcements");
+  }
+
+  function handleRowClick(item: InboxItem) {
+    if (item.is_read) return;
+    if (item.source === "announcement") markAnnRead.mutate(item.id);
+    else markNotifRead.mutate({ id: item.id, read: true });
+  }
 
   const filtered = items.filter((i) => {
     if (filter === "all")           return true;
+    if (filter === "unread")        return !i.is_read;
     if (filter === "notifications") return i.source === "notification";
     return i.source === "announcement";
   });
@@ -47,6 +75,22 @@ export default function InboxPage() {
           <p style={S.label}>Messages</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Inbox</h1>
           <p style={{ ...S.subtitle, marginTop: "4px" }}>Your notifications and announcements</p>
+          <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
+            {hasUnread && (
+              <button style={S.textButton} onClick={() => void handleMarkAllRead()}>
+                ✓ Mark all read
+              </button>
+            )}
+            {hasReadNotifications && (
+              <button
+                style={S.textButton}
+                onClick={() => clearRead.mutate()}
+                title="Dismiss all read notifications"
+              >
+                ✕ Clear read
+              </button>
+            )}
+          </div>
         </div>
         {showCompose && (
           <button
@@ -123,16 +167,14 @@ export default function InboxPage() {
             return (
               <div
                 key={`${item.source}:${item.id}`}
-                onClick={() => {
-                  if (isAnn && isUnread) markAnnRead.mutate(item.id);
-                }}
+                onClick={() => handleRowClick(item)}
                 style={{
                   display: "flex",
                   gap: "14px",
                   padding: "16px 24px",
                   borderBottom: idx < filtered.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none",
                   background: isUnread ? "rgba(10,190,98,0.03)" : "transparent",
-                  cursor: isAnn && isUnread ? "pointer" : "default",
+                  cursor: isUnread ? "pointer" : "default",
                   transition: "background 150ms",
                   position: "relative",
                 }}
@@ -218,6 +260,32 @@ export default function InboxPage() {
                     />
                   )}
                 </div>
+
+                {!isAnn && (
+                  <div
+                    style={{ display: "flex", gap: "4px", alignSelf: "flex-start", flexShrink: 0 }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      title={item.is_read ? "Mark as unread" : "Mark as read"}
+                      aria-label={item.is_read ? "Mark as unread" : "Mark as read"}
+                      onClick={() =>
+                        markNotifRead.mutate({ id: item.id, read: !item.is_read })
+                      }
+                      style={S.iconButton}
+                    >
+                      {item.is_read ? "↩" : "✓"}
+                    </button>
+                    <button
+                      title="Dismiss"
+                      aria-label="Dismiss notification"
+                      onClick={() => archiveNotif.mutate(item.id)}
+                      style={S.iconButton}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -283,5 +351,27 @@ const S = {
     boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
     transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
     whiteSpace: "nowrap",
+  } as React.CSSProperties,
+
+  textButton: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "#209379",
+    cursor: "pointer",
+  } as React.CSSProperties,
+
+  iconButton: {
+    width: "26px",
+    height: "26px",
+    border: "1px solid rgba(3,72,82,0.12)",
+    borderRadius: "8px",
+    background: "rgba(255,255,255,0.8)",
+    color: "#034852",
+    fontSize: "12px",
+    lineHeight: 1,
+    cursor: "pointer",
   } as React.CSSProperties,
 };

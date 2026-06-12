@@ -27,9 +27,9 @@ export type InboxItem =
  * Unified inbox feed — merges announcements (role-scoped) and in-app notifications
  * (recipient-scoped), sorted newest-first.
  */
-export function useInboxFeed(opts: { role: string; recipientId: string }) {
+export function useInboxFeed(opts: { role: string }) {
   const a = useAnnouncements(opts.role);
-  const n = useNotifications(opts.recipientId);
+  const n = useNotifications();
 
   const items = useMemo<InboxItem[]>(() => {
     const ann = (a.data ?? []).map((x): InboxItem => ({
@@ -63,8 +63,8 @@ export function useInboxFeed(opts: { role: string; recipientId: string }) {
  * Combined unread badge count — notification unread + announcement unread.
  * useNotificationUnreadCount returns a raw number; useAnnouncementUnreadCount returns { count }.
  */
-export function useInboxUnreadCount(recipientId: string) {
-  const n = useNotificationUnreadCount(recipientId);
+export function useInboxUnreadCount() {
+  const n = useNotificationUnreadCount();
   const a = useAnnouncementUnreadCount();
   return {
     data: { count: (n.data ?? 0) + (a.data?.count ?? 0) },

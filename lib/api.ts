@@ -1118,28 +1118,45 @@ export type Notification = {
   triggered_at: string;
 };
 
-export async function getNotifications(recipientId: string): Promise<Notification[]> {
-  const url = new URL(`${API_BASE_URL}/notifications`);
-  url.searchParams.set("recipientId", recipientId);
-  const r = await apiFetch(url.toString());
+export async function getNotifications(): Promise<Notification[]> {
+  const r = await apiFetch(`${API_BASE_URL}/notifications`);
   if (!r.ok) return [];
   return (await r.json()) as Notification[];
 }
 
-export async function getUnreadCount(recipientId: string): Promise<number> {
-  const url = new URL(`${API_BASE_URL}/notifications/unread-count`);
-  url.searchParams.set("recipientId", recipientId);
-  const r = await apiFetch(url.toString());
+export async function getUnreadCount(): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/notifications/unread-count`);
   if (!r.ok) return 0;
   const data = await r.json() as { count: number };
   return data.count;
 }
 
-export async function markAllNotificationsRead(recipientId: string): Promise<void> {
+export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch(`${API_BASE_URL}/notifications/mark-all-read`, {
     method: "PATCH",
+    cache: "no-store",
+  });
+}
+
+export async function markNotificationRead(id: string, read: boolean): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ recipient_id: recipientId }),
+    body: JSON.stringify({ read }),
+    cache: "no-store",
+  });
+}
+
+export async function archiveNotification(id: string): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/${id}/archive`, {
+    method: "PATCH",
+    cache: "no-store",
+  });
+}
+
+export async function clearReadNotifications(): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/clear-read`, {
+    method: "PATCH",
     cache: "no-store",
   });
 }
