@@ -2237,8 +2237,8 @@ export type SchoolRosterDetail = {
 };
 
 /** Detail for one school: row + fellow, quick stats, ACTIVE student roster. */
-export async function fetchSchoolRosterDetail(id: string): Promise<SchoolRosterDetail> {
-  const response = await apiFetch(`${API_BASE_URL}/schools/${id}`, { cache: "no-store" });
+export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolRosterDetail> {
+  const response = await apiFetch(`${API_BASE_URL}/schools/${schoolId}`, { cache: "no-store" });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to fetch school.", response.status);
