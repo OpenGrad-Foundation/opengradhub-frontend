@@ -37,15 +37,17 @@ export function AddStudentsPanel({
   // Debounced search-as-you-type.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) { setResults([]); return; }
+    if (q.length < 2) { setResults([]); setSearching(false); return; }
+    let cancelled = false;
     setSearching(true);
+    setErr(null);
     const t = setTimeout(() => {
       getStudentsForBulk({ search: q })
-        .then((rows) => setResults(rows))
-        .catch((e) => setErr(e instanceof Error ? e.message : "Search failed."))
-        .finally(() => setSearching(false));
+        .then((rows) => { if (!cancelled) setResults(rows); })
+        .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : "Search failed."); })
+        .finally(() => { if (!cancelled) setSearching(false); });
     }, 300);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [query]);
 
   const excluded = new Set([...currentStudentIds, ...addedIds]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import {
@@ -29,6 +29,7 @@ export default function SchoolDetailPage() {
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
   const [analytics, setAnalytics] = useState<SchoolAnalytics | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -37,11 +38,18 @@ export default function SchoolDetailPage() {
   const [rosterError, setRosterError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
-      setDetail(await fetchSchoolRosterDetail(id));
+      const d = await fetchSchoolRosterDetail(id);
+      setDetail(d);
+      hasLoadedRef.current = true;
+      setError(null);
+      setRosterError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load school.");
+      const msg = err instanceof Error ? err.message : "Failed to load school.";
+      // A failed refetch must not unmount the page (or an open panel) when we
+      // already have data — surface it inline instead.
+      if (hasLoadedRef.current) setRosterError(msg);
+      else setError(msg);
     } finally {
       setLoading(false);
     }
@@ -63,6 +71,7 @@ export default function SchoolDetailPage() {
     setRemovingId(studentId);
     setRosterError(null);
     try {
+      // "" → NULL on the backend (users.service: school_id = patch.school_id || null)
       await updateUser(studentId, { school_id: "" });
       invalidate("schools", "users");
       setConfirmRemoveId(null);
@@ -229,7 +238,7 @@ export default function SchoolDetailPage() {
                         >
                           {removingId === st.id ? "Removing…" : "Yes"}
                         </button>
-                        <button onClick={() => setConfirmRemoveId(null)} style={{ ...linkBtnStyle, marginLeft: "8px" }}>
+                        <button onClick={() => { setConfirmRemoveId(null); setRosterError(null); }} style={{ ...linkBtnStyle, marginLeft: "8px" }}>
                           No
                         </button>
                       </>
