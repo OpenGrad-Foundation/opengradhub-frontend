@@ -2,14 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Bell } from "lucide-react";
 import {
   getNotifications,
   markAllNotificationsRead,
   markAllAnnouncementsRead,
+  markNotificationRead,
   type Notification,
 } from "@/lib/api";
 import { useInboxUnreadCount } from "@/lib/queries/inbox";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
 
 // ── Type icon map ──────────────────────────────────────────────
 
@@ -35,10 +39,11 @@ function relativeTime(iso: string): string {
 
 // ── Component ──────────────────────────────────────────────────
 
-export default function NotificationBell({ recipientId }: { recipientId: string }) {
-  const { data: unreadData } = useInboxUnreadCount(recipientId);
+export default function NotificationBell() {
+  const { data: unreadData } = useInboxUnreadCount();
   const count = unreadData?.count ?? 0;
   const invalidate = useInvalidate();
+  const router = useRouter();
 
   const [items,    setItems]    = useState<Notification[]>([]);
   const [open,     setOpen]     = useState(false);
@@ -61,7 +66,7 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     setOpen(true);
     setLoading(true);
     try {
-      const data = await getNotifications(recipientId);
+      const data = await getNotifications();
       setItems(data);
     } catch { /* ignore */ } finally {
       setLoading(false);
@@ -78,7 +83,7 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     setItems(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
       await Promise.all([
-        markAllNotificationsRead(recipientId),
+        markAllNotificationsRead(),
         markAllAnnouncementsRead(),
       ]);
       invalidate("notifications", "announcements");
@@ -87,21 +92,37 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
     }
   }
 
+  async function handleItemClick(n: Notification) {
+    const route = NOTIFICATION_ROUTES[n.type];
+    // Mark as read (optimistic) — always, whether or not there is a route.
+    if (!n.is_read) {
+      const snapshot = items;
+      setItems(prev => prev.map(x => (x.id === n.id ? { ...x, is_read: true } : x)));
+      try {
+        await markNotificationRead(n.id, true);
+        invalidate("notifications");
+      } catch {
+        setItems(snapshot);
+      }
+    }
+    // For mapped types, close the dropdown and navigate.
+    if (route) {
+      setOpen(false);
+      router.push(route);
+    }
+  }
+
   return (
     <div ref={containerRef} style={{ position: "relative" }}>
       {/* Bell button */}
       <button
+        type="button"
         onClick={() => void handleOpen()}
-        style={{
-          position: "relative", background: "none", border: "none",
-          cursor: "pointer", padding: "6px", borderRadius: "10px",
-          color: "#034852", fontSize: "20px", lineHeight: 1,
-          transition: "background 150ms",
-        }}
+        className="relative flex items-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
         title="Notifications"
         aria-label="Notifications"
       >
-        🔔
+        <Bell size={18} aria-hidden="true" />
         {count > 0 && (
           <span style={{
             position: "absolute", top: "2px", right: "2px",
@@ -148,26 +169,40 @@ export default function NotificationBell({ recipientId }: { recipientId: string 
             ) : items.length === 0 ? (
               <p style={{ textAlign: "center", padding: "24px", fontSize: "13px", color: "rgba(3,72,82,0.4)" }}>No notifications yet</p>
             ) : (
-              items.map(n => (
-                <div
-                  key={n.id}
-                  style={{
-                    display: "flex", gap: "10px", padding: "12px 18px",
-                    borderBottom: "1px solid rgba(3,72,82,0.05)",
-                    background: n.is_read ? "transparent" : "rgba(10,190,98,0.04)",
-                  }}
-                >
-                  <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type)}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.3 }}>{n.title}</p>
-                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.6)", lineHeight: 1.4 }}>{n.body}</p>
-                    <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>{relativeTime(n.triggered_at)}</p>
-                  </div>
-                  {!n.is_read && (
-                    <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#0abe62", flexShrink: 0, marginTop: "6px" }} />
-                  )}
-                </div>
-              ))
+              items.map(n => {
+                const route = NOTIFICATION_ROUTES[n.type];
+                const isClickable = !n.is_read || !!route;
+                const Tag = route ? "button" : "div";
+                return (
+                  <Tag
+                    key={n.id}
+                    {...(route ? { type: "button" as const } : {})}
+                    onClick={() => void handleItemClick(n)}
+                    style={{
+                      display: "flex", gap: "10px", padding: "12px 18px",
+                      borderBottom: "1px solid rgba(3,72,82,0.05)",
+                      background: n.is_read ? "transparent" : "rgba(10,190,98,0.04)",
+                      cursor: isClickable ? "pointer" : "default",
+                      // reset button defaults when rendered as button
+                      ...(route ? {
+                        width: "100%", textAlign: "left" as const,
+                        border: "none", outline: "none",
+                        font: "inherit",
+                      } : {}),
+                    }}
+                  >
+                    <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type)}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.3 }}>{n.title}</p>
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.6)", lineHeight: 1.4 }}>{n.body}</p>
+                      <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>{relativeTime(n.triggered_at)}</p>
+                    </div>
+                    {!n.is_read && (
+                      <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#0abe62", flexShrink: 0, marginTop: "6px" }} />
+                    )}
+                  </Tag>
+                );
+              })
             )}
           </div>
 

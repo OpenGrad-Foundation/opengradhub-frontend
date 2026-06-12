@@ -23,9 +23,8 @@ export const qk = {
   announcements: (role: string) => ['og', 'announcements', role] as const,
   announcementUnreadCount: () => ['og', 'announcements', 'unread-count'] as const,
 
-  notifications: (recipientId: string) => ['og', 'notifications', recipientId] as const,
-  unreadCount: (recipientId: string) =>
-    ['og', 'notifications', recipientId, 'unread'] as const,
+  notifications: () => ['og', 'notifications'] as const,
+  unreadCount: () => ['og', 'notifications', 'unread'] as const,
 
   studentCourses: (studentId: string) =>
     ['og', 'student', studentId, 'courses'] as const,
@@ -66,8 +65,8 @@ export const qk = {
   studentEnrolments: (studentId: string) =>
     ['og', 'student', studentId, 'enrolments'] as const,
 
-  dashboard: (role: string, tab: 'overview' | 'activity' | 'tasks') =>
+  dashboard: (role: string, tab: 'overview' | 'activity') =>
     ['og', 'dashboard', role, tab] as const,
-  dashboardWidget: (role: string, tab: 'overview' | 'activity' | 'tasks', widgetId: string) =>
+  dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
 };

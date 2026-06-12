@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
-import { signIn, signUp } from "@/lib/api";
+import { signIn, signUp, requestUgPasswordReset } from "@/lib/api";
 import {
   getStoredAuthToken,
   isClerkMode,
@@ -263,6 +263,273 @@ function ClerkSignInForm({
 }
 
 // ---------------------------------------------------------------------------
+// Forgot-password flow (Clerk mode only)
+// Track A: email identifier → Clerk emails a 6-digit reset code.
+// Track B: roll-number identifier → roll number + DOB → fellow approval queue.
+// ---------------------------------------------------------------------------
+
+function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
+  const { signIn } = useSignIn();
+  const [identifier, setIdentifier] = useState("");
+  const [dob, setDob] = useState("");
+  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [step, setStep] = useState<"start" | "emailCode" | "ugDone">("start");
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isEmail = identifier.includes("@");
+
+  async function handleStart(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signIn) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      if (isEmail) {
+        const { error: createError } = await signIn.create({ identifier: identifier.trim() });
+        if (createError) {
+          setError(createError.message ?? "Could not start the reset.");
+          return;
+        }
+        const { error: sendError } = await signIn.resetPasswordEmailCode.sendCode();
+        if (sendError) {
+          setError(sendError.message ?? "Could not send the reset code.");
+          return;
+        }
+        setStep("emailCode");
+      } else {
+        if (!dob) {
+          setError("Please enter your date of birth.");
+          return;
+        }
+        const { message } = await requestUgPasswordReset(identifier.trim(), dob);
+        setInfo(message);
+        setStep("ugDone");
+      }
+    } catch (err: unknown) {
+      const clerkErrors = (err as { errors?: Array<{ message: string }> })?.errors;
+      setError(clerkErrors?.[0]?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleEmailReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signIn) return;
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters long.");
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code });
+      if (verifyError) {
+        setError(verifyError.message ?? "Invalid code.");
+        return;
+      }
+      const { error: submitError } = await signIn.resetPasswordEmailCode.submitPassword({
+        password,
+        signOutOfOtherSessions: true,
+      });
+      if (submitError) {
+        setError(submitError.message ?? "Could not set the new password.");
+        return;
+      }
+      if (signIn.status === "complete") {
+        const { error: finalizeError } = await signIn.finalize();
+        if (finalizeError) {
+          setError(finalizeError.message ?? "Could not activate session.");
+          return;
+        }
+        window.location.replace("/dashboard");
+        return;
+      }
+      setError(`Reset requires additional steps (status: ${signIn.status}). Please contact an administrator.`);
+    } catch (err: unknown) {
+      const clerkErrors = (err as { errors?: Array<{ message: string }> })?.errors;
+      setError(clerkErrors?.[0]?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {step === "start" ? (
+        <form onSubmit={handleStart} className="space-y-5">
+          <div>
+            <label htmlFor="forgot-identifier" className={labelClass}>
+              Email or roll number
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
+                <EnvelopeIcon />
+              </span>
+              <input
+                id="forgot-identifier"
+                name="identifier"
+                type="text"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="name@opengrad.edu or OG-STU-001"
+                className={`${inputClass} pl-11 pr-4`}
+                autoComplete="email"
+                required
+              />
+            </div>
+          </div>
+
+          {!isEmail && identifier.trim().length > 0 ? (
+            <div>
+              <label htmlFor="forgot-dob" className={labelClass}>
+                Date of birth
+              </label>
+              <input
+                id="forgot-dob"
+                name="dob"
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className={`${inputClass} px-4`}
+                required
+              />
+              <p className="mt-2 text-[13px] text-black/60">
+                Your fellow will review the request and share your new password with you.
+              </p>
+            </div>
+          ) : null}
+
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-400/50 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <SubmitButton
+            isSubmitting={isSubmitting}
+            label={isEmail ? "Send reset code" : "Request password reset"}
+            loadingLabel="Submitting…"
+          />
+        </form>
+      ) : null}
+
+      {step === "emailCode" ? (
+        <form onSubmit={handleEmailReset} className="space-y-5">
+          <p className="text-sm text-black/70">
+            We sent a 6-digit code to <strong>{identifier}</strong>
+          </p>
+
+          <div>
+            <label htmlFor="forgot-code" className={labelClass}>
+              Reset code
+            </label>
+            <input
+              id="forgot-code"
+              name="code"
+              type="text"
+              inputMode="numeric"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+              className={`${inputClass} px-4`}
+              autoComplete="one-time-code"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="forgot-password" className={labelClass}>
+              New password
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
+                <LockIcon />
+              </span>
+              <input
+                id="forgot-password"
+                name="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className={`${inputClass} pl-11 pr-4`}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="forgot-confirm-password" className={labelClass}>
+              Confirm new password
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none">
+                <LockIcon />
+              </span>
+              <input
+                id="forgot-confirm-password"
+                name="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className={`${inputClass} pl-11 pr-4`}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          </div>
+
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-400/50 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {error}
+            </p>
+          ) : null}
+
+          <SubmitButton isSubmitting={isSubmitting} label="Set new password" loadingLabel="Updating…" />
+        </form>
+      ) : null}
+
+      {step === "ugDone" ? (
+        <p
+          role="status"
+          className="rounded-xl border border-[var(--teal)]/30 bg-[var(--teal)]/8 px-4 py-3 text-sm text-black/80"
+        >
+          {info}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onBack}
+        className={`text-[13px] font-medium px-1 py-1 rounded transition-colors cursor-pointer ${focusRing}`}
+        style={{ color: "var(--teal)" }}
+        onMouseEnter={(e) => (e.currentTarget.style.color = "var(--dark-teal)")}
+        onMouseLeave={(e) => (e.currentTarget.style.color = "var(--teal)")}
+      >
+        ← Back to sign in
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Shared submit button — prevents duplication
 // ---------------------------------------------------------------------------
 
@@ -337,6 +604,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const isStudentSignUp = useMemo(
     () => signUpForm.roleCode === "STUDENT",
     [signUpForm.roleCode],
@@ -551,10 +819,23 @@ export default function LoginPage() {
           ---------------------------------------------------------------- */}
           {mode === "sign-in" ? (
             clerkMode ? (
-              <ClerkSignInForm
-                initialIdentifier={identifier}
-                successMessage={successMessage}
-              />
+              showForgot ? (
+                <ForgotPasswordFlow onBack={() => setShowForgot(false)} />
+              ) : (
+                <>
+                  <ClerkSignInForm
+                    initialIdentifier={identifier}
+                    successMessage={successMessage}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(true)}
+                    className="mt-4 w-full text-center text-sm text-black/60 hover:text-[var(--teal)] cursor-pointer px-1 py-1"
+                  >
+                    Forgot password?
+                  </button>
+                </>
+              )
             ) : (
               <form onSubmit={handleSignIn} className="space-y-5">
                 {/* Identifier */}

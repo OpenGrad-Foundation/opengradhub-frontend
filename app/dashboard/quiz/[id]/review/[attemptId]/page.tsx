@@ -169,7 +169,7 @@ function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; id
                     <span style={{ width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${dot}`, background: "#fff", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {fillRadio && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot }} />}
                     </span>
-                    <span style={{ fontSize: "14px", color: "#034852" }}>{opt.option_text}</span>
+                    <MathContent inline html={opt.option_text} style={{ fontSize: "14px", color: "#034852" }} />
                     <span style={{ marginLeft: "auto", display: "flex", gap: "8px", flexShrink: 0 }}>
                       {isStudentAnswer && (
                         <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>Your answer</span>
@@ -196,7 +196,9 @@ function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; id
               {revealed && (
                 <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.2)" }}>
                   <p style={{ margin: 0, fontSize: "11px", color: "#0abe62", fontWeight: 600 }}>Correct answer</p>
-                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>{q.correct_answer ?? "—"}</p>
+                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>
+                    {q.correct_answer ? <MathContent inline html={q.correct_answer} /> : "—"}
+                  </p>
                 </div>
               )}
             </div>

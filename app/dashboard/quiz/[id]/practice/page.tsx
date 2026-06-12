@@ -626,13 +626,15 @@ function LeafResult({
         <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
           <strong style={{ fontWeight: 700, color: "#034852" }}>Your answer:</strong>{" "}
           <span style={{ color: studentAnswer ? "#034852" : "rgba(3,72,82,0.4)" }}>
-            {studentAnswer ? studentAnswerText : "(no answer)"}
+            {studentAnswer ? <MathContent inline html={studentAnswerText} /> : "(no answer)"}
           </span>
         </p>
         {correctAnswerText !== null && (
           <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
             <strong style={{ fontWeight: 700, color: "#034852" }}>Correct answer:</strong>{" "}
-            <span style={{ color: "#0abe62", fontWeight: 600 }}>{correctAnswerText}</span>
+            <span style={{ color: "#0abe62", fontWeight: 600 }}>
+              <MathContent inline html={correctAnswerText} />
+            </span>
           </p>
         )}
       </div>
