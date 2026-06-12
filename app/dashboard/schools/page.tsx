@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { fetchSchools, type SchoolOption } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -9,8 +10,12 @@ import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPi
 import { normState } from "@/lib/geo";
 import { SchoolFormModal } from "./SchoolFormModal";
 import { labelStyle, titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 export default function SchoolsPage() {
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
   const { has } = usePermissions();
   const canCreate = has(PERM.schools.create);
   const canEdit = has(PERM.schools.edit);
@@ -144,7 +149,7 @@ export default function SchoolsPage() {
                 ) : visibleSchools.length === 0 ? (
                   <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools match &ldquo;{query}&rdquo;.</td></tr>
                 ) : visibleSchools.map((s) => (
-                  <tr key={s.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                  <tr key={s.id} onClick={() => router.push(withFrom(`/dashboard/schools/${s.id}`, currentUrl))} style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}>
                     <td style={tdStyle}>{s.name}</td>
                     <td style={tdStyle}>{s.district ?? "—"}</td>
                     <td style={tdStyle}>{s.state ?? "—"}</td>
@@ -152,7 +157,7 @@ export default function SchoolsPage() {
                     <td style={tdStyle}>{s.fellow_name ?? "—"}</td>
                     {canEdit && (
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button onClick={() => setEditSchool(s)} style={linkBtnStyle}>Edit</button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditSchool(s); }} style={linkBtnStyle}>Edit</button>
                       </td>
                     )}
                   </tr>
