@@ -13,11 +13,7 @@ import {
 } from "@/lib/api";
 import { useInboxUnreadCount } from "@/lib/queries/inbox";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-
-// ── Notification type → destination route ─────────────────────
-const NOTIFICATION_ROUTES: Record<string, string> = {
-  PASSWORD_RESET_REQUESTED: "/dashboard/password-resets",
-};
+import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
 
 // ── Type icon map ──────────────────────────────────────────────
 

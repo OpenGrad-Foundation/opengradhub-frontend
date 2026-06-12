@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -13,6 +14,7 @@ import {
 } from "@/lib/queries/notifications";
 import { markAllAnnouncementsRead, markAllNotificationsRead } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
 import { ComposeMessageModal } from "@/components/ComposeMessageModal";
 
 type Filter = "all" | "unread" | "notifications" | "announcements";
@@ -25,6 +27,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 export default function InboxPage() {
+  const router = useRouter();
   const { data, isLoading: userLoading } = useCurrentUser();
   const roleCode    = data?.role?.code  ?? "";
 
@@ -53,9 +56,14 @@ export default function InboxPage() {
   }
 
   function handleRowClick(item: InboxItem) {
-    if (item.is_read) return;
-    if (item.source === "announcement") markAnnRead.mutate(item.id);
-    else markNotifRead.mutate({ id: item.id, read: true });
+    if (!item.is_read) {
+      if (item.source === "announcement") markAnnRead.mutate(item.id);
+      else markNotifRead.mutate({ id: item.id, read: true });
+    }
+    if (item.source === "notification") {
+      const route = NOTIFICATION_ROUTES[item.type];
+      if (route) router.push(route);
+    }
   }
 
   const filtered = items.filter((i) => {
@@ -157,6 +165,8 @@ export default function InboxPage() {
           {filtered.map((item, idx) => {
             const isAnn   = item.source === "announcement";
             const isUnread = !item.is_read;
+            const hasRoute = item.source === "notification" && !!NOTIFICATION_ROUTES[item.type];
+            const isClickable = isUnread || hasRoute;
             const dateStr  = new Date(item.created_at).toLocaleDateString([], {
               month: "short", day: "numeric",
             });
@@ -174,7 +184,7 @@ export default function InboxPage() {
                   padding: "16px 24px",
                   borderBottom: idx < filtered.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none",
                   background: isUnread ? "rgba(10,190,98,0.03)" : "transparent",
-                  cursor: isUnread ? "pointer" : "default",
+                  cursor: isClickable ? "pointer" : "default",
                   transition: "background 150ms",
                   position: "relative",
                 }}

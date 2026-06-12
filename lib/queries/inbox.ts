@@ -17,6 +17,7 @@ export type InboxItem =
   | {
       source: 'notification';
       id: string;
+      type: string;
       title: string;
       body: string;
       created_at: string;
@@ -44,6 +45,7 @@ export function useInboxFeed(opts: { role: string }) {
     const not = (n.data ?? []).map((x): InboxItem => ({
       source: 'notification',
       id: x.id,
+      type: x.type,
       title: x.title,
       body: x.body,
       created_at: x.triggered_at,
