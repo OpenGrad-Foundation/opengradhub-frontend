@@ -41,6 +41,17 @@ export default function SchoolDetailPage() {
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
+  // Collapsed-by-default accordion. Keys: batch ids + "unbatched".
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleSection(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     try {
@@ -218,12 +229,23 @@ export default function SchoolDetailPage() {
         <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
       )}
 
-      {/* Batch sections: ACTIVE batches hosted at this school. Members may belong
+      {/* Batch accordion: ACTIVE batches hosted at this school, collapsed by
+          default — click a header to reveal its students. Members may belong
           to other schools — those rows are display-only (no Remove). */}
       {detail.batches.map((b) => (
-        <div key={b.id} style={{ marginBottom: "24px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <div key={b.id} style={{ marginBottom: "12px" }}>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={expanded.has(b.id)}
+            onClick={() => toggleSection(b.id)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection(b.id); } }}
+            style={sectionHeaderStyle}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+              <span aria-hidden="true" style={{ fontSize: "12px", color: "#209379" }}>
+                {expanded.has(b.id) ? "▾" : "▸"}
+              </span>
               <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>{b.name}</h3>
               {b.programme_type && <span style={chipStyle}>{b.programme_type}</span>}
               <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
@@ -232,12 +254,17 @@ export default function SchoolDetailPage() {
             </div>
             <Link
               href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)}
+              onClick={(e) => e.stopPropagation()}
               style={{ ...linkBtnStyle, textDecoration: "none" }}
             >
               View batch →
             </Link>
           </div>
-          <RosterTable rows={b.students} emptyMessage="No students in this batch." {...tableProps} />
+          {expanded.has(b.id) && (
+            <div style={{ marginTop: "8px" }}>
+              <RosterTable rows={b.students} emptyMessage="No students in this batch." {...tableProps} />
+            </div>
+          )}
         </div>
       ))}
 
@@ -245,10 +272,31 @@ export default function SchoolDetailPage() {
           the whole roster, matching the old single-table behavior. */}
       {detail.batches.length > 0 ? (
         <div style={{ marginBottom: "24px" }}>
-          <h3 style={{ ...titleStyle, fontSize: "16px", margin: "0 0 12px" }}>
-            Not in any batch ({unbatched.length})
-          </h3>
-          <RosterTable rows={unbatched} emptyMessage="All students are in batches." {...tableProps} />
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={expanded.has("unbatched")}
+            onClick={() => toggleSection("unbatched")}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection("unbatched"); } }}
+            style={sectionHeaderStyle}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span aria-hidden="true" style={{ fontSize: "12px", color: "#209379" }}>
+                {expanded.has("unbatched") ? "▾" : "▸"}
+              </span>
+              <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>
+                Not in any batch
+              </h3>
+              <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+                {unbatched.length} student{unbatched.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </div>
+          {expanded.has("unbatched") && (
+            <div style={{ marginTop: "8px" }}>
+              <RosterTable rows={unbatched} emptyMessage="All students are in batches." {...tableProps} />
+            </div>
+          )}
         </div>
       ) : (
         <RosterTable rows={unbatched} emptyMessage="No students assigned to this school yet." {...tableProps} />
@@ -354,6 +402,7 @@ function RosterTable({
 }
 
 const backLinkStyle: React.CSSProperties = { fontSize: "13px", fontWeight: 700, color: "#0abe62", textDecoration: "none" };
+const sectionHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "14px 18px", borderRadius: "14px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff", cursor: "pointer", userSelect: "none" };
 const chipStyle: React.CSSProperties = { display: "inline-block", padding: "4px 10px", borderRadius: "999px", background: "rgba(3,72,82,0.06)", fontSize: "12px", fontWeight: 600, color: "#034852" };
 const cardStyle: React.CSSProperties = { padding: "20px", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" };
 const cardLabelStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };
