@@ -18,7 +18,7 @@ export default function StudentActivity({ userId }: { userId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <RefreshButton queryKey={qk.dashboard("STUDENT", "activity")} />
+        <RefreshButton queryKey={qk.dashboard("STUDENT", "activity")} onRefresh={refetch} />
       </div>
       <ListCard
         title="Recent activity"

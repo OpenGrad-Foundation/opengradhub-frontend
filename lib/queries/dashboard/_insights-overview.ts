@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 import type { OverviewWidgets } from "@/lib/queries/dashboard/_shared";
@@ -66,7 +66,6 @@ function toWidgets(r: InsightsResponse): OverviewWidgets {
  * overview tabs.
  */
 export function useInsightsOverview(role: Role, userId: string) {
-  const qc = useQueryClient();
   const query = useQuery<OverviewWidgets, Error>({
     queryKey: qk.dashboardWidget(role, "overview", userId),
     enabled: !!userId,
@@ -84,6 +83,6 @@ export function useInsightsOverview(role: Role, userId: string) {
     widgets: query.data ?? EMPTY,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard(role, "overview") }),
+    refetch: () => query.refetch(),
   };
 }

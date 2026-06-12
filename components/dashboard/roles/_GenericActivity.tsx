@@ -24,7 +24,7 @@ export default function GenericActivity({ role, items, isLoading, error, refetch
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <RefreshButton queryKey={qk.dashboard(role, "activity")} />
+        <RefreshButton queryKey={qk.dashboard(role, "activity")} onRefresh={refetch} />
       </div>
       <ListCard title="Recent activity" isLoading={isLoading} emptyHelper={emptyHelper}>
         {items.map((it, i) => (

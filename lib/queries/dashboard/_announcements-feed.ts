@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 import type { FeedRow } from "@/lib/queries/dashboard/_shared";
@@ -18,7 +18,6 @@ type AnnouncementRow = { id: string; title: string; created_at: string };
  * announcements; richer per-role events are added as their endpoints land.
  */
 export function useAnnouncementsFeed(role: Role, userId: string) {
-  const qc = useQueryClient();
   const query = useQuery<FeedRow[], Error>({
     queryKey: qk.dashboardWidget(role, "activity", userId),
     enabled: !!userId,
@@ -42,6 +41,6 @@ export function useAnnouncementsFeed(role: Role, userId: string) {
     items: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard(role, "activity") }),
+    refetch: () => query.refetch(),
   };
 }

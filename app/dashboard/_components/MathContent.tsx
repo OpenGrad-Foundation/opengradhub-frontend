@@ -33,12 +33,15 @@ export function MathContent({
   html,
   style,
   className,
+  inline = false,
 }: {
   html: string;
   style?: React.CSSProperties;
   className?: string;
+  /** Render as a <span> so it can sit inside <p>/<span> (option rows, answer lines). */
+  inline?: boolean;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLDivElement & HTMLSpanElement>(null);
 
   // Sanitize here so the component is safe regardless of caller. KaTeX
   // auto-render runs afterwards on the mounted node and is unaffected.
@@ -53,8 +56,9 @@ export function MathContent({
     return () => { cancelled = true; };
   }, [html]);
 
+  const Tag = inline ? "span" : "div";
   return (
-    <div
+    <Tag
       ref={ref}
       className={className}
       style={style}

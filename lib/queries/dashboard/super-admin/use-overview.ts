@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 import type { OverviewWidgets } from "@/lib/queries/dashboard/_shared";
@@ -56,7 +56,6 @@ function toWidgets(r: OverviewResponse): OverviewWidgets {
 }
 
 export function useSuperAdminOverview(userId: string) {
-  const qc = useQueryClient();
   const query = useQuery<OverviewWidgets, Error>({
     queryKey: qk.dashboardWidget("SUPER_ADMIN", "overview", userId),
     enabled: !!userId,
@@ -74,6 +73,6 @@ export function useSuperAdminOverview(userId: string) {
     widgets: query.data ?? EMPTY,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard("SUPER_ADMIN", "overview") }),
+    refetch: () => query.refetch(),
   };
 }
