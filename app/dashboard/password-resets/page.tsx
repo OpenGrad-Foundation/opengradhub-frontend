@@ -23,8 +23,8 @@ export default function PasswordResetsPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const isAuthLoading = userLoading || permissionsLoading;
-  const canView = has(PERM.user_management.password_reset_view);
-  const canManage = has(PERM.user_management.password_reset_manage);
+  const canView = has(PERM.password_resets.view);
+  const canManage = has(PERM.password_resets.manage);
 
   const load = useCallback(() => {
     setLoading(true);
