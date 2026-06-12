@@ -3486,10 +3486,15 @@ export async function getPasswordResetRequests(): Promise<PasswordResetRequest[]
   return (await response.json()) as PasswordResetRequest[];
 }
 
-export async function approvePasswordResetRequest(id: string): Promise<void> {
+export async function approvePasswordResetRequest(id: string, password: string): Promise<void> {
   const response = await apiFetch(
     `${API_BASE_URL}/auth/password-reset-requests/${id}/approve`,
-    { method: "POST", cache: "no-store" },
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+      cache: "no-store",
+    },
   );
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;

@@ -403,8 +403,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
                 required
               />
               <p className="mt-2 text-[13px] text-black/60">
-                Your fellow will review the request. Once approved, sign in with your roll number
-                and your date of birth (DDMMYYYY) as the password.
+                Your fellow will review the request and share your new password with you.
               </p>
             </div>
           ) : null}

@@ -19,6 +19,8 @@ export default function PasswordResetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   const isAuthLoading = userLoading || permissionsLoading;
   const canView = has(PERM.user_management.password_reset_view);
@@ -43,11 +45,12 @@ export default function PasswordResetsPage() {
     setNotice(null);
     try {
       if (action === "approve") {
-        await approvePasswordResetRequest(req.id);
+        await approvePasswordResetRequest(req.id, newPassword);
         setNotice(
-          `Approved. ${req.student_name}'s password is reset to their date of birth ` +
-          `(DDMMYYYY). They must set a new password at next sign-in.`,
+          `Approved. Share the new password with ${req.student_name} offline — they sign in with their roll number and this password.`,
         );
+        setApprovingId(null);
+        setNewPassword("");
       } else {
         await rejectPasswordResetRequest(req.id);
         setNotice(`Rejected request from ${req.student_name}.`);
@@ -74,8 +77,8 @@ export default function PasswordResetsPage() {
       <h1 className="text-xl font-bold mb-1">Password Reset Requests</h1>
       <p className="text-sm text-black/60 mb-6">
         Students who forgot their password and verified their roll number and date of
-        birth. Approving resets their password to their date of birth (DDMMYYYY); they
-        must choose a new password at next sign-in.
+        birth. Approve a request by setting a new password for the student, then share
+        it with them offline.
       </p>
 
       {notice && (
@@ -111,23 +114,52 @@ export default function PasswordResetsPage() {
                 </p>
               </div>
               {canManage && (
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    disabled={actionId === req.id}
-                    onClick={() => handle("approve", req)}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 cursor-pointer"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionId === req.id}
-                    onClick={() => handle("reject", req)}
-                    className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 cursor-pointer"
-                  >
-                    Reject
-                  </button>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {approvingId === req.id ? (
+                    <>
+                      <input
+                        type="text"
+                        placeholder="New password (min 8 characters)"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                      />
+                      <button
+                        type="button"
+                        disabled={actionId === req.id || newPassword.length < 8}
+                        onClick={() => handle("approve", req)}
+                        className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 cursor-pointer"
+                      >
+                        Set password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setApprovingId(null); setNewPassword(""); }}
+                        className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={actionId === req.id}
+                        onClick={() => { setApprovingId(req.id); setNewPassword(""); }}
+                        className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60 cursor-pointer"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={actionId === req.id}
+                        onClick={() => handle("reject", req)}
+                        className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60 cursor-pointer"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </li>
