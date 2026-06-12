@@ -27,8 +27,8 @@ describe('query-key factory', () => {
   });
 
   it('builds notification keys', () => {
-    expect(qk.notifications('r1')).toEqual(['og', 'notifications', 'r1']);
-    expect(qk.unreadCount('r1')).toEqual(['og', 'notifications', 'r1', 'unread']);
+    expect(qk.notifications()).toEqual(['og', 'notifications']);
+    expect(qk.unreadCount()).toEqual(['og', 'notifications', 'unread']);
   });
 
   it('builds a student-courses key', () => {
@@ -46,7 +46,7 @@ describe('qk.dashboard', () => {
   });
 
   it('returns a widget-scoped key suitable for per-widget queries', () => {
-    expect(qk.dashboardWidget('FELLOW', 'tasks', 'open-doubts'))
-      .toEqual(['og', 'dashboard', 'FELLOW', 'tasks', 'open-doubts']);
+    expect(qk.dashboardWidget('FELLOW', 'activity', 'open-doubts'))
+      .toEqual(['og', 'dashboard', 'FELLOW', 'activity', 'open-doubts']);
   });
 });

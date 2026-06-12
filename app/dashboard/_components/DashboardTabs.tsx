@@ -3,33 +3,31 @@
 import React from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
-export type DashboardTab = 'overview' | 'activity' | 'tasks';
+export type DashboardTab = 'overview' | 'activity';
 
 type DashboardTabsProps = {
   overview: React.ReactNode;
   activity: React.ReactNode;
-  tasks: React.ReactNode;
 };
 
-const TAB_ORDER: DashboardTab[] = ['overview', 'activity', 'tasks'];
+const TAB_ORDER: DashboardTab[] = ['overview', 'activity'];
 const TAB_LABELS: Record<DashboardTab, string> = {
   overview: 'Overview',
   activity: 'Activity',
-  tasks: 'Tasks',
 };
 
 function parseTab(raw: string | null): DashboardTab {
-  if (raw === 'activity' || raw === 'tasks') return raw;
+  if (raw === 'activity') return raw;
   return 'overview';
 }
 
-export default function DashboardTabs({ overview, activity, tasks }: DashboardTabsProps) {
+export default function DashboardTabs({ overview, activity }: DashboardTabsProps) {
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
   const active = parseTab(params.get('tab'));
 
-  const panels: Record<DashboardTab, React.ReactNode> = { overview, activity, tasks };
+  const panels: Record<DashboardTab, React.ReactNode> = { overview, activity };
 
   return (
     <div>

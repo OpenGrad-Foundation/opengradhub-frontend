@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 
@@ -27,7 +27,6 @@ const EMPTY: StudentOverviewWidgets = {
 };
 
 export function useStudentOverview(userId: string) {
-  const qc = useQueryClient();
   const query = useQuery<StudentOverviewWidgets, Error>({
     queryKey: qk.dashboardWidget("STUDENT", "overview", userId),
     enabled: !!userId,
@@ -79,7 +78,6 @@ export function useStudentOverview(userId: string) {
     widgets: query.data ?? EMPTY,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () =>
-      qc.invalidateQueries({ queryKey: qk.dashboard("STUDENT", "overview") }),
+    refetch: () => query.refetch(),
   };
 }

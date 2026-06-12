@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 
 const FIVE_MIN = 5 * 60_000;
@@ -16,19 +16,10 @@ export type OverviewWidgets = {
 };
 
 export type FeedRow = { ts: string; kind: "quiz" | "doubt" | "announcement"; text: string; href: string };
-export type TaskRow = {
-  id: string;
-  icon: "doubt" | "quiz" | "live" | "review" | "system";
-  title: string;
-  subtitle?: string;
-  href: string;
-  actionLabel: string;
-};
 
 type Role = "FELLOW" | "PROGRAM_MANAGER" | "ZONAL_MANAGER" | "SUPER_ADMIN" | "GOVERNMENT" | "FUNDING_PARTNER";
 
 export function useStubOverview(role: Role, userId: string, widgets: OverviewWidgets) {
-  const qc = useQueryClient();
   const query = useQuery<OverviewWidgets>({
     queryKey: qk.dashboardWidget(role, "overview", userId || "anon"),
     enabled: !!userId,
@@ -40,12 +31,11 @@ export function useStubOverview(role: Role, userId: string, widgets: OverviewWid
     widgets: query.data ?? widgets,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard(role, "overview") }),
+    refetch: () => query.refetch(),
   };
 }
 
 export function useStubActivity(role: Role, userId: string, items: FeedRow[]) {
-  const qc = useQueryClient();
   const query = useQuery<FeedRow[]>({
     queryKey: qk.dashboardWidget(role, "activity", userId || "anon"),
     enabled: !!userId,
@@ -57,23 +47,6 @@ export function useStubActivity(role: Role, userId: string, items: FeedRow[]) {
     items: query.data ?? items,
     isLoading: query.isLoading,
     error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard(role, "activity") }),
-  };
-}
-
-export function useStubTasks(role: Role, userId: string, tasks: TaskRow[]) {
-  const qc = useQueryClient();
-  const query = useQuery<TaskRow[]>({
-    queryKey: qk.dashboardWidget(role, "tasks", userId || "anon"),
-    enabled: !!userId,
-    staleTime: FIVE_MIN,
-    refetchOnWindowFocus: false,
-    queryFn: async () => tasks,
-  });
-  return {
-    tasks: query.data ?? tasks,
-    isLoading: query.isLoading,
-    error: query.error?.message ?? null,
-    refetch: () => qc.invalidateQueries({ queryKey: qk.dashboard(role, "tasks") }),
+    refetch: () => query.refetch(),
   };
 }

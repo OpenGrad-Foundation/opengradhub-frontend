@@ -18,7 +18,7 @@ export default function StudentOverview({ userId }: { userId: string }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <RefreshButton queryKey={qk.dashboard("STUDENT", "overview")} />
+        <RefreshButton queryKey={qk.dashboard("STUDENT", "overview")} onRefresh={refetch} />
       </div>
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <StatCard

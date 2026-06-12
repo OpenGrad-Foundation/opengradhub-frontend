@@ -101,7 +101,7 @@ export default function DashboardTopbar({
           </span>
         )}
 
-        {userId && <NotificationBell recipientId={userId} />}
+        {userId && <NotificationBell />}
 
         {userName && (
           <div ref={menuRef} className="relative">

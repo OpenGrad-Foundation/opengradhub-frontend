@@ -1118,28 +1118,45 @@ export type Notification = {
   triggered_at: string;
 };
 
-export async function getNotifications(recipientId: string): Promise<Notification[]> {
-  const url = new URL(`${API_BASE_URL}/notifications`);
-  url.searchParams.set("recipientId", recipientId);
-  const r = await apiFetch(url.toString());
+export async function getNotifications(): Promise<Notification[]> {
+  const r = await apiFetch(`${API_BASE_URL}/notifications`);
   if (!r.ok) return [];
   return (await r.json()) as Notification[];
 }
 
-export async function getUnreadCount(recipientId: string): Promise<number> {
-  const url = new URL(`${API_BASE_URL}/notifications/unread-count`);
-  url.searchParams.set("recipientId", recipientId);
-  const r = await apiFetch(url.toString());
+export async function getUnreadCount(): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/notifications/unread-count`);
   if (!r.ok) return 0;
   const data = await r.json() as { count: number };
   return data.count;
 }
 
-export async function markAllNotificationsRead(recipientId: string): Promise<void> {
+export async function markAllNotificationsRead(): Promise<void> {
   await apiFetch(`${API_BASE_URL}/notifications/mark-all-read`, {
     method: "PATCH",
+    cache: "no-store",
+  });
+}
+
+export async function markNotificationRead(id: string, read: boolean): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/${id}/read`, {
+    method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ recipient_id: recipientId }),
+    body: JSON.stringify({ read }),
+    cache: "no-store",
+  });
+}
+
+export async function archiveNotification(id: string): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/${id}/archive`, {
+    method: "PATCH",
+    cache: "no-store",
+  });
+}
+
+export async function clearReadNotifications(): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/notifications/clear-read`, {
+    method: "PATCH",
     cache: "no-store",
   });
 }
@@ -2199,6 +2216,34 @@ export async function setSchoolFellow(
     throw new ApiError(errorBody?.message ?? "Failed to update fellow.", response.status);
   }
   return (await response.json()) as SchoolOption;
+}
+
+export type SchoolRosterStudent = {
+  id: string;
+  name: string;
+  roll_number: string | null;
+  email: string | null;
+  programme: string | null;
+  status: string;
+};
+
+export type SchoolRosterDetail = {
+  school: SchoolOption & { fellow_email: string | null };
+  stats: {
+    student_count: number;
+    programmes: { programme: string | null; count: number }[];
+  };
+  students: SchoolRosterStudent[];
+};
+
+/** Detail for one school: row + fellow, quick stats, ACTIVE student roster. */
+export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolRosterDetail> {
+  const response = await apiFetch(`${API_BASE_URL}/schools/${schoolId}`, { cache: "no-store" });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to fetch school.", response.status);
+  }
+  return (await response.json()) as SchoolRosterDetail;
 }
 
 /**
@@ -3429,4 +3474,69 @@ export async function removeTestFromBatch(
     throw new ApiError(err?.message ?? "Failed to remove quiz from batch.", r.status);
   }
   return (await r.json()) as { removed: boolean };
+}
+
+// ── Password reset (UG students) ────────────────────────────────────────────
+
+export type PasswordResetRequest = {
+  id: string;
+  user_id: string;
+  student_name: string;
+  roll_number: string;
+  school_name: string | null;
+  created_at: string;
+};
+
+/** Public — called from the sign-in page before any session exists. */
+export async function requestUgPasswordReset(
+  rollNumber: string,
+  dob: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rollNumber, dob }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Could not submit the request. Please try again later.", response.status);
+  }
+  return (await response.json()) as { message: string };
+}
+
+export async function getPasswordResetRequests(): Promise<PasswordResetRequest[]> {
+  const response = await apiFetch(`${API_BASE_URL}/auth/password-reset-requests`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch password reset requests.", response.status);
+  }
+  return (await response.json()) as PasswordResetRequest[];
+}
+
+export async function approvePasswordResetRequest(id: string, password: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/auth/password-reset-requests/${id}/approve`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? "Failed to approve request.", response.status);
+  }
+}
+
+export async function rejectPasswordResetRequest(id: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/auth/password-reset-requests/${id}/reject`,
+    { method: "POST", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
+  }
 }

@@ -23,7 +23,7 @@ export default function GenericOverview({ role, widgets, isLoading, error, refet
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <RefreshButton queryKey={qk.dashboard(role, "overview")} />
+        <RefreshButton queryKey={qk.dashboard(role, "overview")} onRefresh={refetch} />
       </div>
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {widgets.stats.map((s) => (

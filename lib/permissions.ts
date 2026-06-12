@@ -123,6 +123,10 @@ export const PERM = {
     manage_overrides: "role_management.manage_overrides",
     manage_roles: "role_management.manage_roles",
   },
+  password_resets: {
+    view: "password_resets.view",
+    manage: "password_resets.manage",
+  },
   notifications: {
     view: "notifications.view",
     send: "notifications.send",

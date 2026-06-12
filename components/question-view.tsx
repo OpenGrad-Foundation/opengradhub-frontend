@@ -63,7 +63,7 @@ export function QuestionView({
                 }}>
                   {selected && <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#fff" }} />}
                 </div>
-                <span style={{ fontSize: "15px" }}>{opt.option_text}</span>
+                <MathContent inline html={opt.option_text} style={{ fontSize: "15px" }} />
               </div>
             );
           })}

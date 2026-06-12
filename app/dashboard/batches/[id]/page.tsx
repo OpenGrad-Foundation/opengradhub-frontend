@@ -126,7 +126,7 @@ export default function BatchDetailPage() {
             <Chip icon="👤" value={batch.members.length} label="student" />
             <Chip icon="📚" value={batch.courses.length} label="course" />
             <Chip icon="📦" value={batch.bundles.length} label="bundle" />
-            <Chip icon="📝" value={batch.tests.length} label="quiz" />
+            <Chip icon="📝" value={batch.tests.length} label="quiz" plural="quizzes" />
           </div>
         </div>
         {has(PERM.batches.delete) && (
@@ -955,7 +955,7 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
   );
 }
 
-function Chip({ icon, value, label }: { icon: string; value: number; label: string }) {
+function Chip({ icon, value, label, plural }: { icon: string; value: number; label: string; plural?: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "5px",
@@ -963,7 +963,7 @@ function Chip({ icon, value, label }: { icon: string; value: number; label: stri
       background: "rgba(3,72,82,0.06)", fontSize: "12px",
       fontWeight: 600, color: "#034852",
     }}>
-      {icon} {value} {label}{value !== 1 ? "s" : ""}
+      {icon} {value} {value === 1 ? label : (plural ?? `${label}s`)}
     </span>
   );
 }
