@@ -2218,6 +2218,34 @@ export async function setSchoolFellow(
   return (await response.json()) as SchoolOption;
 }
 
+export type SchoolRosterStudent = {
+  id: string;
+  name: string;
+  roll_number: string | null;
+  email: string | null;
+  programme: string | null;
+  status: string;
+};
+
+export type SchoolRosterDetail = {
+  school: SchoolOption & { fellow_email: string | null };
+  stats: {
+    student_count: number;
+    programmes: { programme: string | null; count: number }[];
+  };
+  students: SchoolRosterStudent[];
+};
+
+/** Detail for one school: row + fellow, quick stats, ACTIVE student roster. */
+export async function fetchSchoolRosterDetail(id: string): Promise<SchoolRosterDetail> {
+  const response = await apiFetch(`${API_BASE_URL}/schools/${id}`, { cache: "no-store" });
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to fetch school.", response.status);
+  }
+  return (await response.json()) as SchoolRosterDetail;
+}
+
 /**
  * Create a single user.
  */
