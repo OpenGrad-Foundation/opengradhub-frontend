@@ -2234,6 +2234,13 @@ export type SchoolRosterDetail = {
     programmes: { programme: string | null; count: number }[];
   };
   students: SchoolRosterStudent[];
+  /** ACTIVE batches hosted at this school, each with its ACTIVE student members (may include students from other schools; empty batches included). */
+  batches: {
+    id: string;
+    name: string;
+    programme_type: string | null;
+    students: SchoolRosterStudent[];
+  }[];
 };
 
 /** Detail for one school: row + fellow, quick stats, ACTIVE student roster. */

@@ -2,14 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import {
   fetchSchoolRosterDetail,
   getSchoolDetail,
   updateUser,
   type SchoolRosterDetail,
+  type SchoolRosterStudent,
   type SchoolDetail as SchoolAnalytics,
 } from "@/lib/api";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -21,6 +25,7 @@ import {
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const currentUrl = useCurrentUrl();
   const { has } = usePermissions();
   const canEditSchool = has(PERM.schools.edit);
   const canEditRoster = has(PERM.user_management.edit);
@@ -97,6 +102,19 @@ export default function SchoolDetailPage() {
   }
 
   const { school, stats, students } = detail;
+  const schoolStudentIds = new Set(students.map((s) => s.id));
+  const batchedIds = new Set(detail.batches.flatMap((b) => b.students.map((s) => s.id)));
+  const unbatched = students.filter((s) => !batchedIds.has(s.id));
+
+  const tableProps = {
+    schoolStudentIds,
+    canEditRoster,
+    confirmRemoveId,
+    removingId,
+    onRemove: (studentId: string) => void removeStudent(studentId),
+    onConfirmRemove: (studentId: string) => setConfirmRemoveId(studentId),
+    onCancelRemove: () => { setConfirmRemoveId(null); setRosterError(null); },
+  };
 
   return (
     <div>
@@ -200,60 +218,41 @@ export default function SchoolDetailPage() {
         <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
       )}
 
-      <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
-          <thead>
-            <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Roll Number</th>
-              <th style={thStyle}>Email</th>
-              <th style={thStyle}>Programme</th>
-              {canEditRoster && <th style={thStyle} />}
-            </tr>
-          </thead>
-          <tbody>
-            {students.length === 0 ? (
-              <tr>
-                <td colSpan={canEditRoster ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
-                  No students assigned to this school yet.
-                </td>
-              </tr>
-            ) : students.map((st) => (
-              <tr key={st.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{st.name}</td>
-                <td style={tdStyle}>{st.roll_number ?? "—"}</td>
-                <td style={tdStyle}>{st.email ?? "—"}</td>
-                <td style={tdStyle}>{st.programme ?? "—"}</td>
-                {canEditRoster && (
-                  <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
-                    {confirmRemoveId === st.id ? (
-                      <>
-                        <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", marginRight: "8px" }}>
-                          Remove from school?
-                        </span>
-                        <button
-                          onClick={() => void removeStudent(st.id)}
-                          disabled={removingId === st.id}
-                          style={{ ...linkBtnStyle, color: "#c53030", opacity: removingId === st.id ? 0.5 : 1 }}
-                        >
-                          {removingId === st.id ? "Removing…" : "Yes"}
-                        </button>
-                        <button onClick={() => { setConfirmRemoveId(null); setRosterError(null); }} style={{ ...linkBtnStyle, marginLeft: "8px" }}>
-                          No
-                        </button>
-                      </>
-                    ) : (
-                      <button onClick={() => setConfirmRemoveId(st.id)} style={{ ...linkBtnStyle, color: "#c53030" }}>
-                        Remove
-                      </button>
-                    )}
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Batch sections: ACTIVE batches hosted at this school. Members may belong
+          to other schools — those rows are display-only (no Remove). */}
+      {detail.batches.map((b) => (
+        <div key={b.id} style={{ marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>{b.name}</h3>
+              {b.programme_type && <span style={chipStyle}>{b.programme_type}</span>}
+              <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+                {b.students.length} student{b.students.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <Link
+              href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)}
+              style={{ ...linkBtnStyle, textDecoration: "none" }}
+            >
+              View batch →
+            </Link>
+          </div>
+          <RosterTable rows={b.students} emptyMessage="No students in this batch." {...tableProps} />
+        </div>
+      ))}
+
+      {/* School-roster students not in any batch. With zero batches this holds
+          the whole roster, matching the old single-table behavior. */}
+      {detail.batches.length > 0 ? (
+        <div style={{ marginBottom: "24px" }}>
+          <h3 style={{ ...titleStyle, fontSize: "16px", margin: "0 0 12px" }}>
+            Not in any batch ({unbatched.length})
+          </h3>
+          <RosterTable rows={unbatched} emptyMessage="All students are in batches." {...tableProps} />
+        </div>
+      ) : (
+        <RosterTable rows={unbatched} emptyMessage="No students assigned to this school yet." {...tableProps} />
+      )}
 
       {showAdd && (
         <AddStudentsPanel
@@ -264,6 +263,92 @@ export default function SchoolDetailPage() {
           onChanged={() => void load()}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Shared roster table. Remove only renders for rows whose student is in the
+ * school roster (`schoolStudentIds`) — batch members from other schools get
+ * an em-dash in the action cell.
+ */
+function RosterTable({
+  rows,
+  schoolStudentIds,
+  emptyMessage,
+  canEditRoster,
+  confirmRemoveId,
+  removingId,
+  onRemove,
+  onConfirmRemove,
+  onCancelRemove,
+}: {
+  rows: SchoolRosterStudent[];
+  schoolStudentIds: Set<string>;
+  emptyMessage: string;
+  canEditRoster: boolean;
+  confirmRemoveId: string | null;
+  removingId: string | null;
+  onRemove: (studentId: string) => void;
+  onConfirmRemove: (studentId: string) => void;
+  onCancelRemove: () => void;
+}) {
+  return (
+    <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
+        <thead>
+          <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
+            <th style={thStyle}>Name</th>
+            <th style={thStyle}>Roll Number</th>
+            <th style={thStyle}>Email</th>
+            <th style={thStyle}>Programme</th>
+            {canEditRoster && <th style={thStyle} />}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={canEditRoster ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
+                {emptyMessage}
+              </td>
+            </tr>
+          ) : rows.map((st) => (
+            <tr key={st.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+              <td style={tdStyle}>{st.name}</td>
+              <td style={tdStyle}>{st.roll_number ?? "—"}</td>
+              <td style={tdStyle}>{st.email ?? "—"}</td>
+              <td style={tdStyle}>{st.programme ?? "—"}</td>
+              {canEditRoster && (
+                <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                  {!schoolStudentIds.has(st.id) ? (
+                    <span style={{ color: "rgba(3,72,82,0.35)" }}>—</span>
+                  ) : confirmRemoveId === st.id ? (
+                    <>
+                      <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", marginRight: "8px" }}>
+                        Remove from school?
+                      </span>
+                      <button
+                        onClick={() => onRemove(st.id)}
+                        disabled={removingId === st.id}
+                        style={{ ...linkBtnStyle, color: "#c53030", opacity: removingId === st.id ? 0.5 : 1 }}
+                      >
+                        {removingId === st.id ? "Removing…" : "Yes"}
+                      </button>
+                      <button onClick={onCancelRemove} style={{ ...linkBtnStyle, marginLeft: "8px" }}>
+                        No
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => onConfirmRemove(st.id)} style={{ ...linkBtnStyle, color: "#c53030" }}>
+                      Remove
+                    </button>
+                  )}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
