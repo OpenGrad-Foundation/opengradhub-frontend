@@ -116,6 +116,8 @@ export const PERM = {
     archive: "user_management.archive",
     delete: "user_management.delete",
     bulk_import: "user_management.bulk_import",
+    password_reset_view: "user_management.password_reset_view",
+    password_reset_manage: "user_management.password_reset_manage",
   },
   role_management: {
     view: "role_management.view",

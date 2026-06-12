@@ -3447,3 +3447,63 @@ export async function removeTestFromBatch(
   }
   return (await r.json()) as { removed: boolean };
 }
+
+// ── Password reset (UG students) ────────────────────────────────────────────
+
+export type PasswordResetRequest = {
+  id: string;
+  user_id: string;
+  student_name: string;
+  roll_number: string;
+  school_name: string | null;
+  created_at: string;
+};
+
+/** Public — called from the sign-in page before any session exists. */
+export async function requestUgPasswordReset(
+  rollNumber: string,
+  dob: string,
+): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password/request`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rollNumber, dob }),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Could not submit the request. Please try again later.", response.status);
+  }
+  return (await response.json()) as { message: string };
+}
+
+export async function getPasswordResetRequests(): Promise<PasswordResetRequest[]> {
+  const response = await apiFetch(`${API_BASE_URL}/auth/password-reset-requests`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch password reset requests.", response.status);
+  }
+  return (await response.json()) as PasswordResetRequest[];
+}
+
+export async function approvePasswordResetRequest(id: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/auth/password-reset-requests/${id}/approve`,
+    { method: "POST", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? "Failed to approve request.", response.status);
+  }
+}
+
+export async function rejectPasswordResetRequest(id: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/auth/password-reset-requests/${id}/reject`,
+    { method: "POST", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
+  }
+}
