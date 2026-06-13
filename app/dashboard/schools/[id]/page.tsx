@@ -19,6 +19,7 @@ import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { SchoolFormModal } from "../SchoolFormModal";
 import { AddStudentsPanel } from "./AddStudentsPanel";
+import { BatchFormModal } from "../../batches/BatchFormModal";
 import {
   labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle,
 } from "../styles";
@@ -29,6 +30,7 @@ export default function SchoolDetailPage() {
   const { has } = usePermissions();
   const canEditSchool = has(PERM.schools.edit);
   const canEditRoster = has(PERM.user_management.edit);
+  const canCreateBatch = has(PERM.batches.create);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
@@ -38,6 +40,7 @@ export default function SchoolDetailPage() {
   const [analytics, setAnalytics] = useState<SchoolAnalytics | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showAddBatch, setShowAddBatch] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
@@ -220,10 +223,24 @@ export default function SchoolDetailPage() {
         <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
           Students ({stats.student_count})
         </h2>
-        {canEditRoster && (
-          <button onClick={() => setShowAdd(true)} style={primaryButton}>+ Add Students</button>
-        )}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {canCreateBatch && (
+            <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
+          )}
+          {canEditRoster && (
+            <button onClick={() => setShowAdd(true)} style={primaryButton}>+ Add Students</button>
+          )}
+        </div>
       </div>
+
+      {showAddBatch && (
+        <BatchFormModal
+          mode="create"
+          defaultSchoolId={school.id}
+          onClose={() => setShowAddBatch(false)}
+          onSaved={() => { setShowAddBatch(false); void load(); }}
+        />
+      )}
 
       {rosterError && (
         <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
