@@ -1,0 +1,32 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list
+        - generic:
+          - button "Scroll down":
+            - img
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - button "Report a bug" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+          - generic [ref=e27]: Report bug
+      - main [ref=e28]:
+        - generic [ref=e29]:
+          - generic [ref=e31]:
+            - paragraph [ref=e32]: Administration
+            - heading "Schools" [level=1] [ref=e33]
+          - paragraph [ref=e34]: Loading schools…
+  - button "Open Next.js Dev Tools" [ref=e40] [cursor=pointer]:
+    - img [ref=e41]
+  - alert [ref=e44]

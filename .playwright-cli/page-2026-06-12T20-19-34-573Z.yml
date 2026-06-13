@@ -1,0 +1,26 @@
+- generic [ref=e2]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - link "OpenGrad" [ref=e6] [cursor=pointer]:
+        - /url: /dashboard
+        - img "OpenGrad" [ref=e7]
+      - button "Collapse sidebar" [ref=e8]:
+        - img [ref=e9]
+      - button "Close sidebar" [ref=e12]:
+        - img [ref=e13]
+    - generic [ref=e16]:
+      - button "Scroll up" [ref=e18]:
+        - img [ref=e19]
+      - navigation:
+        - list
+      - button "Scroll down" [ref=e22]:
+        - img [ref=e23]
+  - generic [ref=e25]:
+    - banner [ref=e26]:
+      - button "Open sidebar" [ref=e27]:
+        - img [ref=e28]
+    - main [ref=e29]:
+      - generic [ref=e31]:
+        - paragraph [ref=e32]: Loading
+        - paragraph [ref=e33]: Opening your dashboard
+        - paragraph [ref=e34]: Fetching your OpenGrad workspace…
