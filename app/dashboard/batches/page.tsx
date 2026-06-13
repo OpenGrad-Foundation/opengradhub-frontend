@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import {
   fetchSchools,
   createBatch,
@@ -16,6 +18,8 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useBatches } from "@/lib/queries/batches";
 
 export default function BatchesPage() {
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
   const { has } = usePermissions();
   const canCreate = has(PERM.batches.create);
   const canEdit = has(PERM.batches.edit);
@@ -120,11 +124,13 @@ export default function BatchesPage() {
                 ) : visibleBatches.length === 0 ? (
                   <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No batches match &ldquo;{query}&rdquo;.</td></tr>
                 ) : visibleBatches.map((b) => (
-                  <tr key={b.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                    <td style={tdStyle}>
-                      <Link href={`/dashboard/batches/${b.id}`} style={{ color: "#034852", fontWeight: 600, textDecoration: "none" }}>
-                        {b.name}
-                      </Link>
+                  <tr
+                    key={b.id}
+                    onClick={() => router.push(withFrom(`/dashboard/batches/${b.id}`, currentUrl))}
+                    style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}
+                  >
+                    <td style={{ ...tdStyle, color: "#034852", fontWeight: 600 }}>
+                      {b.name}
                     </td>
                     <td style={tdStyle}>{b.school_name ?? <em style={{ color: "rgba(3,72,82,0.5)" }}>Independent</em>}</td>
                     <td style={tdStyle}>{b.programme_type ?? "—"}</td>
@@ -148,7 +154,7 @@ export default function BatchesPage() {
                     </td>
                     {canEdit && (
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button onClick={() => setEditBatch(b)} style={linkBtnStyle}>Edit</button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditBatch(b); }} style={linkBtnStyle}>Edit</button>
                       </td>
                     )}
                   </tr>
