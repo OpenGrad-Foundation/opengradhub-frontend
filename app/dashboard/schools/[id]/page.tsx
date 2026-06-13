@@ -19,7 +19,7 @@ import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { SchoolFormModal } from "../SchoolFormModal";
 import { AddStudentsPanel } from "./AddStudentsPanel";
-import { BatchFormModal } from "../../batches/BatchFormModal";
+import { AttachBatchPanel } from "./AttachBatchPanel";
 import {
   labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle,
 } from "../styles";
@@ -30,7 +30,7 @@ export default function SchoolDetailPage() {
   const { has } = usePermissions();
   const canEditSchool = has(PERM.schools.edit);
   const canEditRoster = has(PERM.user_management.edit);
-  const canCreateBatch = has(PERM.batches.create);
+  const canAttachBatch = has(PERM.batches.edit);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
@@ -224,7 +224,7 @@ export default function SchoolDetailPage() {
           Students ({stats.student_count})
         </h2>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          {canCreateBatch && (
+          {canAttachBatch && (
             <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
           )}
           {canEditRoster && (
@@ -234,11 +234,11 @@ export default function SchoolDetailPage() {
       </div>
 
       {showAddBatch && (
-        <BatchFormModal
-          mode="create"
-          defaultSchoolId={school.id}
+        <AttachBatchPanel
+          schoolId={school.id}
+          schoolName={school.name}
           onClose={() => setShowAddBatch(false)}
-          onSaved={() => { setShowAddBatch(false); void load(); }}
+          onChanged={() => void load()}
         />
       )}
 
