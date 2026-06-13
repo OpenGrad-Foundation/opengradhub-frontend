@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { SafeUser, ManagerOption, SchoolOption } from "@/lib/api";
-import { updateUser, deleteUser, archiveUser, getManagers, fetchSchools } from "@/lib/api";
+import type { SafeUser, ManagerOption, SchoolOption, FellowSchoolAssignment } from "@/lib/api";
+import {
+  updateUser, deleteUser, archiveUser, getManagers, fetchSchools,
+  getSchoolAssignments, assignFellowSchool, unassignFellowSchool,
+} from "@/lib/api";
 import {
   fetchRoles,
   patchRole,
@@ -90,6 +93,9 @@ export function UserDetailPanel({
 
   const [managerOptions, setManagerOptions] = useState<ManagerOption[]>([]);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [fellowSchools, setFellowSchools] = useState<FellowSchoolAssignment[]>([]);
+  const [fellowSchoolsErr, setFellowSchoolsErr] = useState<string | null>(null);
+  const [fellowSchoolsBusy, setFellowSchoolsBusy] = useState(false);
   const isMobile = useIsMobile(640);
   const padH = isMobile ? "16px" : "28px";
   const padV = isMobile ? "14px" : "16px";
@@ -143,6 +149,20 @@ export function UserDetailPanel({
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    setFellowSchools([]);
+    setFellowSchoolsErr(null);
+    if (user.role === "FELLOW") {
+      getSchoolAssignments(user.id)
+        .then((rows) => { if (!cancelled) setFellowSchools(rows); })
+        .catch((e) => {
+          if (!cancelled) setFellowSchoolsErr(e instanceof Error ? e.message : "Failed to load schools.");
+        });
+    }
+    return () => { cancelled = true; };
+  }, [user.id, user.role]);
+
   function set(field: keyof Draft, value: string) {
     setDraft((prev) => ({ ...prev, [field]: value }));
   }
@@ -182,7 +202,9 @@ export function UserDetailPanel({
           phone: draft.phone.trim() || undefined,
           programme_type: draft.programme_type || undefined,
           state: draft.state || undefined,
-          school_id: draft.school_id.trim() || undefined,
+          // users.school_id is student-only; fellow schools live in
+          // fellow_school_assignments and are edited via the Schools block.
+          school_id: user.role === 'STUDENT' ? (draft.school_id.trim() || undefined) : undefined,
           school_code: draft.school_code.trim() || undefined,
           roll_number: draft.roll_number.trim() || undefined,
           district: draft.district.trim() || undefined,
@@ -198,6 +220,37 @@ export function UserDetailPanel({
       setSaveErr(e instanceof Error ? e.message : "Failed to save changes.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAddSchool(schoolId: string) {
+    if (!schoolId || fellowSchoolsBusy) return;
+    setFellowSchoolsBusy(true);
+    setFellowSchoolsErr(null);
+    try {
+      await assignFellowSchool(user.id, schoolId);
+      const rows = await getSchoolAssignments(user.id);
+      setFellowSchools(rows);
+      invalidate('users');
+    } catch (e) {
+      setFellowSchoolsErr(e instanceof Error ? e.message : "Failed to assign school.");
+    } finally {
+      setFellowSchoolsBusy(false);
+    }
+  }
+
+  async function handleRemoveSchool(schoolId: string) {
+    if (fellowSchoolsBusy) return;
+    setFellowSchoolsBusy(true);
+    setFellowSchoolsErr(null);
+    try {
+      await unassignFellowSchool(user.id, schoolId);
+      setFellowSchools((prev) => prev.filter((s) => s.id !== schoolId));
+      invalidate('users');
+    } catch (e) {
+      setFellowSchoolsErr(e instanceof Error ? e.message : "Failed to remove school.");
+    } finally {
+      setFellowSchoolsBusy(false);
     }
   }
 
@@ -445,40 +498,85 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                     <PanelField label="State">
-                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
+                      <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
                         <option value="">Select…</option>
                         {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </PanelField>
                   </div>
-                  <div style={formRowStyle}>
-                    <PanelField label="District">
-                      <select
-                        value={draft.district}
-                        onChange={(e) => { set("district", e.target.value); set("school_id", ""); }}
-                        style={S.input}
-                        disabled={districtDisabled(draft.state)}
-                      >
-                        <option value="">
-                          {districtDisabled(draft.state) ? "—" : "Select district…"}
-                        </option>
-                        {districtsForState(draft.state).map((d) => (
-                          <option key={d} value={d}>{d}</option>
+                  <PanelField label="District">
+                    <select
+                      value={draft.district}
+                      onChange={(e) => set("district", e.target.value)}
+                      style={S.input}
+                      disabled={districtDisabled(draft.state)}
+                    >
+                      <option value="">
+                        {districtDisabled(draft.state) ? "—" : "Select district…"}
+                      </option>
+                      {districtsForState(draft.state).map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </PanelField>
+                  <PanelField label={`Schools (${fellowSchools.length})`}>
+                    {fellowSchools.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "8px" }}>
+                        {fellowSchools.map((s) => (
+                          <div
+                            key={s.id}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              gap: "8px", padding: "7px 12px",
+                              background: "rgba(10,190,98,0.06)",
+                              border: "1px solid rgba(10,190,98,0.25)",
+                              borderRadius: "10px",
+                            }}
+                          >
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ fontSize: "13px", fontWeight: 600, color: "#034852", margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {s.name}
+                              </p>
+                              <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: 0 }}>
+                                {[s.district, s.state].filter(Boolean).join(" · ") || "—"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              aria-label={`Remove ${s.name}`}
+                              onClick={() => void handleRemoveSchool(s.id)}
+                              disabled={fellowSchoolsBusy}
+                              style={{
+                                background: "none", border: "none", cursor: "pointer",
+                                fontSize: "13px", color: "rgba(3,72,82,0.45)",
+                                padding: "2px 6px", flexShrink: 0,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
                         ))}
-                      </select>
-                    </PanelField>
-                    <PanelField label="School">
-                      <SchoolSearchPicker
-                        schools={schools}
-                        value={draft.school_id}
-                        onChange={(id) => set("school_id", id)}
-                        inputStyle={S.input}
-                      />
-                    </PanelField>
-                  </div>
-                  <PanelField label="Zonal Manager">
+                      </div>
+                    )}
+                    <SchoolSearchPicker
+                      schools={schools.filter(
+                        (s) =>
+                          !fellowSchools.some((fs) => fs.id === s.id) &&
+                          (!s.fellow_id || s.fellow_id === user.id),
+                      )}
+                      value=""
+                      onChange={(id) => void handleAddSchool(id)}
+                      placeholder="Add school by name or code…"
+                      disabled={fellowSchoolsBusy}
+                      inputStyle={S.input}
+                    />
+                    {fellowSchoolsErr && (
+                      <p style={{ fontSize: "12px", color: "#e53e3e", margin: "6px 0 0" }}>{fellowSchoolsErr}</p>
+                    )}
+                  </PanelField>
+                  <PanelField label="Zonal Manager (optional)">
                     <select value={draft.manager_id} onChange={(e) => set("manager_id", e.target.value)} style={S.input}>
-                      <option value="">Select manager…</option>
+                      <option value="">No manager</option>
                       {managerOptions.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.full_name}{m.state ? ` (${m.state})` : ""}
@@ -492,15 +590,15 @@ export function UserDetailPanel({
               {isPMorZM && (
                 <>
                   <PanelField label="State">
-                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); set("school_id", ""); }} style={S.input}>
+                    <select value={draft.state} onChange={(e) => { set("state", e.target.value); set("district", ""); }} style={S.input}>
                       <option value="">Select…</option>
                       {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                     </select>
                   </PanelField>
                   {user.role === 'ZONAL_MANAGER' && (
-                    <PanelField label="Program Manager">
+                    <PanelField label="Program Manager (optional)">
                       <select value={draft.manager_id} onChange={(e) => set("manager_id", e.target.value)} style={S.input}>
-                        <option value="">Select manager…</option>
+                        <option value="">No manager</option>
                         {managerOptions.map((m) => (
                           <option key={m.id} value={m.id}>
                             {m.full_name}{m.state ? ` (${m.state})` : ""}

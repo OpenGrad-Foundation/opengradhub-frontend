@@ -2367,6 +2367,56 @@ export async function getManagers(
   return (await response.json()) as ManagerOption[];
 }
 
+export type FellowSchoolAssignment = {
+  id: string;
+  name: string;
+  district: string | null;
+  state: string | null;
+  assigned_at: string;
+};
+
+/** Schools currently assigned to a fellow. */
+export async function getSchoolAssignments(userId: string): Promise<FellowSchoolAssignment[]> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/${userId}/school-assignments`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to load school assignments.", response.status);
+  }
+  return (await response.json()) as FellowSchoolAssignment[];
+}
+
+/** Assign a school to a fellow. */
+export async function assignFellowSchool(userId: string, schoolId: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/${userId}/school-assignments`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ school_id: schoolId }),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to assign school.", response.status);
+  }
+}
+
+/** Remove a fellow's school assignment. */
+export async function unassignFellowSchool(userId: string, schoolId: string): Promise<void> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/${userId}/school-assignments/${schoolId}`,
+    { method: "DELETE", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to remove school assignment.", response.status);
+  }
+}
+
 /**
  * Bulk upload users via CSV file.
  */
@@ -2423,6 +2473,7 @@ export type Announcement = {
   target_roles: string[];
   programme_type: string | null;
   created_at: string;
+  is_read: boolean;
 };
 
 export async function getAnnouncements(role?: string): Promise<Announcement[]> {
