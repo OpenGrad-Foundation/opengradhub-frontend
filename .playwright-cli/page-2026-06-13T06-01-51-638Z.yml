@@ -1,0 +1,374 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list [ref=e111]:
+            - listitem [ref=e112]:
+              - link "Dashboard" [ref=e113] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e114]
+                - generic [ref=e119]: Dashboard
+            - listitem [ref=e120]:
+              - link "Courses" [ref=e121] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e122]
+                - generic [ref=e124]: Courses
+            - listitem [ref=e125]:
+              - link "Bundles" [ref=e126] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e127]
+                - generic [ref=e131]: Bundles
+            - listitem [ref=e132]:
+              - link "Quizzes" [ref=e133] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e134]
+                - generic [ref=e137]: Quizzes
+            - listitem [ref=e138]:
+              - link "Question Bank" [ref=e139] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e140]
+                - generic [ref=e144]: Question Bank
+            - listitem [ref=e145]:
+              - link "Assignments" [ref=e146] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e147]
+                - generic [ref=e150]: Assignments
+            - listitem [ref=e151]:
+              - link "Live Classes" [ref=e152] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e153]
+                - generic [ref=e156]: Live Classes
+            - listitem [ref=e157]:
+              - link "Calendar" [ref=e158] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e159]
+                - generic [ref=e161]: Calendar
+            - listitem [ref=e162]:
+              - link "Resources" [ref=e163] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e164]
+                - generic [ref=e166]: Resources
+            - listitem [ref=e167]:
+              - link "Doubts" [ref=e168] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e169]
+                - generic [ref=e172]: Doubts
+            - listitem [ref=e173]:
+              - link "Analytics" [ref=e174] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e175]
+                - generic [ref=e176]: Analytics
+            - listitem [ref=e177]:
+              - link "Reports" [ref=e178] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e179]
+                - generic [ref=e182]: Reports
+            - listitem [ref=e183]:
+              - link "Student Export" [ref=e184] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e185]
+                - generic [ref=e188]: Student Export
+            - listitem [ref=e189]:
+              - link "User Management" [ref=e190] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e191]
+                - generic [ref=e196]: User Management
+            - listitem [ref=e197]:
+              - link "Role Management" [ref=e198] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e199]
+                - generic [ref=e201]: Role Management
+            - listitem [ref=e202]:
+              - link "Bulk Assign" [ref=e203] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e204]
+                - generic [ref=e207]: Bulk Assign
+            - listitem [ref=e208]:
+              - link "Schools" [ref=e209] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e210]
+                - generic [ref=e215]: Schools
+            - listitem [ref=e216]:
+              - link "Batches" [ref=e217] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e218]
+                - generic [ref=e222]: Batches
+        - button "Scroll down" [ref=e224] [cursor=pointer]:
+          - img [ref=e225]
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Report a bug" [ref=e17] [cursor=pointer]:
+            - img [ref=e18]
+            - generic [ref=e27]: Report bug
+          - button "Notifications" [ref=e228] [cursor=pointer]:
+            - img [ref=e229]
+            - generic [ref=e232]: 99+
+          - button "TS" [ref=e234] [cursor=pointer]
+      - main [ref=e28]:
+        - generic [ref=e255]:
+          - link "← Back to Batches" [ref=e256] [cursor=pointer]:
+            - /url: /dashboard/batches
+          - generic [ref=e257]:
+            - generic [ref=e258]:
+              - paragraph [ref=e259]: Batch
+              - heading "fghjk" [level=1] [ref=e260]
+              - paragraph [ref=e261]: GHSS Belagavi · UG
+              - generic [ref=e262]:
+                - generic [ref=e263]: 👤 0 students
+                - generic [ref=e264]: 📚 0 courses
+                - generic [ref=e265]: 📦 0 bundles
+                - generic [ref=e266]: 📝 0 quizzes
+            - button "Delete Batch" [ref=e267] [cursor=pointer]
+          - generic [ref=e268]:
+            - generic [ref=e269]:
+              - heading "Students in this Batch" [level=2] [ref=e270]
+              - button "+ Add Students" [ref=e271] [cursor=pointer]
+            - paragraph [ref=e272]: Students automatically receive every course, bundle, and quiz assigned to the batch.
+            - paragraph [ref=e273]: No students yet. Click “+ Add Students” to enrol the cohort.
+          - generic [ref=e274]:
+            - generic [ref=e275]:
+              - heading "Courses" [level=2] [ref=e276]
+              - button "+ Add Course" [ref=e277] [cursor=pointer]
+            - paragraph [ref=e278]: Assigned directly to the batch. Removing a course revokes it from members unless another batch, bundle, or direct enrolment still grants it.
+            - paragraph [ref=e279]: No courses assigned yet.
+          - generic [ref=e280]:
+            - generic [ref=e281]:
+              - heading "Bundles" [level=2] [ref=e282]
+              - button "+ Add Bundle" [ref=e283] [cursor=pointer]
+            - paragraph [ref=e284]: Members are enrolled in the bundle and all of its courses.
+            - paragraph [ref=e285]: No bundles assigned yet.
+          - generic [ref=e286]:
+            - generic [ref=e287]:
+              - heading "Quizzes" [level=2] [ref=e288]
+              - button "+ Add Quiz" [ref=e289] [cursor=pointer]
+            - paragraph [ref=e290]: Standalone global quizzes with an optional availability window per batch.
+            - paragraph [ref=e291]: No quizzes yet. Click “+ Add Quiz” to attach a published global quiz.
+          - generic [ref=e294]:
+            - generic [ref=e295]:
+              - heading "Add Students to Batch" [level=3] [ref=e296]
+              - button "✕" [ref=e297] [cursor=pointer]
+            - textbox "Search by name, roll number, or email…" [active] [ref=e298]
+            - generic [ref=e300]:
+              - combobox "State" [ref=e301]:
+                - option "All states"
+                - option "Kerala"
+                - option "Karnataka" [selected]
+                - option "Tamil Nadu"
+                - option "Chhattisgarh"
+                - option "All"
+              - combobox "District" [ref=e302]:
+                - option "Select district…" [selected]
+                - option "Bagalkot"
+                - option "Ballari"
+                - option "Belagavi"
+                - option "Bengaluru Rural"
+                - option "Bengaluru Urban"
+                - option "Bidar"
+                - option "Chamarajanagar"
+                - option "Chikkaballapur"
+                - option "Chikkamagaluru"
+                - option "Chitradurga"
+                - option "Dakshina Kannada"
+                - option "Davanagere"
+                - option "Dharwad"
+                - option "Gadag"
+                - option "Hassan"
+                - option "Haveri"
+                - option "Kalaburagi"
+                - option "Kodagu"
+                - option "Kolar"
+                - option "Koppal"
+                - option "Mandya"
+                - option "Mysuru"
+                - option "Raichur"
+                - option "Ramanagara"
+                - option "Shivamogga"
+                - option "Tumakuru"
+                - option "Udupi"
+                - option "Uttara Kannada"
+                - option "Vijayanagara"
+                - option "Vijayapura"
+                - option "Yadgir"
+            - generic [ref=e303]:
+              - generic [ref=e304] [cursor=pointer]:
+                - checkbox "Select all (32)" [ref=e821]
+                - text: Select all (32)
+              - generic [ref=e306]: 0 selected
+            - generic [ref=e307]:
+              - generic [ref=e308] [cursor=pointer]:
+                - checkbox "Manoj Chavan OG-BLG-012 · PG" [ref=e309]
+                - generic [ref=e310]:
+                  - generic [ref=e311]: Manoj Chavan
+                  - generic [ref=e312]: OG-BLG-012 · PG
+              - generic [ref=e313] [cursor=pointer]:
+                - checkbox "Lakshmi Savant OG-BLG-011 · PG" [ref=e314]
+                - generic [ref=e315]:
+                  - generic [ref=e316]: Lakshmi Savant
+                  - generic [ref=e317]: OG-BLG-011 · PG
+              - generic [ref=e318] [cursor=pointer]:
+                - checkbox "Kiran Belgaonkar OG-BLG-010 · PG" [ref=e319]
+                - generic [ref=e320]:
+                  - generic [ref=e321]: Kiran Belgaonkar
+                  - generic [ref=e322]: OG-BLG-010 · PG
+              - generic [ref=e323] [cursor=pointer]:
+                - checkbox "Ishita Joshi OG-BLG-009 · PG" [ref=e324]
+                - generic [ref=e325]:
+                  - generic [ref=e326]: Ishita Joshi
+                  - generic [ref=e327]: OG-BLG-009 · PG
+              - generic [ref=e328] [cursor=pointer]:
+                - checkbox "Harish Kamble OG-BLG-008 · UG" [ref=e329]
+                - generic [ref=e330]:
+                  - generic [ref=e331]: Harish Kamble
+                  - generic [ref=e332]: OG-BLG-008 · UG
+              - generic [ref=e333] [cursor=pointer]:
+                - checkbox "Gauri Desai OG-BLG-007 · UG" [ref=e334]
+                - generic [ref=e335]:
+                  - generic [ref=e336]: Gauri Desai
+                  - generic [ref=e337]: OG-BLG-007 · UG
+              - generic [ref=e338] [cursor=pointer]:
+                - checkbox "Farhan Sheikh OG-BLG-006 · UG" [ref=e339]
+                - generic [ref=e340]:
+                  - generic [ref=e341]: Farhan Sheikh
+                  - generic [ref=e342]: OG-BLG-006 · UG
+              - generic [ref=e343] [cursor=pointer]:
+                - checkbox "Esha Naik OG-BLG-005 · UG" [ref=e344]
+                - generic [ref=e345]:
+                  - generic [ref=e346]: Esha Naik
+                  - generic [ref=e347]: OG-BLG-005 · UG
+              - generic [ref=e348] [cursor=pointer]:
+                - checkbox "Divya Hegde OG-BLG-004 · UG" [ref=e349]
+                - generic [ref=e350]:
+                  - generic [ref=e351]: Divya Hegde
+                  - generic [ref=e352]: OG-BLG-004 · UG
+              - generic [ref=e353] [cursor=pointer]:
+                - checkbox "Chetan Gowda OG-BLG-003 · UG" [ref=e354]
+                - generic [ref=e355]:
+                  - generic [ref=e356]: Chetan Gowda
+                  - generic [ref=e357]: OG-BLG-003 · UG
+              - generic [ref=e358] [cursor=pointer]:
+                - checkbox "Bhavesh Patil OG-BLG-002 · UG" [ref=e359]
+                - generic [ref=e360]:
+                  - generic [ref=e361]: Bhavesh Patil
+                  - generic [ref=e362]: OG-BLG-002 · UG
+              - generic [ref=e363] [cursor=pointer]:
+                - checkbox "Ananya Kulkarni OG-BLG-001 · UG" [ref=e364]
+                - generic [ref=e365]:
+                  - generic [ref=e366]: Ananya Kulkarni
+                  - generic [ref=e367]: OG-BLG-001 · UG
+              - generic [ref=e433] [cursor=pointer]:
+                - checkbox "Usha Rani OG-PG-2024-018 · PG" [ref=e434]
+                - generic [ref=e435]:
+                  - generic [ref=e436]: Usha Rani
+                  - generic [ref=e437]: OG-PG-2024-018 · PG
+              - generic [ref=e508] [cursor=pointer]:
+                - checkbox "Rajesh Varma OG-PG-2024-015 · PG" [ref=e509]
+                - generic [ref=e510]:
+                  - generic [ref=e511]: Rajesh Varma
+                  - generic [ref=e512]: OG-PG-2024-015 · PG
+              - generic [ref=e513] [cursor=pointer]:
+                - checkbox "Sangeetha Raj OG-PG-2024-016 · PG" [ref=e514]
+                - generic [ref=e515]:
+                  - generic [ref=e516]: Sangeetha Raj
+                  - generic [ref=e517]: OG-PG-2024-016 · PG
+              - generic [ref=e518] [cursor=pointer]:
+                - checkbox "Tamilselvan K OG-PG-2024-017 · PG" [ref=e519]
+                - generic [ref=e520]:
+                  - generic [ref=e521]: Tamilselvan K
+                  - generic [ref=e522]: OG-PG-2024-017 · PG
+              - generic [ref=e523] [cursor=pointer]:
+                - checkbox "Velmurugan D OG-PG-2024-019 · PG" [ref=e524]
+                - generic [ref=e525]:
+                  - generic [ref=e526]: Velmurugan D
+                  - generic [ref=e527]: OG-PG-2024-019 · PG
+              - generic [ref=e528] [cursor=pointer]:
+                - checkbox "Yazhini Priya OG-PG-2024-020 · PG" [ref=e529]
+                - generic [ref=e530]:
+                  - generic [ref=e531]: Yazhini Priya
+                  - generic [ref=e532]: OG-PG-2024-020 · PG
+              - generic [ref=e568] [cursor=pointer]:
+                - checkbox "Harinath S OG-PG-2024-028 · PG" [ref=e569]
+                - generic [ref=e570]:
+                  - generic [ref=e571]: Harinath S
+                  - generic [ref=e572]: OG-PG-2024-028 · PG
+              - generic [ref=e573] [cursor=pointer]:
+                - checkbox "Indumathi P OG-PG-2024-029 · PG" [ref=e574]
+                - generic [ref=e575]:
+                  - generic [ref=e576]: Indumathi P
+                  - generic [ref=e577]: OG-PG-2024-029 · PG
+              - generic [ref=e578] [cursor=pointer]:
+                - checkbox "Jaishankar K OG-PG-2024-030 · PG" [ref=e579]
+                - generic [ref=e580]:
+                  - generic [ref=e581]: Jaishankar K
+                  - generic [ref=e582]: OG-PG-2024-030 · PG
+              - generic [ref=e593] [cursor=pointer]:
+                - checkbox "Mohan Raj OG-PG-2024-033 · PG" [ref=e594]
+                - generic [ref=e595]:
+                  - generic [ref=e596]: Mohan Raj
+                  - generic [ref=e597]: OG-PG-2024-033 · PG
+              - generic [ref=e603] [cursor=pointer]:
+                - checkbox "Omkaar S OG-PG-2024-035 · PG" [ref=e604]
+                - generic [ref=e605]:
+                  - generic [ref=e606]: Omkaar S
+                  - generic [ref=e607]: OG-PG-2024-035 · PG
+              - generic [ref=e683] [cursor=pointer]:
+                - checkbox "Uma Maheshwari OG-UG-2024-021 · UG" [ref=e684]
+                - generic [ref=e685]:
+                  - generic [ref=e686]: Uma Maheshwari
+                  - generic [ref=e687]: OG-UG-2024-021 · UG
+              - generic [ref=e688] [cursor=pointer]:
+                - checkbox "Vignesh Babu OG-UG-2024-022 · UG" [ref=e689]
+                - generic [ref=e690]:
+                  - generic [ref=e691]: Vignesh Babu
+                  - generic [ref=e692]: OG-UG-2024-022 · UG
+              - generic [ref=e693] [cursor=pointer]:
+                - checkbox "Wasim Akram OG-UG-2024-023 · UG" [ref=e694]
+                - generic [ref=e695]:
+                  - generic [ref=e696]: Wasim Akram
+                  - generic [ref=e697]: OG-UG-2024-023 · UG
+              - generic [ref=e698] [cursor=pointer]:
+                - checkbox "Yamuna Ravi OG-UG-2024-024 · UG" [ref=e699]
+                - generic [ref=e700]:
+                  - generic [ref=e701]: Yamuna Ravi
+                  - generic [ref=e702]: OG-UG-2024-024 · UG
+              - generic [ref=e703] [cursor=pointer]:
+                - checkbox "Zainab Fathima OG-UG-2024-025 · UG" [ref=e704]
+                - generic [ref=e705]:
+                  - generic [ref=e706]: Zainab Fathima
+                  - generic [ref=e707]: OG-UG-2024-025 · UG
+              - generic [ref=e708] [cursor=pointer]:
+                - checkbox "Akilan Murugan OG-UG-2024-026 · UG" [ref=e709]
+                - generic [ref=e710]:
+                  - generic [ref=e711]: Akilan Murugan
+                  - generic [ref=e712]: OG-UG-2024-026 · UG
+              - generic [ref=e713] [cursor=pointer]:
+                - checkbox "Bavitha Devi OG-UG-2024-027 · UG" [ref=e714]
+                - generic [ref=e715]:
+                  - generic [ref=e716]: Bavitha Devi
+                  - generic [ref=e717]: OG-UG-2024-027 · UG
+              - generic [ref=e718] [cursor=pointer]:
+                - checkbox "Cheran Raj OG-UG-2024-028 · UG" [ref=e719]
+                - generic [ref=e720]:
+                  - generic [ref=e721]: Cheran Raj
+                  - generic [ref=e722]: OG-UG-2024-028 · UG
+              - generic [ref=e753] [cursor=pointer]:
+                - checkbox "Jagan Nathan OG-UG-2024-035 · UG" [ref=e754]
+                - generic [ref=e755]:
+                  - generic [ref=e756]: Jagan Nathan
+                  - generic [ref=e757]: OG-UG-2024-035 · UG
+            - generic [ref=e818]:
+              - button "Cancel" [ref=e819] [cursor=pointer]
+              - button "Add Students" [disabled] [ref=e820] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e106] [cursor=pointer]:
+    - img [ref=e107]
+  - alert [ref=e110]

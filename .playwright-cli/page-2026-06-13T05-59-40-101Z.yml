@@ -1,0 +1,155 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e16]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e35]:
+          - list [ref=e36]:
+            - listitem [ref=e37]:
+              - link "Dashboard" [ref=e38] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e39]
+                - generic [ref=e44]: Dashboard
+            - listitem [ref=e45]:
+              - link "Courses" [ref=e46] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e47]
+                - generic [ref=e49]: Courses
+            - listitem [ref=e50]:
+              - link "Bundles" [ref=e51] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e52]
+                - generic [ref=e56]: Bundles
+            - listitem [ref=e57]:
+              - link "Quizzes" [ref=e58] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e59]
+                - generic [ref=e62]: Quizzes
+            - listitem [ref=e63]:
+              - link "Question Bank" [ref=e64] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e65]
+                - generic [ref=e69]: Question Bank
+            - listitem [ref=e70]:
+              - link "Assignments" [ref=e71] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e72]
+                - generic [ref=e75]: Assignments
+            - listitem [ref=e76]:
+              - link "Live Classes" [ref=e77] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e78]
+                - generic [ref=e81]: Live Classes
+            - listitem [ref=e82]:
+              - link "Calendar" [ref=e83] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e84]
+                - generic [ref=e86]: Calendar
+            - listitem [ref=e87]:
+              - link "Resources" [ref=e88] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e89]
+                - generic [ref=e91]: Resources
+            - listitem [ref=e92]:
+              - link "Doubts" [ref=e93] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e94]
+                - generic [ref=e97]: Doubts
+            - listitem [ref=e98]:
+              - link "Analytics" [ref=e99] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e100]
+                - generic [ref=e101]: Analytics
+            - listitem [ref=e102]:
+              - link "Reports" [ref=e103] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e104]
+                - generic [ref=e107]: Reports
+            - listitem [ref=e108]:
+              - link "Student Export" [ref=e109] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e110]
+                - generic [ref=e113]: Student Export
+            - listitem [ref=e114]:
+              - link "User Management" [ref=e115] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e116]
+                - generic [ref=e121]: User Management
+            - listitem [ref=e122]:
+              - link "Role Management" [ref=e123] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e124]
+                - generic [ref=e126]: Role Management
+            - listitem [ref=e127]:
+              - link "Bulk Assign" [ref=e128] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e129]
+                - generic [ref=e132]: Bulk Assign
+            - listitem [ref=e133]:
+              - link "Schools" [ref=e134] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e135]
+                - generic [ref=e140]: Schools
+            - listitem [ref=e141]:
+              - link "Batches" [ref=e142] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e143]
+                - generic [ref=e147]: Batches
+        - button "Scroll down" [ref=e22] [cursor=pointer]:
+          - img [ref=e23]
+    - generic [ref=e25]:
+      - banner [ref=e26]:
+        - generic [ref=e148]:
+          - button "Report a bug" [ref=e149] [cursor=pointer]:
+            - img [ref=e150]
+            - generic [ref=e159]: Report bug
+          - button "Notifications" [ref=e161] [cursor=pointer]:
+            - img [ref=e162]
+            - generic [ref=e165]: 99+
+          - button "TS" [ref=e167] [cursor=pointer]
+      - main [ref=e29]:
+        - generic [ref=e30]:
+          - generic [ref=e169]:
+            - generic [ref=e170]:
+              - paragraph [ref=e171]: Super Admin
+              - heading "Welcome back, Test Super Admin 👋" [level=1] [ref=e172]
+            - generic [ref=e173]: Super Admin
+          - generic [ref=e174]:
+            - tablist "Dashboard tabs" [ref=e175]:
+              - tab "Overview" [selected] [ref=e176]
+              - tab "Activity" [ref=e177]
+            - tabpanel [ref=e178]:
+              - generic [ref=e179]:
+                - button "Refresh" [ref=e181]:
+                  - img [ref=e182]
+                  - text: Refresh
+                - generic [ref=e187]:
+                  - generic [ref=e188]:
+                    - generic [ref=e189]: "149"
+                    - generic [ref=e190]: Total Users
+                  - generic [ref=e191]:
+                    - generic [ref=e192]: "856"
+                    - generic [ref=e193]: Active Courses
+                  - generic [ref=e194]:
+                    - generic [ref=e195]: "26"
+                    - generic [ref=e196]: Schools
+                  - generic [ref=e197]:
+                    - generic [ref=e198]: "4"
+                    - generic [ref=e199]: Open Doubts (system)
+                  - generic [ref=e200]:
+                    - generic [ref=e201]: "62"
+                    - generic [ref=e202]: Avg Completion %
+                - generic [ref=e203]:
+                  - heading "Active students (DAU / MAU)" [level=3] [ref=e204]
+                  - img [ref=e206]
+  - button "Open Next.js Dev Tools" [ref=e212] [cursor=pointer]:
+    - img [ref=e213]
+  - alert [ref=e216]

@@ -307,53 +307,127 @@ function MemberTable({
   setGlobalError: (e: string | null) => void;
 }) {
   const invalidate = useInvalidate();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState(false);
 
-  async function handleRemove(userId: string, name: string) {
-    if (!confirm(`Remove ${name} from this batch? They lose batch-granted content unless another batch, bundle, or direct enrolment still covers it.`)) return;
+  // Drop any selected ids that no longer exist (e.g. after a removal refetch).
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const valid = new Set(members.map((m) => m.id));
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach((id) => { if (valid.has(id)) next.add(id); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [members]);
+
+  const allSelected = members.length > 0 && members.every((m) => selectedIds.has(m.id));
+
+  function toggle(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelectedIds((prev) => (allSelected ? new Set() : new Set(members.map((m) => m.id))));
+  }
+
+  async function removeIds(ids: string[]) {
+    setRemoving(true);
+    setGlobalError(null);
     try {
-      await removeBatchMember(batchId, userId);
+      const results = await Promise.allSettled(ids.map((id) => removeBatchMember(batchId, id)));
+      const failed = results.filter((r) => r.status === "rejected");
       invalidate('batches', 'enrolment');
+      setSelectedIds(new Set());
       onChanged();
-    } catch (e) {
-      setGlobalError(e instanceof Error ? e.message : "Failed to remove student.");
+      if (failed.length) {
+        setGlobalError(`${failed.length} of ${ids.length} student${ids.length !== 1 ? "s" : ""} could not be removed.`);
+      }
+    } finally {
+      setRemoving(false);
     }
+  }
+
+  function handleRemoveSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Remove ${ids.length} student${ids.length !== 1 ? "s" : ""} from this batch? They lose batch-granted content unless another batch, bundle, or direct enrolment still covers it.`)) return;
+    void removeIds(ids);
   }
 
   if (members.length === 0) {
     return <EmptyHint text="No students yet. Click “+ Add Students” to enrol the cohort." />;
   }
   return (
-    <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
-        <thead>
-          <tr style={{ background: "rgba(32,147,121,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
-            {["Name", "Roll Number", "Email", "Joined", ""].map((h) => (
-              <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((m) => (
-            <tr key={m.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)" }}>
-              <td style={tdSt}><strong style={{ color: "#034852" }}>{m.name}</strong></td>
-              <td style={tdSt}>{m.roll_number ?? "—"}</td>
-              <td style={tdSt}>{m.email || "—"}</td>
-              <td style={tdSt}>{new Date(m.enrolled_at).toLocaleDateString()}</td>
-              <td style={{ ...tdSt, textAlign: "right" }}>
-                {canRemove && (
-                  <button
-                    onClick={() => void handleRemove(m.id, m.name)}
-                    style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
-                  >
-                    Remove
-                  </button>
-                )}
-              </td>
+    <>
+      {canRemove && (
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", minHeight: "32px" }}>
+          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", fontWeight: 600 }}>
+            {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${members.length} student${members.length !== 1 ? "s" : ""}`}
+          </span>
+          {selectedIds.size > 0 && (
+            <button
+              onClick={handleRemoveSelected}
+              disabled={removing}
+              style={{ ...dangerBtn, padding: "7px 14px", opacity: removing ? 0.6 : 1 }}
+            >
+              {removing ? "Removing…" : `Remove ${selectedIds.size} Selected`}
+            </button>
+          )}
+        </div>
+      )}
+      <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+          <thead>
+            <tr style={{ background: "rgba(32,147,121,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+              {canRemove && (
+                <th style={{ padding: "11px 16px", textAlign: "left", width: "40px" }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                    aria-label="Select all students"
+                    style={{ accentColor: "#0abe62", width: "15px", height: "15px", cursor: "pointer" }}
+                  />
+                </th>
+              )}
+              {["Name", "Roll Number", "Email", "Joined"].map((h) => (
+                <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {members.map((m) => {
+              const checked = selectedIds.has(m.id);
+              return (
+                <tr key={m.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)", background: checked ? "rgba(10,190,98,0.06)" : "transparent" }}>
+                  {canRemove && (
+                    <td style={{ ...tdSt, width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggle(m.id)}
+                        aria-label={`Select ${m.name}`}
+                        style={{ accentColor: "#0abe62", width: "15px", height: "15px", cursor: "pointer" }}
+                      />
+                    </td>
+                  )}
+                  <td style={tdSt}><strong style={{ color: "#034852" }}>{m.name}</strong></td>
+                  <td style={tdSt}>{m.roll_number ?? "—"}</td>
+                  <td style={tdSt}>{m.email || "—"}</td>
+                  <td style={tdSt}>{new Date(m.enrolled_at).toLocaleDateString()}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 

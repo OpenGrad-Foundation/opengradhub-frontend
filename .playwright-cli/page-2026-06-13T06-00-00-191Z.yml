@@ -1,0 +1,159 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list [ref=e32]:
+            - listitem [ref=e33]:
+              - link "Dashboard" [ref=e34] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e35]
+                - generic [ref=e40]: Dashboard
+            - listitem [ref=e41]:
+              - link "Courses" [ref=e42] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e43]
+                - generic [ref=e45]: Courses
+            - listitem [ref=e46]:
+              - link "Bundles" [ref=e47] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e48]
+                - generic [ref=e52]: Bundles
+            - listitem [ref=e53]:
+              - link "Quizzes" [ref=e54] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e55]
+                - generic [ref=e58]: Quizzes
+            - listitem [ref=e59]:
+              - link "Question Bank" [ref=e60] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e61]
+                - generic [ref=e65]: Question Bank
+            - listitem [ref=e66]:
+              - link "Assignments" [ref=e67] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e68]
+                - generic [ref=e71]: Assignments
+            - listitem [ref=e72]:
+              - link "Live Classes" [ref=e73] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e74]
+                - generic [ref=e77]: Live Classes
+            - listitem [ref=e78]:
+              - link "Calendar" [ref=e79] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e80]
+                - generic [ref=e82]: Calendar
+            - listitem [ref=e83]:
+              - link "Resources" [ref=e84] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e85]
+                - generic [ref=e87]: Resources
+            - listitem [ref=e88]:
+              - link "Doubts" [ref=e89] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e90]
+                - generic [ref=e93]: Doubts
+            - listitem [ref=e94]:
+              - link "Analytics" [ref=e95] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e96]
+                - generic [ref=e97]: Analytics
+            - listitem [ref=e98]:
+              - link "Reports" [ref=e99] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e100]
+                - generic [ref=e103]: Reports
+            - listitem [ref=e104]:
+              - link "Student Export" [ref=e105] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e106]
+                - generic [ref=e109]: Student Export
+            - listitem [ref=e110]:
+              - link "User Management" [ref=e111] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e112]
+                - generic [ref=e117]: User Management
+            - listitem [ref=e118]:
+              - link "Role Management" [ref=e119] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e120]
+                - generic [ref=e122]: Role Management
+            - listitem [ref=e123]:
+              - link "Bulk Assign" [ref=e124] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e125]
+                - generic [ref=e128]: Bulk Assign
+            - listitem [ref=e129]:
+              - link "Schools" [ref=e130] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e131]
+                - generic [ref=e136]: Schools
+            - listitem [ref=e137]:
+              - link "Batches" [ref=e138] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e139]
+                - generic [ref=e143]: Batches
+        - button "Scroll down" [ref=e145] [cursor=pointer]:
+          - img [ref=e146]
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e148]:
+          - button "Report a bug" [ref=e149] [cursor=pointer]:
+            - img [ref=e150]
+            - generic [ref=e159]: Report bug
+          - button "Notifications" [ref=e161] [cursor=pointer]:
+            - img [ref=e162]
+            - generic [ref=e165]: 99+
+          - button "TS" [ref=e167] [cursor=pointer]
+      - main [ref=e16]:
+        - generic [ref=e250]:
+          - link "← Back to Batches" [ref=e251] [cursor=pointer]:
+            - /url: /dashboard/batches
+          - generic [ref=e252]:
+            - generic [ref=e253]:
+              - paragraph [ref=e254]: Batch
+              - heading "fghjk" [level=1] [ref=e255]
+              - paragraph [ref=e256]: GHSS Belagavi · UG
+              - generic [ref=e257]:
+                - generic [ref=e258]: 👤 0 students
+                - generic [ref=e259]: 📚 0 courses
+                - generic [ref=e260]: 📦 0 bundles
+                - generic [ref=e261]: 📝 0 quizzes
+            - button "Delete Batch" [ref=e262] [cursor=pointer]
+          - generic [ref=e263]:
+            - generic [ref=e264]:
+              - heading "Students in this Batch" [level=2] [ref=e265]
+              - button "+ Add Students" [ref=e266] [cursor=pointer]
+            - paragraph [ref=e267]: Students automatically receive every course, bundle, and quiz assigned to the batch.
+            - paragraph [ref=e268]: No students yet. Click “+ Add Students” to enrol the cohort.
+          - generic [ref=e269]:
+            - generic [ref=e270]:
+              - heading "Courses" [level=2] [ref=e271]
+              - button "+ Add Course" [ref=e272] [cursor=pointer]
+            - paragraph [ref=e273]: Assigned directly to the batch. Removing a course revokes it from members unless another batch, bundle, or direct enrolment still grants it.
+            - paragraph [ref=e274]: No courses assigned yet.
+          - generic [ref=e275]:
+            - generic [ref=e276]:
+              - heading "Bundles" [level=2] [ref=e277]
+              - button "+ Add Bundle" [ref=e278] [cursor=pointer]
+            - paragraph [ref=e279]: Members are enrolled in the bundle and all of its courses.
+            - paragraph [ref=e280]: No bundles assigned yet.
+          - generic [ref=e281]:
+            - generic [ref=e282]:
+              - heading "Quizzes" [level=2] [ref=e283]
+              - button "+ Add Quiz" [ref=e284] [cursor=pointer]
+            - paragraph [ref=e285]: Standalone global quizzes with an optional availability window per batch.
+            - paragraph [ref=e286]: No quizzes yet. Click “+ Add Quiz” to attach a published global quiz.
+  - button "Open Next.js Dev Tools" [ref=e28] [cursor=pointer]:
+    - img [ref=e29]
+  - alert [ref=e249]
