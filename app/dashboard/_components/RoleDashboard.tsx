@@ -3,6 +3,7 @@
 import React from 'react';
 import DashboardTabs from './DashboardTabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
+import UnreadAnnouncements from '@/components/dashboard/UnreadAnnouncements';
 
 import StudentOverview from '@/components/dashboard/roles/student/Overview';
 import StudentActivity from '@/components/dashboard/roles/student/Activity';
@@ -45,46 +46,54 @@ export default function RoleDashboard({
 }) {
   const id = userId ?? '';
 
+  // Prepend the unread-announcements widget to every role's Overview tab.
+  const overview = (node: React.ReactNode) => (
+    <div className="space-y-6">
+      <UnreadAnnouncements role={role} />
+      {node}
+    </div>
+  );
+
   const dispatchers: Record<Role, React.ReactNode> = {
     STUDENT: (
       <DashboardTabs
-        overview={<StudentOverview userId={id} />}
+        overview={overview(<StudentOverview userId={id} />)}
         activity={<StudentActivity userId={id} />}
       />
     ),
     FELLOW: (
       <DashboardTabs
-        overview={<FellowOverview userId={id} />}
+        overview={overview(<FellowOverview userId={id} />)}
         activity={<FellowActivity userId={id} />}
       />
     ),
     PROGRAM_MANAGER: (
       <DashboardTabs
-        overview={<PMOverview userId={id} />}
+        overview={overview(<PMOverview userId={id} />)}
         activity={<PMActivity userId={id} />}
       />
     ),
     ZONAL_MANAGER: (
       <DashboardTabs
-        overview={<ZMOverview userId={id} />}
+        overview={overview(<ZMOverview userId={id} />)}
         activity={<ZMActivity userId={id} />}
       />
     ),
     SUPER_ADMIN: (
       <DashboardTabs
-        overview={<SuperAdminOverview userId={id} />}
+        overview={overview(<SuperAdminOverview userId={id} />)}
         activity={<SuperAdminActivity userId={id} />}
       />
     ),
     GOVERNMENT: (
       <DashboardTabs
-        overview={<GovernmentOverview userId={id} />}
+        overview={overview(<GovernmentOverview userId={id} />)}
         activity={<GovernmentActivity userId={id} />}
       />
     ),
     FUNDING_PARTNER: (
       <DashboardTabs
-        overview={<FundingPartnerOverview userId={id} />}
+        overview={overview(<FundingPartnerOverview userId={id} />)}
         activity={<FundingPartnerActivity userId={id} />}
       />
     ),

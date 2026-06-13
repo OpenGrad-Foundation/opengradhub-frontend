@@ -5,19 +5,21 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 import {
-  getNotifications,
   markAllNotificationsRead,
   markAllAnnouncementsRead,
-  markNotificationRead,
-  type Notification,
 } from "@/lib/api";
-import { useInboxUnreadCount } from "@/lib/queries/inbox";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { useInboxFeed, useInboxUnreadCount, type InboxItem } from "@/lib/queries/inbox";
+import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
+import { useMarkNotificationRead } from "@/lib/queries/notifications";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
 
 // ── Type icon map ──────────────────────────────────────────────
 
-function typeIcon(type: string): string {
+function itemIcon(item: InboxItem): string {
+  if (item.source === "announcement") return "📢";
+  const type = item.type;
   if (type.includes("assignment") || type.includes("ASSIGNMENT")) return "📝";
   if (type.includes("live")       || type.includes("LIVE"))       return "🎥";
   if (type.includes("grade")      || type.includes("GRADE"))      return "✅";
@@ -45,9 +47,16 @@ export default function NotificationBell() {
   const invalidate = useInvalidate();
   const router = useRouter();
 
-  const [items,    setItems]    = useState<Notification[]>([]);
-  const [open,     setOpen]     = useState(false);
-  const [loading,  setLoading]  = useState(false);
+  // Unified feed: announcements + notifications, same source as the badge count
+  // and the /dashboard/inbox page. Counting one set but listing another is what
+  // produced "ghost" badges — a non-zero count with nothing unread to click.
+  const { data: currentUser } = useCurrentUser();
+  const roleCode = currentUser?.role?.code ?? "";
+  const { items, isLoading } = useInboxFeed({ role: roleCode });
+  const markAnnRead   = useMarkAnnouncementRead();
+  const markNotifRead = useMarkNotificationRead();
+
+  const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
@@ -61,54 +70,37 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  async function handleOpen() {
-    if (open) { setOpen(false); return; }
-    setOpen(true);
-    setLoading(true);
-    try {
-      const data = await getNotifications();
-      setItems(data);
-    } catch { /* ignore */ } finally {
-      setLoading(false);
-    }
+  function handleOpen() {
+    setOpen(prev => !prev);
   }
 
   async function handleMarkAll() {
-    // The badge count = notification unread + announcement unread, so clearing
-    // it means marking BOTH read. Optimistic: flip the list to read immediately,
-    // then confirm with the server. After confirm, invalidate both domains so
-    // the badge (driven by useInboxUnreadCount) refetches now instead of waiting
-    // for the 30s poll cycle. Restore local list state on failure.
-    const snapshot = items;
-    setItems(prev => prev.map(n => ({ ...n, is_read: true })));
+    // Badge = notification unread + announcement unread, so clearing it means
+    // marking BOTH read. Invalidate both domains so the list + badge refetch
+    // immediately instead of waiting for the poll cycle.
     try {
       await Promise.all([
         markAllNotificationsRead(),
         markAllAnnouncementsRead(),
       ]);
       invalidate("notifications", "announcements");
-    } catch {
-      setItems(snapshot);
-    }
+    } catch { /* ignore — next poll reconciles */ }
   }
 
-  async function handleItemClick(n: Notification) {
-    const route = NOTIFICATION_ROUTES[n.type];
-    // Mark as read (optimistic) — always, whether or not there is a route.
-    if (!n.is_read) {
-      const snapshot = items;
-      setItems(prev => prev.map(x => (x.id === n.id ? { ...x, is_read: true } : x)));
-      try {
-        await markNotificationRead(n.id, true);
-        invalidate("notifications");
-      } catch {
-        setItems(snapshot);
-      }
+  function handleItemClick(item: InboxItem) {
+    // Mark as read via the right domain — announcements clear through
+    // announcement_reads, notifications through notifications.is_read.
+    if (!item.is_read) {
+      if (item.source === "announcement") markAnnRead.mutate(item.id);
+      else markNotifRead.mutate({ id: item.id, read: true });
     }
-    // For mapped types, close the dropdown and navigate.
-    if (route) {
-      setOpen(false);
-      router.push(route);
+    // Only notifications have deep-link routes.
+    if (item.source === "notification") {
+      const route = NOTIFICATION_ROUTES[item.type];
+      if (route) {
+        setOpen(false);
+        router.push(route);
+      }
     }
   }
 
@@ -117,7 +109,7 @@ export default function NotificationBell() {
       {/* Bell button */}
       <button
         type="button"
-        onClick={() => void handleOpen()}
+        onClick={handleOpen}
         className="relative flex items-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
         title="Notifications"
         aria-label="Notifications"
@@ -164,24 +156,26 @@ export default function NotificationBell() {
 
           {/* List */}
           <div style={{ maxHeight: "360px", overflowY: "auto" }}>
-            {loading ? (
+            {isLoading ? (
               <p style={{ textAlign: "center", padding: "20px", fontSize: "13px", color: "rgba(3,72,82,0.5)" }}>Loading…</p>
             ) : items.length === 0 ? (
               <p style={{ textAlign: "center", padding: "24px", fontSize: "13px", color: "rgba(3,72,82,0.4)" }}>No notifications yet</p>
             ) : (
-              items.map(n => {
-                const route = NOTIFICATION_ROUTES[n.type];
-                const isClickable = !n.is_read || !!route;
+              items.map(item => {
+                const route = item.source === "notification"
+                  ? NOTIFICATION_ROUTES[item.type]
+                  : undefined;
+                const isClickable = !item.is_read || !!route;
                 const Tag = route ? "button" : "div";
                 return (
                   <Tag
-                    key={n.id}
+                    key={`${item.source}:${item.id}`}
                     {...(route ? { type: "button" as const } : {})}
-                    onClick={() => void handleItemClick(n)}
+                    onClick={() => handleItemClick(item)}
                     style={{
                       display: "flex", gap: "10px", padding: "12px 18px",
                       borderBottom: "1px solid rgba(3,72,82,0.05)",
-                      background: n.is_read ? "transparent" : "rgba(10,190,98,0.04)",
+                      background: item.is_read ? "transparent" : "rgba(10,190,98,0.04)",
                       cursor: isClickable ? "pointer" : "default",
                       // reset button defaults when rendered as button
                       ...(route ? {
@@ -191,13 +185,13 @@ export default function NotificationBell() {
                       } : {}),
                     }}
                   >
-                    <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{typeIcon(n.type)}</span>
+                    <span style={{ fontSize: "18px", flexShrink: 0, marginTop: "1px" }}>{itemIcon(item)}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.3 }}>{n.title}</p>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.6)", lineHeight: 1.4 }}>{n.body}</p>
-                      <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>{relativeTime(n.triggered_at)}</p>
+                      <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852", lineHeight: 1.3 }}>{item.title}</p>
+                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.6)", lineHeight: 1.4 }}>{item.body}</p>
+                      <p style={{ margin: "4px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>{relativeTime(item.created_at)}</p>
                     </div>
-                    {!n.is_read && (
+                    {!item.is_read && (
                       <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#0abe62", flexShrink: 0, marginTop: "6px" }} />
                     )}
                   </Tag>
