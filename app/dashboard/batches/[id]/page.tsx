@@ -21,12 +21,14 @@ import {
   getBundles,
   getQuizzes,
   getUsers,
+  fetchSchools,
   type BatchDetail,
   type BatchTestEntry,
   type Course,
   type Bundle,
   type Quiz,
   type SafeUser,
+  type SchoolOption,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -507,10 +509,12 @@ function AddMembersModal({
   onAdded: (msg: string) => void;
 }) {
   const [students, setStudents] = useState<SafeUser[]>([]);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
+  const [filterSchoolId, setFilterSchoolId] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -522,9 +526,32 @@ function AddMembersModal({
       .finally(() => setLoading(false));
   }, [existingMemberIds]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((rows) => { if (!cancelled) setSchools(rows); })
+      .catch(() => { if (!cancelled) setSchools([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const INDEPENDENT = "__INDEPENDENT__"; // students with no school
+
+  // School options follow the state/district filter so the list stays scoped.
+  const schoolOptions = schools.filter((s) => {
+    if (filterState && normState(s.state) !== filterState) return false;
+    if (filterDistrict && (s.district ?? "") !== filterDistrict) return false;
+    return true;
+  });
+
+  // Selecting a state/district can invalidate the chosen school — clear it.
+  function changeState(v: string) { setFilterState(v); setFilterDistrict(""); setFilterSchoolId(""); }
+  function changeDistrict(v: string) { setFilterDistrict(v); setFilterSchoolId(""); }
+
   const filtered = students.filter((u) => {
     const q = search.toLowerCase();
     if (q && !((u.name ?? "").toLowerCase().includes(q) || (u.roll_number ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q))) return false;
+    if (filterSchoolId === INDEPENDENT) { if (u.school_id) return false; }
+    else if (filterSchoolId && u.school_id !== filterSchoolId) return false;
     if (filterState && normState(u.state) !== filterState) return false;
     if (filterDistrict && (u.district ?? "") !== filterDistrict) return false;
     return true;
@@ -582,11 +609,27 @@ function AddMembersModal({
         <StateDistrictPicker
           state={filterState}
           district={filterDistrict}
-          onStateChange={setFilterState}
-          onDistrictChange={setFilterDistrict}
+          onStateChange={changeState}
+          onDistrictChange={changeDistrict}
           blankStateLabel="All states"
           inputStyle={inputSt}
         />
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <select
+          value={filterSchoolId}
+          onChange={(e) => setFilterSchoolId(e.target.value)}
+          aria-label="Filter by school"
+          style={inputSt}
+        >
+          <option value="">All schools</option>
+          <option value={INDEPENDENT}>Independent (no school)</option>
+          {schoolOptions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}{s.district ? ` · ${s.district}` : ""}
+            </option>
+          ))}
+        </select>
       </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
         <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
