@@ -11,7 +11,6 @@ export type InboxItem =
       title: string;
       body: string;
       created_at: string;
-      // TODO: hydrate is_read from BE — /announcements endpoint does not return is_read yet
       is_read: boolean;
     }
   | {
@@ -39,8 +38,7 @@ export function useInboxFeed(opts: { role: string }) {
       title: x.title,
       body: x.body,
       created_at: x.created_at,
-      // is_read is not yet returned by the BE; bridge with false until hydrated
-      is_read: (x as unknown as { is_read?: boolean }).is_read ?? false,
+      is_read: x.is_read,
     }));
     const not = (n.data ?? []).map((x): InboxItem => ({
       source: 'notification',

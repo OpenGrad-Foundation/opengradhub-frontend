@@ -9,18 +9,6 @@ import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import NotificationBell from "@/components/NotificationBell";
 import ReportBugButton from "./ReportBugButton";
 
-// ── Role badge colour map ────────────────────────────────────────────────────
-
-const ROLE_BADGE: Record<string, string> = {
-  SUPER_ADMIN:     "bg-[var(--dark-teal)] text-white",
-  PROGRAM_MANAGER: "bg-[var(--teal)] text-white",
-  ZONAL_MANAGER:   "bg-[var(--light-teal)] text-white",
-  FELLOW:          "bg-[var(--green)] text-[var(--dark-teal)]",
-  STUDENT:         "bg-[var(--green)] text-[var(--dark-teal)]",
-  GOVERNMENT:      "bg-[var(--teal)] text-white",
-  FUNDING_PARTNER: "bg-[var(--light-teal)] text-white",
-};
-
 function initials(name: string): string {
   return name
     .split(" ")
@@ -43,10 +31,7 @@ export default function DashboardTopbar({
 
   const userId   = data?.user?.id      ?? "";
   const userName = data?.user?.fullName ?? "";
-  const roleCode = data?.role?.code    ?? "";
   const roleName = data?.role?.name    ?? "";
-
-  const badgeClass = ROLE_BADGE[roleCode] ?? "bg-[var(--teal)] text-white";
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -89,17 +74,9 @@ export default function DashboardTopbar({
       </button>
       <div className="hidden lg:block" />
 
-      {/* Right — bug report + role badge + notification bell + avatar */}
+      {/* Right — bug report + notification bell + avatar */}
       <div className="flex items-center gap-3">
         <ReportBugButton />
-
-        {roleName && (
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold tracking-wide ${badgeClass}`}
-          >
-            {roleName}
-          </span>
-        )}
 
         {userId && <NotificationBell />}
 

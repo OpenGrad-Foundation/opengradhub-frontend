@@ -34,24 +34,27 @@ export function AddStudentsPanel({
   const [err, setErr] = useState<string | null>(null);
   const invalidate = useInvalidate();
 
-  // Debounced search-as-you-type.
+  // Dropdown-style: the full list (capped server-side) loads on open; typing
+  // refines it with a debounced server-side search.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) { setResults([]); setSearching(false); return; }
     let cancelled = false;
     setSearching(true);
     setErr(null);
     const t = setTimeout(() => {
-      getStudentsForBulk({ search: q })
+      getStudentsForBulk(q ? { search: q } : {})
         .then((rows) => { if (!cancelled) setResults(rows); })
         .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : "Search failed."); })
         .finally(() => { if (!cancelled) setSearching(false); });
-    }, 300);
+    }, q ? 300 : 0);
     return () => { cancelled = true; clearTimeout(t); };
   }, [query]);
 
   const excluded = new Set([...currentStudentIds, ...addedIds]);
-  const candidates = results.filter((r) => !excluded.has(r.id));
+  // Unassigned students first — the common pick when filling a school roster.
+  const candidates = results
+    .filter((r) => !excluded.has(r.id))
+    .sort((a, b) => Number(!!a.school_name) - Number(!!b.school_name));
 
   async function add(student: StudentForBulk) {
     setAddingId(student.id);
@@ -108,9 +111,7 @@ export function AddStudentsPanel({
           {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: "10px 0 0" }}>{err}</p>}
 
           <div style={{ marginTop: "14px", display: "grid", gap: "8px" }}>
-            {query.trim().length < 2 ? (
-              <p style={hintStyle}>Type at least 2 characters to search.</p>
-            ) : searching ? (
+            {searching ? (
               <p style={hintStyle}>Searching…</p>
             ) : candidates.length === 0 ? (
               <p style={hintStyle}>No matching students (already-assigned students are hidden).</p>
