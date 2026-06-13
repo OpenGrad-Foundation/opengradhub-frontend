@@ -21,16 +21,20 @@ import {
   getBundles,
   getQuizzes,
   getUsers,
+  fetchSchools,
   type BatchDetail,
   type BatchTestEntry,
   type Course,
   type Bundle,
   type Quiz,
   type SafeUser,
+  type SchoolOption,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { normState } from "@/lib/geo";
 import { useBatch } from "@/lib/queries/batches";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -505,8 +509,12 @@ function AddMembersModal({
   onAdded: (msg: string) => void;
 }) {
   const [students, setStudents] = useState<SafeUser[]>([]);
+  const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filterState, setFilterState] = useState("");
+  const [filterDistrict, setFilterDistrict] = useState("");
+  const [filterSchoolId, setFilterSchoolId] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -518,16 +526,56 @@ function AddMembersModal({
       .finally(() => setLoading(false));
   }, [existingMemberIds]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools()
+      .then((rows) => { if (!cancelled) setSchools(rows); })
+      .catch(() => { if (!cancelled) setSchools([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const INDEPENDENT = "__INDEPENDENT__"; // students with no school
+
+  // School options follow the state/district filter so the list stays scoped.
+  const schoolOptions = schools.filter((s) => {
+    if (filterState && normState(s.state) !== filterState) return false;
+    if (filterDistrict && (s.district ?? "") !== filterDistrict) return false;
+    return true;
+  });
+
+  // Selecting a state/district can invalidate the chosen school — clear it.
+  function changeState(v: string) { setFilterState(v); setFilterDistrict(""); setFilterSchoolId(""); }
+  function changeDistrict(v: string) { setFilterDistrict(v); setFilterSchoolId(""); }
+
   const filtered = students.filter((u) => {
     const q = search.toLowerCase();
-    return (u.name ?? "").toLowerCase().includes(q) || (u.roll_number ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q);
+    if (q && !((u.name ?? "").toLowerCase().includes(q) || (u.roll_number ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q))) return false;
+    if (filterSchoolId === INDEPENDENT) { if (u.school_id) return false; }
+    else if (filterSchoolId && u.school_id !== filterSchoolId) return false;
+    if (filterState && normState(u.state) !== filterState) return false;
+    if (filterDistrict && (u.district ?? "") !== filterDistrict) return false;
+    return true;
   });
+
+  // Select-all operates on the current filtered set: checked when every
+  // filtered student is selected (and there is at least one).
+  const allFilteredSelected = filtered.length > 0 && filtered.every((u) => selectedIds.has(u.id));
 
   function toggle(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+    setError(null);
+  }
+
+  function toggleAllFiltered() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) filtered.forEach((u) => next.delete(u.id));
+      else filtered.forEach((u) => next.add(u.id));
       return next;
     });
     setError(null);
@@ -555,14 +603,53 @@ function AddMembersModal({
         placeholder="Search by name, roll number, or email…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        style={{ ...inputSt, marginBottom: "12px" }}
+        style={{ ...inputSt, marginBottom: "10px" }}
       />
+      <div style={{ marginBottom: "10px" }}>
+        <StateDistrictPicker
+          state={filterState}
+          district={filterDistrict}
+          onStateChange={changeState}
+          onDistrictChange={changeDistrict}
+          blankStateLabel="All states"
+          inputStyle={inputSt}
+        />
+      </div>
+      <div style={{ marginBottom: "10px" }}>
+        <select
+          value={filterSchoolId}
+          onChange={(e) => setFilterSchoolId(e.target.value)}
+          aria-label="Filter by school"
+          style={inputSt}
+        >
+          <option value="">All schools</option>
+          <option value={INDEPENDENT}>Independent (no school)</option>
+          {schoolOptions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}{s.district ? ` · ${s.district}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
+          <input
+            type="checkbox"
+            checked={allFilteredSelected}
+            onChange={toggleAllFiltered}
+            disabled={filtered.length === 0}
+            style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
+          />
+          Select all{filtered.length ? ` (${filtered.length})` : ""}
+        </label>
+        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)" }}>{selectedIds.size} selected</span>
+      </div>
       <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
         {loading ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading students…</p>
         ) : filtered.length === 0 ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
-            {search ? "No matching students." : "No students available."}
+            {search || filterState || filterDistrict ? "No matching students." : "No students available."}
           </p>
         ) : filtered.map((u) => {
           const checked = selectedIds.has(u.id);
@@ -787,11 +874,11 @@ function AddTestModal({
         emptyText="No published global quizzes available."
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Opens at (optional)</label>
           <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} style={inputSt} />
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Due at (optional)</label>
           <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} style={inputSt} />
         </div>
@@ -935,7 +1022,7 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", maxHeight: "90vh", zIndex: 51 }}>
         <div style={{
           background: "#ffffff",
           borderRadius: "24px", padding: "32px",
@@ -943,6 +1030,7 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
           border: "1px solid rgba(255,255,255,0.3)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
+          maxHeight: "90vh", overflowY: "auto",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h3 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h3>

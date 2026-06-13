@@ -557,15 +557,14 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
                 {/* Reports-to manager — ZONAL_MANAGER reports to Program Manager; FELLOW reports to Zonal Manager */}
                 {(isZM || isFellow) && (
-                  <Field label={isZM ? "Reports to (Program Manager)" : "Reports to (Zonal Manager)"} id="user-manager">
+                  <Field label={isZM ? "Reports to (Program Manager, optional)" : "Reports to (Zonal Manager, optional)"} id="user-manager">
                     <select
                       id="user-manager"
                       value={managerId}
                       onChange={(e) => setManagerId(e.target.value)}
-                      required
                       style={inputStyle}
                     >
-                      <option value="" disabled>Select a manager…</option>
+                      <option value="">No manager</option>
                       {managerOptions.map((m) => (
                         <option key={m.id} value={m.id}>
                           {m.full_name}{m.state ? ` (${m.state}${m.zone ? ` · ${m.zone}` : ''})` : ''}
