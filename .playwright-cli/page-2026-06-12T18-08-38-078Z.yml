@@ -1,0 +1,159 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list [ref=e45]:
+            - listitem [ref=e46]:
+              - link "Dashboard" [ref=e47] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e48]
+                - generic [ref=e53]: Dashboard
+            - listitem [ref=e54]:
+              - link "Courses" [ref=e55] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e56]
+                - generic [ref=e58]: Courses
+            - listitem [ref=e59]:
+              - link "Bundles" [ref=e60] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e61]
+                - generic [ref=e65]: Bundles
+            - listitem [ref=e66]:
+              - link "Quizzes" [ref=e67] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e68]
+                - generic [ref=e71]: Quizzes
+            - listitem [ref=e72]:
+              - link "Question Bank" [ref=e73] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e74]
+                - generic [ref=e78]: Question Bank
+            - listitem [ref=e79]:
+              - link "Assignments" [ref=e80] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e81]
+                - generic [ref=e84]: Assignments
+            - listitem [ref=e85]:
+              - link "Live Classes" [ref=e86] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e87]
+                - generic [ref=e90]: Live Classes
+            - listitem [ref=e91]:
+              - link "Calendar" [ref=e92] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e93]
+                - generic [ref=e95]: Calendar
+            - listitem [ref=e96]:
+              - link "Resources" [ref=e97] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e98]
+                - generic [ref=e100]: Resources
+            - listitem [ref=e101]:
+              - link "Doubts" [ref=e102] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e103]
+                - generic [ref=e106]: Doubts
+            - listitem [ref=e107]:
+              - link "Analytics" [ref=e108] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e109]
+                - generic [ref=e110]: Analytics
+            - listitem [ref=e111]:
+              - link "Reports" [ref=e112] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e113]
+                - generic [ref=e116]: Reports
+            - listitem [ref=e117]:
+              - link "Student Export" [ref=e118] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e119]
+                - generic [ref=e122]: Student Export
+            - listitem [ref=e123]:
+              - link "User Management" [ref=e124] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e125]
+                - generic [ref=e130]: User Management
+            - listitem [ref=e131]:
+              - link "Role Management" [ref=e132] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e133]
+                - generic [ref=e135]: Role Management
+            - listitem [ref=e136]:
+              - link "Bulk Assign" [ref=e137] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e138]
+                - generic [ref=e141]: Bulk Assign
+            - listitem [ref=e142]:
+              - link "Schools" [ref=e143] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e144]
+                - generic [ref=e149]: Schools
+            - listitem [ref=e150]:
+              - link "Batches" [ref=e151] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e152]
+                - generic [ref=e156]: Batches
+        - button "Scroll down" [ref=e158] [cursor=pointer]:
+          - img [ref=e159]
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Report a bug" [ref=e17] [cursor=pointer]:
+            - img [ref=e18]
+            - generic [ref=e27]: Report bug
+          - generic [ref=e161]: Super Admin
+          - button "Notifications" [ref=e163] [cursor=pointer]:
+            - img [ref=e164]
+            - generic [ref=e167]: 99+
+          - button "TS" [ref=e169] [cursor=pointer]
+      - main [ref=e28]:
+        - generic [ref=e400]:
+          - link "← Back" [ref=e401] [cursor=pointer]:
+            - /url: /dashboard/schools
+          - generic [ref=e402]:
+            - generic [ref=e403]:
+              - paragraph [ref=e404]: School
+              - heading "GHSS Belagavi" [level=1] [ref=e405]
+              - generic [ref=e406]:
+                - generic [ref=e407]: KARNATAKA
+                - generic [ref=e408]: Belagavi
+            - button "Edit School" [ref=e409] [cursor=pointer]
+          - generic [ref=e410]:
+            - generic [ref=e411]:
+              - paragraph [ref=e412]: Assigned Fellow
+              - paragraph [ref=e413]: Fellow KA-A2
+              - paragraph [ref=e414]: fellow.ka.a2@opengrad.org
+            - generic [ref=e415]:
+              - paragraph [ref=e416]: Students
+              - paragraph [ref=e417]: "0"
+            - generic [ref=e418]:
+              - paragraph [ref=e419]: Avg Completion
+              - paragraph [ref=e420]: 0%
+              - paragraph [ref=e421]: 0 at-risk students
+          - generic [ref=e422]:
+            - heading "Students (0)" [level=2] [ref=e423]
+            - button "+ Add Students" [ref=e424] [cursor=pointer]
+          - table [ref=e426]:
+            - rowgroup [ref=e427]:
+              - row "Name Roll Number Email Programme" [ref=e428]:
+                - columnheader "Name" [ref=e429]
+                - columnheader "Roll Number" [ref=e430]
+                - columnheader "Email" [ref=e431]
+                - columnheader "Programme" [ref=e432]
+                - columnheader [ref=e433]
+            - rowgroup [ref=e434]:
+              - row "No students assigned to this school yet." [ref=e435]:
+                - cell "No students assigned to this school yet." [ref=e436]
+  - button "Open Next.js Dev Tools" [ref=e40] [cursor=pointer]:
+    - img [ref=e41]
+  - alert [ref=e44]

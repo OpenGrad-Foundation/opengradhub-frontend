@@ -1,0 +1,219 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list [ref=e40]:
+            - listitem [ref=e41]:
+              - link "Dashboard" [ref=e42] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e43]
+                - generic [ref=e48]: Dashboard
+            - listitem [ref=e49]:
+              - link "Courses" [ref=e50] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e51]
+                - generic [ref=e53]: Courses
+            - listitem [ref=e54]:
+              - link "Bundles" [ref=e55] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e56]
+                - generic [ref=e60]: Bundles
+            - listitem [ref=e61]:
+              - link "Quizzes" [ref=e62] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e63]
+                - generic [ref=e66]: Quizzes
+            - listitem [ref=e67]:
+              - link "Question Bank" [ref=e68] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e69]
+                - generic [ref=e73]: Question Bank
+            - listitem [ref=e74]:
+              - link "Assignments" [ref=e75] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e76]
+                - generic [ref=e79]: Assignments
+            - listitem [ref=e80]:
+              - link "Live Classes" [ref=e81] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e82]
+                - generic [ref=e85]: Live Classes
+            - listitem [ref=e86]:
+              - link "Calendar" [ref=e87] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e88]
+                - generic [ref=e90]: Calendar
+            - listitem [ref=e91]:
+              - link "Resources" [ref=e92] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e93]
+                - generic [ref=e95]: Resources
+            - listitem [ref=e96]:
+              - link "Doubts" [ref=e97] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e98]
+                - generic [ref=e101]: Doubts
+            - listitem [ref=e102]:
+              - link "Analytics" [ref=e103] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e104]
+                - generic [ref=e105]: Analytics
+            - listitem [ref=e106]:
+              - link "Reports" [ref=e107] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e108]
+                - generic [ref=e111]: Reports
+            - listitem [ref=e112]:
+              - link "Student Export" [ref=e113] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e114]
+                - generic [ref=e117]: Student Export
+            - listitem [ref=e118]:
+              - link "User Management" [ref=e119] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e120]
+                - generic [ref=e125]: User Management
+            - listitem [ref=e126]:
+              - link "Role Management" [ref=e127] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e128]
+                - generic [ref=e130]: Role Management
+            - listitem [ref=e131]:
+              - link "Bulk Assign" [ref=e132] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e133]
+                - generic [ref=e136]: Bulk Assign
+            - listitem [ref=e137]:
+              - link "Schools" [ref=e138] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e139]
+                - generic [ref=e144]: Schools
+            - listitem [ref=e145]:
+              - link "Batches" [ref=e146] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e147]
+                - generic [ref=e151]: Batches
+        - button "Scroll down" [ref=e153] [cursor=pointer]:
+          - img [ref=e154]
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Report a bug" [ref=e17] [cursor=pointer]:
+            - img [ref=e18]
+            - generic [ref=e27]: Report bug
+          - button "Notifications" [ref=e157] [cursor=pointer]:
+            - img [ref=e158]
+            - generic [ref=e161]: 99+
+          - button "TS" [ref=e163] [cursor=pointer]
+      - main [ref=e28]:
+        - generic [ref=e164]:
+          - link "← Back" [ref=e165] [cursor=pointer]:
+            - /url: /dashboard/schools
+          - generic [ref=e166]:
+            - generic [ref=e167]:
+              - paragraph [ref=e168]: School
+              - heading "GHSS Belagavi" [level=1] [ref=e169]
+              - generic [ref=e170]:
+                - generic [ref=e171]: KARNATAKA
+                - generic [ref=e172]: Belagavi
+            - button "Edit School" [ref=e173] [cursor=pointer]
+          - generic [ref=e174]:
+            - generic [ref=e175]:
+              - paragraph [ref=e176]: Assigned Fellow
+              - paragraph [ref=e177]: Fellow KA-A2
+              - paragraph [ref=e178]: fellow.ka.a2@opengrad.org
+            - generic [ref=e179]:
+              - paragraph [ref=e180]: Students
+              - paragraph [ref=e181]: "12"
+              - generic [ref=e182]:
+                - generic [ref=e183]: "PG: 4"
+                - generic [ref=e184]: "UG: 8"
+            - generic [ref=e185]:
+              - paragraph [ref=e186]: Avg Completion
+              - paragraph [ref=e187]: 0%
+              - paragraph [ref=e188]: 0 at-risk students
+          - generic [ref=e189]:
+            - heading "Students (12)" [level=2] [ref=e190]
+            - generic [ref=e191]:
+              - button "+ Add Batch" [ref=e192] [cursor=pointer]
+              - button "+ Add Students" [ref=e193] [cursor=pointer]
+          - dialog "Add Batch" [ref=e233]:
+            - generic [ref=e234]:
+              - paragraph [ref=e236]: Add Batch
+              - button "Close panel" [ref=e237] [cursor=pointer]: ✕
+            - generic [ref=e239]:
+              - generic [ref=e240]:
+                - generic [ref=e241]: Name *
+                - textbox "e.g. Grade 11 — 2026 or IPMAT 2026" [active] [ref=e242]
+              - generic [ref=e243]:
+                - generic [ref=e244]: Host School (leave empty for an independent batch)
+                - generic [ref=e245]:
+                  - textbox "Search school by name or code…" [ref=e246]: GHSS Belagavi · Belagavi
+                  - button "Clear school" [ref=e247] [cursor=pointer]: ✕
+                - button "Clear school (make independent)" [ref=e248] [cursor=pointer]
+              - generic [ref=e249]:
+                - generic [ref=e250]: Programme
+                - combobox [ref=e251]:
+                  - option "—" [selected]
+                  - option "UG"
+                  - option "PG"
+              - generic [ref=e252]:
+                - generic [ref=e253]:
+                  - generic [ref=e254]: Starts on
+                  - textbox [ref=e255]
+                - generic [ref=e256]:
+                  - generic [ref=e257]: Ends on
+                  - textbox [ref=e258]
+            - generic [ref=e259]:
+              - button "Cancel" [ref=e260] [cursor=pointer]
+              - button "Save" [ref=e261] [cursor=pointer]
+          - button "Belagavi PG Batch 2025 PG 2 students View batch →" [ref=e195] [cursor=pointer]:
+            - generic [ref=e196]:
+              - generic [ref=e197]: ▸
+              - heading "Belagavi PG Batch 2025" [level=3] [ref=e198]
+              - generic [ref=e199]: PG
+              - generic [ref=e200]: 2 students
+            - link "View batch →" [ref=e201]:
+              - /url: /dashboard/batches/84ea17b5-d8f5-48e2-a184-7a85487604ce?from=%2Fdashboard%2Fschools%2Fbc000001-0000-0000-0000-00000000001e
+          - button "Belagavi UG Batch 2025 UG 4 students View batch →" [ref=e203] [cursor=pointer]:
+            - generic [ref=e204]:
+              - generic [ref=e205]: ▸
+              - heading "Belagavi UG Batch 2025" [level=3] [ref=e206]
+              - generic [ref=e207]: UG
+              - generic [ref=e208]: 4 students
+            - link "View batch →" [ref=e209]:
+              - /url: /dashboard/batches/fb5b5799-cb6d-4ae6-8f40-47c21e634690?from=%2Fdashboard%2Fschools%2Fbc000001-0000-0000-0000-00000000001e
+          - button "Belagavi UG Batch 2026 UG 4 students View batch →" [ref=e211] [cursor=pointer]:
+            - generic [ref=e212]:
+              - generic [ref=e213]: ▸
+              - heading "Belagavi UG Batch 2026" [level=3] [ref=e214]
+              - generic [ref=e215]: UG
+              - generic [ref=e216]: 4 students
+            - link "View batch →" [ref=e217]:
+              - /url: /dashboard/batches/42b9f268-0cc2-4e71-9b94-06fc583e2d18?from=%2Fdashboard%2Fschools%2Fbc000001-0000-0000-0000-00000000001e
+          - button "fghjk UG 9 students View batch →" [ref=e219] [cursor=pointer]:
+            - generic [ref=e220]:
+              - generic [ref=e221]: ▸
+              - heading "fghjk" [level=3] [ref=e222]
+              - generic [ref=e223]: UG
+              - generic [ref=e224]: 9 students
+            - link "View batch →" [ref=e225]:
+              - /url: /dashboard/batches/ce509528-d0de-4f9f-a4ed-914130cd4043?from=%2Fdashboard%2Fschools%2Fbc000001-0000-0000-0000-00000000001e
+          - button "Not in any batch 2 students" [ref=e227] [cursor=pointer]:
+            - generic [ref=e228]:
+              - generic [ref=e229]: ▸
+              - heading "Not in any batch" [level=3] [ref=e230]
+              - generic [ref=e231]: 2 students
+  - button "Open Next.js Dev Tools" [ref=e35] [cursor=pointer]:
+    - img [ref=e36]
+  - alert [ref=e39]

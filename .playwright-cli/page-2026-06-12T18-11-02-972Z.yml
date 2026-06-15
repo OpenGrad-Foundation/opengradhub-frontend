@@ -1,0 +1,363 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e4]:
+      - generic [ref=e5]:
+        - link "OpenGrad" [ref=e6] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenGrad" [ref=e7]
+        - button "Collapse sidebar" [ref=e8]:
+          - img [ref=e9]
+      - generic [ref=e12]:
+        - generic:
+          - button "Scroll up":
+            - img
+        - navigation [ref=e13]:
+          - list [ref=e45]:
+            - listitem [ref=e46]:
+              - link "Dashboard" [ref=e47] [cursor=pointer]:
+                - /url: /dashboard
+                - img [ref=e48]
+                - generic [ref=e53]: Dashboard
+            - listitem [ref=e54]:
+              - link "Courses" [ref=e55] [cursor=pointer]:
+                - /url: /dashboard/courses
+                - img [ref=e56]
+                - generic [ref=e58]: Courses
+            - listitem [ref=e59]:
+              - link "Bundles" [ref=e60] [cursor=pointer]:
+                - /url: /dashboard/bundles
+                - img [ref=e61]
+                - generic [ref=e65]: Bundles
+            - listitem [ref=e66]:
+              - link "Quizzes" [ref=e67] [cursor=pointer]:
+                - /url: /dashboard/assessments
+                - img [ref=e68]
+                - generic [ref=e71]: Quizzes
+            - listitem [ref=e72]:
+              - link "Question Bank" [ref=e73] [cursor=pointer]:
+                - /url: /dashboard/test-bank
+                - img [ref=e74]
+                - generic [ref=e78]: Question Bank
+            - listitem [ref=e79]:
+              - link "Assignments" [ref=e80] [cursor=pointer]:
+                - /url: /dashboard/assignments
+                - img [ref=e81]
+                - generic [ref=e84]: Assignments
+            - listitem [ref=e85]:
+              - link "Live Classes" [ref=e86] [cursor=pointer]:
+                - /url: /dashboard/live-classes
+                - img [ref=e87]
+                - generic [ref=e90]: Live Classes
+            - listitem [ref=e91]:
+              - link "Calendar" [ref=e92] [cursor=pointer]:
+                - /url: /dashboard/calendar
+                - img [ref=e93]
+                - generic [ref=e95]: Calendar
+            - listitem [ref=e96]:
+              - link "Resources" [ref=e97] [cursor=pointer]:
+                - /url: /dashboard/resources
+                - img [ref=e98]
+                - generic [ref=e100]: Resources
+            - listitem [ref=e101]:
+              - link "Doubts" [ref=e102] [cursor=pointer]:
+                - /url: /dashboard/doubts
+                - img [ref=e103]
+                - generic [ref=e106]: Doubts
+            - listitem [ref=e107]:
+              - link "Analytics" [ref=e108] [cursor=pointer]:
+                - /url: /dashboard/analytics
+                - img [ref=e109]
+                - generic [ref=e110]: Analytics
+            - listitem [ref=e111]:
+              - link "Reports" [ref=e112] [cursor=pointer]:
+                - /url: /dashboard/reports
+                - img [ref=e113]
+                - generic [ref=e116]: Reports
+            - listitem [ref=e117]:
+              - link "Student Export" [ref=e118] [cursor=pointer]:
+                - /url: /dashboard/student-export
+                - img [ref=e119]
+                - generic [ref=e122]: Student Export
+            - listitem [ref=e123]:
+              - link "User Management" [ref=e124] [cursor=pointer]:
+                - /url: /dashboard/user-management
+                - img [ref=e125]
+                - generic [ref=e130]: User Management
+            - listitem [ref=e131]:
+              - link "Role Management" [ref=e132] [cursor=pointer]:
+                - /url: /dashboard/role-management
+                - img [ref=e133]
+                - generic [ref=e135]: Role Management
+            - listitem [ref=e136]:
+              - link "Bulk Assign" [ref=e137] [cursor=pointer]:
+                - /url: /dashboard/bulk-manage
+                - img [ref=e138]
+                - generic [ref=e141]: Bulk Assign
+            - listitem [ref=e142]:
+              - link "Schools" [ref=e143] [cursor=pointer]:
+                - /url: /dashboard/schools
+                - img [ref=e144]
+                - generic [ref=e149]: Schools
+            - listitem [ref=e150]:
+              - link "Batches" [ref=e151] [cursor=pointer]:
+                - /url: /dashboard/batches
+                - img [ref=e152]
+                - generic [ref=e156]: Batches
+        - button "Scroll down" [ref=e158] [cursor=pointer]:
+          - img [ref=e159]
+    - generic [ref=e14]:
+      - banner [ref=e15]:
+        - generic [ref=e16]:
+          - button "Report a bug" [ref=e17] [cursor=pointer]:
+            - img [ref=e18]
+            - generic [ref=e27]: Report bug
+          - generic [ref=e161]: Super Admin
+          - button "Notifications" [ref=e163] [cursor=pointer]:
+            - img [ref=e164]
+            - generic [ref=e399]: 99+
+          - button "TS" [ref=e168] [cursor=pointer]
+      - main [ref=e28]:
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - generic [ref=e31]:
+              - paragraph [ref=e32]: Administration
+              - heading "Schools" [level=1] [ref=e33]
+            - generic [ref=e169]:
+              - button "+ Add School" [ref=e170] [cursor=pointer]
+              - button "↥ Bulk Upload" [ref=e171] [cursor=pointer]
+          - generic [ref=e172]:
+            - generic [ref=e173]:
+              - searchbox "Search schools" [ref=e174]
+              - generic: ⌕
+            - generic [ref=e176]:
+              - combobox "State" [ref=e177]:
+                - option "All states" [selected]
+                - option "Kerala"
+                - option "Karnataka"
+                - option "Tamil Nadu"
+                - option "Chhattisgarh"
+                - option "All"
+              - combobox "District" [disabled] [ref=e178]:
+                - option "—" [selected]
+            - generic [ref=e179]: 26 schools
+          - table [ref=e181]:
+            - rowgroup [ref=e182]:
+              - row "Name District State Code Fellow" [ref=e183]:
+                - columnheader "Name" [ref=e184]
+                - columnheader "District" [ref=e185]
+                - columnheader "State" [ref=e186]
+                - columnheader "Code" [ref=e187]
+                - columnheader "Fellow" [ref=e188]
+                - columnheader [ref=e189]
+            - rowgroup [ref=e190]:
+              - row "GHSS Belagavi Belagavi KARNATAKA — Fellow KA-A2 Edit" [ref=e191] [cursor=pointer]:
+                - cell "GHSS Belagavi" [ref=e192]
+                - cell "Belagavi" [ref=e193]
+                - cell "KARNATAKA" [ref=e194]
+                - cell "—" [ref=e195]
+                - cell "Fellow KA-A2" [ref=e196]
+                - cell "Edit" [ref=e197]:
+                  - button "Edit" [ref=e198]
+              - row "GHSS Bengaluru South Bengaluru Urban KARNATAKA — Fellow KA-A1 Edit" [ref=e199] [cursor=pointer]:
+                - cell "GHSS Bengaluru South" [ref=e200]
+                - cell "Bengaluru Urban" [ref=e201]
+                - cell "KARNATAKA" [ref=e202]
+                - cell "—" [ref=e203]
+                - cell "Fellow KA-A1" [ref=e204]
+                - cell "Edit" [ref=e205]:
+                  - button "Edit" [ref=e206]
+              - row "GHSS Chennai Chennai TAMIL_NADU — Fellow TN-A2 Edit" [ref=e207] [cursor=pointer]:
+                - cell "GHSS Chennai" [ref=e208]
+                - cell "Chennai" [ref=e209]
+                - cell "TAMIL_NADU" [ref=e210]
+                - cell "—" [ref=e211]
+                - cell "Fellow TN-A2" [ref=e212]
+                - cell "Edit" [ref=e213]:
+                  - button "Edit" [ref=e214]
+              - row "GHSS Coimbatore South Coimbatore TAMIL_NADU — Fellow TN-A1 Edit" [ref=e215] [cursor=pointer]:
+                - cell "GHSS Coimbatore South" [ref=e216]
+                - cell "Coimbatore" [ref=e217]
+                - cell "TAMIL_NADU" [ref=e218]
+                - cell "—" [ref=e219]
+                - cell "Fellow TN-A1" [ref=e220]
+                - cell "Edit" [ref=e221]:
+                  - button "Edit" [ref=e222]
+              - row "GHSS Ernakulam South Ernakulam KERALA — Fellow KL-A1 Edit" [ref=e223] [cursor=pointer]:
+                - cell "GHSS Ernakulam South" [ref=e224]
+                - cell "Ernakulam" [ref=e225]
+                - cell "KERALA" [ref=e226]
+                - cell "—" [ref=e227]
+                - cell "Fellow KL-A1" [ref=e228]
+                - cell "Edit" [ref=e229]:
+                  - button "Edit" [ref=e230]
+              - row "GHSS Hubballi Dharwad KARNATAKA — Fellow KA-A2 Edit" [ref=e231] [cursor=pointer]:
+                - cell "GHSS Hubballi" [ref=e232]
+                - cell "Dharwad" [ref=e233]
+                - cell "KARNATAKA" [ref=e234]
+                - cell "—" [ref=e235]
+                - cell "Fellow KA-A2" [ref=e236]
+                - cell "Edit" [ref=e237]:
+                  - button "Edit" [ref=e238]
+              - row "GHSS Kollam Kollam KERALA — Fellow KL-A2 Edit" [ref=e239] [cursor=pointer]:
+                - cell "GHSS Kollam" [ref=e240]
+                - cell "Kollam" [ref=e241]
+                - cell "KERALA" [ref=e242]
+                - cell "—" [ref=e243]
+                - cell "Fellow KL-A2" [ref=e244]
+                - cell "Edit" [ref=e245]:
+                  - button "Edit" [ref=e246]
+              - row "GHSS Kozhikode East Kozhikode KERALA — Fellow KL-B2 Edit" [ref=e247] [cursor=pointer]:
+                - cell "GHSS Kozhikode East" [ref=e248]
+                - cell "Kozhikode" [ref=e249]
+                - cell "KERALA" [ref=e250]
+                - cell "—" [ref=e251]
+                - cell "Fellow KL-B2" [ref=e252]
+                - cell "Edit" [ref=e253]:
+                  - button "Edit" [ref=e254]
+              - row "GHSS Madurai West Madurai TAMIL_NADU — Fellow TN-B1 Edit" [ref=e255] [cursor=pointer]:
+                - cell "GHSS Madurai West" [ref=e256]
+                - cell "Madurai" [ref=e257]
+                - cell "TAMIL_NADU" [ref=e258]
+                - cell "—" [ref=e259]
+                - cell "Fellow TN-B1" [ref=e260]
+                - cell "Edit" [ref=e261]:
+                  - button "Edit" [ref=e262]
+              - row "GHSS Mangaluru East Dakshina Kannada KARNATAKA — Fellow KA-B2 Edit" [ref=e263] [cursor=pointer]:
+                - cell "GHSS Mangaluru East" [ref=e264]
+                - cell "Dakshina Kannada" [ref=e265]
+                - cell "KARNATAKA" [ref=e266]
+                - cell "—" [ref=e267]
+                - cell "Fellow KA-B2" [ref=e268]
+                - cell "Edit" [ref=e269]:
+                  - button "Edit" [ref=e270]
+              - row "GHSS Mysuru West Mysuru KARNATAKA — Fellow KA-B1 Edit" [ref=e271] [cursor=pointer]:
+                - cell "GHSS Mysuru West" [ref=e272]
+                - cell "Mysuru" [ref=e273]
+                - cell "KARNATAKA" [ref=e274]
+                - cell "—" [ref=e275]
+                - cell "Fellow KA-B1" [ref=e276]
+                - cell "Edit" [ref=e277]:
+                  - button "Edit" [ref=e278]
+              - row "GHSS Salem East Salem TAMIL_NADU — Fellow TN-A2 Edit" [ref=e279] [cursor=pointer]:
+                - cell "GHSS Salem East" [ref=e280]
+                - cell "Salem" [ref=e281]
+                - cell "TAMIL_NADU" [ref=e282]
+                - cell "—" [ref=e283]
+                - cell "Fellow TN-A2" [ref=e284]
+                - cell "Edit" [ref=e285]:
+                  - button "Edit" [ref=e286]
+              - row "GHSS Thanjavur North Thanjavur TAMIL_NADU — Fellow TN-B2 Edit" [ref=e287] [cursor=pointer]:
+                - cell "GHSS Thanjavur North" [ref=e288]
+                - cell "Thanjavur" [ref=e289]
+                - cell "TAMIL_NADU" [ref=e290]
+                - cell "—" [ref=e291]
+                - cell "Fellow TN-B2" [ref=e292]
+                - cell "Edit" [ref=e293]:
+                  - button "Edit" [ref=e294]
+              - row "GHSS Thiruvananthapuram E Thiruvananthapuram KERALA — Fellow KL-B1 Edit" [ref=e295] [cursor=pointer]:
+                - cell "GHSS Thiruvananthapuram E" [ref=e296]
+                - cell "Thiruvananthapuram" [ref=e297]
+                - cell "KERALA" [ref=e298]
+                - cell "—" [ref=e299]
+                - cell "Fellow KL-B1" [ref=e300]
+                - cell "Edit" [ref=e301]:
+                  - button "Edit" [ref=e302]
+              - row "Government Higher Secondary School, Bengaluru Bengaluru Urban KARNATAKA — Fellow KA-A1 Edit" [ref=e303] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Bengaluru" [ref=e304]
+                - cell "Bengaluru Urban" [ref=e305]
+                - cell "KARNATAKA" [ref=e306]
+                - cell "—" [ref=e307]
+                - cell "Fellow KA-A1" [ref=e308]
+                - cell "Edit" [ref=e309]:
+                  - button "Edit" [ref=e310]
+              - row "Government Higher Secondary School, Coimbatore Coimbatore TAMIL_NADU — Fellow TN-A1 Edit" [ref=e311] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Coimbatore" [ref=e312]
+                - cell "Coimbatore" [ref=e313]
+                - cell "TAMIL_NADU" [ref=e314]
+                - cell "—" [ref=e315]
+                - cell "Fellow TN-A1" [ref=e316]
+                - cell "Edit" [ref=e317]:
+                  - button "Edit" [ref=e318]
+              - row "Government Higher Secondary School, Ernakulam Ernakulam KERALA — Fellow KL-A1 Edit" [ref=e319] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Ernakulam" [ref=e320]
+                - cell "Ernakulam" [ref=e321]
+                - cell "KERALA" [ref=e322]
+                - cell "—" [ref=e323]
+                - cell "Fellow KL-A1" [ref=e324]
+                - cell "Edit" [ref=e325]:
+                  - button "Edit" [ref=e326]
+              - row "Government Higher Secondary School, Kozhikode Kozhikode KERALA — Fellow KL-A2 Edit" [ref=e327] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Kozhikode" [ref=e328]
+                - cell "Kozhikode" [ref=e329]
+                - cell "KERALA" [ref=e330]
+                - cell "—" [ref=e331]
+                - cell "Fellow KL-A2" [ref=e332]
+                - cell "Edit" [ref=e333]:
+                  - button "Edit" [ref=e334]
+              - row "Government Higher Secondary School, Madurai Madurai TAMIL_NADU — Fellow TN-B1 Edit" [ref=e335] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Madurai" [ref=e336]
+                - cell "Madurai" [ref=e337]
+                - cell "TAMIL_NADU" [ref=e338]
+                - cell "—" [ref=e339]
+                - cell "Fellow TN-B1" [ref=e340]
+                - cell "Edit" [ref=e341]:
+                  - button "Edit" [ref=e342]
+              - row "Government Higher Secondary School, Mangaluru Dakshina Kannada KARNATAKA — Fellow KA-B2 Edit" [ref=e343] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Mangaluru" [ref=e344]
+                - cell "Dakshina Kannada" [ref=e345]
+                - cell "KARNATAKA" [ref=e346]
+                - cell "—" [ref=e347]
+                - cell "Fellow KA-B2" [ref=e348]
+                - cell "Edit" [ref=e349]:
+                  - button "Edit" [ref=e350]
+              - row "Government Higher Secondary School, Mysuru Mysuru KARNATAKA — Fellow KA-B1 Edit" [ref=e351] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Mysuru" [ref=e352]
+                - cell "Mysuru" [ref=e353]
+                - cell "KARNATAKA" [ref=e354]
+                - cell "—" [ref=e355]
+                - cell "Fellow KA-B1" [ref=e356]
+                - cell "Edit" [ref=e357]:
+                  - button "Edit" [ref=e358]
+              - row "Government Higher Secondary School, Salem Salem TAMIL_NADU — Fellow KL-B2 Edit" [ref=e359] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Salem" [ref=e360]
+                - cell "Salem" [ref=e361]
+                - cell "TAMIL_NADU" [ref=e362]
+                - cell "—" [ref=e363]
+                - cell "Fellow KL-B2" [ref=e364]
+                - cell "Edit" [ref=e365]:
+                  - button "Edit" [ref=e366]
+              - row "Government Higher Secondary School, Thanjavur Thanjavur TAMIL_NADU — Fellow TN-B2 Edit" [ref=e367] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Thanjavur" [ref=e368]
+                - cell "Thanjavur" [ref=e369]
+                - cell "TAMIL_NADU" [ref=e370]
+                - cell "—" [ref=e371]
+                - cell "Fellow TN-B2" [ref=e372]
+                - cell "Edit" [ref=e373]:
+                  - button "Edit" [ref=e374]
+              - row "Government Higher Secondary School, Thiruvananthapuram Thiruvananthapuram KERALA — Fellow KL-B1 Edit" [ref=e375] [cursor=pointer]:
+                - cell "Government Higher Secondary School, Thiruvananthapuram" [ref=e376]
+                - cell "Thiruvananthapuram" [ref=e377]
+                - cell "KERALA" [ref=e378]
+                - cell "—" [ref=e379]
+                - cell "Fellow KL-B1" [ref=e380]
+                - cell "Edit" [ref=e381]:
+                  - button "Edit" [ref=e382]
+              - row "Greenwood PG Study Centre Thiruvananthapuram Kerala — — Edit" [ref=e383] [cursor=pointer]:
+                - cell "Greenwood PG Study Centre" [ref=e384]
+                - cell "Thiruvananthapuram" [ref=e385]
+                - cell "Kerala" [ref=e386]
+                - cell "—" [ref=e387]
+                - cell "—" [ref=e388]
+                - cell "Edit" [ref=e389]:
+                  - button "Edit" [ref=e390]
+              - row "Reset Test School — — OG-RESET-SCH Tech Fellow (Reset Test) Edit" [ref=e391] [cursor=pointer]:
+                - cell "Reset Test School" [ref=e392]
+                - cell "—" [ref=e393]
+                - cell "—" [ref=e394]
+                - cell "OG-RESET-SCH" [ref=e395]
+                - cell "Tech Fellow (Reset Test)" [ref=e396]
+                - cell "Edit" [ref=e397]:
+                  - button "Edit" [ref=e398]
+  - button "Open Next.js Dev Tools" [ref=e40] [cursor=pointer]:
+    - img [ref=e41]
+  - alert [ref=e44]

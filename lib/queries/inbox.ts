@@ -1,0 +1,73 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useAnnouncements, useAnnouncementUnreadCount } from './announcements';
+import { useNotifications, useUnreadCount as useNotificationUnreadCount } from './notifications';
+
+export type InboxItem =
+  | {
+      source: 'announcement';
+      id: string;
+      title: string;
+      body: string;
+      created_at: string;
+      is_read: boolean;
+    }
+  | {
+      source: 'notification';
+      id: string;
+      type: string;
+      title: string;
+      body: string;
+      created_at: string;
+      is_read: boolean;
+    };
+
+/**
+ * Unified inbox feed — merges announcements (role-scoped) and in-app notifications
+ * (recipient-scoped), sorted newest-first.
+ */
+export function useInboxFeed(opts: { role: string }) {
+  const a = useAnnouncements(opts.role);
+  const n = useNotifications();
+
+  const items = useMemo<InboxItem[]>(() => {
+    const ann = (a.data ?? []).map((x): InboxItem => ({
+      source: 'announcement',
+      id: x.id,
+      title: x.title,
+      body: x.body,
+      created_at: x.created_at,
+      is_read: x.is_read,
+    }));
+    const not = (n.data ?? []).map((x): InboxItem => ({
+      source: 'notification',
+      id: x.id,
+      type: x.type,
+      title: x.title,
+      body: x.body,
+      created_at: x.triggered_at,
+      is_read: x.is_read,
+    }));
+    return [...ann, ...not].sort((p, q) => q.created_at.localeCompare(p.created_at));
+  }, [a.data, n.data]);
+
+  return {
+    items,
+    isLoading: a.isLoading || n.isLoading,
+    isError: a.isError || n.isError,
+  };
+}
+
+/**
+ * Combined unread badge count — notification unread + announcement unread.
+ * useNotificationUnreadCount returns a raw number; useAnnouncementUnreadCount returns { count }.
+ */
+export function useInboxUnreadCount() {
+  const n = useNotificationUnreadCount();
+  const a = useAnnouncementUnreadCount();
+  return {
+    data: { count: (n.data ?? 0) + (a.data?.count ?? 0) },
+    isLoading: n.isLoading || a.isLoading,
+  };
+}

@@ -1,0 +1,28 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - img "OpenGrad" [ref=e6]
+    - generic [ref=e7]:
+      - heading "Welcome back" [level=1] [ref=e8]
+      - paragraph [ref=e9]: Enter your details to access your learning portal
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - generic [ref=e31]: Email or roll number
+        - generic [ref=e12]:
+          - generic:
+            - img
+          - textbox "Email or roll number" [ref=e17]:
+            - /placeholder: name@opengrad.edu or OG-STU-001
+      - generic [ref=e18]:
+        - generic [ref=e32]: Password
+        - generic [ref=e19]:
+          - generic:
+            - img
+          - textbox "Password" [ref=e24]:
+            - /placeholder: ••••••••
+          - button "Show password" [ref=e25] [cursor=pointer]:
+            - img [ref=e26]
+      - button "Sign In to Platform" [ref=e29] [cursor=pointer]
+    - button "Forgot password?" [ref=e30] [cursor=pointer]
+  - button "Open Next.js Dev Tools" [ref=e38] [cursor=pointer]:
+    - img [ref=e39]
+  - alert [ref=e42]
