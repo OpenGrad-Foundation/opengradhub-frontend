@@ -34,6 +34,7 @@ export function gradePractice(
       return { is_correct: ok, marks_awarded: ok ? 1 : 0, max_marks: 1 };
     }
     case 'FILL':
+    case 'ESSAY':
       return { is_correct: null, marks_awarded: 0, max_marks: 1 };
     case 'GROUP':
     default:

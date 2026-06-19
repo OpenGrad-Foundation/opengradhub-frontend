@@ -6,6 +6,7 @@ import {
   updateQuestion,
   addQuizQuestion,
   type Question,
+  type EvaluationCriterion,
   type CreateOptionPayload,
   type CreateChildPayload,
   type CreateQuestionPayload,
@@ -20,24 +21,30 @@ export const QUESTION_TYPES = [
   { value: "FILL",      label: "Fill in the Blank" },
   { value: "NUMERICAL", label: "Numerical" },
   { value: "GROUP",     label: "Group Question" },
+  { value: "ESSAY",     label: "Essay (Manual Grading)" },
 ] as const;
 
 export const DIFFICULTIES = ["EASY", "MEDIUM", "HARD"] as const;
 
-export type QType = "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+export type QType = "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
 
-export type DraftOption = CreateOptionPayload & { _key: number };
+export type DraftOption = { _key: number; option_text: string; is_correct: boolean };
+export type DraftEvaluationCriterion = { _key: number; criteria: string; percentage: string };
 export type DraftChild = Omit<CreateChildPayload, "options"> & { _key: number; options: DraftOption[] };
+
+// Monotonically increasing key generator — stable across re-renders unlike nextKey().
+let _nextKey = 1;
+function nextKey(): number { return _nextKey++; }
 
 // ── Factories ──────────────────────────────────────────────────
 
 export function emptyOption(): DraftOption {
-  return { option_text: "", is_correct: false, _key: Date.now() + Math.random() };
+  return { option_text: "", is_correct: false, _key: nextKey() };
 }
 
 export function emptyChild(): DraftChild {
   return {
-    _key: Date.now() + Math.random(),
+    _key: nextKey(),
     question_type: "MCQ",
     content_html: "",
     options: [emptyOption(), emptyOption(), emptyOption(), emptyOption()],
@@ -56,6 +63,7 @@ export function typeBadge(type: string): React.CSSProperties {
     FILL:      { bg: "rgba(10,190,98,0.12)",  color: "#0abe62" },
     NUMERICAL: { bg: "rgba(255,222,0,0.2)",   color: "#956f00" },
     GROUP:     { bg: "rgba(3,72,82,0.1)",     color: "#034852" },
+    ESSAY:     { bg: "rgba(147,32,121,0.12)", color: "#932079" },
   };
   const { bg, color } = map[type] ?? { bg: "rgba(0,0,0,0.06)", color: "#444" };
   return {
@@ -128,10 +136,26 @@ export function QuestionSlideOver({
   const [topic, setTopic] = useState(initial?.topic ?? "");
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? "");
   const [explanationVideoUrl, setExplanationVideoUrl] = useState(initial?.explanation_video_url ?? "");
+  const [marks, setMarks] = useState(initial?.marks?.toString() ?? "");
+  const [negativeMarks, setNegativeMarks] = useState(initial?.negative_marks?.toString() ?? "");
+  const [answerTime, setAnswerTime] = useState(initial?.answer_time_minutes?.toString() ?? "");
+  const [instruction, setInstruction] = useState(initial?.instruction_html ?? "");
+  const [evaluationCriteria, setEvaluationCriteria] = useState<DraftEvaluationCriterion[]>(() => {
+    try {
+      const raw = initial?.evaluation_criteria_json;
+      const parsed: unknown = typeof raw === 'string' ? JSON.parse(raw) : (raw ?? []);
+      if (Array.isArray(parsed)) {
+        return (parsed as EvaluationCriterion[]).map((c) => ({ _key: nextKey(), criteria: c.criteria || "", percentage: c.percentage?.toString() || "" }));
+      }
+    } catch {
+      console.warn("Failed to parse evaluation_criteria_json:", initial?.evaluation_criteria_json);
+    }
+    return [];
+  });
 
   const [options, setOptions] = useState<DraftOption[]>(() => {
     if (initial?.question_type === "MCQ" && initial.options.length > 0) {
-      return initial.options.map(o => ({ ...o, _key: Math.random() }));
+      return initial.options.map(o => ({ ...o, _key: nextKey() }));
     }
     return [emptyOption(), emptyOption(), emptyOption(), emptyOption()];
   });
@@ -142,13 +166,13 @@ export function QuestionSlideOver({
   const [children, setChildren] = useState<DraftChild[]>(
     () => initial?.question_type === "GROUP"
       ? initial.children.map(c => ({
-          _key: Math.random(),
+          _key: nextKey(),
           question_type: c.question_type as "MCQ" | "FILL" | "NUMERICAL",
           content_html: stripHtml(c.content_html),
           correct_answer: c.correct_answer ?? "",
           tolerance: c.tolerance ?? undefined,
           options: c.question_type === "MCQ"
-            ? c.options.map(o => ({ ...o, _key: Math.random() }))
+            ? c.options.map(o => ({ ...o, _key: nextKey() }))
             : [emptyOption(), emptyOption(), emptyOption(), emptyOption()],
         }))
       : [],
@@ -173,6 +197,12 @@ export function QuestionSlideOver({
     setOptions(p => p.map(o => ({ ...o, is_correct: o._key === key })));
   const addOption = () => setOptions(p => [...p, emptyOption()]);
   const removeOption = (key: number) => setOptions(p => p.filter(o => o._key !== key));
+
+  // ── Evaluation Criteria helpers ────────────────────────────────
+  const addEvalCriterion = () => setEvaluationCriteria(p => [...p, { _key: nextKey(), criteria: "", percentage: "" }]);
+  const removeEvalCriterion = (key: number) => setEvaluationCriteria(p => p.filter(c => c._key !== key));
+  const updateEvalCriterion = (key: number, field: "criteria" | "percentage", value: string) => 
+    setEvaluationCriteria(p => p.map(c => c._key === key ? { ...c, [field]: value } : c));
 
   // ── Child helpers ──────────────────────────────────────────────
 
@@ -221,6 +251,13 @@ export function QuestionSlideOver({
         topic: topic || undefined,
         difficulty: difficulty || undefined,
         explanation_video_url: explanationVideoUrl.trim() || undefined,
+        marks: marks ? Number(marks) : undefined,
+        negative_marks: negativeMarks ? Number(negativeMarks) : undefined,
+        answer_time_minutes: answerTime ? Number(answerTime) : undefined,
+        instruction_html: instruction.trim() || undefined,
+        evaluation_criteria_json: evaluationCriteria.length > 0 
+          ? JSON.stringify(evaluationCriteria.filter(c => c.criteria.trim()).map(c => ({ criteria: c.criteria.trim(), percentage: c.percentage ? Number(c.percentage) : 0 })))
+          : undefined,
       };
 
       if (isEdit) {
@@ -340,6 +377,23 @@ export function QuestionSlideOver({
             />
           </FieldGroup>
 
+          {/* New fields: Marks, Negative Marks, Answer Time, Instruction */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+            <FieldGroup label="Marks"><input type="number" step="any" value={marks} onChange={e => setMarks(e.target.value)} style={S.input} placeholder="Default" /></FieldGroup>
+            <FieldGroup label="Negative Marks"><input type="number" step="any" min="0" value={negativeMarks} onChange={e => setNegativeMarks(e.target.value)} style={S.input} placeholder="Default" /></FieldGroup>
+            <FieldGroup label="Time (min)"><input type="number" step="any" min="0" value={answerTime} onChange={e => setAnswerTime(e.target.value)} style={S.input} placeholder="Optional" /></FieldGroup>
+          </div>
+          
+          <FieldGroup label="Question Instruction (optional)">
+            <MathTextEditor
+              compact
+              rows={1}
+              value={instruction}
+              onChange={setInstruction}
+              placeholder="e.g. Read the passage and answer..."
+            />
+          </FieldGroup>
+
           {/* MCQ options */}
           {qType === "MCQ" && (
             <div>
@@ -381,6 +435,34 @@ export function QuestionSlideOver({
               <FieldGroup label="Correct Answer *"><input type="number" step="any" value={correctAnswer} onChange={e => setCorrectAnswer(e.target.value)} style={S.input} placeholder="e.g. 42.5" /></FieldGroup>
               <FieldGroup label="Tolerance (±)"><input type="number" step="any" min="0" value={tolerance} onChange={e => setTolerance(e.target.value)} style={S.input} placeholder="e.g. 0.5" /></FieldGroup>
             </div>
+          )}
+
+          {/* Essay */}
+          {qType === "ESSAY" && (
+            <FieldGroup label="Evaluation Criteria (Optional)">
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {evaluationCriteria.map((c, i) => (
+                  <div key={c._key} style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input 
+                      type="text" 
+                      value={c.criteria} 
+                      onChange={e => updateEvalCriterion(c._key, "criteria", e.target.value)} 
+                      style={{ ...S.input, flex: 1 }} 
+                      placeholder="e.g. Grammar and clarity" 
+                    />
+                    <input 
+                      type="number" 
+                      value={c.percentage} 
+                      onChange={e => updateEvalCriterion(c._key, "percentage", e.target.value)} 
+                      style={{ ...S.input, width: "80px" }} 
+                      placeholder="Weight %" 
+                    />
+                    <button type="button" onClick={() => removeEvalCriterion(c._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", padding: "0 4px" }}>✕</button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={addEvalCriterion} style={{ ...S.ghost, marginTop: "8px" }}>+ Add criterion</button>
+            </FieldGroup>
           )}
 
           {/* Group children */}

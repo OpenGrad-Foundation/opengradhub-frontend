@@ -879,6 +879,8 @@ export async function updateCourse(
 
 // ── Questions / Test Bank API ──────────────────────────────────
 
+export type EvaluationCriterion = { criteria: string; percentage: number };
+
 export type QuestionOption = {
   id: string;
   option_text: string;
@@ -888,7 +890,7 @@ export type QuestionOption = {
 export type Question = {
   id: string;
   quiz_id: string | null;
-  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
   content_html: string;
   correct_answer: string | null;
   tolerance: number | null;
@@ -897,6 +899,11 @@ export type Question = {
   topic: string | null;
   difficulty: string | null;
   explanation_video_url: string | null;
+  marks: number | null;
+  negative_marks: number | null;
+  answer_time_minutes: number | null;
+  instruction_html: string | null;
+  evaluation_criteria_json: EvaluationCriterion[] | null;
   created_by: string | null;
   options: QuestionOption[];
   children: Question[];
@@ -909,12 +916,17 @@ export type CreateChildPayload = {
   content_html: string;
   correct_answer?: string;
   tolerance?: number;
+  marks?: number;
+  negative_marks?: number;
+  answer_time_minutes?: number;
+  instruction_html?: string;
+  evaluation_criteria_json?: EvaluationCriterion[];
   options?: CreateOptionPayload[];
 };
 
 export type CreateQuestionPayload = {
   quiz_id?: string;
-  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
   content_html: string;
   correct_answer?: string;
   tolerance?: number;
@@ -923,6 +935,11 @@ export type CreateQuestionPayload = {
   topic?: string;
   difficulty?: string;
   explanation_video_url?: string;
+  marks?: number;
+  negative_marks?: number;
+  answer_time_minutes?: number;
+  instruction_html?: string;
+  evaluation_criteria_json?: EvaluationCriterion[];
   created_by?: string;
   options?: CreateOptionPayload[];
   children?: CreateChildPayload[];
@@ -1461,6 +1478,20 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
   if (!r.ok) throw new ApiError("Failed to delete event.", r.status);
 }
 
+
+export async function deleteQuestions(ids: string[]): Promise<{ deleted: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/bulk-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete questions.", r.status);
+  }
+  return (await r.json()) as { deleted: number };
+}
+
 export async function getBatchComparison(studentId: string, courseId: string): Promise<BatchComparison> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/batch-comparison?course_id=${courseId}`);
   if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r.status);
@@ -1482,6 +1513,17 @@ export async function getQuizById(id: string): Promise<Quiz> {
   return (await r.json()) as Quiz;
 }
 
+export async function deleteQuiz(id: string): Promise<{ success: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete quiz.", r.status);
+  }
+  return (await r.json()) as { success: boolean };
+}
+
 export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes`, {
     method: "POST",
@@ -1494,6 +1536,35 @@ export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
     throw new ApiError(err?.message ?? "Failed to create quiz.", r.status);
   }
   return (await r.json()) as Quiz;
+}
+
+export async function bulkImportQuiz(fileContent: string): Promise<{ quiz_id: string; sections: number; questions: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_content: fileContent }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to import quiz.", r.status);
+  }
+  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
+}
+
+export async function bulkImportQuizFromPdf(file: File): Promise<{ quiz_id: string; sections: number; questions: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import-pdf`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to import quiz from PDF.", r.status);
+  }
+  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
 }
 
 export async function updateQuiz(
