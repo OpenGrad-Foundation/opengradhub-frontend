@@ -256,7 +256,7 @@ export function QuestionSlideOver({
         answer_time_minutes: answerTime ? Number(answerTime) : undefined,
         instruction_html: instruction.trim() || undefined,
         evaluation_criteria_json: evaluationCriteria.length > 0 
-          ? JSON.stringify(evaluationCriteria.filter(c => c.criteria.trim()).map(c => ({ criteria: c.criteria.trim(), percentage: c.percentage ? Number(c.percentage) : 0 })))
+          ? evaluationCriteria.filter(c => c.criteria.trim()).map(c => ({ criteria: c.criteria.trim(), percentage: c.percentage ? Number(c.percentage) : 0 }))
           : undefined,
       };
 
