@@ -32,7 +32,7 @@ export function QuestionView({
     <div>
       {q.question_type !== "GROUP" && (
         <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERICAL" ? "Numeric" : "Fill in the Blank"}
+          {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERICAL" ? "Numeric" : q.question_type === "ESSAY" ? "Essay" : "Fill in the Blank"}
         </p>
       )}
       <MathContent
@@ -85,6 +85,26 @@ export function QuestionView({
             color: "#034852",
             outline: "none",
             boxSizing: "border-box",
+          }}
+        />
+      )}
+
+      {q.question_type === "ESSAY" && (
+        <textarea
+          placeholder="Type your essay answer here…"
+          value={current ?? ""}
+          onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
+          rows={6}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            borderRadius: "10px",
+            border: "1.5px solid rgba(3,72,82,0.2)",
+            fontSize: "15px",
+            color: "#034852",
+            outline: "none",
+            boxSizing: "border-box",
+            resize: "vertical",
           }}
         />
       )}

@@ -692,6 +692,9 @@ function formatCorrectAnswer(q: PracticePayloadQuestion): string | null {
       ? `${q.correct_answer} (±${q.tolerance})`
       : q.correct_answer;
   }
+  if (q.question_type === "ESSAY") {
+    return "Subject to manual evaluation based on grading criteria.";
+  }
   // FILL / SHORT_ANSWER — no single canonical answer; explanation does the work.
   return null;
 }
