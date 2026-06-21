@@ -1099,6 +1099,7 @@ export type LiveClass = {
   description: string | null;
   scheduled_at: string;
   duration_minutes: number;
+  meeting_url: string;
   course_id: string | null;
   course_title: string | null;
   programme_type: string | null;
@@ -1183,6 +1184,43 @@ export async function getLiveClassAttendees(id: string): Promise<LiveClassAttend
     throw new ApiError(err?.message ?? "Failed to fetch attendees.", r.status);
   }
   return (await r.json()) as LiveClassAttendeesResult;
+}
+
+export async function updateLiveClass(
+  id: string,
+  payload: {
+    title?: string;
+    description?: string;
+    scheduled_at?: string;
+    duration_minutes?: number;
+    meeting_url?: string;
+    course_id?: string;
+    programme_type?: string;
+    batch_ids?: string[];
+  },
+): Promise<LiveClass> {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update live class.", r.status);
+  }
+  return (await r.json()) as LiveClass;
+}
+
+export async function deleteLiveClass(id: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete live class.", r.status);
+  }
 }
 
 // ── Notifications API ──────────────────────────────────────────
@@ -2569,6 +2607,27 @@ export async function deleteUser(userId: string): Promise<void> {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
   }
+}
+
+/** Bulk hard-delete: deletes multiple users in one request. Returns per-ID results. */
+export async function bulkDeleteUsers(ids: string[]): Promise<{
+  deleted: string[];
+  failed: { id: string; reason: string }[];
+}> {
+  const response = await apiFetch(
+    `${API_BASE_URL}/users/bulk`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to bulk delete users.", response.status);
+  }
+  return response.json() as Promise<{ deleted: string[]; failed: { id: string; reason: string }[] }>;
 }
 
 /** Archive (soft-delete): sets status → INACTIVE. Reversible. */
