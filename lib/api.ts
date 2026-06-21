@@ -7,7 +7,7 @@ import type {
 } from "./types";
 import type { PracticePayload } from "./practiceStore";
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 
 // ── Auth token store ───────────────────────────────────────────────────────────
@@ -171,6 +171,30 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
   }
 
   return (await response.json()) as SafeUser[];
+}
+
+export type StudentRosterItem = {
+  id: string;
+  name: string;
+  email: string | null;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  programme_type: string | null;
+  state: string | null;
+  district: string | null;
+};
+
+/**
+ * Fetch the student roster via GET /users/students, which Program Managers
+ * can access (analytics.view_manager) unlike GET /users (user_management.view).
+ */
+export async function getStudentsList(): Promise<StudentRosterItem[]> {
+  const response = await apiFetch(`${API_BASE_URL}/users/students`);
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch students.", response.status);
+  }
+  return (await response.json()) as StudentRosterItem[];
 }
 
 /**
@@ -879,6 +903,8 @@ export async function updateCourse(
 
 // ── Questions / Test Bank API ──────────────────────────────────
 
+export type EvaluationCriterion = { criteria: string; percentage: number };
+
 export type QuestionOption = {
   id: string;
   option_text: string;
@@ -888,7 +914,7 @@ export type QuestionOption = {
 export type Question = {
   id: string;
   quiz_id: string | null;
-  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
   content_html: string;
   correct_answer: string | null;
   tolerance: number | null;
@@ -897,6 +923,11 @@ export type Question = {
   topic: string | null;
   difficulty: string | null;
   explanation_video_url: string | null;
+  marks: number | null;
+  negative_marks: number | null;
+  answer_time_minutes: number | null;
+  instruction_html: string | null;
+  evaluation_criteria_json: EvaluationCriterion[] | null;
   created_by: string | null;
   options: QuestionOption[];
   children: Question[];
@@ -909,12 +940,17 @@ export type CreateChildPayload = {
   content_html: string;
   correct_answer?: string;
   tolerance?: number;
+  marks?: number;
+  negative_marks?: number;
+  answer_time_minutes?: number;
+  instruction_html?: string;
+  evaluation_criteria_json?: EvaluationCriterion[];
   options?: CreateOptionPayload[];
 };
 
 export type CreateQuestionPayload = {
   quiz_id?: string;
-  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP";
+  question_type: "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
   content_html: string;
   correct_answer?: string;
   tolerance?: number;
@@ -923,6 +959,11 @@ export type CreateQuestionPayload = {
   topic?: string;
   difficulty?: string;
   explanation_video_url?: string;
+  marks?: number;
+  negative_marks?: number;
+  answer_time_minutes?: number;
+  instruction_html?: string;
+  evaluation_criteria_json?: EvaluationCriterion[];
   created_by?: string;
   options?: CreateOptionPayload[];
   children?: CreateChildPayload[];
@@ -1045,9 +1086,23 @@ export type LiveClass = {
   course_id: string | null;
   course_title: string | null;
   programme_type: string | null;
+  batch_ids: string[] | null;
   created_by: string | null;
   created_at: string;
   attendee_count: number;
+  attended?: boolean;
+};
+
+export type LiveClassAttendee = {
+  id: string;
+  name: string;
+  email: string;
+  joined_at: string;
+};
+
+export type LiveClassAttendeesResult = {
+  joined: LiveClassAttendee[];
+  missed: Omit<LiveClassAttendee, "joined_at">[];
 };
 
 export async function getLiveClasses(): Promise<LiveClass[]> {
@@ -1103,6 +1158,15 @@ export async function createLiveClass(payload: {
     throw new ApiError(err?.message ?? "Failed to create live class.", r.status);
   }
   return (await r.json()) as LiveClass;
+}
+
+export async function getLiveClassAttendees(id: string): Promise<LiveClassAttendeesResult> {
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/${id}/attendees`);
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch attendees.", r.status);
+  }
+  return (await r.json()) as LiveClassAttendeesResult;
 }
 
 // ── Notifications API ──────────────────────────────────────────
@@ -1171,6 +1235,8 @@ export type Assignment = {
   due_at: string;
   course_id: string | null;
   course_title: string | null;
+  batch_id: string | null;
+  batch_name: string | null;
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
@@ -1227,6 +1293,7 @@ export async function createAssignment(payload: {
   attachment_url?: string;
   due_at: string;
   course_id?: string;
+  batch_id?: string;
 }): Promise<Assignment> {
   const r = await apiFetch(`${API_BASE_URL}/assignments`, {
     method: "POST",
@@ -1243,12 +1310,19 @@ export async function createAssignment(payload: {
 
 export async function submitAssignment(
   assignmentId: string,
-  payload: { student_id: string; response_text?: string; file_urls?: string[] },
+  payload: { response_text?: string; files?: File[] },
 ): Promise<Submission> {
+  const form = new FormData();
+  if (payload.response_text) form.append("response_text", payload.response_text);
+  for (const file of payload.files ?? []) {
+    form.append("files", file);
+  }
+
+  // Do not set Content-Type — the browser sets multipart/form-data with the
+  // correct boundary automatically when a FormData body is used.
   const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: form,
     cache: "no-store",
   });
   if (!r.ok) {
@@ -1262,6 +1336,16 @@ export async function getSubmissions(assignmentId: string): Promise<Submission[]
   const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`);
   if (!r.ok) throw new ApiError("Failed to fetch submissions.", r.status);
   return (await r.json()) as Submission[];
+}
+
+export async function getSubmissionDownloadUrl(key: string): Promise<string> {
+  const r = await apiFetch(`${API_BASE_URL}/assignments/submissions/download?key=${encodeURIComponent(key)}`);
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to get download URL.", r.status);
+  }
+  const { url } = (await r.json()) as { url: string };
+  return url;
 }
 
 export async function patchSubmission(
@@ -1422,6 +1506,10 @@ export type CalendarItem = {
   is_all_day: boolean;
   source: "custom" | "live_class" | "assignment";
   ref_id: string | null;
+  // Audience fields — only populated for source === 'custom', used by the edit modal
+  programme_type?: string | null;
+  state?: string | null;
+  batch_ids?: string[] | null;
 };
 
 export type CreateCalendarEventPayload = {
@@ -1435,6 +1523,7 @@ export type CreateCalendarEventPayload = {
   state?: string;
   school_ids?: string[];
   course_ids?: string[];
+  batch_ids?: string[];
 };
 
 export async function getCalendar(from?: string, to?: string): Promise<CalendarItem[]> {
@@ -1461,6 +1550,44 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
   if (!r.ok) throw new ApiError("Failed to delete event.", r.status);
 }
 
+export type UpdateCalendarEventPayload = {
+  title?: string;
+  description?: string | null;
+  event_type?: "EXAM" | "HOLIDAY" | "WORKSHOP" | "OTHER";
+  starts_at?: string;
+  ends_at?: string | null;
+  is_all_day?: boolean;
+  programme_type?: "UG" | "PG" | null;
+  state?: string | null;
+  batch_ids?: string[] | null;
+};
+
+export async function updateCalendarEvent(
+  id: string,
+  payload: UpdateCalendarEventPayload,
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/calendar/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!r.ok) throw new ApiError("Failed to update event.", r.status);
+}
+
+
+export async function deleteQuestions(ids: string[]): Promise<{ deleted: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/bulk-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete questions.", r.status);
+  }
+  return (await r.json()) as { deleted: number };
+}
+
 export async function getBatchComparison(studentId: string, courseId: string): Promise<BatchComparison> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/batch-comparison?course_id=${courseId}`);
   if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r.status);
@@ -1482,6 +1609,17 @@ export async function getQuizById(id: string): Promise<Quiz> {
   return (await r.json()) as Quiz;
 }
 
+export async function deleteQuiz(id: string): Promise<{ success: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete quiz.", r.status);
+  }
+  return (await r.json()) as { success: boolean };
+}
+
 export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes`, {
     method: "POST",
@@ -1494,6 +1632,35 @@ export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
     throw new ApiError(err?.message ?? "Failed to create quiz.", r.status);
   }
   return (await r.json()) as Quiz;
+}
+
+export async function bulkImportQuiz(fileContent: string): Promise<{ quiz_id: string; sections: number; questions: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_content: fileContent }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to import quiz.", r.status);
+  }
+  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
+}
+
+export async function bulkImportQuizFromPdf(file: File): Promise<{ quiz_id: string; sections: number; questions: number }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import-pdf`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to import quiz from PDF.", r.status);
+  }
+  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
 }
 
 export async function updateQuiz(
@@ -2060,6 +2227,7 @@ export type Resource = {
   url: string;
   type: string | null;
   programme_type: string | null;
+  batch_ids: string[] | null;
   created_at: string;
 };
 
@@ -2111,6 +2279,62 @@ export async function createResource(payload: {
   }
 
   return (await response.json()) as Resource;
+}
+
+/**
+ * Update an existing resource.
+ */
+export async function updateResource(
+  id: string,
+  payload: {
+    title: string;
+    description?: string;
+    url: string;
+    type?: string;
+    programme_type?: string;
+    batch_ids?: string[];
+  },
+): Promise<Resource> {
+  const response = await apiFetch(`${API_BASE_URL}/resources/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+
+    throw new ApiError(
+      errorBody?.message ?? "Failed to update resource.",
+      response.status,
+    );
+  }
+
+  return (await response.json()) as Resource;
+}
+
+/**
+ * Delete a resource by id.
+ */
+export async function deleteResource(id: string): Promise<void> {
+  const response = await apiFetch(`${API_BASE_URL}/resources/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+
+    throw new ApiError(
+      errorBody?.message ?? "Failed to delete resource.",
+      response.status,
+    );
+  }
 }
 
 // ── User Management API ────────────────────────────────────────

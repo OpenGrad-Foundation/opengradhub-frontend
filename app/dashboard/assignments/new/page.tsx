@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { createAssignment, getCourses, type Course } from "@/lib/api";
+import { createAssignment, getCourses, getBatches, type Course, type Batch } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 export default function NewAssignmentPage() {
   const router = useRouter();
@@ -19,13 +19,18 @@ export default function NewAssignmentPage() {
   const [attachUrl, setAttachUrl] = useState("");
   const [dueAt, setDueAt]         = useState("");
   const [courseId, setCourseId]   = useState("");
+  const [batchId, setBatchId]     = useState("");
   const [courses, setCourses]     = useState<Course[]>([]);
+  const [batches, setBatches]     = useState<Batch[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
 
   useEffect(() => {
     getCourses(undefined, undefined, undefined, true)
       .then(all => setCourses(all.filter(c => c.status === "ACTIVE")))
+      .catch(() => {});
+    getBatches("ACTIVE")
+      .then(all => setBatches(all))
       .catch(() => {});
   }, []);
 
@@ -52,6 +57,7 @@ export default function NewAssignmentPage() {
         attachment_url:    attachUrl.trim() || undefined,
         due_at:            new Date(dueAt).toISOString(),
         course_id:         courseId || undefined,
+        batch_id:          batchId || undefined,
       });
       invalidate('assignments');
       router.replace(`/dashboard/assignments/${a.id}/submissions`);
@@ -88,21 +94,30 @@ export default function NewAssignmentPage() {
             />
           </Field>
 
+          <Field label="Due Date & Time *">
+            <input
+              type="datetime-local"
+              value={dueAt}
+              onChange={e => setDueAt(e.target.value)}
+              style={S.input}
+              required
+            />
+          </Field>
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-            <Field label="Due Date & Time *">
-              <input
-                type="datetime-local"
-                value={dueAt}
-                onChange={e => setDueAt(e.target.value)}
-                style={S.input}
-                required
-              />
-            </Field>
             <Field label="Course (optional)">
               <select value={courseId} onChange={e => setCourseId(e.target.value)} style={S.input}>
                 <option value="">No course association</option>
                 {courses.map(c => (
                   <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Batch (optional)">
+              <select value={batchId} onChange={e => setBatchId(e.target.value)} style={S.input}>
+                <option value="">No batch association</option>
+                {batches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name}{b.programme_type ? ` (${b.programme_type})` : ""}</option>
                 ))}
               </select>
             </Field>

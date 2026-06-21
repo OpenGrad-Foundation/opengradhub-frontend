@@ -62,6 +62,25 @@ export default function UserManagementPage() {
   const [assignBatchStudent, setAssignBatchStudent] = useState<SafeUser | null>(null);
   const [selectedUser, setSelectedUser] = useState<SafeUser | null>(null);
   const currentUserId = data?.user?.id ?? "";
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+
+  const filteredUsers = useMemo(() => {
+    let result = users;
+    if (roleFilter) {
+      result = result.filter(u => u.role === roleFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter((u) => 
+        u.name?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.role?.toLowerCase().includes(q) ||
+        u.programme_type?.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [users, searchQuery, roleFilter]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -196,6 +215,25 @@ export default function UserManagementPage() {
         <div style={glassCard}><p style={{ ...titleStyle, color: "#e53e3e" }}>{error}</p></div>
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <input
+              type="text"
+              placeholder="Search users by name, email, role, or programme..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, flex: 1, minWidth: "200px" }}
+            />
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: "160px" }}
+            >
+              <option value="">All Roles</option>
+              {ALL_ROLES.map((r) => (
+                <option key={r.code} value={r.code}>{r.label}</option>
+              ))}
+            </select>
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
               <thead>
@@ -206,7 +244,13 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => {
+                {filteredUsers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.6)", fontSize: "13px" }}>
+                      No users match your search.
+                    </td>
+                  </tr>
+                ) : filteredUsers.map((u) => {
                   const isSelected = selectedUser?.id === u.id;
                   return (
                     <tr

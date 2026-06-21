@@ -37,7 +37,7 @@ function formatSeconds(s: number): string {
 }
 
 function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
-  const isManualGrading = q.question_type === "FILL";
+  const isManualGrading = q.question_type === "FILL" || q.question_type === "ESSAY";
   const correctPct = !isManualGrading && q.batch_total_count > 0
     ? Math.round((q.batch_correct_count / q.batch_total_count) * 100)
     : null;
@@ -184,12 +184,12 @@ function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; id
             </div>
           )}
 
-          {/* FILL / NUMERICAL */}
-          {(q.question_type === "FILL" || q.question_type === "NUMERICAL") && (
+          {/* FILL / NUMERICAL / ESSAY */}
+          {(q.question_type === "FILL" || q.question_type === "NUMERICAL" || q.question_type === "ESSAY") && (
             <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "12px" }}>
-              <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.1)" }}>
+              <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.1)", flex: 1, minWidth: "250px" }}>
                 <p style={{ margin: 0, fontSize: "11px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>Your answer</p>
-                <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: q.is_correct === false ? "#e53e3e" : "#034852" }}>
+                <p style={{ margin: "4px 0 0", fontSize: "14px", fontWeight: 700, color: q.is_correct === false ? "#e53e3e" : "#034852", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                   {q.student_answer ?? "—"}
                 </p>
               </div>
