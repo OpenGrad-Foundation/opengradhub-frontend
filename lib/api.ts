@@ -1235,6 +1235,8 @@ export type Assignment = {
   due_at: string;
   course_id: string | null;
   course_title: string | null;
+  batch_id: string | null;
+  batch_name: string | null;
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
@@ -1291,6 +1293,7 @@ export async function createAssignment(payload: {
   attachment_url?: string;
   due_at: string;
   course_id?: string;
+  batch_id?: string;
 }): Promise<Assignment> {
   const r = await apiFetch(`${API_BASE_URL}/assignments`, {
     method: "POST",
