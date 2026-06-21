@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { patchSubmission, type Submission } from "@/lib/api";
+import { getSubmissionDownloadUrl, patchSubmission, type Submission } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
@@ -98,13 +99,7 @@ export function GradePanel({
       {sub.file_urls.length > 0 && (
         <div style={{ marginBottom: "14px" }}>
           <p style={{ ...sectionLabel, marginBottom: "8px" }}>Files</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {sub.file_urls.map((url, i) => (
-              <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#209379", fontWeight: 600, textDecoration: "none" }}>
-                📎 {url.split("/").pop() ?? url}
-              </a>
-            ))}
-          </div>
+          <GradeSubmissionFiles fileKeys={sub.file_urls} />
         </div>
       )}
 
@@ -133,6 +128,69 @@ export function GradePanel({
           {saved && <span style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700 }}>✓ Saved</span>}
         </div>
       </div>
+    </div>
+  );
+}
+
+function GradeSubmissionFiles({ fileKeys }: { fileKeys: string[] }) {
+  const [entries, setEntries] = useState<ZipEntry[] | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const nested = await Promise.all(
+          fileKeys.map(async (key) => {
+            const url = await getSubmissionDownloadUrl(key);
+            return getZipEntries(url);
+          })
+        );
+        setEntries(nested.flat());
+      } catch {
+        setLoadError("Could not load submission files.");
+      } finally {
+        setLoadingFiles(false);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loadingFiles) return <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>Loading files…</p>;
+  if (loadError) return <p style={{ fontSize: "12px", color: "#e53e3e", margin: 0 }}>{loadError}</p>;
+  if (!entries || entries.length === 0) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      {entries.map((entry, i) => <GradeFileCard key={i} entry={entry} />)}
+    </div>
+  );
+}
+
+function GradeFileCard({ entry }: { entry: ZipEntry }) {
+  const [opening, setOpening] = useState(false);
+
+  async function handleOpen() {
+    setOpening(true);
+    try {
+      await entry.open();
+    } catch (err) {
+      console.error("Failed to open file:", err);
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(3,72,82,0.04)", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)" }}>
+      <span style={{ fontSize: "15px", flexShrink: 0 }}>📄</span>
+      <span style={{ fontSize: "12px", color: "#034852", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
+      <button
+        onClick={() => void handleOpen()}
+        disabled={opening}
+        style={{ flexShrink: 0, padding: "4px 10px", border: "1px solid rgba(32,147,121,0.35)", borderRadius: "6px", background: opening ? "rgba(32,147,121,0.06)" : "rgba(32,147,121,0.1)", color: "#209379", fontSize: "11px", fontWeight: 700, cursor: opening ? "wait" : "pointer", whiteSpace: "nowrap" }}
+      >
+        {opening ? "Opening…" : "Open"}
+      </button>
     </div>
   );
 }

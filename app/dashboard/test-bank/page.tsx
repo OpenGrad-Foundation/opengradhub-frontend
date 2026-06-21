@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, getQuizzes, type Question, type Quiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, type Question, type Quiz } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
   QuestionSlideOver,
@@ -38,6 +38,7 @@ export default function TestBankPage() {
   const [panelOpen, setPanelOpen]     = useState(false);
   const [editTarget, setEditTarget]   = useState<Question | null>(null);
   const [bulkOpen, setBulkOpen]       = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Created Global/Program tests — entry point to re-open them in the builder.
   const [globalTests, setGlobalTests] = useState<Omit<Quiz, "questions">[]>([]);
@@ -93,6 +94,19 @@ export default function TestBankPage() {
     }
   }
 
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Delete ${selectedIds.size} selected question(s)?`)) return;
+    try {
+      await deleteQuestions(Array.from(selectedIds));
+      invalidate('quizzes');
+      setSelectedIds(new Set());
+      void fetchQuestions();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Bulk delete failed.");
+    }
+  }
+
   return (
     <div style={{ position: "relative" }}>
       {/* ── Header ────────────────────────────────────────── */}
@@ -112,6 +126,9 @@ export default function TestBankPage() {
           <button style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }} onClick={() => setBulkOpen((v) => !v)}>
             ⬆ Upload CSV
           </button>
+          <Link href="/dashboard/quiz-builder/bulk-import" style={{ ...primaryBtn, background: "linear-gradient(135deg, #932079 0%, #4a0f3d 100%)", textDecoration: "none" }}>
+            ⬆ Bulk Import Quiz
+          </Link>
         </div>
       </div>
 
@@ -133,7 +150,11 @@ export default function TestBankPage() {
             </p>
           </div>
           {globalTests.map((t, i) => (
-            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} />
+            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => {
+              if (confirm(`Delete test: "${t.title}"?`)) {
+                deleteQuiz(t.id).then(() => fetchGlobalTests()).catch(e => alert(e.message));
+              }
+            }} />
           ))}
         </div>
       )}
@@ -157,6 +178,17 @@ export default function TestBankPage() {
             Clear
           </button>
         )}
+        
+        {selectedIds.size > 0 && (
+          <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.6)" }}>
+              {selectedIds.size} selected
+            </span>
+            <button onClick={handleBulkDelete} style={{ ...outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }}>
+              Delete Selected
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Question list ─────────────────────────────────── */}
@@ -179,6 +211,13 @@ export default function TestBankPage() {
               key={q.id}
               question={q}
               isLast={i === questions.length - 1}
+              selected={selectedIds.has(q.id)}
+              onToggleSelect={() => {
+                const next = new Set(selectedIds);
+                if (next.has(q.id)) next.delete(q.id);
+                else next.add(q.id);
+                setSelectedIds(next);
+              }}
               onEdit={() => openEdit(q)}
               onDelete={() => void handleDelete(q.id, q.content_html)}
             />
@@ -201,7 +240,7 @@ export default function TestBankPage() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast }: { quiz: Omit<Quiz, "questions">; isLast: boolean }) {
+function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions">; isLast: boolean; onDelete: () => void }) {
   const created = new Date(quiz.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   return (
     <div
@@ -226,6 +265,9 @@ function GlobalTestRow({ quiz, isLast }: { quiz: Omit<Quiz, "questions">; isLast
         <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
           Edit →
         </Link>
+        <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
+          Delete
+        </button>
       </div>
     </div>
   );
@@ -233,17 +275,25 @@ function GlobalTestRow({ quiz, isLast }: { quiz: Omit<Quiz, "questions">; isLast
 
 // ── Question Row ───────────────────────────────────────────────
 
-function QuestionRow({ question, isLast, onEdit, onDelete }: { question: Question; isLast: boolean; onEdit: () => void; onDelete: () => void }) {
+function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = question.question_type === "GROUP" && question.children.length > 0;
 
   return (
-    <div style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)" }}>
+    <div style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)", background: selected ? "rgba(3,72,82,0.02)" : "transparent" }}>
       <div
         className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3.5 px-6 py-4"
         style={{ cursor: hasChildren ? "pointer" : "default" }}
         onClick={() => hasChildren && setExpanded(e => !e)}
       >
+        <div style={{ paddingTop: "2px", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+          <input 
+            type="checkbox" 
+            checked={selected} 
+            onChange={onToggleSelect} 
+            style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
+          />
+        </div>
         <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />

@@ -7,6 +7,7 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { joinLiveClass, type LiveClass } from "@/lib/api";
 import { useLiveClasses } from "@/lib/queries/live-classes";
+import { LiveClassAttendeesModal } from "./_components/LiveClassAttendeesModal";
 
 export default function LiveClassesPage() {
   const { data, isLoading } = useCurrentUser();
@@ -17,8 +18,9 @@ export default function LiveClassesPage() {
   const canJoin   = has(PERM.live_classes.join);
   const isManager = canCreate;
 
-  const [joining,  setJoining]  = useState<string | null>(null);
-  const [now,      setNow]      = useState(0);
+  const [joining,      setJoining]      = useState<string | null>(null);
+  const [now,          setNow]          = useState(0);
+  const [selectedClass, setSelectedClass] = useState<{ id: string; title: string } | null>(null);
 
   const { data: classes = [], isPending: loading, error: queryError } = useLiveClasses();
   const error = queryError ? (queryError as Error).message : null;
@@ -87,7 +89,8 @@ export default function LiveClassesPage() {
             <Section title="Upcoming">
               {upcoming.map(cls => (
                 <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
-                  onJoin={() => void handleJoin(cls)} joining={joining === cls.id} />
+                  onJoin={() => void handleJoin(cls)} joining={joining === cls.id}
+                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined} />
               ))}
             </Section>
           )}
@@ -95,11 +98,20 @@ export default function LiveClassesPage() {
             <Section title="Past Sessions">
               {past.map(cls => (
                 <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
-                  onJoin={() => void handleJoin(cls)} joining={joining === cls.id} past />
+                  onJoin={() => void handleJoin(cls)} joining={joining === cls.id} past
+                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined} />
               ))}
             </Section>
           )}
         </div>
+      )}
+
+      {selectedClass && (
+        <LiveClassAttendeesModal
+          liveClassId={selectedClass.id}
+          title={selectedClass.title}
+          onClose={() => setSelectedClass(null)}
+        />
       )}
     </div>
   );
@@ -114,9 +126,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past }: {
+function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onViewAttendees }: {
   cls: LiveClass; isManager: boolean; mayJoin: boolean; now: number;
   onJoin: () => void; joining: boolean; past?: boolean;
+  onViewAttendees?: () => void;
 }) {
   const scheduledMs  = new Date(cls.scheduled_at).getTime();
   const endsMs       = scheduledMs + cls.duration_minutes * 60_000;
@@ -164,7 +177,14 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past }: {
           <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>· {cls.duration_minutes} min</span>
           {cls.course_title && <span style={{ fontSize: "12px", color: "#209379", fontWeight: 600 }}>· {cls.course_title}</span>}
           {cls.programme_type && <span style={{ fontSize: "12px", color: "#209379", fontWeight: 600 }}>· {cls.programme_type}</span>}
-          {isManager && <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>· {cls.attendee_count} attendees</span>}
+          {isManager && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewAttendees?.(); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: onViewAttendees ? "pointer" : "default", fontSize: "12px", color: onViewAttendees ? "#209379" : "rgba(3,72,82,0.45)", fontWeight: onViewAttendees ? 600 : 400, textDecoration: onViewAttendees ? "underline" : "none" }}
+            >
+              · {cls.attendee_count} attendees
+            </button>
+          )}
         </div>
       </div>
 
@@ -185,6 +205,24 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past }: {
               <strong style={{ color: "#034852" }}>{msToCountdown(msUntil)}</strong>
             </p>
           )}
+        </div>
+      )}
+
+      {/* Joined / Missed badge for students on past classes */}
+      {!isManager && past && (
+        <div style={{ flexShrink: 0 }}>
+          <span style={{
+            display: "inline-block",
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "12px",
+            fontWeight: 700,
+            ...(cls.attended
+              ? { background: "rgba(10,190,98,0.12)", color: "#0abe62" }
+              : { background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.4)" }),
+          }}>
+            {cls.attended ? "Joined" : "Missed"}
+          </span>
         </div>
       )}
     </div>

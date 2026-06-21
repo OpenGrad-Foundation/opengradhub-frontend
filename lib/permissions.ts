@@ -4,7 +4,7 @@
  * and the frontend `usePermission(...)` checks.
  *
  * Keep in sync with `opengradhub-backend/src/database/migrations/022_pbac_full_modules.sql`
- * (and `contextfile/RBAC_MODULES.md`). 17 modules · 62 permissions.
+ * (and `contextfile/RBAC_MODULES.md`). 17 modules · 64 permissions.
  *
  * Using this map instead of bare string literals gives compile-time protection
  * against typos in `usePermission(PERM.courses.create)`.
@@ -59,6 +59,8 @@ export const PERM = {
   calendar: {
     view:   "calendar.view",
     create: "calendar.create",
+    edit:   "calendar.edit",
+    delete: "calendar.delete",
   },
   resources: {
     view: "resources.view",
