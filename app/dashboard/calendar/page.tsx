@@ -7,13 +7,15 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
-  createCalendarEvent, deleteCalendarEvent,
-  type CalendarItem, type CreateCalendarEventPayload,
+  createCalendarEvent, deleteCalendarEvent, updateCalendarEvent,
+  type CalendarItem, type CreateCalendarEventPayload, type UpdateCalendarEventPayload,
 } from "@/lib/api";
 import { useCalendar } from "@/lib/queries/calendar";
+import { useBatches } from "@/lib/queries/batches";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -36,8 +38,11 @@ export default function CalendarPage() {
   const { isLoading } = useCurrentUser();
   const { has } = usePermissions();
   const canCreate = has(PERM.calendar.create);
+  const canEdit   = has(PERM.calendar.edit);
+  const canDelete = has(PERM.calendar.delete);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarItem | null>(null);
   const queryClient = useQueryClient();
   const invalidate = useInvalidate();
 
@@ -111,7 +116,9 @@ export default function CalendarPage() {
                   <EventRow
                     key={ev.id + ev.source}
                     item={ev}
-                    canDelete={canCreate}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    onEdit={() => setEditingEvent(ev)}
                     onDelete={async () => {
                       if (ev.source !== "custom") return;
                       if (!confirm(`Delete "${ev.title}"?`)) return;
@@ -133,15 +140,28 @@ export default function CalendarPage() {
           onCreated={() => { setShowCreate(false); void queryClient.invalidateQueries({ queryKey: ["og","calendar"] }); }}
         />
       )}
+
+      {editingEvent && (
+        <EditEventModal
+          event={editingEvent}
+          onClose={() => setEditingEvent(null)}
+          onSaved={() => {
+            setEditingEvent(null);
+            void queryClient.invalidateQueries({ queryKey: ["og","calendar"] });
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ── Event row ──────────────────────────────────────────────────────────────────
 
-function EventRow({ item, canDelete, onDelete }: {
+function EventRow({ item, canEdit, canDelete, onEdit, onDelete }: {
   item: CalendarItem;
+  canEdit: boolean;
   canDelete: boolean;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const c = cfg(item.event_type);
@@ -174,6 +194,13 @@ function EventRow({ item, canDelete, onDelete }: {
           </p>
         )}
       </div>
+      {canEdit && item.source === "custom" && (
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", color: "rgba(3,72,82,0.45)", padding: "4px", flexShrink: 0 }}
+          title="Edit event"
+        >✎</button>
+      )}
       {canDelete && item.source === "custom" && (
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
@@ -205,9 +232,11 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
     starts_at: "", ends_at: "", is_all_day: false,
     programme_type: "", state: "",
   });
+  const [batchIds, setBatchIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const invalidate = useInvalidate();
+  const { data: batches = [] } = useBatches("ACTIVE");
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -225,6 +254,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
       is_all_day:     form.is_all_day,
       programme_type: (form.programme_type || undefined) as CreateCalendarEventPayload["programme_type"],
       state:          form.state || undefined,
+      batch_ids:      batchIds.length ? batchIds : undefined,
     };
     try {
       await createCalendarEvent(payload);
@@ -293,6 +323,16 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </Field>
           </div>
 
+          {batches.length > 0 && (
+            <Field label="Batches">
+              <BatchMultiPicker
+                value={batchIds}
+                onChange={setBatchIds}
+                inputStyle={inputStyle}
+              />
+            </Field>
+          )}
+
           <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
             School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
           </p>
@@ -301,6 +341,144 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
           <button onClick={submit} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Create Event"}
+          </button>
+          <button onClick={onClose} style={secondaryBtn}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Edit event modal ──────────────────────────────────────────────────────────
+
+function EditEventModal({ event, onClose, onSaved }: {
+  event: CalendarItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState<{
+    title: string; description: string; event_type: string;
+    starts_at: string; ends_at: string; is_all_day: boolean;
+    programme_type: string; state: string;
+  }>({
+    title:          event.title,
+    description:    event.description ?? "",
+    event_type:     event.event_type,
+    starts_at:      event.starts_at ? new Date(event.starts_at).toISOString().slice(0, 16) : "",
+    ends_at:        event.ends_at   ? new Date(event.ends_at).toISOString().slice(0, 16)   : "",
+    is_all_day:     event.is_all_day,
+    programme_type: event.programme_type ?? "",
+    state:          event.state ?? "",
+  });
+  const [batchIds, setBatchIds] = useState<string[]>(event.batch_ids ?? []);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const invalidate = useInvalidate();
+  const { data: batches = [] } = useBatches("ACTIVE");
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit() {
+    if (!form.title.trim() || !form.starts_at) { setErr("Title and start date are required."); return; }
+    setSaving(true); setErr(null);
+    const payload: UpdateCalendarEventPayload = {
+      title:          form.title.trim(),
+      description:    form.description.trim() || null,
+      event_type:     form.event_type as UpdateCalendarEventPayload["event_type"],
+      starts_at:      new Date(form.starts_at).toISOString(),
+      ends_at:        form.ends_at ? new Date(form.ends_at).toISOString() : null,
+      is_all_day:     form.is_all_day,
+      programme_type: (form.programme_type || null) as UpdateCalendarEventPayload["programme_type"],
+      state:          form.state || null,
+      batch_ids:      batchIds.length ? batchIds : null,
+    };
+    try {
+      await updateCalendarEvent(event.id, payload);
+      invalidate('calendar');
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed to update event.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
+      <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+          <h2 style={{ ...S.heading, fontSize: "20px", margin: 0 }}>Edit Calendar Event</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "rgba(3,72,82,0.4)" }}>✕</button>
+        </div>
+
+        {err && <p style={{ color: "#c53030", fontSize: "13px", marginBottom: "16px" }}>{err}</p>}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <Field label="Title *">
+            <input value={form.title} onChange={(e) => set("title", e.target.value)} style={inputStyle} placeholder="Event title" />
+          </Field>
+
+          <Field label="Type">
+            <select value={form.event_type} onChange={(e) => set("event_type", e.target.value)} style={inputStyle}>
+              {EVENT_TYPES.map((t) => <option key={t} value={t}>{cfg(t).label}</option>)}
+            </select>
+          </Field>
+
+          <Field label="Description">
+            <textarea value={form.description} onChange={(e) => set("description", e.target.value)} style={{ ...inputStyle, minHeight: "72px", resize: "vertical" }} placeholder="Optional details" />
+          </Field>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Field label="Start *">
+              <input type="datetime-local" value={form.starts_at} onChange={(e) => set("starts_at", e.target.value)} style={inputStyle} />
+            </Field>
+            <Field label="End">
+              <input type="datetime-local" value={form.ends_at} onChange={(e) => set("ends_at", e.target.value)} style={inputStyle} />
+            </Field>
+          </div>
+
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#034852", fontWeight: 600, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.is_all_day} onChange={(e) => set("is_all_day", e.target.checked)} />
+            All-day event
+          </label>
+
+          <p style={{ ...S.label, marginTop: "8px" }}>Audience (leave blank = everyone)</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Field label="Programme">
+              <select value={form.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={inputStyle}>
+                <option value="">All programmes</option>
+                {PROGRAMMES.filter(Boolean).map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </Field>
+            <Field label="State">
+              <select value={form.state} onChange={(e) => set("state", e.target.value)} style={inputStyle}>
+                <option value="">All states</option>
+                {STATES.filter(Boolean).map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+              </select>
+            </Field>
+          </div>
+
+          {batches.length > 0 && (
+            <Field label="Batches">
+              <BatchMultiPicker
+                value={batchIds}
+                onChange={setBatchIds}
+                inputStyle={inputStyle}
+              />
+            </Field>
+          )}
+
+          <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
+            School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+          <button onClick={submit} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+            {saving ? "Saving…" : "Save Changes"}
           </button>
           <button onClick={onClose} style={secondaryBtn}>Cancel</button>
         </div>

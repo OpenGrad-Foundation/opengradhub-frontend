@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getLiveClasses, getNextLiveClass } from '../api';
+import { getLiveClasses, getNextLiveClass, getLiveClassAttendees } from '../api';
 import { qk } from './keys';
 
 /** Layer 4 — Tier 2 live-class hooks. Memory-only. */
@@ -18,6 +18,15 @@ export function useNextLiveClass(studentId: string) {
     queryKey: qk.nextLiveClass(studentId),
     queryFn: () => getNextLiveClass(studentId),
     enabled: !!studentId,
+    staleTime: 60_000,
+  });
+}
+
+export function useLiveClassAttendees(id: string) {
+  return useQuery({
+    queryKey: qk.liveClassAttendees(id),
+    queryFn: () => getLiveClassAttendees(id),
+    enabled: !!id,
     staleTime: 60_000,
   });
 }

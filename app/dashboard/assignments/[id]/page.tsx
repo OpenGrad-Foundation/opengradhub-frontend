@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import DOMPurify from "isomorphic-dompurify";
+import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getAssignmentById,
+  getSubmissionDownloadUrl,
   submitAssignment,
   type Assignment,
   type Submission,
@@ -166,12 +168,66 @@ function PriorSubmission({ sub }: { sub: MySubmission }) {
 }
 
 function SubmissionFiles({ files }: { files: string[] }) {
+  const [entries, setEntries] = useState<ZipEntry[] | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!files || files.length === 0) { setLoadingFiles(false); return; }
+    void (async () => {
+      try {
+        const nested = await Promise.all(
+          files.map(async (key) => {
+            const url = await getSubmissionDownloadUrl(key);
+            return getZipEntries(url);
+          })
+        );
+        setEntries(nested.flat());
+      } catch {
+        setLoadError("Could not load submission files.");
+      } finally {
+        setLoadingFiles(false);
+      }
+    })();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!files || files.length === 0) return null;
+  if (loadingFiles) return <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>Loading files…</p>;
+  if (loadError) return <p style={{ fontSize: "12px", color: "#e53e3e", margin: 0 }}>{loadError}</p>;
+  if (!entries || entries.length === 0) return null;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      {files.map((f, i) => (
-        <span key={i} style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)" }}>📄 {f}</span>
-      ))}
+      {entries.map((entry, i) => <FileEntryCard key={i} entry={entry} />)}
+    </div>
+  );
+}
+
+function FileEntryCard({ entry }: { entry: ZipEntry }) {
+  const [opening, setOpening] = useState(false);
+
+  async function handleOpen() {
+    setOpening(true);
+    try {
+      await entry.open();
+    } catch (err) {
+      console.error("Failed to open file:", err);
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(3,72,82,0.04)", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)" }}>
+      <span style={{ fontSize: "16px", flexShrink: 0 }}>📄</span>
+      <span style={{ fontSize: "13px", color: "#034852", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
+      <button
+        onClick={() => void handleOpen()}
+        disabled={opening}
+        style={{ flexShrink: 0, padding: "4px 10px", border: "1px solid rgba(32,147,121,0.35)", borderRadius: "6px", background: opening ? "rgba(32,147,121,0.06)" : "rgba(32,147,121,0.1)", color: "#209379", fontSize: "11px", fontWeight: 700, cursor: opening ? "wait" : "pointer", whiteSpace: "nowrap" }}
+      >
+        {opening ? "Opening…" : "Open"}
+      </button>
     </div>
   );
 }
@@ -271,12 +327,9 @@ function SubmissionForm({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      // v1: store file names as URL placeholders (real upload requires storage backend)
-      const fileUrls = files.map(f => f.name);
       const sub = await submitAssignment(assignmentId, {
-        student_id:    studentId,
         response_text: responseText.trim() || undefined,
-        file_urls:     fileUrls,
+        files,
       });
       invalidate('assignments');
       setSubmitted(true);
