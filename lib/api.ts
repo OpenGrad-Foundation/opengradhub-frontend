@@ -173,6 +173,22 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
   return (await response.json()) as SafeUser[];
 }
 
+export type FellowOption = { id: string; name: string; email: string | null };
+
+/**
+ * Fetch the list of assignable fellows for school-picker dropdowns.
+ * Calls GET /users/fellows — gated by schools.edit, not user_management.view.
+ */
+export async function getFellows(): Promise<FellowOption[]> {
+  const response = await apiFetch(`${API_BASE_URL}/users/fellows`);
+
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch fellows.", response.status);
+  }
+
+  return (await response.json()) as FellowOption[];
+}
+
 export type StudentRosterItem = {
   id: string;
   name: string;
