@@ -20,14 +20,14 @@ import {
   getCourses,
   getBundles,
   getQuizzes,
-  getUsers,
+  getStudentsList,
   fetchSchools,
   type BatchDetail,
   type BatchTestEntry,
   type Course,
   type Bundle,
   type Quiz,
-  type SafeUser,
+  type StudentRosterItem,
   type SchoolOption,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
@@ -582,7 +582,7 @@ function AddMembersModal({
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
-  const [students, setStudents] = useState<SafeUser[]>([]);
+  const [students, setStudents] = useState<StudentRosterItem[]>([]);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -594,9 +594,9 @@ function AddMembersModal({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getUsers("STUDENT")
+    getStudentsList()
       .then((data) => setStudents(data.filter((u) => !existingMemberIds.includes(u.id))))
-      .catch(() => setStudents([]))
+      .catch((e) => { setError(e instanceof Error ? e.message : "Failed to load students."); setStudents([]); })
       .finally(() => setLoading(false));
   }, [existingMemberIds]);
 
