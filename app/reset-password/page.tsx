@@ -3,6 +3,26 @@
 import { useState, FormEvent } from "react";
 import { useAuth } from "@clerk/nextjs";
 
+function RequirementItem({ met, label }: { met: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-2">
+      <span
+        className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors"
+        style={met ? { background: "#0abe62", color: "#fff" } : { background: "#e4e4e7", color: "#a1a1aa" }}
+        aria-hidden="true"
+      >
+        {met ? "✓" : "·"}
+      </span>
+      <span
+        className="text-[12px] transition-colors"
+        style={{ color: met ? "#006d6c" : "#71717a" }}
+      >
+        {label}
+      </span>
+    </li>
+  );
+}
+
 export default function ResetPasswordPage() {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const [password, setPassword] = useState("");
@@ -102,6 +122,12 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               className="w-full py-[14px] px-4 bg-white border border-zinc-200 rounded-xl text-[15px] text-zinc-900 outline-none transition-all placeholder:text-zinc-400 focus:border-[#006d6c]"
             />
+            {password.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                <RequirementItem met={password.length >= 8} label="At least 8 characters" />
+                <RequirementItem met={!/\s/.test(password)} label="No spaces" />
+              </ul>
+            )}
           </div>
 
           <div>
@@ -117,6 +143,11 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               className="w-full py-[14px] px-4 bg-white border border-zinc-200 rounded-xl text-[15px] text-zinc-900 outline-none transition-all placeholder:text-zinc-400 focus:border-[#006d6c]"
             />
+            {confirmPassword.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                <RequirementItem met={password === confirmPassword} label="Passwords match" />
+              </ul>
+            )}
           </div>
 
           {error && (

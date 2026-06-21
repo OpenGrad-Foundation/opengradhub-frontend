@@ -2,25 +2,32 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { joinLiveClass, type LiveClass } from "@/lib/api";
+import { joinLiveClass, deleteLiveClass, type LiveClass } from "@/lib/api";
 import { useLiveClasses } from "@/lib/queries/live-classes";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 import { LiveClassAttendeesModal } from "./_components/LiveClassAttendeesModal";
 
 export default function LiveClassesPage() {
+  const router = useRouter();
   const { data, isLoading } = useCurrentUser();
   const { has }   = usePermissions();
   const userId    = data?.user?.id ?? "";
   // "Manager view" = can schedule classes; "join" is a separate permission.
   const canCreate = has(PERM.live_classes.create);
   const canJoin   = has(PERM.live_classes.join);
+  const canEdit   = has(PERM.live_classes.edit);
+  const canDelete = has(PERM.live_classes.delete);
   const isManager = canCreate;
 
   const [joining,      setJoining]      = useState<string | null>(null);
+  const [deleting,     setDeleting]     = useState<string | null>(null);
   const [now,          setNow]          = useState(0);
   const [selectedClass, setSelectedClass] = useState<{ id: string; title: string } | null>(null);
+  const invalidate = useInvalidate();
 
   const { data: classes = [], isPending: loading, error: queryError } = useLiveClasses();
   const error = queryError ? (queryError as Error).message : null;
@@ -31,6 +38,19 @@ export default function LiveClassesPage() {
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
+
+  async function handleDelete(cls: LiveClass) {
+    if (!window.confirm(`Delete "${cls.title}"? This cannot be undone.`)) return;
+    setDeleting(cls.id);
+    try {
+      await deleteLiveClass(cls.id);
+      invalidate('calendar');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not delete.");
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   async function handleJoin(cls: LiveClass) {
     setJoining(cls.id);
@@ -90,7 +110,10 @@ export default function LiveClassesPage() {
               {upcoming.map(cls => (
                 <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
                   onJoin={() => void handleJoin(cls)} joining={joining === cls.id}
-                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined} />
+                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined}
+                  onEdit={canEdit ? () => router.push(`/dashboard/live-classes/${cls.id}/edit`) : undefined}
+                  onDelete={canDelete ? () => void handleDelete(cls) : undefined}
+                  deleting={deleting === cls.id} />
               ))}
             </Section>
           )}
@@ -99,7 +122,10 @@ export default function LiveClassesPage() {
               {past.map(cls => (
                 <ClassCard key={cls.id} cls={cls} isManager={isManager} mayJoin={canJoin} now={now}
                   onJoin={() => void handleJoin(cls)} joining={joining === cls.id} past
-                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined} />
+                  onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined}
+                  onEdit={canEdit ? () => router.push(`/dashboard/live-classes/${cls.id}/edit`) : undefined}
+                  onDelete={canDelete ? () => void handleDelete(cls) : undefined}
+                  deleting={deleting === cls.id} />
               ))}
             </Section>
           )}
@@ -126,10 +152,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onViewAttendees }: {
+function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onViewAttendees, onEdit, onDelete, deleting }: {
   cls: LiveClass; isManager: boolean; mayJoin: boolean; now: number;
   onJoin: () => void; joining: boolean; past?: boolean;
   onViewAttendees?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const scheduledMs  = new Date(cls.scheduled_at).getTime();
   const endsMs       = scheduledMs + cls.duration_minutes * 60_000;
@@ -186,6 +215,27 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onView
             </button>
           )}
         </div>
+        {isManager && (onEdit || onDelete) && (
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            {onEdit && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" }}
+              >
+                Edit
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                disabled={deleting}
+                style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(229,62,62,0.3)", borderRadius: "8px", background: "transparent", color: "#e53e3e", cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.6 : 1, fontFamily: "var(--font-body)" }}
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Join / countdown */}

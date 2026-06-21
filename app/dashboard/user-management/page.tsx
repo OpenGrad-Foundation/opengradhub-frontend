@@ -6,6 +6,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getUsers,
   createUser,
+  bulkDeleteUsers,
   bulkUploadUsers,
   getUserTemplateUrl,
   getCourses,
@@ -50,6 +51,7 @@ export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const canCreate = has(PERM.user_management.create);
+  const canDelete = has(PERM.user_management.delete);
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,10 @@ export default function UserManagementPage() {
   const currentUserId = data?.user?.id ?? "";
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
 
   const filteredUsers = useMemo(() => {
     let result = users;
@@ -81,6 +87,9 @@ export default function UserManagementPage() {
     }
     return result;
   }, [users, searchQuery, roleFilter]);
+
+  // Clear selection whenever the visible set changes (filter/search applied)
+  useEffect(() => { setSelectedIds(new Set()); }, [searchQuery, roleFilter]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -208,6 +217,120 @@ export default function UserManagementPage() {
         />
       )}
 
+      {/* ── Bulk Action Bar ───────────────────────────────── */}
+      {canDelete && selectedIds.size > 0 && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap",
+          padding: "10px 16px", marginBottom: "12px", borderRadius: "12px",
+          background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.18)",
+        }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#c53030", flex: 1 }}>
+            {selectedIds.size} user{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <button
+            onClick={() => { setBulkDeleteError(null); setShowBulkDeleteConfirm(true); }}
+            style={{
+              padding: "6px 16px", background: "none", border: "1px solid rgba(229,62,62,0.4)",
+              borderRadius: "8px", color: "#c53030", fontWeight: 600, fontSize: "13px", cursor: "pointer",
+            }}
+          >
+            Delete Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{
+              padding: "6px 14px", background: "none", border: "1px solid rgba(3,72,82,0.18)",
+              borderRadius: "8px", color: "#034852", fontSize: "12px", cursor: "pointer",
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* ── Bulk Delete Confirmation Modal ────────────────── */}
+      {showBulkDeleteConfirm && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 50,
+          background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: "16px", padding: "28px 32px", maxWidth: "440px",
+            width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+          }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "17px", fontWeight: 700, color: "#034852" }}>
+              Delete {selectedIds.size} user{selectedIds.size !== 1 ? "s" : ""} permanently?
+            </h3>
+            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.5 }}>
+              This will permanently delete the selected accounts and all associated data (enrolments, submissions, etc.).
+              This action <strong>cannot be undone</strong>.
+            </p>
+            {(() => {
+              const names = [...selectedIds]
+                .map((id) => users.find((u) => u.id === id)?.name ?? id)
+                .slice(0, 5);
+              const extra = selectedIds.size - names.length;
+              return (
+                <ul style={{ margin: "0 0 20px", padding: "0 0 0 18px", fontSize: "12px", color: "#c53030" }}>
+                  {names.map((n) => <li key={n}>{n}</li>)}
+                  {extra > 0 && <li>+{extra} more</li>}
+                </ul>
+              );
+            })()}
+            {bulkDeleteError && (
+              <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#c53030", background: "rgba(229,62,62,0.06)", padding: "8px 12px", borderRadius: "8px" }}>
+                {bulkDeleteError}
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                disabled={bulkDeleteLoading}
+                onClick={() => { setShowBulkDeleteConfirm(false); setBulkDeleteError(null); }}
+                style={{
+                  padding: "8px 18px", background: "none", border: "1px solid rgba(3,72,82,0.2)",
+                  borderRadius: "8px", color: "#034852", fontSize: "13px", cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={bulkDeleteLoading}
+                onClick={async () => {
+                  setBulkDeleteLoading(true);
+                  setBulkDeleteError(null);
+                  try {
+                    const result = await bulkDeleteUsers([...selectedIds]);
+                    if (result.failed.length > 0) {
+                      const reasons = result.failed.map((f) => {
+                        const name = users.find((u) => u.id === f.id)?.name ?? f.id;
+                        return `${name}: ${f.reason}`;
+                      }).join("; ");
+                      setBulkDeleteError(`Some users could not be deleted — ${reasons}`);
+                    } else {
+                      setShowBulkDeleteConfirm(false);
+                    }
+                    setSelectedIds(new Set());
+                    void fetchUsers();
+                  } catch (err) {
+                    setBulkDeleteError(err instanceof Error ? err.message : "Failed to delete users.");
+                  } finally {
+                    setBulkDeleteLoading(false);
+                  }
+                }}
+                style={{
+                  padding: "8px 18px",
+                  background: bulkDeleteLoading ? "rgba(229,62,62,0.4)" : "#c53030",
+                  border: "none", borderRadius: "8px", color: "#fff",
+                  fontWeight: 700, fontSize: "13px", cursor: bulkDeleteLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {bulkDeleteLoading ? "Deleting…" : "Yes, Delete Permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Users Table ───────────────────────────────────── */}
       {loading ? (
         <LoadingState />
@@ -238,6 +361,26 @@ export default function UserManagementPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
+                  {canDelete && (
+                    <th style={{ ...thStyle, width: "40px", paddingRight: 0 }}>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible users"
+                        checked={filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.has(u.id))}
+                        ref={(el) => {
+                          if (el) el.indeterminate = selectedIds.size > 0 && !filteredUsers.every((u) => selectedIds.has(u.id));
+                        }}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds(new Set(filteredUsers.map((u) => u.id)));
+                          } else {
+                            setSelectedIds(new Set());
+                          }
+                        }}
+                        style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "#034852" }}
+                      />
+                    </th>
+                  )}
                   {["Name", "Email", "Role", "Programme", "Status", "Created", ""].map((h) => (
                     <th key={h} style={thStyle}>{h}</th>
                   ))}
@@ -246,12 +389,13 @@ export default function UserManagementPage() {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.6)", fontSize: "13px" }}>
+                    <td colSpan={canDelete ? 8 : 7} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.6)", fontSize: "13px" }}>
                       No users match your search.
                     </td>
                   </tr>
                 ) : filteredUsers.map((u) => {
                   const isSelected = selectedUser?.id === u.id;
+                  const isChecked = selectedIds.has(u.id);
                   return (
                     <tr
                       key={u.id}
@@ -259,18 +403,44 @@ export default function UserManagementPage() {
                       style={{
                         borderBottom: "1px solid rgba(3,72,82,0.05)",
                         cursor: "pointer",
-                        background: isSelected ? "rgba(10,190,98,0.05)" : "transparent",
+                        background: isChecked
+                          ? "rgba(229,62,62,0.04)"
+                          : isSelected
+                          ? "rgba(10,190,98,0.05)"
+                          : "transparent",
                         transition: "background 150ms",
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "rgba(0,0,0,0.02)";
+                        if (!isSelected && !isChecked)
+                          (e.currentTarget as HTMLTableRowElement).style.background = "rgba(0,0,0,0.02)";
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLTableRowElement).style.background = isSelected
+                        (e.currentTarget as HTMLTableRowElement).style.background = isChecked
+                          ? "rgba(229,62,62,0.04)"
+                          : isSelected
                           ? "rgba(10,190,98,0.05)"
                           : "transparent";
                       }}
                     >
+                      {canDelete && (
+                        <td style={{ ...tdStyle, paddingRight: 0, width: "40px" }}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${u.name}`}
+                            checked={isChecked}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(u.id);
+                                else next.delete(u.id);
+                                return next;
+                              });
+                            }}
+                            style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "#034852" }}
+                          />
+                        </td>
+                      )}
                       <td style={tdStyle}><strong style={{ color: "#034852" }}>{u.name}</strong></td>
                       <td style={tdStyle}>{u.email ?? "—"}</td>
                       <td style={tdStyle}><RoleBadge role={u.role} /></td>
