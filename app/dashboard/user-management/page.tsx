@@ -1710,6 +1710,8 @@ const ROLE_OPTIONS = [
   "SUPER_ADMIN", "GOVERNMENT", "FUNDING_PARTNER",
 ];
 
+const BULK_EDIT_EXCLUDED = new Set(["email", "roll_number", "phone", "name"]);
+
 // Returns the display names of required fields that are missing for a row.
 function getMissingFields(row: Record<string, string>): string[] {
   const role    = (row.role           ?? "").trim().toUpperCase();
@@ -1794,6 +1796,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const [parseError,   setParseError]   = useState<string | null>(null);
   const [csvHeaders,   setCsvHeaders]   = useState<string[]>([]);
   const [editableRows, setEditableRows] = useState<Array<Record<string, string>>>([]);
+  const [bulkInputs,   setBulkInputs]   = useState<Record<string, string>>({});
 
   // Parse CSV when file changes
   useEffect(() => {
@@ -1847,6 +1850,11 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       next[rowIdx] = { ...next[rowIdx], [col]: value };
       return next;
     });
+  }
+
+  // Set the same value for all rows in a column
+  function updateColumn(col: string, value: string) {
+    setEditableRows((prev) => prev.map((row) => ({ ...row, [col]: value })));
   }
 
   // Reconstruct CSV from edited rows and upload
@@ -2009,13 +2017,100 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                   {csvHeaders.map((h) => (
                     <th key={h} style={{ padding: "9px 10px", borderBottom: "1px solid rgba(3,72,82,0.08)", color: "rgba(3,72,82,0.7)", textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "10px", whiteSpace: "nowrap", fontWeight: 700 }}>
                       {CSV_FIELD_LABELS[h] ?? h}
-                      {/* Mark columns that can be required with a subtle indicator */}
                     </th>
                   ))}
                   {/* Errors */}
                   <th style={{ padding: "9px 10px", borderBottom: "1px solid rgba(3,72,82,0.08)", color: "rgba(3,72,82,0.5)", fontSize: "10px", whiteSpace: "nowrap", minWidth: "120px" }}>
                     ERRORS
                   </th>
+                </tr>
+                {/* Bulk-set row */}
+                <tr style={{ background: "rgba(0,109,108,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+                  <td />
+                  {csvHeaders.map((col) => {
+                    if (BULK_EDIT_EXCLUDED.has(col)) {
+                      return <td key={col} style={{ padding: "4px 6px" }} />;
+                    }
+                    const isDropRole = col === "role";
+                    const isDropProg = col === "programme_type";
+                    if (isDropRole) {
+                      return (
+                        <td key={col} style={{ padding: "4px 6px" }}>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value === "__CLEAR__") {
+                                updateColumn(col, "");
+                              } else if (e.target.value) {
+                                updateColumn(col, e.target.value);
+                              }
+                              e.target.value = "";
+                            }}
+                            style={bulkInputStyle}
+                          >
+                            <option value="">Set all…</option>
+                            <option value="__CLEAR__">— Clear all —</option>
+                            {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (isDropProg) {
+                      return (
+                        <td key={col} style={{ padding: "4px 6px" }}>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value === "__CLEAR__") {
+                                updateColumn(col, "");
+                              } else if (e.target.value) {
+                                updateColumn(col, e.target.value);
+                              }
+                              e.target.value = "";
+                            }}
+                            style={bulkInputStyle}
+                          >
+                            <option value="">Set all…</option>
+                            <option value="__CLEAR__">— Clear all —</option>
+                            <option value="UG">UG</option>
+                            <option value="PG">PG</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={col} style={{ padding: "4px 6px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+                          <input
+                            type="text"
+                            placeholder="Set all…"
+                            value={bulkInputs[col] ?? ""}
+                            onChange={(e) => setBulkInputs((prev) => ({ ...prev, [col]: e.target.value }))}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                const val = (bulkInputs[col] ?? "").trim();
+                                if (val) {
+                                  updateColumn(col, val);
+                                  setBulkInputs((prev) => ({ ...prev, [col]: "" }));
+                                }
+                              }
+                            }}
+                            style={{ ...bulkInputStyle, flex: 1 }}
+                          />
+                          <button
+                            type="button"
+                            title="Clear column"
+                            onClick={() => {
+                              updateColumn(col, "");
+                              setBulkInputs((prev) => ({ ...prev, [col]: "" }));
+                            }}
+                            style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "13px", lineHeight: 1, padding: "0 2px", fontWeight: 700 }}
+                          >×</button>
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td />
                 </tr>
               </thead>
               <tbody>
@@ -2135,7 +2230,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             </table>
           </div>
           <p style={{ margin: "8px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>
-            {editableRows.length} row{editableRows.length !== 1 ? "s" : ""} loaded. Click any cell to edit. Dropdowns for Role and Programme Type.
+            {editableRows.length} row{editableRows.length !== 1 ? "s" : ""} loaded. Click any cell to edit. Use the header row to bulk-set a column — press Enter to apply text fields.
           </p>
         </div>
       )}
@@ -2287,6 +2382,13 @@ const inputStyle: React.CSSProperties = {
   width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)",
   border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852",
   fontFamily: "var(--font-body)", fontSize: "14px", outline: "none",
+};
+
+const bulkInputStyle: React.CSSProperties = {
+  width: "100%", padding: "4px 7px", borderRadius: "6px",
+  fontFamily: "var(--font-body)", fontSize: "11px", color: "#034852",
+  background: "rgba(0,109,108,0.06)", border: "1px solid rgba(3,72,82,0.2)",
+  outline: "none", boxSizing: "border-box" as const,
 };
 
 const thStyle: React.CSSProperties = {
