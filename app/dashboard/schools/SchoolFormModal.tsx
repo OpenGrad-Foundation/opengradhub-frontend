@@ -5,9 +5,9 @@ import {
   createSchool,
   updateSchool,
   setSchoolFellow,
-  getUsers,
+  getFellows,
   type SchoolOption,
-  type SafeUser,
+  type FellowOption,
 } from "@/lib/api";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 import { normState, ALL_STATE } from "@/lib/geo";
@@ -30,14 +30,14 @@ export function SchoolFormModal({
   const [state, setState] = useState(school?.state ?? "");
   const [code, setCode] = useState(school?.code ?? "");
   const [fellowId, setFellowId] = useState<string>(school?.fellow_id ?? "");
-  const [fellows, setFellows] = useState<SafeUser[]>([]);
+  const [fellows, setFellows] = useState<FellowOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const invalidate = useInvalidate();
 
   useEffect(() => {
     let cancelled = false;
-    getUsers("FELLOW")
+    getFellows()
       .then((rows) => { if (!cancelled) setFellows(rows); })
       .catch(() => { if (!cancelled) setFellows([]); });
     return () => { cancelled = true; };
@@ -129,7 +129,12 @@ export function SchoolFormModal({
             </div>
             <div>
               <label style={formLabelStyle}>Assigned Fellow</label>
-              <FellowPicker fellows={fellows} value={fellowId} onChange={setFellowId} />
+              <FellowPicker
+                fellows={fellows}
+                value={fellowId}
+                onChange={setFellowId}
+                fallbackName={school?.fellow_name ?? null}
+              />
             </div>
             {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
           </div>
@@ -148,17 +153,19 @@ export function SchoolFormModal({
 }
 
 function FellowPicker({
-  fellows, value, onChange,
+  fellows, value, onChange, fallbackName,
 }: {
-  fellows: SafeUser[];
+  fellows: FellowOption[];
   value: string;
   onChange: (id: string) => void;
+  fallbackName?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const selected = fellows.find((f) => f.id === value) ?? null;
+  const hasAssignment = Boolean(value && (selected || fallbackName));
 
   useEffect(() => {
     if (!open) return;
@@ -197,15 +204,25 @@ function FellowPicker({
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={selected ? `Search… (current: ${selected.name})` : "Search fellows…"}
+            placeholder={
+              selected
+                ? `Search… (current: ${selected.name})`
+                : (value && fallbackName)
+                  ? `Search… (current: ${fallbackName})`
+                  : "Search fellows…"
+            }
             style={{ flex: 1, padding: "12px 16px", border: "none", background: "transparent", outline: "none", fontFamily: "var(--font-body)", fontSize: "14px", color: "#034852" }}
           />
         ) : (
-          <span style={{ flex: 1, color: selected ? "#034852" : "rgba(3,72,82,0.5)" }}>
-            {selected ? `${selected.name}${selected.email ? ` (${selected.email})` : ""}` : "— Unassigned —"}
+          <span style={{ flex: 1, color: hasAssignment ? "#034852" : "rgba(3,72,82,0.5)" }}>
+            {selected
+              ? `${selected.name}${selected.email ? ` (${selected.email})` : ""}`
+              : (value && fallbackName)
+                ? `${fallbackName} (list unavailable)`
+                : "— Unassigned —"}
           </span>
         )}
-        {selected && !open && (
+        {hasAssignment && !open && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); pick(""); }}
