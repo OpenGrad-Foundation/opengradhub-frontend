@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as Sentry from "@sentry/nextjs";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitize as sanitizeHtml } from "@/lib/purify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
@@ -682,16 +682,6 @@ export default function LessonPage() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-
-/**
- * Basic HTML sanitiser — strips <script> blocks and dangerous event attributes.
- * notes_html is also sanitised at write time by admin input; this is a defence-in-depth layer.
- */
-// Allowlist-based sanitizer (DOMPurify) — replaces the bypassable regex
-// (single-quote/unquoted handlers, svg/onload, iframes all slipped through).
-function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
-}
 
 function LoadingState() {
   return (
