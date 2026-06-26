@@ -1362,6 +1362,41 @@ export async function createAssignment(payload: {
   return (await r.json()) as Assignment;
 }
 
+export async function updateAssignment(
+  id: string,
+  payload: {
+    title: string;
+    instructions_html?: string;
+    attachment_url?: string;
+    due_at: string;
+    course_id?: string;
+    batch_id?: string;
+  },
+): Promise<Assignment> {
+  const r = await apiFetch(`${API_BASE_URL}/assignments/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to update assignment.", r.status);
+  }
+  return (await r.json()) as Assignment;
+}
+
+export async function deleteAssignment(id: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/assignments/${id}`, {
+    method: "DELETE",
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete assignment.", r.status);
+  }
+}
+
 export async function submitAssignment(
   assignmentId: string,
   payload: { response_text?: string; files?: File[] },

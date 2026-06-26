@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitize } from "@/lib/purify";
 import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
@@ -418,12 +418,6 @@ function SubmissionForm({
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-
-// Allowlist-based sanitizer (DOMPurify) — strips event handlers, javascript:
-// URLs, <svg onload>, <iframe>, etc. that the previous regex missed.
-function sanitize(html: string) {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
-}
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {

@@ -6,6 +6,11 @@ import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 import { makeIdbPersister } from './persister';
 
+// Freshness now comes from the SSE stream (useRealtime) invalidating these keys
+// on a server signal. The slow interval is only a safety net for events missed
+// during a disconnect; it pauses when the tab is backgrounded (TanStack default).
+const SAFETY_NET_MS = 5 * 60_000;
+
 /** Layer 4 — Tier 1 announcements hook, keyed by role. */
 export function useAnnouncements(role: string) {
   return useQuery({
@@ -14,17 +19,18 @@ export function useAnnouncements(role: string) {
     enabled: !!role,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
+    refetchInterval: SAFETY_NET_MS,
     persister: makeIdbPersister(),
   });
 }
 
-/** Layer 4 — Tier 2 unread-count hook for announcements. 30s poll matches notification cadence. */
+/** Layer 4 — Tier 2 unread-count hook for announcements. SSE-driven; 5m safety net. */
 export function useAnnouncementUnreadCount() {
   return useQuery({
     queryKey: qk.announcementUnreadCount(),
     queryFn: getAnnouncementUnreadCount,
     staleTime: 30_000,
-    refetchInterval: 30_000,
+    refetchInterval: SAFETY_NET_MS,
   });
 }
 

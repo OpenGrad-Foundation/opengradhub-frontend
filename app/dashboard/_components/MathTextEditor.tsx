@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitize } from "@/lib/purify";
 import {
   splitMathSegments,
   spliceMathSegment,
@@ -244,7 +244,7 @@ export function MathTextEditor({
             seg.kind === "text" ? (
               <span
                 key={`${i}-${seg.value}`}
-                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(seg.value, { USE_PROFILES: { html: true } }) }}
+                dangerouslySetInnerHTML={{ __html: sanitize(seg.value) }}
               />
             ) : (
               <KatexSpan
