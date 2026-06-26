@@ -52,7 +52,6 @@ export default function UserManagementPage() {
   const { has } = usePermissions();
   const canCreate = has(PERM.user_management.create);
   const canDelete = has(PERM.user_management.delete);
-  const invalidate = useInvalidate();
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,10 +311,6 @@ export default function UserManagementPage() {
                     }
                     setSelectedIds(new Set());
                     void fetchUsers();
-                    // fetchUsers() only refreshes this page's list; invalidate so
-                    // deleted users also drop from other cached views (managers
-                    // list, dashboards, analytics).
-                    invalidate('users');
                   } catch (err) {
                     setBulkDeleteError(err instanceof Error ? err.message : "Failed to delete users.");
                   } finally {

@@ -740,7 +740,7 @@ export default function QuizTakingPage() {
   }
 
   if (phase === "intro" && quiz) {
-    const exhausted = quiz.max_attempts != null && quiz.max_attempts > 0 && attemptsUsed >= quiz.max_attempts;
+    const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
     return (
       <div style={pageCentered}>
         <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
@@ -753,7 +753,7 @@ export default function QuizTakingPage() {
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {quiz.duration_minutes && <span style={pill}>⏱ {quiz.duration_minutes} min</span>}
-            {quiz.max_attempts != null && quiz.max_attempts > 0 && (
+            {quiz.max_attempts && (
               <span style={pill}>
                 {attemptsUsed}/{quiz.max_attempts} attempt{quiz.max_attempts !== 1 ? "s" : ""} used
               </span>
@@ -1504,7 +1504,7 @@ export default function QuizTakingPage() {
               >
                 Practice again
               </button>
-            ) : quiz?.max_attempts == null || quiz?.max_attempts <= 0 || attemptsUsed + 1 < quiz.max_attempts ? (
+            ) : quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
               <button onClick={() => { setAttemptsUsed((n) => n + 1); setPhase("intro"); }} style={secondaryBtn}>
                 Retake Quiz
               </button>

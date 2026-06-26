@@ -11,18 +11,12 @@ import {
 import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 
-// Freshness comes from the SSE stream (useRealtime) invalidating these keys on a
-// server signal. The slow interval is only a safety net for events missed during
-// a disconnect; it pauses when the tab is backgrounded (TanStack default).
-const SAFETY_NET_MS = 5 * 60_000;
-
-/** Layer 4 — Tier 2 notification hooks. SSE-driven; 5m safety net, no IDB. */
+/** Layer 4 — Tier 2 notification hooks. Near-live: 30s staleTime, no IDB. */
 export function useNotifications() {
   return useQuery({
     queryKey: qk.notifications(),
     queryFn: getNotifications,
     staleTime: 30_000,
-    refetchInterval: SAFETY_NET_MS,
   });
 }
 
@@ -31,7 +25,6 @@ export function useUnreadCount() {
     queryKey: qk.unreadCount(),
     queryFn: getUnreadCount,
     staleTime: 30_000,
-    refetchInterval: SAFETY_NET_MS,
   });
 }
 

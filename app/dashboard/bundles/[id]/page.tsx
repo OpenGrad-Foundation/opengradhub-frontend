@@ -768,7 +768,7 @@ function TestList({
             <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
               {test.question_count} question{test.question_count !== 1 ? "s" : ""}
               {test.duration_minutes != null && ` · ${test.duration_minutes} min`}
-              {test.max_attempts != null && test.max_attempts > 0 && ` · max ${test.max_attempts} attempt${test.max_attempts !== 1 ? "s" : ""}`}
+              {test.max_attempts != null && ` · max ${test.max_attempts} attempt${test.max_attempts !== 1 ? "s" : ""}`}
             </p>
           </div>
           <span style={{
@@ -884,7 +884,7 @@ function AddTestModal({
                 <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{q.title}</p>
                 <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
                   {q.duration_minutes != null ? `${q.duration_minutes} min` : "No time limit"}
-                  {q.max_attempts != null && q.max_attempts > 0 && ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}`}
+                  {q.max_attempts != null && ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}`}
                 </p>
               </div>
               {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}

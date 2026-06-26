@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -24,7 +24,6 @@ export default function NewAssignmentPage() {
   const [batches, setBatches]     = useState<Batch[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState<string | null>(null);
-  const submittingRef = useRef(false);
 
   useEffect(() => {
     getCourses(undefined, undefined, undefined, true)
@@ -47,10 +46,8 @@ export default function NewAssignmentPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (submittingRef.current) return;
     if (!title.trim()) { setError("Title is required."); return; }
     if (!dueAt)        { setError("Due date is required."); return; }
-    submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -67,7 +64,6 @@ export default function NewAssignmentPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create assignment.");
     } finally {
-      submittingRef.current = false;
       setSubmitting(false);
     }
   }

@@ -103,17 +103,13 @@ export default function CourseManagementPage() {
         await unassignCourse(studentId, courseId);
         if (selectedStudentId === studentId) setSelectedStudentId(null);
         await loadStudents();
-        // loadStudents() only refreshes THIS roster; invalidate so the dropped
-        // enrolment also disappears from other cached views (the student's own
-        // course list, dashboards, enrolment counts).
-        invalidate('enrolment', 'courses');
       } catch (removeError) {
         setError(removeError instanceof Error ? removeError.message : "Failed to remove student.");
       } finally {
         setRemovingStudentId(null);
       }
     },
-    [courseId, invalidate, loadStudents, selectedStudentId],
+    [courseId, loadStudents, selectedStudentId],
   );
 
   useEffect(() => {

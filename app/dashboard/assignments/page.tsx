@@ -6,7 +6,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { type Assignment, type SubmissionQueueRow, type Submission } from "@/lib/api";
-import { useAssignments, useSubmissionQueue, useDeleteAssignment } from "@/lib/queries/assignments";
+import { useAssignments, useSubmissionQueue } from "@/lib/queries/assignments";
 import { GradePanel, StatusBadge } from "@/app/dashboard/assignments/_components/GradePanel";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
@@ -181,12 +181,6 @@ function ManagerAssignmentsList() {
 
 function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; isManager: boolean }) {
   const currentUrl = useCurrentUrl();
-  const { has } = usePermissions();
-  const canEdit   = has(PERM.assignments.edit);
-  const canDelete = has(PERM.assignments.delete);
-  const del = useDeleteAssignment();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
   const due      = new Date(a.due_at);
   const isPast   = due < new Date();
   const status   = a.submission_status ?? (isManager ? "—" : "NOT_STARTED");
@@ -213,55 +207,12 @@ function AssignmentRow({ assignment: a, isManager }: { assignment: Assignment; i
         )}
       </td>
       <td style={tdStyle}>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <Link
-            href={withFrom(isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`, currentUrl)}
-            style={{ padding: "5px 12px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}
-          >
-            {isManager ? "Grade" : "Open"}
-          </Link>
-
-          {canEdit && (
-            <Link
-              href={withFrom(`/dashboard/assignments/${a.id}/edit`, currentUrl)}
-              style={{ padding: "5px 12px", border: "1.5px solid rgba(32,147,121,0.3)", borderRadius: "8px", background: "transparent", color: "#209379", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}
-            >
-              Edit
-            </Link>
-          )}
-
-          {canDelete && !confirmDelete && (
-            <button
-              type="button"
-              title="Deletes the assignment and all of its submissions"
-              onClick={() => setConfirmDelete(true)}
-              style={{ padding: "5px 12px", border: "1.5px solid rgba(220,38,38,0.3)", borderRadius: "8px", background: "transparent", color: "#dc2626", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
-            >
-              Delete
-            </button>
-          )}
-
-          {canDelete && confirmDelete && (
-            <span style={{ display: "inline-flex", gap: "6px", alignItems: "center" }}>
-              <span style={{ fontSize: "12px", color: "#dc2626", fontWeight: 600 }}>Delete?</span>
-              <button
-                type="button"
-                onClick={() => del.mutate(a.id, { onSettled: () => setConfirmDelete(false) })}
-                disabled={del.isPending}
-                style={{ padding: "5px 10px", border: "none", borderRadius: "8px", background: "#dc2626", color: "#fff", fontSize: "12px", fontWeight: 700, cursor: "pointer", opacity: del.isPending ? 0.6 : 1 }}
-              >
-                {del.isPending ? "…" : "Yes"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                style={{ padding: "5px 10px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
-              >
-                No
-              </button>
-            </span>
-          )}
-        </div>
+        <Link
+          href={withFrom(isManager ? `/dashboard/assignments/${a.id}/submissions` : `/dashboard/assignments/${a.id}`, currentUrl)}
+          style={{ padding: "5px 12px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, textDecoration: "none" }}
+        >
+          {isManager ? "Grade" : "Open"}
+        </Link>
       </td>
     </tr>
   );

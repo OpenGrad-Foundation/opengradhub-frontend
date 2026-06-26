@@ -6,7 +6,6 @@ import { useClerk } from "@clerk/nextjs";
 import { LogOut, Menu } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
-import { useRealtime } from "@/lib/realtime/use-realtime";
 import NotificationBell from "@/components/NotificationBell";
 import ReportBugButton from "./ReportBugButton";
 
@@ -33,11 +32,6 @@ export default function DashboardTopbar({
   const userId   = data?.user?.id      ?? "";
   const userName = data?.user?.fullName ?? "";
   const roleName = data?.role?.name    ?? "";
-
-  // One SSE stream per authenticated user: pushes notification/announcement
-  // change signals → invalidates the relevant React Query caches (replaces 30s
-  // polling). Gated on having a user so it never opens pre-auth.
-  useRealtime(Boolean(userId));
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
