@@ -32,6 +32,7 @@ export const PERM = {
   assessments: {
     view: "assessments.view",
     attempt: "assessments.attempt",
+    reset_attempt: "assessments.reset_attempt",
   },
   test_bank: {
     view: "test_bank.view",

@@ -2197,6 +2197,56 @@ export async function getQuizLeaderboard(quizId: string): Promise<QuizLeaderboar
   return (await r.json()) as QuizLeaderboard;
 }
 
+// ── Admin attempt management (void / unvoid) ────────────────────────────────
+
+export type AttemptAdminRow = {
+  attempt_id: string;
+  student_id: string;
+  student_name: string;
+  attempt_number: number;
+  is_complete: boolean;
+  score_pct: number | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  reopen_until: string | null;
+  started_at: string | null;
+  submitted_at: string | null;
+};
+
+export type QuizAttemptsAdmin = { quiz_id: string; attempts: AttemptAdminRow[] };
+
+export async function getQuizAttemptsAdmin(quizId: string): Promise<QuizAttemptsAdmin> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/admin?quiz_id=${quizId}`, { cache: "no-store" });
+  if (!r.ok) {
+    const e = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to load attempts.", r.status);
+  }
+  return (await r.json()) as QuizAttemptsAdmin;
+}
+
+export async function voidQuizAttempt(
+  attemptId: string,
+  body: { reason: string; grace_hours?: number },
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/void`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to reset attempt.", r.status);
+  }
+}
+
+export async function unvoidQuizAttempt(attemptId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/unvoid`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to restore attempt.", r.status);
+  }
+}
+
 export type TopicStrengthRow = {
   subject: string;
   topic: string | null;
