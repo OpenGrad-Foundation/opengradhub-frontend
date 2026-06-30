@@ -52,17 +52,67 @@ export default function ChartCard({
         {title}
       </h3>
       {isLoading ? (
-        <div data-testid="chart-skeleton" className="h-48 animate-pulse rounded bg-slate-100" />
+        <div data-testid="chart-skeleton" className="h-64 sm:h-72 w-full animate-pulse rounded bg-slate-100" />
       ) : !hasData ? (
         <EmptyState helperText={emptyHelper} />
       ) : (
-        // Fixed-height box: with maintainAspectRatio:false the canvas sizes to
-        // its container, not the height prop — without this it grows unbounded.
-        <div className="relative h-48">
+        <div className="relative h-64 sm:h-72 w-full">
           {variant === 'line' ? (
-            <Line data={data} options={{ responsive: true, maintainAspectRatio: false }} />
+            <Line 
+              data={data} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    ticks: {
+                      callback: function(value) {
+                        const label = this.getLabelForValue(value as number);
+                        if (typeof label === 'string' && label.length > 12) {
+                          return label.substring(0, 10) + '...';
+                        }
+                        return label;
+                      }
+                    }
+                  }
+                },
+                plugins: {
+                  tooltip: {
+                    callbacks: {
+                      title: (context) => context[0].label
+                    }
+                  }
+                }
+              }} 
+            />
           ) : (
-            <Bar data={data} options={{ responsive: true, maintainAspectRatio: false }} />
+            <Bar 
+              data={data} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: {
+                  x: {
+                    ticks: {
+                      callback: function(value) {
+                        const label = this.getLabelForValue(value as number);
+                        if (typeof label === 'string' && label.length > 12) {
+                          return label.substring(0, 10) + '...';
+                        }
+                        return label;
+                      }
+                    }
+                  }
+                },
+                plugins: {
+                  tooltip: {
+                    callbacks: {
+                      title: (context) => context[0].label
+                    }
+                  }
+                }
+              }} 
+            />
           )}
         </div>
       )}

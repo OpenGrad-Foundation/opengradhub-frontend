@@ -43,17 +43,13 @@ function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
     : null;
 
   return (
-    <div style={{
-      width: "200px",
-      flexShrink: 0,
-      background: "rgba(3,72,82,0.03)",
-      border: "1.5px solid rgba(3,72,82,0.09)",
-      borderRadius: "12px",
-      padding: "16px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "14px",
-    }}>
+    <div 
+      className="w-full sm:w-[200px] shrink-0 flex flex-col gap-[14px] p-4 rounded-xl"
+      style={{
+        background: "rgba(3,72,82,0.03)",
+        border: "1.5px solid rgba(3,72,82,0.09)",
+      }}
+    >
       <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>Analytics</p>
 
       {/* My time */}
@@ -147,9 +143,9 @@ function QuestionReviewCard({ q, idx, revealed, questionLabel }: { q: AttemptRev
 
   return (
     <div style={{ ...card, border: `2px solid ${borderColor}`, marginBottom: "16px", padding: "0" }}>
-      <div style={{ display: "flex", gap: "0", alignItems: "stretch" }}>
+      <div className="flex flex-col lg:flex-row items-stretch">
         {/* Left: question content */}
-        <div style={{ flex: 1, padding: "24px 28px", minWidth: 0 }}>
+        <div className="flex-1 min-w-0 p-5 sm:p-6 lg:p-7">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", gap: "8px" }}>
             <p style={{ ...label, margin: 0 }}>{questionLabel ?? `Q${idx + 1}`}</p>
             <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg, flexShrink: 0 }}>
@@ -254,7 +250,10 @@ function QuestionReviewCard({ q, idx, revealed, questionLabel }: { q: AttemptRev
         </div>
 
         {/* Right: analytics panel */}
-        <div style={{ borderLeft: `1.5px solid ${borderColor}30`, padding: "24px 20px", display: "flex", alignItems: "flex-start" }}>
+        <div 
+          className="p-5 lg:p-6 flex items-start border-t-[1.5px] lg:border-t-0 lg:border-l-[1.5px]" 
+          style={{ borderColor: `${borderColor}30` }}
+        >
           <QuestionAnalyticsPanel q={q} />
         </div>
       </div>
