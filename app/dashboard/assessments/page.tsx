@@ -257,69 +257,74 @@ function QuizRow({
       overflow: "hidden",
     }}>
       {/* Row */}
-      <div style={{ display: "flex", alignItems: "center", gap: "14px", padding: "16px 20px" }}>
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          disabled={attemptsUsed === 0}
-          aria-label={expanded ? "Collapse attempts" : "Show attempts"}
-          style={{
-            width: "24px", height: "24px", flexShrink: 0,
-            border: "none", borderRadius: "6px",
-            background: attemptsUsed === 0 ? "transparent" : "rgba(3,72,82,0.06)",
-            color: attemptsUsed === 0 ? "rgba(3,72,82,0.2)" : "#209379",
-            cursor: attemptsUsed === 0 ? "default" : "pointer",
-            fontSize: "12px", fontWeight: 700,
-            transform: expanded ? "rotate(90deg)" : "none",
-            transition: "transform 0.15s",
-          }}
-        >
-          ▶
-        </button>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
-            {label}
-          </p>
-          <h3 style={{ margin: "3px 0 0", fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {quiz.title}
-          </h3>
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 lg:px-5 lg:py-4">
+        <div className="flex items-center gap-[14px] flex-1 min-w-0">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            disabled={attemptsUsed === 0}
+            aria-label={expanded ? "Collapse attempts" : "Show attempts"}
+            style={{
+              width: "24px", height: "24px", flexShrink: 0,
+              border: "none", borderRadius: "6px",
+              background: attemptsUsed === 0 ? "transparent" : "rgba(3,72,82,0.06)",
+              color: attemptsUsed === 0 ? "rgba(3,72,82,0.2)" : "#209379",
+              cursor: attemptsUsed === 0 ? "default" : "pointer",
+              fontSize: "12px", fontWeight: 700,
+              transform: expanded ? "rotate(90deg)" : "none",
+              transition: "transform 0.15s",
+            }}
+          >
+            ▶
+          </button>
+  
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
+              {label}
+            </p>
+            <h3 style={{ margin: "3px 0 0", fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {quiz.title}
+            </h3>
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 }}>
-          {windowInfo && (
-            <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
-          )}
-          {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
-          {maxAttempts != null && maxAttempts > 0 ? (
-            <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
-              {attemptsUsed}/{maxAttempts} attempt{maxAttempts !== 1 ? "s" : ""}
-            </Pill>
-          ) : (
-            <Pill>{attemptsUsed} attempt{attemptsUsed !== 1 ? "s" : ""}</Pill>
-          )}
-          {bestPct !== null && (
-            <Pill style={{ background: "rgba(10,190,98,0.1)", color: "#0abe62" }}>Best {bestPct}%</Pill>
-          )}
-        </div>
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 shrink-0 w-full lg:w-auto pl-[38px] lg:pl-0">
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 }}>
+            {windowInfo && (
+              <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
+            )}
+            {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
+            {maxAttempts != null && maxAttempts > 0 ? (
+              <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
+                {attemptsUsed}/{maxAttempts} attempt{maxAttempts !== 1 ? "s" : ""}
+              </Pill>
+            ) : (
+              <Pill>{attemptsUsed} attempt{attemptsUsed !== 1 ? "s" : ""}</Pill>
+            )}
+            {bestPct !== null && (
+              <Pill style={{ background: "rgba(10,190,98,0.1)", color: "#0abe62" }}>Best {bestPct}%</Pill>
+            )}
+          </div>
 
-        <button
-          onClick={onStart}
-          disabled={exhausted || isLocked}
-          title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
-          style={{
-            flexShrink: 0,
-            padding: "9px 18px", border: "none", borderRadius: "10px",
-            background: exhausted || isLocked
-              ? "rgba(3,72,82,0.08)"
-              : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-            color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
-            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-            cursor: exhausted || isLocked ? "default" : "pointer",
-            boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
-          }}
-        >
-          {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
-        </button>
+          <button
+            onClick={onStart}
+            disabled={exhausted || isLocked}
+            title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
+            className="w-full lg:w-auto mt-1 lg:mt-0"
+            style={{
+              flexShrink: 0,
+              padding: "9px 18px", border: "none", borderRadius: "10px",
+              background: exhausted || isLocked
+                ? "rgba(3,72,82,0.08)"
+                : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+              color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
+              fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+              cursor: exhausted || isLocked ? "default" : "pointer",
+              boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
+            }}
+          >
+            {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
+          </button>
+        </div>
       </div>
 
       {/* Expanded attempts */}
