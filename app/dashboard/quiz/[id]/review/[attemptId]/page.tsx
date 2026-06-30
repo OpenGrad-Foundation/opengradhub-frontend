@@ -99,7 +99,29 @@ function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
   );
 }
 
-function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; idx: number; revealed: boolean }) {
+function PassageCard({ html, imageUrl }: { html: string; imageUrl: string | null }) {
+  return (
+    <div style={{
+      ...card,
+      background: "rgba(3,72,82,0.02)",
+      border: "1.5px solid rgba(3,72,82,0.1)",
+      marginBottom: "8px",
+    }}>
+      <p style={{ ...label, marginBottom: "10px" }}>Reading Passage</p>
+      <MathContent html={html} style={{ fontSize: "15px", lineHeight: 1.7, color: "#034852" }} />
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt="Passage image"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)", display: "block", marginTop: "14px" }}
+        />
+      )}
+    </div>
+  );
+}
+
+function QuestionReviewCard({ q, idx, revealed, questionLabel }: { q: AttemptReviewQuestion; idx: number; revealed: boolean; questionLabel?: string }) {
   const borderColor =
     q.is_correct === true  ? "#0abe62" :
     q.is_correct === false ? "#e53e3e" :
@@ -129,13 +151,24 @@ function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; id
         {/* Left: question content */}
         <div style={{ flex: 1, padding: "24px 28px", minWidth: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", gap: "8px" }}>
-            <p style={{ ...label, margin: 0 }}>Q{idx + 1}</p>
+            <p style={{ ...label, margin: 0 }}>{questionLabel ?? `Q${idx + 1}`}</p>
             <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg, flexShrink: 0 }}>
               {statusLabel}
             </span>
           </div>
 
-          <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: "14px" }} />
+          <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: q.image_url ? "10px" : "14px" }} />
+
+          {q.image_url && (
+            <div style={{ marginBottom: "14px" }}>
+              <img
+                src={q.image_url}
+                alt="Question image"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)", display: "block" }}
+              />
+            </div>
+          )}
 
           {/* MCQ options */}
           {q.question_type === "MCQ" && q.options.length > 0 && (
@@ -326,9 +359,46 @@ export default function AttemptReviewPage() {
       }))
     : null;
 
-  const renderQuestionCard = (q: AttemptReviewQuestion, idx: number) => (
-    <QuestionReviewCard key={q.snapshot_id} q={q} idx={idx} revealed={revealed} />
-  );
+  // Build a flat render list that inserts a PassageCard before the first child of each GROUP.
+  function buildRenderItems(questions: AttemptReviewQuestion[]) {
+    const items: React.ReactNode[] = [];
+    const seenParents = new Set<string>();
+    const partCounters = new Map<string, number>();
+    let questionNumber = 0;
+    for (const q of questions) {
+      if (q.parent_snapshot_id) {
+        if (!seenParents.has(q.parent_snapshot_id)) {
+          seenParents.add(q.parent_snapshot_id);
+          partCounters.set(q.parent_snapshot_id, 0);
+          questionNumber++;
+          items.push(
+            <PassageCard
+              key={`passage-${q.parent_snapshot_id}`}
+              html={q.parent_content_html ?? ""}
+              imageUrl={q.parent_image_url ?? null}
+            />
+          );
+        }
+        const partNum = (partCounters.get(q.parent_snapshot_id) ?? 0) + 1;
+        partCounters.set(q.parent_snapshot_id, partNum);
+        items.push(
+          <QuestionReviewCard
+            key={q.snapshot_id}
+            q={q}
+            idx={questionNumber - 1}
+            revealed={revealed}
+            questionLabel={`Part ${partNum}`}
+          />
+        );
+      } else {
+        questionNumber++;
+        items.push(
+          <QuestionReviewCard key={q.snapshot_id} q={q} idx={questionNumber - 1} revealed={revealed} />
+        );
+      }
+    }
+    return items;
+  }
 
   return (
     <div style={page}>
@@ -375,12 +445,12 @@ export default function AttemptReviewPage() {
           {groupedBySection.map(({ section, questions }) => (
             <div key={section.section_id} style={{ marginBottom: "32px" }}>
               <SectionHeader section={section} />
-              {questions.map((q, i) => renderQuestionCard(q, i))}
+              {buildRenderItems(questions)}
             </div>
           ))}
         </>
       ) : (
-        review.questions.map((q, i) => renderQuestionCard(q, i))
+        buildRenderItems(review.questions)
       )}
 
       <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>

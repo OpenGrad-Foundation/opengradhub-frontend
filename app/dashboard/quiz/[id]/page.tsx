@@ -740,7 +740,7 @@ export default function QuizTakingPage() {
   }
 
   if (phase === "intro" && quiz) {
-    const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
+    const exhausted = quiz.max_attempts != null && quiz.max_attempts > 0 && attemptsUsed >= quiz.max_attempts;
     return (
       <div style={pageCentered}>
         <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
@@ -753,7 +753,7 @@ export default function QuizTakingPage() {
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {quiz.duration_minutes && <span style={pill}>⏱ {quiz.duration_minutes} min</span>}
-            {quiz.max_attempts && (
+            {quiz.max_attempts != null && quiz.max_attempts > 0 && (
               <span style={pill}>
                 {attemptsUsed}/{quiz.max_attempts} attempt{quiz.max_attempts !== 1 ? "s" : ""} used
               </span>
@@ -763,6 +763,23 @@ export default function QuizTakingPage() {
             )}
             <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
           </div>
+
+          {quiz.description != null && quiz.description.trim() !== "" && (
+            <div style={{
+              marginTop: "20px",
+              padding: "16px 20px",
+              background: "rgba(3,72,82,0.04)",
+              border: "1px solid rgba(3,72,82,0.1)",
+              borderLeft: "3px solid #209379",
+              borderRadius: "8px",
+            }}>
+              <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+                Test Instructions
+              </p>
+              <MathContent html={quiz.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+            </div>
+          )}
+
           {(() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
@@ -1504,7 +1521,7 @@ export default function QuizTakingPage() {
               >
                 Practice again
               </button>
-            ) : quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
+            ) : quiz?.max_attempts == null || quiz?.max_attempts <= 0 || attemptsUsed + 1 < quiz.max_attempts ? (
               <button onClick={() => { setAttemptsUsed((n) => n + 1); setPhase("intro"); }} style={secondaryBtn}>
                 Retake Quiz
               </button>

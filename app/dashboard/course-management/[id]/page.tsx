@@ -589,7 +589,7 @@ export default function CourseManagementPage() {
             <p style={subtitle}>Update metadata here while keeping learner preview and curriculum editing separate.</p>
           </div>
           <CourseMetaForm
-            key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.cover_image_url ?? ""}`}
+            key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.tags?.join(",") ?? ""}-${currentCourse.cover_image_url ?? ""}`}
             initial={currentCourse}
             submitLabel="Save settings"
             onSave={async (fields) => {

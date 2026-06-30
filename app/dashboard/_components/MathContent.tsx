@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitize } from "@/lib/purify";
 
 // renderMathInElement is a UMD-style module — import as any, types not shipped
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,7 +45,7 @@ export function MathContent({
 
   // Sanitize here so the component is safe regardless of caller. KaTeX
   // auto-render runs afterwards on the mounted node and is unaffected.
-  const safeHtml = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  const safeHtml = sanitize(html);
 
   useEffect(() => {
     let cancelled = false;

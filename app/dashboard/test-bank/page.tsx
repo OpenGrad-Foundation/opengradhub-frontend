@@ -34,6 +34,7 @@ export default function TestBankPage() {
   const [filterSubject, setFilterSubject] = useState("");
   const [filterTopic, setFilterTopic]     = useState("");
   const [filterDiff, setFilterDiff]       = useState("");
+  const [filterTag, setFilterTag]         = useState("");
 
   const [panelOpen, setPanelOpen]     = useState(false);
   const [editTarget, setEditTarget]   = useState<Question | null>(null);
@@ -53,13 +54,14 @@ export default function TestBankPage() {
         subject:         filterSubject || undefined,
         topic:           filterTopic   || undefined,
         difficulty:      filterDiff    || undefined,
+        tag:             filterTag     || undefined,
       }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load questions.");
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterProg, filterSubject, filterTopic, filterDiff]);
+  }, [filterType, filterProg, filterSubject, filterTopic, filterDiff, filterTag]);
 
   useEffect(() => {
     if (!userLoading) void fetchQuestions();
@@ -170,11 +172,12 @@ export default function TestBankPage() {
         </Sel>
         <Inp value={filterSubject} onChange={setFilterSubject} placeholder="Subject…" />
         <Inp value={filterTopic}   onChange={setFilterTopic}   placeholder="Topic…" />
+        <Inp value={filterTag}     onChange={setFilterTag}     placeholder="Tag…" />
         <Sel value={filterDiff} onChange={setFilterDiff} placeholder="All Difficulties">
           {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
         </Sel>
-        {(filterType || filterProg || filterSubject || filterTopic || filterDiff) && (
-          <button onClick={() => { setFilterType(""); setFilterProg(""); setFilterSubject(""); setFilterTopic(""); setFilterDiff(""); }} style={{ background: "none", border: "none", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "#e53e3e", cursor: "pointer" }}>
+        {(filterType || filterProg || filterSubject || filterTopic || filterDiff || filterTag) && (
+          <button onClick={() => { setFilterType(""); setFilterProg(""); setFilterSubject(""); setFilterTopic(""); setFilterDiff(""); setFilterTag(""); }} style={{ background: "none", border: "none", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "#e53e3e", cursor: "pointer" }}>
             Clear
           </button>
         )}

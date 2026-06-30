@@ -35,10 +35,35 @@ export function QuestionView({
           {q.question_type === "MCQ" ? "Multiple Choice" : q.question_type === "NUMERICAL" ? "Numeric" : q.question_type === "ESSAY" ? "Essay" : "Fill in the Blank"}
         </p>
       )}
+
+      {q.instruction_html != null && q.instruction_html.trim() !== "" && (
+        <div style={{
+          background: "rgba(3,72,82,0.04)",
+          border: "1px solid rgba(3,72,82,0.12)",
+          borderLeft: "3px solid #209379",
+          borderRadius: "8px",
+          padding: "12px 16px",
+          marginBottom: "20px",
+        }}>
+          <MathContent html={q.instruction_html} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+        </div>
+      )}
+
       <MathContent
         html={q.content_html}
-        style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.6, marginBottom: "24px" }}
+        style={{ fontSize: "16px", fontWeight: 600, lineHeight: 1.6, marginBottom: q.image_url ? "16px" : "24px" }}
       />
+
+      {q.image_url && (
+        <div style={{ marginBottom: "24px" }}>
+          <img
+            src={q.image_url}
+            alt="Question image"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+            style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)", display: "block" }}
+          />
+        </div>
+      )}
 
       {q.question_type === "MCQ" && q.options.length > 0 && (
         <div>

@@ -30,6 +30,7 @@ import {
   Tag,
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
+import { QuizStudentPreview } from "@/components/quiz-student-preview";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ export default function QuizBuilderPage() {
 
   // Settings form state
   const [title, setTitle]                 = useState("");
+  const [description, setDescription]     = useState("");
   const [duration, setDuration]           = useState("");
   const [maxAttempts, setMaxAttempts]     = useState("");
   const [passThreshold, setPassThreshold] = useState("");
@@ -73,6 +75,9 @@ export default function QuizBuilderPage() {
   const [publishing, setPublishing]     = useState(false);
   const [publishErr, setPublishErr]     = useState<string | null>(null);
 
+  // Student preview
+  const [previewOpen, setPreviewOpen]   = useState(false);
+
   // Question panel / bank modal
   const [panelOpen, setPanelOpen]       = useState(false);
   const [editTarget, setEditTarget]     = useState<Question | null>(null);
@@ -90,6 +95,7 @@ export default function QuizBuilderPage() {
       setQuiz(q);
       setQuestions(q.questions);
       setTitle(q.title);
+      setDescription(q.description ?? "");
       setDuration(q.duration_minutes?.toString() ?? "");
       setMaxAttempts(q.max_attempts?.toString() ?? "");
       setPassThreshold(q.pass_threshold_percent?.toString() ?? "");
@@ -148,6 +154,7 @@ export default function QuizBuilderPage() {
     try {
       await updateQuiz(quizId, {
         title:                  title.trim(),
+        description:            description.trim() || null,
         duration_minutes:       duration      ? Number(duration)      : null,
         max_attempts:           maxAttempts   ? Number(maxAttempts)   : null,
         pass_threshold_percent: passThreshold ? Number(passThreshold) : null,
@@ -269,36 +276,54 @@ export default function QuizBuilderPage() {
             </p>
           </div>
 
-          {/* Publish control */}
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-            {quiz?.published ? (
-              <span style={{
-                display: "inline-flex", alignItems: "center", gap: "6px",
-                padding: "10px 18px", borderRadius: "10px",
-                background: "rgba(10,190,98,0.1)", border: "1.5px solid rgba(10,190,98,0.3)",
-                color: "#0abe62", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-              }}>
-                ✓ Published
-              </span>
-            ) : (
+          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+            {/* Preview + Publish controls */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
               <button
-                onClick={() => void handlePublish()}
-                disabled={publishing}
+                onClick={() => setPreviewOpen(true)}
+                disabled={(quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length === 0}
                 style={{
-                  padding: "10px 20px", border: "none", borderRadius: "10px",
-                  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-                  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-                  fontSize: "13px", cursor: publishing ? "default" : "pointer",
-                  boxShadow: "0 6px 14px rgba(10,190,98,0.25)",
-                  opacity: publishing ? 0.6 : 1, transition: "all 220ms ease",
+                  padding: "10px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px",
+                  background: "transparent", color: "#034852",
+                  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+                  cursor: "pointer", transition: "all 220ms ease",
                 }}
               >
-                {publishing ? "Publishing…" : "Publish Quiz"}
+                Student Preview
               </button>
-            )}
-            {publishErr && (
-              <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{publishErr}</p>
-            )}
+            </div>
+
+            {/* Publish control */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+              {quiz?.published ? (
+                <span style={{
+                  display: "inline-flex", alignItems: "center", gap: "6px",
+                  padding: "10px 18px", borderRadius: "10px",
+                  background: "rgba(10,190,98,0.1)", border: "1.5px solid rgba(10,190,98,0.3)",
+                  color: "#0abe62", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+                }}>
+                  ✓ Published
+                </span>
+              ) : (
+                <button
+                  onClick={() => void handlePublish()}
+                  disabled={publishing}
+                  style={{
+                    padding: "10px 20px", border: "none", borderRadius: "10px",
+                    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+                    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
+                    fontSize: "13px", cursor: publishing ? "default" : "pointer",
+                    boxShadow: "0 6px 14px rgba(10,190,98,0.25)",
+                    opacity: publishing ? 0.6 : 1, transition: "all 220ms ease",
+                  }}
+                >
+                  {publishing ? "Publishing…" : "Publish Quiz"}
+                </button>
+              )}
+              {publishErr && (
+                <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{publishErr}</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -310,6 +335,15 @@ export default function QuizBuilderPage() {
           <div style={{ display: "grid", gap: "16px" }}>
             <Field label="Title *">
               <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
+            </Field>
+            <Field label="Test Instructions (shown to students before they start)">
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Optional instructions, rules, or context for this test…"
+                style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
+              />
             </Field>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
               <Field label="Duration (min, 0=untimed)">
@@ -406,6 +440,11 @@ export default function QuizBuilderPage() {
           </>
         )}
       </div>
+
+      {/* ── Student preview ───────────────────────────────── */}
+      {previewOpen && quiz && (
+        <QuizStudentPreview quiz={quiz} onClose={() => setPreviewOpen(false)} />
+      )}
 
       {/* ── Question slide-over ───────────────────────────── */}
       {panelOpen && (
