@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, KeyboardEvent } from "react";
+import { X } from "lucide-react";
 import type { Course } from "@/lib/api";
 
 type FormFields = {
@@ -10,6 +11,7 @@ type FormFields = {
   cover_image_url: string;
   locking_mode: string;
   access_type: string;
+  tags: string[];
 };
 
 type Props = {
@@ -25,6 +27,8 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
   const [coverImageUrl, setCoverImageUrl] = useState(initial?.cover_image_url ?? "");
   const [lockingMode, setLockingMode] = useState(initial?.locking_mode ?? "OPEN");
   const [accessType, setAccessType] = useState(initial?.access_type ?? "FREE");
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +45,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
         cover_image_url: coverImageUrl.trim(),
         locking_mode: lockingMode,
         access_type: accessType,
+        tags: tags,
       });
+      setSubmitting(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setSubmitting(false);
@@ -92,6 +98,87 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
             rows={4}
             style={{ ...inputStyle, resize: "vertical" as const }}
           />
+        </Section>
+
+        {/* ── Tags ──────────────────────────────────────────── */}
+        <Section label="Tags">
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px",
+              padding: "8px",
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: "12px",
+              background: "#fff",
+              minHeight: "44px",
+              alignItems: "center"
+            }}
+          >
+            {tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: "rgba(10,190,98,0.1)",
+                  color: "var(--dark-teal)",
+                  padding: "4px 10px",
+                  borderRadius: "100px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                {tag}
+                <button
+                  type="button"
+                  onClick={() => setTags(tags.filter((t) => t !== tag))}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    margin: 0,
+                    cursor: "pointer",
+                    color: "var(--teal)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <X size={12} strokeWidth={3} />
+                </button>
+              </span>
+            ))}
+            <input
+              id="course-tags"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  const val = tagInput.trim();
+                  if (val && !tags.includes(val)) {
+                    setTags([...tags, val]);
+                  }
+                  setTagInput("");
+                } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+                  setTags(tags.slice(0, -1));
+                }
+              }}
+              placeholder={tags.length === 0 ? "Type and press Enter to add tags" : ""}
+              style={{
+                flex: 1,
+                minWidth: "120px",
+                border: "none",
+                outline: "none",
+                background: "transparent",
+                fontSize: "14px",
+                color: "var(--dark-teal)",
+                fontFamily: "inherit",
+              }}
+            />
+          </div>
         </Section>
 
         {/* ── Programme Type ────────────────────────────────── */}

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -53,6 +54,8 @@ export default function CoursesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("ALL");
   const [lockingFilter, setLockingFilter] = useState<LockingFilter>("ALL");
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   const deferredSearch = useDeferredValue(searchInput);
 
@@ -118,6 +121,7 @@ export default function CoursesPage() {
         search: deferredSearch.trim() || undefined,
         accessType: accessFilter === "ALL" ? undefined : accessFilter,
         lockingMode: lockingFilter === "ALL" ? undefined : lockingFilter,
+        tags: tagsFilter.length > 0 ? tagsFilter : undefined,
         page,
         pageSize,
       };
@@ -142,6 +146,7 @@ export default function CoursesPage() {
     deferredSearch,
     isStudent,
     lockingFilter,
+    tagsFilter,
     page,
     pageSize,
     programmeFilter,
@@ -180,12 +185,14 @@ export default function CoursesPage() {
       supportsFullStatusFilter && statusFilter !== "ALL",
       accessFilter !== "ALL",
       lockingFilter !== "ALL",
+      tagsFilter.length > 0,
       deferredSearch.trim().length > 0,
     ].filter(Boolean).length;
   }, [
     accessFilter,
     deferredSearch,
     lockingFilter,
+    tagsFilter,
     programmeFilter,
     statusFilter,
     supportsFullStatusFilter,
@@ -197,6 +204,8 @@ export default function CoursesPage() {
     setStatusFilter("ALL");
     setAccessFilter("ALL");
     setLockingFilter("ALL");
+    setTagsFilter([]);
+    setTagInput("");
     setPage(1);
   };
 
@@ -338,6 +347,48 @@ export default function CoursesPage() {
                   { value: "SEQUENTIAL", label: "Sequential" },
                 ]}
               />
+              <div className="flex items-center flex-wrap gap-1.5 rounded-lg border border-[rgba(3,72,82,0.15)] bg-white px-2.5 py-1.5 shadow-sm focus-within:border-[rgba(10,190,98,0.4)] min-h-[34px]">
+                <span className="text-[11px] font-semibold tracking-wide text-[rgba(3,72,82,0.6)] uppercase">Tags</span>
+                {tagsFilter.map(tag => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTagsFilter(tagsFilter.filter(t => t !== tag));
+                        setPage(1);
+                      }}
+                      className="flex items-center justify-center text-[var(--teal)] hover:text-[var(--dark-teal)]"
+                    >
+                      <X size={10} strokeWidth={3} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  placeholder={tagsFilter.length === 0 ? "e.g. Maths, Science" : ""}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const val = tagInput.trim();
+                      if (val && !tagsFilter.includes(val)) {
+                        setTagsFilter([...tagsFilter, val]);
+                        setPage(1);
+                      }
+                      setTagInput("");
+                    } else if (e.key === "Backspace" && !tagInput && tagsFilter.length > 0) {
+                      setTagsFilter(tagsFilter.slice(0, -1));
+                      setPage(1);
+                    }
+                  }}
+                  className="w-[120px] flex-1 border-0 bg-transparent text-xs text-[var(--dark-teal)] outline-none placeholder:text-[rgba(3,72,82,0.4)]"
+                />
+              </div>
               <button
                 type="button"
                 onClick={resetFilters}
@@ -455,6 +506,16 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
           {course.description ?? "No description added yet."}
         </p>
 
+        {course.tags && course.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {course.tags.map(tag => (
+              <span key={tag} className="inline-flex items-center rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
         <dl className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[rgba(248,250,251,0.95)] p-3">
           <Metric label="Lessons" value={`${course.lesson_count}`} />
           <Metric label="Structure" value={course.locking_mode} />
@@ -506,6 +567,15 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-[rgba(3,72,82,0.58)]">
                       {course.description ?? "No description added yet."}
                     </p>
+                    {course.tags && course.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {course.tags.map(tag => (
+                          <span key={tag} className="inline-flex items-center rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="px-5 py-4">

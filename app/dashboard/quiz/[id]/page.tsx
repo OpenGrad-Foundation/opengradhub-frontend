@@ -740,7 +740,7 @@ export default function QuizTakingPage() {
   }
 
   if (phase === "intro" && quiz) {
-    const exhausted = quiz.max_attempts != null && attemptsUsed >= quiz.max_attempts;
+    const exhausted = quiz.max_attempts != null && quiz.max_attempts > 0 && attemptsUsed >= quiz.max_attempts;
     return (
       <div style={pageCentered}>
         <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
@@ -753,7 +753,7 @@ export default function QuizTakingPage() {
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {quiz.duration_minutes && <span style={pill}>⏱ {quiz.duration_minutes} min</span>}
-            {quiz.max_attempts && (
+            {quiz.max_attempts != null && quiz.max_attempts > 0 && (
               <span style={pill}>
                 {attemptsUsed}/{quiz.max_attempts} attempt{quiz.max_attempts !== 1 ? "s" : ""} used
               </span>
@@ -763,6 +763,23 @@ export default function QuizTakingPage() {
             )}
             <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
           </div>
+
+          {quiz.description != null && quiz.description.trim() !== "" && (
+            <div style={{
+              marginTop: "20px",
+              padding: "16px 20px",
+              background: "rgba(3,72,82,0.04)",
+              border: "1px solid rgba(3,72,82,0.1)",
+              borderLeft: "3px solid #209379",
+              borderRadius: "8px",
+            }}>
+              <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+                Test Instructions
+              </p>
+              <MathContent html={quiz.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+            </div>
+          )}
+
           {(() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
@@ -799,36 +816,38 @@ export default function QuizTakingPage() {
                   const pct = a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null;
                   const date = a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
                   return (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px", background: "rgba(3,72,82,0.03)", borderRadius: "10px" }}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#034852" }}>
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[rgba(3,72,82,0.03)] rounded-xl">
+                      <div className="flex-1">
+                        <p className="m-0 text-[14px] font-bold text-[#034852]">
                           Attempt {a.attempt_number} — {a.score ?? "?"}/{a.max_score ?? "?"}{pct !== null ? ` (${pct}%)` : ""}
                         </p>
-                        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>{date}</p>
+                        <p className="mt-1 mb-0 text-[12px] text-[rgba(3,72,82,0.45)]">{date}</p>
                       </div>
-                      {a.passed !== null && (
-                        <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "100px", background: a.passed ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)", color: a.passed ? "#0abe62" : "#e53e3e" }}>
-                          {a.passed ? "Passed" : "Failed"}
+                      <div className="flex items-center flex-wrap gap-2 mt-2 sm:mt-0">
+                        {a.passed !== null && (
+                          <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "100px", background: a.passed ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)", color: a.passed ? "#0abe62" : "#e53e3e" }}>
+                            {a.passed ? "Passed" : "Failed"}
+                          </span>
+                        )}
+                        <span style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: "100px",
+                          background: a.counts_toward_grade ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
+                          color:      a.counts_toward_grade ? "#0abe62" : "rgba(3,72,82,0.6)",
+                        }}>
+                          {a.counts_toward_grade ? "Counted" : "Practice"}
                         </span>
-                      )}
-                      <span style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: "100px",
-                        background: a.counts_toward_grade ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
-                        color:      a.counts_toward_grade ? "#0abe62" : "rgba(3,72,82,0.6)",
-                      }}>
-                        {a.counts_toward_grade ? "Counted" : "Practice"}
-                      </span>
-                      {quiz?.show_answers_after && (
-                        <button
-                          onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
-                          style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
-                        >
-                          Review →
-                        </button>
-                      )}
+                        {quiz?.show_answers_after && (
+                          <button
+                            onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
+                            style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
+                          >
+                            Review →
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1042,7 +1061,7 @@ export default function QuizTakingPage() {
         )}
         <div style={pageInner}>
           {/* Header */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <p style={{ fontSize: "15px", fontWeight: 700, color: "#034852", margin: 0 }}>{quiz?.title}</p>
             <span style={{ ...pill, background: "rgba(3,72,82,0.08)", color: "#034852", margin: 0 }}>
               Attempt #{attempt.attempt_number}
@@ -1102,9 +1121,9 @@ export default function QuizTakingPage() {
           )}
 
           {/* Two-column layout */}
-          <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+          <div className="flex flex-col-reverse lg:flex-row gap-5 items-start">
             {/* Main question card */}
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex-1 min-w-0 w-full">
               <div style={card}>
                 {/* Question header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
@@ -1212,7 +1231,7 @@ export default function QuizTakingPage() {
             </div>
 
             {/* Sidebar */}
-            <div style={{ width: "220px", flexShrink: 0 }}>
+            <div className="w-full lg:w-[220px] shrink-0">
               <div style={{ ...card, padding: "20px", marginBottom: "12px" }}>
                 {/* Timer */}
                 <div style={{
@@ -1285,7 +1304,7 @@ export default function QuizTakingPage() {
 
                 {/* Question navigator grid */}
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-4 gap-2">
                   {questions.map((qi, i) => {
                     const isCurrent = i === currentIdx;
                     const status = getQuestionStatus(i);
@@ -1466,7 +1485,7 @@ export default function QuizTakingPage() {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-6">
             <button onClick={() => router.push(getBackHref(from, "/dashboard/assessments"))} style={primaryBtn}>
               Back to Quizzes
             </button>
@@ -1504,7 +1523,7 @@ export default function QuizTakingPage() {
               >
                 Practice again
               </button>
-            ) : quiz?.max_attempts == null || attemptsUsed + 1 < (quiz?.max_attempts ?? Infinity) ? (
+            ) : quiz?.max_attempts == null || quiz?.max_attempts <= 0 || attemptsUsed + 1 < quiz.max_attempts ? (
               <button onClick={() => { setAttemptsUsed((n) => n + 1); setPhase("intro"); }} style={secondaryBtn}>
                 Retake Quiz
               </button>

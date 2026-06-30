@@ -140,6 +140,9 @@ export function QuestionSlideOver({
   const [negativeMarks, setNegativeMarks] = useState(initial?.negative_marks?.toString() ?? "");
   const [answerTime, setAnswerTime] = useState(initial?.answer_time_minutes?.toString() ?? "");
   const [instruction, setInstruction] = useState(initial?.instruction_html ?? "");
+  const [tag, setTag] = useState(initial?.tag ?? "");
+  const [solution, setSolution] = useState(initial?.solution ?? "");
+  const [imageUrl, setImageUrl] = useState(initial?.image_url ?? "");
   const [evaluationCriteria, setEvaluationCriteria] = useState<DraftEvaluationCriterion[]>(() => {
     try {
       const raw = initial?.evaluation_criteria_json;
@@ -255,7 +258,10 @@ export function QuestionSlideOver({
         negative_marks: negativeMarks ? Number(negativeMarks) : undefined,
         answer_time_minutes: answerTime ? Number(answerTime) : undefined,
         instruction_html: instruction.trim() || undefined,
-        evaluation_criteria_json: evaluationCriteria.length > 0 
+        tag: tag.trim() || undefined,
+        solution: solution.trim() || undefined,
+        image_url: imageUrl.trim() || undefined,
+        evaluation_criteria_json: evaluationCriteria.length > 0
           ? evaluationCriteria.filter(c => c.criteria.trim()).map(c => ({ criteria: c.criteria.trim(), percentage: c.percentage ? Number(c.percentage) : 0 }))
           : undefined,
       };
@@ -391,6 +397,25 @@ export function QuestionSlideOver({
               value={instruction}
               onChange={setInstruction}
               placeholder="e.g. Read the passage and answer..."
+            />
+          </FieldGroup>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <FieldGroup label="Tag">
+              <input value={tag} onChange={e => setTag(e.target.value)} style={S.input} placeholder="e.g. Functions" />
+            </FieldGroup>
+            <FieldGroup label="Image URL (optional)">
+              <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} style={S.input} placeholder="https://..." type="url" />
+            </FieldGroup>
+          </div>
+
+          <FieldGroup label="Solution (optional)">
+            <MathTextEditor
+              compact
+              rows={2}
+              value={solution}
+              onChange={setSolution}
+              placeholder="Explanation shown after submission..."
             />
           </FieldGroup>
 

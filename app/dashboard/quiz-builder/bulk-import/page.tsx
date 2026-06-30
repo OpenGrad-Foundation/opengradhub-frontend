@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { bulkImportQuiz, bulkImportQuizFromPdf } from "@/lib/api";
+import {
+  bulkParseQuiz,
+  bulkParseQuizFromPdf,
+  bulkSaveQuiz,
+  type ParsedBulkQuiz,
+} from "@/lib/api";
+import { QuizPreviewEditor } from "@/components/quiz-preview-editor";
 
 const S = {
   pageOuter: {
@@ -48,79 +54,144 @@ const S = {
 export default function BulkImportQuizPage() {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<ParsedBulkQuiz | null>(null);
 
-  async function handleImport(e: React.FormEvent) {
+  // ── Step 1: parse the file ────────────────────────────────────────────────
+
+  async function handleParse(e: React.FormEvent) {
     e.preventDefault();
     if (!file) return;
 
-    setUploading(true);
+    setParsing(true);
     setError(null);
 
     try {
-      const result = file.type === "application/pdf"
-        ? await bulkImportQuizFromPdf(file)
-        : await bulkImportQuiz(await file.text());
-      router.push(`/dashboard/quiz-builder/${result.quiz_id}`);
-    } catch (err: any) {
-      setError(err instanceof Error ? err.message : "Failed to import quiz");
+      const parsed =
+        file.type === "application/pdf"
+          ? await bulkParseQuizFromPdf(file)
+          : await bulkParseQuiz(await file.text());
+      setPreviewData(parsed);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to parse file");
     } finally {
-      setUploading(false);
+      setParsing(false);
     }
   }
+
+  // ── Step 2: save the (possibly edited) parsed data ────────────────────────
+
+  async function handleSave() {
+    if (!previewData) return;
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const result = await bulkSaveQuiz(previewData);
+      router.push(`/dashboard/quiz-builder/${result.quiz_id}`);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save quiz");
+      setSaving(false);
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div style={S.pageOuter}>
       <div style={S.pageInner}>
         <div style={S.glassCard}>
-          <h1 style={S.heading}>Bulk Import Quiz</h1>
-          <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "24px" }}>
-            Upload a markdown (.md, .txt) or PDF file following the OpenGrad Quiz format to automatically generate a complete quiz with sections and questions. PDFs must be typed (not scanned).
-          </p>
+          {previewData === null ? (
+            // ── Step 1: Upload ──────────────────────────────────────────────
+            <>
+              <h1 style={S.heading}>Bulk Import Quiz</h1>
+              <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "24px" }}>
+                Upload a markdown (.md, .txt) or PDF file following the OpenGrad Quiz format.
+                After uploading you can review and edit the parsed data before saving.
+                PDFs must be typed (not scanned).
+              </p>
 
-          <form onSubmit={(e) => { void handleImport(e); }} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <div>
-              <input
-                type="file"
-                accept=".md,.txt,.pdf"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  padding: "12px",
-                  border: "1.5px dashed rgba(3,72,82,0.2)",
-                  borderRadius: "12px",
-                  background: "rgba(3,72,82,0.02)",
-                  color: "#034852",
-                  cursor: "pointer",
+              <form
+                onSubmit={(e) => { void handleParse(e); }}
+                style={{ display: "flex", flexDirection: "column", gap: "20px" }}
+              >
+                <div>
+                  <input
+                    type="file"
+                    accept=".md,.txt,.pdf"
+                    onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      padding: "12px",
+                      border: "1.5px dashed rgba(3,72,82,0.2)",
+                      borderRadius: "12px",
+                      background: "rgba(3,72,82,0.02)",
+                      color: "#034852",
+                      cursor: "pointer",
+                    }}
+                  />
+                </div>
+
+                {error && (
+                  <div
+                    style={{
+                      padding: "12px",
+                      borderRadius: "8px",
+                      background: "rgba(229,62,62,0.1)",
+                      color: "#c53030",
+                      fontSize: "14px",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", gap: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    style={{
+                      ...S.primaryBtn,
+                      background: "transparent",
+                      border: "1.5px solid rgba(3,72,82,0.15)",
+                      color: "#034852",
+                      boxShadow: "none",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!file || parsing}
+                    style={{ ...S.primaryBtn, opacity: !file || parsing ? 0.6 : 1 }}
+                  >
+                    {parsing ? "Parsing…" : "Parse File →"}
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : (
+            // ── Step 2: Preview & Edit ──────────────────────────────────────
+            <>
+              <h1 style={{ ...S.heading, margin: "0 0 24px 0" }}>Review Parsed Quiz</h1>
+              <QuizPreviewEditor
+                data={previewData}
+                onChange={setPreviewData}
+                onConfirm={() => { void handleSave(); }}
+                onBack={() => {
+                  setPreviewData(null);
+                  setError(null);
                 }}
+                saving={saving}
+                error={error}
               />
-            </div>
-
-            {error && (
-              <div style={{ padding: "12px", borderRadius: "8px", background: "rgba(229,62,62,0.1)", color: "#c53030", fontSize: "14px", fontWeight: 600 }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={() => router.back()}
-                style={{ ...S.primaryBtn, background: "transparent", border: "1.5px solid rgba(3,72,82,0.15)", color: "#034852", boxShadow: "none" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={!file || uploading}
-                style={{ ...S.primaryBtn, opacity: (!file || uploading) ? 0.6 : 1 }}
-              >
-                {uploading ? "Importing..." : "Import Quiz"}
-              </button>
-            </div>
-          </form>
+            </>
+          )}
         </div>
       </div>
     </div>

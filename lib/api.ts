@@ -534,6 +534,7 @@ export type Course = {
   locking_mode: string;
   access_type: string;
   status: string;
+  tags: string[];
   created_by: string;
   created_at: string;
   lesson_count: number;
@@ -548,6 +549,7 @@ export type CourseListParams = {
   status?: string;
   accessType?: string;
   lockingMode?: string;
+  tags?: string[];
   page?: number;
   pageSize?: number;
 };
@@ -571,6 +573,9 @@ function appendCourseListParams(url: URL, params: CourseListParams, paginate = f
   if (params.status) url.searchParams.set("status", params.status);
   if (params.accessType) url.searchParams.set("access_type", params.accessType);
   if (params.lockingMode) url.searchParams.set("locking_mode", params.lockingMode);
+  if (params.tags) {
+    params.tags.forEach(tag => url.searchParams.append("tags", tag));
+  }
   if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
   if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
   if (paginate) url.searchParams.set("paginate", "true");
@@ -868,6 +873,7 @@ export async function createCourse(payload: {
   programme_type: string;
   locking_mode?: string;
   access_type?: string;
+  tags?: string[];
   cover_image_url?: string;
   created_by: string;
 }): Promise<Course> {
@@ -896,6 +902,7 @@ export async function updateCourse(
     programme_type?: string;
     locking_mode?: string;
     access_type?: string;
+    tags?: string[];
     cover_image_url?: string;
     status?: string;
     caller_id: string;
@@ -944,6 +951,9 @@ export type Question = {
   answer_time_minutes: number | null;
   instruction_html: string | null;
   evaluation_criteria_json: EvaluationCriterion[] | null;
+  tag: string | null;
+  solution: string | null;
+  image_url: string | null;
   created_by: string | null;
   options: QuestionOption[];
   children: Question[];
@@ -975,6 +985,9 @@ export type CreateQuestionPayload = {
   topic?: string;
   difficulty?: string;
   explanation_video_url?: string;
+  tag?: string;
+  solution?: string;
+  image_url?: string;
   marks?: number;
   negative_marks?: number;
   answer_time_minutes?: number;
@@ -995,6 +1008,7 @@ export type QuestionFilters = {
   quiz_id?: string;
   /** Full-text search on content_html. */
   search?: string;
+  tag?: string;
 };
 
 export async function getQuestions(filters: QuestionFilters = {}): Promise<Question[]> {
@@ -1006,6 +1020,7 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.difficulty) url.searchParams.set("difficulty", filters.difficulty);
   if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
   if (filters.search) url.searchParams.set("search", filters.search);
+  if (filters.tag) url.searchParams.set("tag", filters.tag);
   const response = await apiFetch(url.toString());
   if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
   return (await response.json()) as Question[];
@@ -1475,6 +1490,7 @@ export type Quiz = {
   id: string;
   module_id: string | null;
   title: string;
+  description: string | null;
   duration_minutes: number | null;
   max_attempts: number | null;
   pass_threshold_percent: number | null;
@@ -1717,10 +1733,96 @@ export async function bulkImportQuizFromPdf(file: File): Promise<{ quiz_id: stri
   return (await r.json()) as { quiz_id: string; sections: number; questions: number };
 }
 
+// ── Parsed bulk quiz types (mirror of backend ParsedBulkQuiz) ────────────────
+
+export interface ParsedOption {
+  text: string;
+  is_correct: boolean;
+}
+
+export interface ParsedQuestion {
+  instruction?: string;
+  content: string;
+  question_type: "MCQ" | "NUMERICAL" | "FILL" | "ESSAY" | "GROUP";
+  options: ParsedOption[];
+  correct_answer?: string;
+  tolerance?: number;
+  marks?: number;
+  negative_marks?: number;
+  tag?: string;
+  difficulty?: string;
+  answer_time_minutes?: number;
+  solution?: string;
+  subject?: string;
+  topic?: string;
+  image?: string;
+  evaluation_criteria?: Array<{ criteria: string; percentage: number }>;
+  children?: ParsedQuestion[];
+}
+
+export interface ParsedSection {
+  title: string;
+  duration_minutes?: number;
+  marks?: number;
+  questions: ParsedQuestion[];
+}
+
+export interface ParsedBulkQuiz {
+  title?: string;
+  instruction?: string;
+  duration_minutes?: number;
+  max_marks?: number;
+  sections: ParsedSection[];
+}
+
+export async function bulkParseQuiz(fileContent: string): Promise<ParsedBulkQuiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-parse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_content: fileContent }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to parse quiz.", r.status);
+  }
+  return (await r.json()) as ParsedBulkQuiz;
+}
+
+export async function bulkParseQuizFromPdf(file: File): Promise<ParsedBulkQuiz> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-parse-pdf`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to parse PDF.", r.status);
+  }
+  return (await r.json()) as ParsedBulkQuiz;
+}
+
+export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz): Promise<{ quiz_id: string; sections: number; questions: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(parsedData),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to save quiz.", r.status);
+  }
+  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
+}
+
 export async function updateQuiz(
   id: string,
   payload: {
     title?: string;
+    description?: string | null;
     duration_minutes?: number | null;
     max_attempts?: number | null;
     pass_threshold_percent?: number | null;
@@ -2010,14 +2112,18 @@ export type QuizAttemptQuestion = {
   section_id?: string | null;
   question_type: string;
   content_html: string;
+  instruction_html?: string | null;
   tolerance: number | null;
+  image_url?: string | null;
   options: { id: string; option_text: string }[];
   children: {
     snapshot_id: string;
     section_id?: string | null;
     question_type: string;
     content_html: string;
+    instruction_html?: string | null;
     tolerance: number | null;
+    image_url?: string | null;
     options: { id: string; option_text: string }[];
   }[];
 };
@@ -2072,9 +2178,13 @@ export async function submitQuizAttempt(
 
 export type AttemptReviewQuestion = {
   snapshot_id: string;
-  section_id: string | null;   // ← new
+  section_id: string | null;
   question_type: string;
   content_html: string;
+  image_url: string | null;
+  parent_snapshot_id: string | null;
+  parent_content_html: string | null;
+  parent_image_url: string | null;
   student_answer: string | null;
   correct_answer: string | null;
   is_correct: boolean | null;
