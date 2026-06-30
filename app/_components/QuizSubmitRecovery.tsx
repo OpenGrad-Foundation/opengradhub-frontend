@@ -10,16 +10,19 @@ import { useInvalidate } from '@/lib/mutations/invalidation';
 const STALE_MS = 15_000;
 
 /**
- * True when the server says this attempt is already submitted — meaning a prior
- * POST actually committed even though the client never saw the response. Safe to
- * clear the draft. The backend signals this with HTTP 400 + an "already
- * submitted" message (not 409), on both the full-submit and section-advance
- * paths, so match the message rather than the status alone.
+ * True when the server rejected this attempt terminally — meaning it's either
+ * already submitted, or the time is up and the server will never accept it.
+ * Safe to clear the draft. The backend signals this with HTTP 400 + specific
+ * messages, so match the message rather than the status alone.
  */
-function isAlreadySubmitted(e: unknown): boolean {
+function isTerminalSubmitError(e: unknown): boolean {
   if (!(e instanceof ApiError)) return false;
   if (e.status === 409) return true;
-  return e.status === 400 && /already\s+(been\s+)?submitted/i.test(e.message);
+  if (e.status === 400) {
+    if (/already\s+(been\s+)?submitted/i.test(e.message)) return true;
+    if (/time is up/i.test(e.message)) return true;
+  }
+  return false;
 }
 
 /**
@@ -62,8 +65,8 @@ export function QuizSubmitRecovery() {
       await clearDraft(current.attempt_id).catch(() => {});
       setPending((p) => p.slice(1));
     } catch (e) {
-      if (isAlreadySubmitted(e)) {
-        // Server already has this submission — safe to clear and move on.
+      if (isTerminalSubmitError(e)) {
+        // Server rejected this submission terminally (already submitted or time up) — safe to clear and move on.
         await clearDraft(current.attempt_id).catch(() => {});
         setPending((p) => p.slice(1));
       } else {

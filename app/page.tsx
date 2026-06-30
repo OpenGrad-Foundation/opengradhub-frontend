@@ -151,7 +151,10 @@ function ClerkSignInForm({
 
     try {
       // create() initiates sign-in; status updates on the resource reactively
-      const { error: createError } = await signIn.create({ identifier, password });
+      const { error: createError } = await signIn.create({ 
+        identifier: identifier.trim(), 
+        password 
+      });
       if (createError) {
         setError(createError.message ?? "Sign-in failed.");
         return;
@@ -626,7 +629,10 @@ export default function LoginPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await signIn({ identifier, password });
+      const response = await signIn({ 
+        identifier: identifier.trim(), 
+        password 
+      });
       persistAuthToken(response.accessToken);
       router.replace("/dashboard");
     } catch (caughtError) {

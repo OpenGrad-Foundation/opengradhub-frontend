@@ -232,7 +232,7 @@ function QuizRow({
 
   const maxAttempts  = quiz.max_attempts;
   const attemptsUsed = attempts.length;
-  const exhausted    = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const exhausted    = maxAttempts != null && maxAttempts > 0 && attemptsUsed >= maxAttempts;
   const isLocked     = locked === true;
   const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
@@ -290,7 +290,7 @@ function QuizRow({
             <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
           )}
           {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
-          {maxAttempts != null ? (
+          {maxAttempts != null && maxAttempts > 0 ? (
             <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
               {attemptsUsed}/{maxAttempts} attempt{maxAttempts !== 1 ? "s" : ""}
             </Pill>

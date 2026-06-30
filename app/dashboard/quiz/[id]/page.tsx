@@ -763,6 +763,23 @@ export default function QuizTakingPage() {
             )}
             <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
           </div>
+
+          {quiz.description != null && quiz.description.trim() !== "" && (
+            <div style={{
+              marginTop: "20px",
+              padding: "16px 20px",
+              background: "rgba(3,72,82,0.04)",
+              border: "1px solid rgba(3,72,82,0.1)",
+              borderLeft: "3px solid #209379",
+              borderRadius: "8px",
+            }}>
+              <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+                Test Instructions
+              </p>
+              <MathContent html={quiz.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+            </div>
+          )}
+
           {(() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
