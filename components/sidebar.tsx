@@ -28,12 +28,13 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
   type LucideIcon,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MODULE_META, type ModuleKey } from "@/lib/moduleAccess";
+import { MODULE_META, LMS_GROUP_KEYS, type ModuleKey } from "@/lib/moduleAccess";
 
 // Nav order = the order MODULE_META is declared in.
 const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
@@ -93,13 +94,48 @@ export default function Sidebar({
   const grantedCodes = new Set(
     (data?.modules ?? []).map((m: { code: string }) => m.code),
   );
-  const navModules = MODULE_ORDER.filter((key) => grantedCodes.has(key)).map(
+  const granted = MODULE_ORDER.filter((key) => grantedCodes.has(key)).map(
     (key) => ({ key, ...MODULE_META[key] }),
+  );
+
+  // Dashboard is pinned at top; LMS keys nest into the collapsible group;
+  // everything else stays flat below. All three preserve MODULE_ORDER.
+  const topModules = granted.filter((m) => m.key === "dashboard");
+  const lmsModules = granted.filter(
+    (m) => m.key !== "dashboard" && LMS_GROUP_KEYS.has(m.key),
+  );
+  const restModules = granted.filter(
+    (m) => m.key !== "dashboard" && !LMS_GROUP_KEYS.has(m.key),
   );
 
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const navRef = useRef<HTMLElement>(null);
+
+  // "LMS Tools" group open state, persisted across sessions. Read in an effect
+  // (not during render) to avoid SSR/hydration mismatch.
+  const [lmsStoredOpen, setLmsStoredOpen] = useState(true);
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem("sidebar.lms.open");
+      if (v !== null) setLmsStoredOpen(v === "true");
+    } catch {
+      /* SSR / storage unavailable — keep default */
+    }
+  }, []);
+
+  const activeLmsChild = lmsModules.some((m) => isActivePath(pathname, m.href));
+  const lmsOpen = activeLmsChild || lmsStoredOpen;
+
+  const toggleLms = () => {
+    const next = !lmsStoredOpen;
+    setLmsStoredOpen(next);
+    try {
+      localStorage.setItem("sidebar.lms.open", String(next));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const checkScrollLimits = () => {
     const nav = navRef.current;
@@ -135,7 +171,7 @@ export default function Sidebar({
       resizeObserver.disconnect();
       window.removeEventListener("resize", checkScrollLimits);
     };
-  }, [navModules]);
+  }, [topModules.length, lmsModules.length, restModules.length, lmsOpen]);
 
   useEffect(() => {
     checkScrollLimits();
@@ -151,6 +187,35 @@ export default function Sidebar({
     if (navRef.current) {
       navRef.current.scrollBy({ top: 120, behavior: "smooth" });
     }
+  };
+
+  const renderLeaf = (module: { key: ModuleKey; label: string; href: string }) => {
+    const isActive = isActivePath(pathname, module.href);
+    const Icon = MODULE_ICONS[module.key];
+    return (
+      <li key={module.key}>
+        <Link
+          href={module.href}
+          title={collapsed ? module.label : undefined}
+          className={
+            "relative flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors " +
+            (collapsed ? "lg:gap-0 lg:px-0 lg:justify-center " : "") +
+            (isActive
+              ? "bg-teal-50 font-semibold text-[var(--teal)]"
+              : "font-medium text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
+          }
+        >
+          {Icon && (
+            <Icon
+              size={18}
+              className={isActive ? "text-[var(--teal)]" : "text-gray-400"}
+              aria-hidden="true"
+            />
+          )}
+          <span className={collapsed ? "lg:hidden" : ""}>{module.label}</span>
+        </Link>
+      </li>
+    );
   };
 
   return (
@@ -233,35 +298,41 @@ export default function Sidebar({
           className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar scroll-smooth"
         >
           <ul className="space-y-0.5">
-            {navModules.map((module) => {
-              const isActive = isActivePath(pathname, module.href);
-              const Icon = MODULE_ICONS[module.key];
+            {/* Pinned: Dashboard */}
+            {topModules.map((module) => renderLeaf(module))}
 
-              return (
-                <li key={module.key}>
-                  <Link
-                    href={module.href}
-                    title={collapsed ? module.label : undefined}
-                    className={
-                      "relative flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors " +
-                      (collapsed ? "lg:gap-0 lg:px-0 lg:justify-center " : "") +
-                      (isActive
-                        ? "bg-teal-50 font-semibold text-[var(--teal)]"
-                        : "font-medium text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
-                    }
-                  >
-                    {Icon && (
-                      <Icon
-                        size={18}
-                        className={isActive ? "text-[var(--teal)]" : "text-gray-400"}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className={collapsed ? "lg:hidden" : ""}>{module.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
+            {/* Collapsible: LMS Tools (expanded sidebar only) */}
+            {lmsModules.length > 0 && !collapsed && (
+              <li>
+                <button
+                  type="button"
+                  onClick={toggleLms}
+                  aria-expanded={lmsOpen}
+                  className="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[var(--dark-teal)]"
+                >
+                  <Layers size={18} className="text-gray-400" aria-hidden="true" />
+                  <span>LMS Tools</span>
+                  {lmsOpen ? (
+                    <ChevronDown size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                  ) : (
+                    <ChevronRight size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                  )}
+                </button>
+                {lmsOpen && (
+                  <ul className="mt-0.5 space-y-0.5 pl-4">
+                    {lmsModules.map((module) => renderLeaf(module))}
+                  </ul>
+                )}
+              </li>
+            )}
+
+            {/* Collapsed rail: LMS children flat as icons (no header) */}
+            {lmsModules.length > 0 &&
+              collapsed &&
+              lmsModules.map((module) => renderLeaf(module))}
+
+            {/* Flat remainder */}
+            {restModules.map((module) => renderLeaf(module))}
           </ul>
         </nav>
 
