@@ -134,6 +134,13 @@ export const PERM = {
     view: "notifications.view",
     send: "notifications.send",
   },
+  tracker: {
+    view: "tracker.view",
+    author: "tracker.author",
+    fill: "tracker.fill",
+    blocker_clear: "tracker.blocker.clear",
+    admin: "tracker.admin",
+  },
 } as const;
 
 export const ANALYTICS_DASHBOARD_PERMISSIONS = [
@@ -174,5 +181,6 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   schools: PERM.schools.view,
   batches: PERM.batches.view,
   "role-management": PERM.role_management.view,
+  tracker: PERM.tracker.view,
   // `/dashboard` itself and self-scoped pages (notifications, profile) have no gate.
 };

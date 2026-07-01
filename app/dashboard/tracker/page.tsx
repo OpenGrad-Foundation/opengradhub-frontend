@@ -1,0 +1,489 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  ClipboardList,
+  Loader2,
+  PencilRuler,
+  ShieldCheck,
+  Table2,
+} from "lucide-react";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import {
+  useTrackerGrid,
+  useTrackerMineBlockers,
+  useTrackerQueueBlockers,
+  useTrackerSummary,
+  useTrackerTemplates,
+} from "@/lib/queries/tracker";
+import type { TrackerBlocker, TrackerGrid, TrackerSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
+
+type TrackerTab = "tasks" | "grid" | "blockers" | "summary" | "builder";
+
+const tabLabels: Record<TrackerTab, string> = {
+  tasks: "Tasks",
+  grid: "My Grid",
+  blockers: "Blockers",
+  summary: "Summary",
+  builder: "Builder",
+};
+
+export default function TrackerPage() {
+  const { data: currentUser, isLoading: userLoading } = useCurrentUser();
+  const { has, isLoading: permLoading } = usePermissions();
+  const canAuthor = has(PERM.tracker.author);
+  const canFill = has(PERM.tracker.fill);
+  const canClear = has(PERM.tracker.blocker_clear);
+  const canAdmin = has(PERM.tracker.admin);
+  const isManagerView = canAuthor || canClear || canAdmin;
+
+  const tabs = useMemo<TrackerTab[]>(() => {
+    const next: TrackerTab[] = ["tasks"];
+    if (canFill) next.push("grid");
+    next.push("blockers");
+    if (isManagerView) next.push("summary");
+    if (canAuthor) next.push("builder");
+    return next;
+  }, [canAuthor, canFill, isManagerView]);
+
+  const [activeTab, setActiveTab] = useState<TrackerTab>("tasks");
+  const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
+
+  const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useTrackerTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? templates[0] ?? null;
+  const templateId = selectedTemplate?.id;
+
+  const grid = useTrackerGrid(templateId);
+  const mine = useTrackerMineBlockers();
+  const queue = useTrackerQueueBlockers();
+  const summary = useTrackerSummary(templateId);
+
+  if (userLoading || permLoading) {
+    return <TrackerLoading />;
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Hub Module</p>
+          <h1 className="mt-2 text-3xl font-semibold text-gray-950">Tracker</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            {currentUser?.role.name ?? "Team"} workspace
+          </p>
+        </div>
+        <TemplateSelect
+          templates={templates}
+          selectedId={templateId ?? ""}
+          loading={templatesLoading}
+          onChange={setSelectedTemplateId}
+        />
+      </header>
+
+      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label="Tracker sections">
+        {tabs.map((tab) => (
+          <button
+            key={tab}
+            type="button"
+            onClick={() => setActiveTab(tab)}
+            className={
+              "flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors " +
+              (safeActiveTab === tab
+                ? "border-teal-600 text-teal-700"
+                : "border-transparent text-gray-500 hover:text-gray-900")
+            }
+          >
+            <TabIcon tab={tab} />
+            {tabLabels[tab]}
+          </button>
+        ))}
+      </nav>
+
+      {templatesError ? (
+        <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
+      ) : safeActiveTab === "tasks" ? (
+        <TasksPanel templates={templates} loading={templatesLoading} selectedId={templateId} onSelect={setSelectedTemplateId} />
+      ) : safeActiveTab === "grid" ? (
+        <GridPanel template={selectedTemplate} grid={grid.data} loading={grid.isLoading} error={grid.error} />
+      ) : safeActiveTab === "blockers" ? (
+        <BlockersPanel
+          mine={mine.data ?? []}
+          queue={queue.data ?? []}
+          mineLoading={mine.isLoading}
+          queueLoading={queue.isLoading}
+          mineError={mine.error}
+          queueError={queue.error}
+          isManagerView={isManagerView}
+        />
+      ) : safeActiveTab === "summary" ? (
+        <SummaryPanel template={selectedTemplate} rows={summary.data ?? []} loading={summary.isLoading} error={summary.error} />
+      ) : (
+        <BuilderPanel canAuthor={canAuthor} />
+      )}
+    </div>
+  );
+}
+
+function TemplateSelect({
+  templates,
+  selectedId,
+  loading,
+  onChange,
+}: {
+  templates: TrackerTemplate[];
+  selectedId: string;
+  loading: boolean;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1 text-sm font-medium text-gray-700 sm:min-w-72">
+      Task type
+      <select
+        value={selectedId}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={loading || templates.length === 0}
+        className="h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100 disabled:bg-gray-50 disabled:text-gray-400"
+      >
+        {templates.length === 0 ? (
+          <option value="">No task types</option>
+        ) : (
+          templates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.name}
+            </option>
+          ))
+        )}
+      </select>
+    </label>
+  );
+}
+
+function TasksPanel({
+  templates,
+  loading,
+  selectedId,
+  onSelect,
+}: {
+  templates: TrackerTemplate[];
+  loading: boolean;
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+}) {
+  if (loading) return <TrackerLoading />;
+  if (templates.length === 0) {
+    return <EmptyPanel title="No task types" detail="Create a task type from Builder when author access is available." />;
+  }
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <table className="w-full border-collapse text-left text-sm">
+        <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <tr>
+            <th className="px-4 py-3 font-semibold">Name</th>
+            <th className="px-4 py-3 font-semibold">Code</th>
+            <th className="px-4 py-3 font-semibold">Style</th>
+            <th className="px-4 py-3 font-semibold">Deadline</th>
+            <th className="px-4 py-3 font-semibold">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {templates.map((template) => (
+            <tr
+              key={template.id}
+              onClick={() => onSelect(template.id)}
+              className={
+                "cursor-pointer border-t border-gray-100 transition-colors hover:bg-teal-50/50 " +
+                (template.id === selectedId ? "bg-teal-50" : "bg-white")
+              }
+            >
+              <td className="px-4 py-3 font-medium text-gray-950">{template.name}</td>
+              <td className="px-4 py-3 text-gray-600">{template.code}</td>
+              <td className="px-4 py-3 text-gray-600">{template.completion_style}</td>
+              <td className="px-4 py-3 text-gray-600">{template.deadline ?? "-"}</td>
+              <td className="px-4 py-3">
+                <StatusPill label={template.status} tone={template.status === "active" ? "green" : "gray"} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+function GridPanel({
+  template,
+  grid,
+  loading,
+  error,
+}: {
+  template: TrackerTemplate | null;
+  grid: TrackerGrid | undefined;
+  loading: boolean;
+  error: unknown;
+}) {
+  if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
+  if (loading) return <TrackerLoading />;
+  if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
+  if (!grid || grid.rows.length === 0) return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
+
+  return (
+    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Lifecycle</th>
+              {grid.columns.map((column) => (
+                <th key={column.field_key} className="px-4 py-3 font-semibold">{column.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {grid.rows.map((row) => (
+              <tr key={row.record_id} className="border-t border-gray-100">
+                <td className="px-4 py-3">
+                  <StatusPill label={row.lifecycle.replace("_", " ")} tone={lifecycleTone(row.lifecycle)} />
+                </td>
+                {grid.columns.map((column) => {
+                  const cell = row.cells.find((c) => c.field_key === column.field_key);
+                  return (
+                    <td key={column.field_key} className="px-4 py-3 text-gray-700">
+                      {cell?.notSet ? <span className="text-gray-400">Not set</span> : formatCell(cell?.value)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function BlockersPanel({
+  mine,
+  queue,
+  mineLoading,
+  queueLoading,
+  mineError,
+  queueError,
+  isManagerView,
+}: {
+  mine: TrackerBlocker[];
+  queue: TrackerBlocker[];
+  mineLoading: boolean;
+  queueLoading: boolean;
+  mineError: unknown;
+  queueError: unknown;
+  isManagerView: boolean;
+}) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <BlockerList title="My Open Blockers" blockers={mine} loading={mineLoading} error={mineError} />
+      {isManagerView && (
+        <BlockerList title="Action Queue" blockers={queue} loading={queueLoading} error={queueError} />
+      )}
+    </div>
+  );
+}
+
+function BlockerList({
+  title,
+  blockers,
+  loading,
+  error,
+}: {
+  title: string;
+  blockers: TrackerBlocker[];
+  loading: boolean;
+  error: unknown;
+}) {
+  if (loading) return <TrackerLoading />;
+  if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load blockers."} />;
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h2 className="text-base font-semibold text-gray-950">{title}</h2>
+      </div>
+      {blockers.length === 0 ? (
+        <p className="px-4 py-8 text-sm text-gray-500">No blockers.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {blockers.map((blocker) => (
+            <li key={blocker.id} className="px-4 py-3">
+              <p className="text-sm font-medium text-gray-950">{blocker.text}</p>
+              <p className="mt-1 text-xs text-gray-500">Raised {formatDate(blocker.raised_at)}</p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SummaryPanel({
+  template,
+  rows,
+  loading,
+  error,
+}: {
+  template: TrackerTemplate | null;
+  rows: TrackerSummaryRow[];
+  loading: boolean;
+  error: unknown;
+}) {
+  if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view summary." />;
+  if (loading) return <TrackerLoading />;
+  if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load summary."} />;
+
+  const totals = rows.reduce(
+    (acc, row) => ({
+      done: acc.done + row.done,
+      pending: acc.pending + row.pending,
+      blocked: acc.blocked + row.blocked,
+      overdue: acc.overdue + row.overdue,
+    }),
+    { done: 0, pending: 0, blocked: 0, overdue: 0 },
+  );
+
+  return (
+    <div className="flex flex-col gap-5">
+      <section className="grid gap-3 sm:grid-cols-4">
+        <Metric label="Done" value={totals.done} tone="green" />
+        <Metric label="Pending" value={totals.pending} tone="gray" />
+        <Metric label="Blocked" value={totals.blocked} tone="red" />
+        <Metric label="Overdue" value={totals.overdue} tone="amber" />
+      </section>
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <table className="w-full border-collapse text-left text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Fellow</th>
+              <th className="px-4 py-3 font-semibold">Done</th>
+              <th className="px-4 py-3 font-semibold">Pending</th>
+              <th className="px-4 py-3 font-semibold">Blocked</th>
+              <th className="px-4 py-3 font-semibold">Overdue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={5} className="px-4 py-8 text-gray-500">No summary rows.</td></tr>
+            ) : rows.map((row) => (
+              <tr key={row.fellow_id ?? "unassigned"} className="border-t border-gray-100">
+                <td className="px-4 py-3 font-medium text-gray-950">{row.fellow_id ?? "Unassigned"}</td>
+                <td className="px-4 py-3 text-gray-700">{row.done}</td>
+                <td className="px-4 py-3 text-gray-700">{row.pending}</td>
+                <td className="px-4 py-3 text-gray-700">{row.blocked}</td>
+                <td className="px-4 py-3 text-gray-700">{row.overdue}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  );
+}
+
+function BuilderPanel({ canAuthor }: { canAuthor: boolean }) {
+  if (!canAuthor) return <ErrorPanel message="Builder access requires tracker author permission." />;
+  return (
+    <section className="rounded-lg border border-dashed border-gray-300 bg-white px-5 py-10 text-center">
+      <PencilRuler className="mx-auto h-8 w-8 text-gray-400" aria-hidden="true" />
+      <h2 className="mt-3 text-base font-semibold text-gray-950">Builder</h2>
+      <p className="mt-1 text-sm text-gray-500">Template authoring is the next Tracker slice.</p>
+    </section>
+  );
+}
+
+function Metric({ label, value, tone }: { label: string; value: number; tone: "green" | "gray" | "red" | "amber" }) {
+  const toneClass = {
+    green: "text-emerald-700",
+    gray: "text-gray-700",
+    red: "text-red-700",
+    amber: "text-amber-700",
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function StatusPill({ label, tone }: { label: string; tone: "green" | "gray" | "red" | "amber" }) {
+  const toneClass = {
+    green: "bg-emerald-50 text-emerald-700",
+    gray: "bg-gray-100 text-gray-700",
+    red: "bg-red-50 text-red-700",
+    amber: "bg-amber-50 text-amber-700",
+  }[tone];
+  return <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${toneClass}`}>{label}</span>;
+}
+
+function TabIcon({ tab }: { tab: TrackerTab }) {
+  const props = { className: "h-4 w-4", "aria-hidden": true };
+  if (tab === "tasks") return <ClipboardList {...props} />;
+  if (tab === "grid") return <Table2 {...props} />;
+  if (tab === "blockers") return <AlertCircle {...props} />;
+  if (tab === "summary") return <ShieldCheck {...props} />;
+  return <PencilRuler {...props} />;
+}
+
+function TrackerLoading() {
+  return (
+    <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white">
+      <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+    </div>
+  );
+}
+
+function ErrorPanel({ message }: { message: string }) {
+  return (
+    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-5 text-center">
+      <AlertCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
+      <p className="text-sm font-medium text-red-800">{message}</p>
+    </div>
+  );
+}
+
+function EmptyPanel({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-5 text-center">
+      <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
+      <p className="text-sm font-semibold text-gray-950">{title}</p>
+      <p className="text-sm text-gray-500">{detail}</p>
+    </div>
+  );
+}
+
+function lifecycleTone(lifecycle: TrackerGrid["rows"][number]["lifecycle"]): "green" | "gray" | "red" | "amber" {
+  if (lifecycle === "done") return "green";
+  if (lifecycle === "blocked") return "red";
+  if (lifecycle === "overdue") return "amber";
+  return "gray";
+}
+
+function formatCell(value: unknown): string {
+  if (value == null || value === "") return "-";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}

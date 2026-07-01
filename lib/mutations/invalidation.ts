@@ -44,6 +44,7 @@ const DOMAIN_KEYS = {
   enrolment: [['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
   // lesson progress tick — affects course overview, student dashboards, analytics
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
+  tracker: [['og', 'tracker'], ['og', 'dashboard']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;

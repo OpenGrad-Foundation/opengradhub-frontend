@@ -24,6 +24,7 @@ import {
   UserPlus,
   School,
   Layers,
+  ListChecks,
   X,
   ChevronUp,
   ChevronDown,
@@ -59,6 +60,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   bulk_assign:     UserPlus,
   schools:         School,
   batches:         Layers,
+  tracker:         ListChecks,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────

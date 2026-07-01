@@ -71,4 +71,11 @@ export const qk = {
     ['og', 'dashboard', role, tab] as const,
   dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
+
+  trackerTemplates: () => ['og', 'tracker', 'templates'] as const,
+  trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,
+  trackerGrid: (templateId: string) => ['og', 'tracker', 'grid', templateId] as const,
+  trackerSummary: (templateId: string) => ['og', 'tracker', 'summary', templateId] as const,
+  trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
+  trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
 };
