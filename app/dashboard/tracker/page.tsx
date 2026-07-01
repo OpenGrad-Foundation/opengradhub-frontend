@@ -24,6 +24,7 @@ import {
 import type { TrackerBlocker, TrackerGrid, TrackerSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
+import { TaskDetail } from "./_components/task-detail";
 
 type TrackerTab = "tasks" | "grid" | "blockers" | "summary" | "builder";
 
@@ -54,6 +55,7 @@ export default function TrackerPage() {
   }, [canAuthor, canFill, isManagerView]);
 
   const [activeTab, setActiveTab] = useState<TrackerTab>("tasks");
+  const [detailId, setDetailId] = useState<string | null>(null);
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useTrackerTemplates();
@@ -110,7 +112,20 @@ export default function TrackerPage() {
       {templatesError ? (
         <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
       ) : safeActiveTab === "tasks" ? (
-        <TasksPanel templates={templates} loading={templatesLoading} selectedId={templateId} onSelect={setSelectedTemplateId} />
+        detailId && templates.some((t) => t.id === detailId) ? (
+          <TaskDetail
+            template={templates.find((t) => t.id === detailId)!}
+            onBack={() => setDetailId(null)}
+            onOpenGrid={tabs.includes("grid") ? () => { setSelectedTemplateId(detailId); setActiveTab("grid"); } : undefined}
+          />
+        ) : (
+          <TasksPanel
+            templates={templates}
+            loading={templatesLoading}
+            selectedId={templateId}
+            onSelect={(id) => { setSelectedTemplateId(id); setDetailId(id); }}
+          />
+        )
       ) : safeActiveTab === "grid" ? (
         <GridPanel template={selectedTemplate} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} />
       ) : safeActiveTab === "blockers" ? (
