@@ -85,11 +85,11 @@ export function TrackerEditableGrid({
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-3 py-3 font-semibold">Status</th>
+              <th className="px-3 py-3 font-semibold">{template.completion_style === "workflow" ? "Stage" : "Done?"}</th>
               {grid.columns.map((c) => (
                 <th key={c.field_key} className="px-3 py-3 font-semibold">{c.label}</th>
               ))}
-              <th className="px-3 py-3 font-semibold">Blocker</th>
+              <th className="px-3 py-3 font-semibold">Stuck?</th>
             </tr>
           </thead>
           <tbody>

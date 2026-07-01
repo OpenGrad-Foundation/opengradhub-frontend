@@ -30,10 +30,10 @@ type TrackerTab = "tasks" | "grid" | "blockers" | "summary" | "builder";
 
 const tabLabels: Record<TrackerTab, string> = {
   tasks: "Tasks",
-  grid: "My Grid",
-  blockers: "Blockers",
+  grid: "My Tasks",
+  blockers: "Stuck",
   summary: "Summary",
-  builder: "Builder",
+  builder: "New task",
 };
 
 export default function TrackerPage() {
@@ -195,7 +195,7 @@ function TasksPanel({
 }) {
   if (loading) return <TrackerLoading />;
   if (templates.length === 0) {
-    return <EmptyPanel title="No task types" detail="Create a task type from Builder when author access is available." />;
+    return <EmptyPanel title="No tasks yet" detail="Tasks assigned to you will appear here." />;
   }
 
   return (
@@ -203,10 +203,8 @@ function TasksPanel({
       <table className="w-full border-collapse text-left text-sm">
         <thead className="bg-gray-50 text-xs uppercase text-gray-500">
           <tr>
-            <th className="px-4 py-3 font-semibold">Name</th>
-            <th className="px-4 py-3 font-semibold">Code</th>
-            <th className="px-4 py-3 font-semibold">Style</th>
-            <th className="px-4 py-3 font-semibold">Deadline</th>
+            <th className="px-4 py-3 font-semibold">Task</th>
+            <th className="px-4 py-3 font-semibold">Due by</th>
             <th className="px-4 py-3 font-semibold">Status</th>
           </tr>
         </thead>
@@ -221,11 +219,9 @@ function TasksPanel({
               }
             >
               <td className="px-4 py-3 font-medium text-gray-950">{template.name}</td>
-              <td className="px-4 py-3 text-gray-600">{template.code}</td>
-              <td className="px-4 py-3 text-gray-600">{template.completion_style}</td>
-              <td className="px-4 py-3 text-gray-600">{template.deadline ?? "-"}</td>
+              <td className="px-4 py-3 text-gray-600">{template.deadline ? formatDate(template.deadline) : "—"}</td>
               <td className="px-4 py-3">
-                <StatusPill label={template.status} tone={template.status === "active" ? "green" : "gray"} />
+                <StatusPill label={template.status === "active" ? "Active" : template.status} tone={template.status === "active" ? "green" : "gray"} />
               </td>
             </tr>
           ))}
@@ -277,7 +273,7 @@ function BlockersPanel({
 }) {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <BlockerList title="My Open Blockers" blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} />
+      <BlockerList title="Things I'm stuck on" blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} />
       {isManagerView && (
         <BlockerList title="Action Queue" blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} />
       )}
