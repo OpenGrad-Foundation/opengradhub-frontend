@@ -64,3 +64,17 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   batches:          { label: "Batches",         href: "/dashboard/batches" },
   tracker:          { label: "Tracker",         href: "/dashboard/tracker" },
 };
+
+// Module keys that nest under the collapsible "LMS Tools" sidebar group.
+// Order within the group still follows MODULE_ORDER (MODULE_META declaration order).
+// Presentation-only: the *set* of granted modules still comes from the backend.
+export const LMS_GROUP_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
+  "courses",
+  "bundles",
+  "assessments",   // "Quizzes"
+  "test_bank",     // "Question Bank"
+  "assignments",
+  "live_classes",
+  "calendar",
+  "resources",
+]);
