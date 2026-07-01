@@ -80,17 +80,11 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
     setBusy(true);
     try {
       const statuses = statusesText.split(",").map((s) => s.trim()).filter(Boolean);
-      const { id } = await createTrackerTemplate({
-        code: code.trim(),
-        name: name.trim(),
-        description: description.trim() || undefined,
-        target_type: "student",
-        completion_style: completionStyle,
-        workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
-        done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
-        deadline: deadline || undefined,
-      });
-
+      // Validate BEFORE creating anything so an invalid form never leaves an orphan template.
+      if (completionStyle === "workflow") {
+        if (statuses.length === 0) throw new Error("Workflow needs at least one status.");
+        if (!statuses.includes(doneStatus.trim())) throw new Error("Done status must be one of the statuses.");
+      }
       const fields: TrackerField[] = columns
         .filter((c) => c.field_key.trim() && c.label.trim())
         .map((c, idx) => ({
@@ -107,6 +101,21 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
           visible_if: null,
           sort_order: idx,
         }));
+      for (const f of fields) {
+        if ((f.field_type === "select" || f.field_type === "multiselect") && (!f.options || f.options.length === 0))
+          throw new Error(`Column "${f.label}" needs at least one option.`);
+      }
+
+      const { id } = await createTrackerTemplate({
+        code: code.trim(),
+        name: name.trim(),
+        description: description.trim() || undefined,
+        target_type: "student",
+        completion_style: completionStyle,
+        workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
+        done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
+        deadline: deadline || undefined,
+      });
       if (fields.length > 0) await addTrackerFields(id, { fields });
 
       const targetIds = assignIdsText.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
