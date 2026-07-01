@@ -78,4 +78,5 @@ export const qk = {
   trackerSummary: (templateId: string) => ['og', 'tracker', 'summary', templateId] as const,
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
+  trackerAssignable: (targetType: string) => ['og', 'tracker', 'assignable', targetType] as const,
 };

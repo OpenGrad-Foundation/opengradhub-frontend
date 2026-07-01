@@ -177,3 +177,9 @@ export function getTrackerQueueBlockers() {
 export function getTrackerSummary(templateId: string) {
   return trackerJson<TrackerSummaryRow[]>(`/tracker/templates/${encodeURIComponent(templateId)}/summary`);
 }
+
+export type TrackerAssignable = { id: string; name: string; state: string | null };
+
+export function getTrackerAssignable(targetType: TrackerTargetType) {
+  return trackerJson<TrackerAssignable[]>(`/tracker/assignable?targetType=${encodeURIComponent(targetType)}`);
+}

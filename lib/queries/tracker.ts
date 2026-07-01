@@ -8,6 +8,7 @@ import {
   getTrackerGrid,
   getTrackerMineBlockers,
   getTrackerQueueBlockers,
+  getTrackerAssignable,
   getTrackerSummary,
   getTrackerTemplate,
   getTrackerTemplates,
@@ -16,6 +17,7 @@ import {
   type AddTrackerFieldsInput,
   type CreateTrackerTemplateInput,
   type TrackerBatchEdit,
+  type TrackerTargetType,
   addTrackerFields,
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
@@ -69,6 +71,15 @@ export function useTrackerQueueBlockers() {
     queryKey: qk.trackerBlockersQueue(),
     queryFn: getTrackerQueueBlockers,
     staleTime: 30_000,
+  });
+}
+
+export function useTrackerAssignable(targetType: TrackerTargetType, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerAssignable(targetType),
+    queryFn: () => getTrackerAssignable(targetType),
+    enabled,
+    staleTime: 60_000,
   });
 }
 
