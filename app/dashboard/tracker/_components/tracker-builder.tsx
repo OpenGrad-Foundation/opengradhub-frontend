@@ -10,11 +10,12 @@ import {
   type TrackerField,
   type TrackerFieldSource,
   type TrackerFieldType,
+  type TrackerTargetType,
 } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
-// Mirrors the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts).
-const PROFILE_PATHS = [
+// Mirrors the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts), per target type.
+const STUDENT_PATHS = [
   "student.name",
   "student.category",
   "student.district",
@@ -22,6 +23,8 @@ const PROFILE_PATHS = [
   "school.name",
   "school.code",
 ] as const;
+const FELLOW_PATHS = ["fellow.name", "fellow.email"] as const;
+const pathsFor = (t: TrackerTargetType): readonly string[] => (t === "fellow" ? FELLOW_PATHS : STUDENT_PATHS);
 
 const FIELD_TYPES: TrackerFieldType[] = ["text", "number", "date", "select", "multiselect", "boolean", "url"];
 const SOURCES: TrackerFieldSource[] = ["input", "identity", "profile"];
@@ -36,13 +39,13 @@ type DraftColumn = {
   required: boolean;
 };
 
-const emptyColumn = (): DraftColumn => ({
+const emptyColumn = (defaultPath: string): DraftColumn => ({
   field_key: "",
   label: "",
   field_type: "text",
   optionsText: "",
   source: "input",
-  source_path: PROFILE_PATHS[0],
+  source_path: defaultPath,
   required: false,
 });
 
@@ -51,12 +54,21 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [targetType, setTargetType] = useState<TrackerTargetType>("student");
   const [completionStyle, setCompletionStyle] = useState<TrackerCompletionStyle>("checklist");
   const [statusesText, setStatusesText] = useState("");
   const [doneStatus, setDoneStatus] = useState("");
   const [deadline, setDeadline] = useState("");
-  const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn()]);
+  const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(STUDENT_PATHS[0])]);
   const [assignIdsText, setAssignIdsText] = useState("");
+
+  const profilePaths = pathsFor(targetType);
+  function onTargetChange(next: TrackerTargetType) {
+    setTargetType(next);
+    const valid = pathsFor(next);
+    // keep any profile columns pointing at a path valid for the new target type
+    setColumns((cols) => cols.map((c) => (c.source === "profile" && !valid.includes(c.source_path) ? { ...c, source_path: valid[0] } : c)));
+  }
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +122,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         code: code.trim(),
         name: name.trim(),
         description: description.trim() || undefined,
-        target_type: "student",
+        target_type: targetType,
         completion_style: completionStyle,
         workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
         done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
@@ -133,7 +145,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       setStatusesText("");
       setDoneStatus("");
       setDeadline("");
-      setColumns([emptyColumn()]);
+      setColumns([emptyColumn(profilePaths[0])]);
       setAssignIdsText("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create task type.");
@@ -159,6 +171,13 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
           Description
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          Target
+          <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
+            <option value="student">Student (one row per student)</option>
+            <option value="fellow">Fellow (one task per fellow)</option>
+          </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Completion style
@@ -188,7 +207,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-gray-950">Columns</h3>
-          <button type="button" onClick={() => setColumns((c) => [...c, emptyColumn()])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          <button type="button" onClick={() => setColumns((c) => [...c, emptyColumn(profilePaths[0])])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
             <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add column
           </button>
         </div>
@@ -205,7 +224,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
               </select>
               {col.source === "profile" ? (
                 <select value={col.source_path} onChange={(e) => setColumn(i, { source_path: e.target.value })} className={inputClass}>
-                  {PROFILE_PATHS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {profilePaths.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               ) : (col.field_type === "select" || col.field_type === "multiselect") ? (
                 <input value={col.optionsText} onChange={(e) => setColumn(i, { optionsText: e.target.value })} placeholder="opt1, opt2" className={inputClass} />
@@ -227,10 +246,10 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-          Assign to students (IDs, comma or space separated — optional)
+          Assign to {targetType === "fellow" ? "fellows" : "students"} (IDs, comma or space separated — optional)
           <textarea value={assignIdsText} onChange={(e) => setAssignIdsText(e.target.value)} rows={2} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100" />
         </label>
-        <p className="mt-1 text-xs text-gray-500">Only students within your scope are assigned; others are skipped.</p>
+        <p className="mt-1 text-xs text-gray-500">Only {targetType === "fellow" ? "fellows" : "students"} within your scope are assigned; others are skipped.</p>
       </section>
 
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
