@@ -14,6 +14,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
+  useClearTrackerBlocker,
   useTrackerGrid,
   useTrackerMineBlockers,
   useTrackerQueueBlockers,
@@ -21,6 +22,8 @@ import {
   useTrackerTemplates,
 } from "@/lib/queries/tracker";
 import type { TrackerBlocker, TrackerGrid, TrackerSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
+import { TrackerBuilder } from "./_components/tracker-builder";
+import { TrackerEditableGrid } from "./_components/tracker-grid";
 
 type TrackerTab = "tasks" | "grid" | "blockers" | "summary" | "builder";
 
@@ -109,7 +112,7 @@ export default function TrackerPage() {
       ) : safeActiveTab === "tasks" ? (
         <TasksPanel templates={templates} loading={templatesLoading} selectedId={templateId} onSelect={setSelectedTemplateId} />
       ) : safeActiveTab === "grid" ? (
-        <GridPanel template={selectedTemplate} grid={grid.data} loading={grid.isLoading} error={grid.error} />
+        <GridPanel template={selectedTemplate} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} />
       ) : safeActiveTab === "blockers" ? (
         <BlockersPanel
           mine={mine.data ?? []}
@@ -119,11 +122,12 @@ export default function TrackerPage() {
           mineError={mine.error}
           queueError={queue.error}
           isManagerView={isManagerView}
+          canClear={canClear}
         />
       ) : safeActiveTab === "summary" ? (
         <SummaryPanel template={selectedTemplate} rows={summary.data ?? []} loading={summary.isLoading} error={summary.error} />
       ) : (
-        <BuilderPanel canAuthor={canAuthor} />
+        <TrackerBuilder canAuthor={canAuthor} />
       )}
     </div>
   );
@@ -221,53 +225,20 @@ function GridPanel({
   grid,
   loading,
   error,
+  canFill,
 }: {
   template: TrackerTemplate | null;
   grid: TrackerGrid | undefined;
   loading: boolean;
   error: unknown;
+  canFill: boolean;
 }) {
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
   if (!grid || grid.rows.length === 0) return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
 
-  return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-left text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Lifecycle</th>
-              {grid.columns.map((column) => (
-                <th key={column.field_key} className="px-4 py-3 font-semibold">{column.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {grid.rows.map((row) => (
-              <tr key={row.record_id} className="border-t border-gray-100">
-                <td className="px-4 py-3">
-                  <StatusPill label={row.lifecycle.replace("_", " ")} tone={lifecycleTone(row.lifecycle)} />
-                </td>
-                {grid.columns.map((column) => {
-                  const cell = row.cells.find((c) => c.field_key === column.field_key);
-                  return (
-                    <td key={column.field_key} className="px-4 py-3 text-gray-700">
-                      {cell?.notSet ? <span className="text-gray-400">Not set</span> : formatCell(cell?.value)}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+  return <TrackerEditableGrid template={template} grid={grid} canFill={canFill} />;
 }
 
 function BlockersPanel({
@@ -278,6 +249,7 @@ function BlockersPanel({
   mineError,
   queueError,
   isManagerView,
+  canClear,
 }: {
   mine: TrackerBlocker[];
   queue: TrackerBlocker[];
@@ -286,12 +258,13 @@ function BlockersPanel({
   mineError: unknown;
   queueError: unknown;
   isManagerView: boolean;
+  canClear: boolean;
 }) {
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <BlockerList title="My Open Blockers" blockers={mine} loading={mineLoading} error={mineError} />
+      <BlockerList title="My Open Blockers" blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} />
       {isManagerView && (
-        <BlockerList title="Action Queue" blockers={queue} loading={queueLoading} error={queueError} />
+        <BlockerList title="Action Queue" blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} />
       )}
     </div>
   );
@@ -302,12 +275,15 @@ function BlockerList({
   blockers,
   loading,
   error,
+  canClear,
 }: {
   title: string;
   blockers: TrackerBlocker[];
   loading: boolean;
   error: unknown;
+  canClear: boolean;
 }) {
+  const clear = useClearTrackerBlocker();
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load blockers."} />;
 
@@ -321,9 +297,24 @@ function BlockerList({
       ) : (
         <ul className="divide-y divide-gray-100">
           {blockers.map((blocker) => (
-            <li key={blocker.id} className="px-4 py-3">
-              <p className="text-sm font-medium text-gray-950">{blocker.text}</p>
-              <p className="mt-1 text-xs text-gray-500">Raised {formatDate(blocker.raised_at)}</p>
+            <li key={blocker.id} className="flex items-start justify-between gap-3 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-gray-950">{blocker.text}</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Raised {formatDate(blocker.raised_at)}
+                  {blocker.escalated_to_pm_at ? " · escalated to PM" : blocker.escalated_to_zm_at ? " · escalated to ZM" : ""}
+                </p>
+              </div>
+              {canClear && (
+                <button
+                  type="button"
+                  onClick={() => clear.mutate(blocker.id)}
+                  disabled={clear.isPending}
+                  className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Clear
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -395,17 +386,6 @@ function SummaryPanel({
   );
 }
 
-function BuilderPanel({ canAuthor }: { canAuthor: boolean }) {
-  if (!canAuthor) return <ErrorPanel message="Builder access requires tracker author permission." />;
-  return (
-    <section className="rounded-lg border border-dashed border-gray-300 bg-white px-5 py-10 text-center">
-      <PencilRuler className="mx-auto h-8 w-8 text-gray-400" aria-hidden="true" />
-      <h2 className="mt-3 text-base font-semibold text-gray-950">Builder</h2>
-      <p className="mt-1 text-sm text-gray-500">Template authoring is the next Tracker slice.</p>
-    </section>
-  );
-}
-
 function Metric({ label, value, tone }: { label: string; value: number; tone: "green" | "gray" | "red" | "amber" }) {
   const toneClass = {
     green: "text-emerald-700",
@@ -466,20 +446,6 @@ function EmptyPanel({ title, detail }: { title: string; detail: string }) {
       <p className="text-sm text-gray-500">{detail}</p>
     </div>
   );
-}
-
-function lifecycleTone(lifecycle: TrackerGrid["rows"][number]["lifecycle"]): "green" | "gray" | "red" | "amber" {
-  if (lifecycle === "done") return "green";
-  if (lifecycle === "blocked") return "red";
-  if (lifecycle === "overdue") return "amber";
-  return "gray";
-}
-
-function formatCell(value: unknown): string {
-  if (value == null || value === "") return "-";
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
 }
 
 function formatDate(value: string): string {
