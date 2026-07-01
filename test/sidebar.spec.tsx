@@ -74,4 +74,42 @@ describe("Sidebar LMS Tools group", () => {
     render(<Sidebar />);
     expect(screen.queryByRole("button", { name: /lms tools/i })).toBeNull();
   });
+
+  it("auto-expands the group when the active path is an LMS child, even if stored closed", () => {
+    localStorage.setItem("sidebar.lms.open", "false");
+    mockPathname = "/dashboard/courses";
+    render(<Sidebar />);
+    // Group forced open by active child → Courses link visible.
+    expect(screen.getByRole("link", { name: /courses/i })).toBeTruthy();
+    const header = screen.getByRole("button", { name: /lms tools/i });
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("respects stored closed state when not on an LMS child", () => {
+    localStorage.setItem("sidebar.lms.open", "false");
+    mockPathname = "/dashboard/doubts";
+    render(<Sidebar />);
+    expect(screen.getByRole("button", { name: /lms tools/i }).getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+    expect(screen.queryByRole("link", { name: /courses/i })).toBeNull();
+  });
+
+  it("toggling the header persists open state to localStorage", () => {
+    mockPathname = "/dashboard"; // not an LMS child, so toggle governs visibility
+    render(<Sidebar />);
+    const header = screen.getByRole("button", { name: /lms tools/i });
+    // Default open.
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(header);
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    expect(localStorage.getItem("sidebar.lms.open")).toBe("false");
+  });
+
+  it("renders no group header in the collapsed rail but still shows LMS children", () => {
+    render(<Sidebar collapsed />);
+    expect(screen.queryByRole("button", { name: /lms tools/i })).toBeNull();
+    // Children rendered flat as leaf links.
+    expect(screen.getByRole("link", { name: /courses/i })).toBeTruthy();
+  });
 });
