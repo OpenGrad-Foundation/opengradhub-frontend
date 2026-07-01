@@ -14,10 +14,15 @@ import {
   getTrackerTemplates,
   raiseTrackerBlocker,
   saveTrackerBatch,
+  updateTrackerTemplate,
+  updateTrackerField,
+  deleteTrackerField,
   type AddTrackerFieldsInput,
   type CreateTrackerTemplateInput,
   type TrackerBatchEdit,
   type TrackerTargetType,
+  type TrackerTemplatePatch,
+  type TrackerFieldPatch,
   addTrackerFields,
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
@@ -127,6 +132,30 @@ export function useClearTrackerBlocker() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (blockerId: string) => clearTrackerBlocker(blockerId),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useUpdateTrackerTemplate(id: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (patch: TrackerTemplatePatch) => updateTrackerTemplate(id, patch),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useUpdateTrackerField(templateId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ fieldId, patch }: { fieldId: string; patch: TrackerFieldPatch }) => updateTrackerField(templateId, fieldId, patch),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useDeleteTrackerField(templateId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (fieldId: string) => deleteTrackerField(templateId, fieldId),
     onSuccess: () => invalidate('tracker'),
   });
 }

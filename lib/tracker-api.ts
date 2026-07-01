@@ -89,6 +89,8 @@ export type TrackerSummaryRow = {
   overdue: number;
 };
 
+export type TrackerRecurrence = "daily" | "weekly" | "monthly";
+
 export type CreateTrackerTemplateInput = {
   code: string;
   name: string;
@@ -98,6 +100,22 @@ export type CreateTrackerTemplateInput = {
   workflow_statuses?: string[];
   done_status?: string;
   deadline?: string;
+  recurrence_frequency?: TrackerRecurrence;
+};
+
+export type TrackerTemplatePatch = {
+  name?: string;
+  description?: string | null;
+  deadline?: string | null;
+  status?: "draft" | "active" | "archived";
+  recurrence_frequency?: TrackerRecurrence | null;
+};
+
+export type TrackerFieldPatch = {
+  label?: string;
+  required?: boolean;
+  options?: string[] | null;
+  sort_order?: number;
 };
 
 export type AddTrackerFieldsInput = { fields: TrackerField[] };
@@ -138,6 +156,24 @@ export function createTrackerTemplate(input: CreateTrackerTemplateInput) {
 
 export function addTrackerFields(templateId: string, input: AddTrackerFieldsInput) {
   return trackerJson<void>(`/tracker/templates/${encodeURIComponent(templateId)}/fields`, jsonInit("POST", input));
+}
+
+export function updateTrackerTemplate(id: string, patch: TrackerTemplatePatch) {
+  return trackerJson<void>(`/tracker/templates/${encodeURIComponent(id)}`, jsonInit("PATCH", patch));
+}
+
+export function updateTrackerField(templateId: string, fieldId: string, patch: TrackerFieldPatch) {
+  return trackerJson<void>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/fields/${encodeURIComponent(fieldId)}`,
+    jsonInit("PATCH", patch),
+  );
+}
+
+export function deleteTrackerField(templateId: string, fieldId: string) {
+  return trackerJson<void>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/fields/${encodeURIComponent(fieldId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export function assignTrackerTargets(templateId: string, targetIds: string[]) {

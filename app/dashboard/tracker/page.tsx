@@ -115,6 +115,7 @@ export default function TrackerPage() {
         detailId && templates.some((t) => t.id === detailId) ? (
           <TaskDetail
             template={templates.find((t) => t.id === detailId)!}
+            canAuthor={canAuthor}
             onBack={() => setDetailId(null)}
             onOpenGrid={tabs.includes("grid") ? () => { setSelectedTemplateId(detailId); setActiveTab("grid"); } : undefined}
           />

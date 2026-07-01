@@ -11,6 +11,7 @@ import {
   type TrackerFieldSource,
   type TrackerFieldType,
   type TrackerTargetType,
+  type TrackerRecurrence,
 } from "@/lib/tracker-api";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -60,6 +61,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [statusesText, setStatusesText] = useState("");
   const [doneStatus, setDoneStatus] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
   const [stateFilter, setStateFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -165,6 +167,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
         done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
         deadline: deadline || undefined,
+        recurrence_frequency: recurrence || undefined,
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
 
@@ -174,7 +177,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
       await invalidate("tracker");
       setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : "."));
-      setCode(""); setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline("");
+      setCode(""); setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setRecurrence("");
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
     } catch (err) {
@@ -212,6 +215,15 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Due date
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          Repeats
+          <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as "" | TrackerRecurrence)} className={inputClass}>
+            <option value="">One-time</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+          </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           How is it completed?
