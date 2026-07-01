@@ -9,6 +9,7 @@ import {
   getTrackerMineBlockers,
   getTrackerQueueBlockers,
   getTrackerAssignable,
+  getTrackerMyTasks,
   getTrackerSummary,
   getTrackerTemplate,
   getTrackerTemplates,
@@ -85,6 +86,15 @@ export function useTrackerAssignable(targetType: TrackerTargetType, enabled = tr
     queryFn: () => getTrackerAssignable(targetType),
     enabled,
     staleTime: 60_000,
+  });
+}
+
+export function useTrackerMyTasks(enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerMyTasks(),
+    queryFn: getTrackerMyTasks,
+    enabled,
+    staleTime: 30_000,
   });
 }
 

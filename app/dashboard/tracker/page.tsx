@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   AlertCircle,
+  ArrowLeft,
   CheckCircle2,
   ClipboardList,
   Loader2,
@@ -25,12 +26,13 @@ import type { TrackerBlocker, TrackerGrid, TrackerSummaryRow, TrackerTemplate } 
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { TaskDetail } from "./_components/task-detail";
+import { MyTasksList } from "./_components/my-tasks";
 
-type TrackerTab = "tasks" | "grid" | "blockers" | "summary" | "builder";
+type TrackerTab = "tasks" | "myTasks" | "blockers" | "summary" | "builder";
 
 const tabLabels: Record<TrackerTab, string> = {
   tasks: "Tasks",
-  grid: "My Tasks",
+  myTasks: "My Tasks",
   blockers: "Stuck",
   summary: "Summary",
   builder: "New task",
@@ -46,16 +48,18 @@ export default function TrackerPage() {
   const isManagerView = canAuthor || canClear || canAdmin;
 
   const tabs = useMemo<TrackerTab[]>(() => {
-    const next: TrackerTab[] = ["tasks"];
-    if (canFill) next.push("grid");
+    const next: TrackerTab[] = [];
+    if (canAuthor) next.push("tasks");          // task-type library (managers)
+    if (canFill) next.push("myTasks");          // the fellow's own to-do list
     next.push("blockers");
     if (isManagerView) next.push("summary");
     if (canAuthor) next.push("builder");
     return next;
   }, [canAuthor, canFill, isManagerView]);
 
-  const [activeTab, setActiveTab] = useState<TrackerTab>("tasks");
+  const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [fillTemplateId, setFillTemplateId] = useState<string | null>(null);
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], isLoading: templatesLoading, error: templatesError } = useTrackerTemplates();
@@ -82,12 +86,14 @@ export default function TrackerPage() {
             {currentUser?.role.name ?? "Team"} workspace
           </p>
         </div>
-        <TemplateSelect
-          templates={templates}
-          selectedId={templateId ?? ""}
-          loading={templatesLoading}
-          onChange={setSelectedTemplateId}
-        />
+        {isManagerView && (
+          <TemplateSelect
+            templates={templates}
+            selectedId={templateId ?? ""}
+            loading={templatesLoading}
+            onChange={setSelectedTemplateId}
+          />
+        )}
       </header>
 
       <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label="Tracker sections">
@@ -117,7 +123,6 @@ export default function TrackerPage() {
             template={templates.find((t) => t.id === detailId)!}
             canAuthor={canAuthor}
             onBack={() => setDetailId(null)}
-            onOpenGrid={tabs.includes("grid") ? () => { setSelectedTemplateId(detailId); setActiveTab("grid"); } : undefined}
           />
         ) : (
           <TasksPanel
@@ -127,8 +132,17 @@ export default function TrackerPage() {
             onSelect={(id) => { setSelectedTemplateId(id); setDetailId(id); }}
           />
         )
-      ) : safeActiveTab === "grid" ? (
-        <GridPanel template={selectedTemplate} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} />
+      ) : safeActiveTab === "myTasks" ? (
+        fillTemplateId ? (
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={() => setFillTemplateId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to my tasks
+            </button>
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} />
+          </div>
+        ) : (
+          <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); }} />
+        )
       ) : safeActiveTab === "blockers" ? (
         <BlockersPanel
           mine={mine.data ?? []}
@@ -427,7 +441,7 @@ function StatusPill({ label, tone }: { label: string; tone: "green" | "gray" | "
 function TabIcon({ tab }: { tab: TrackerTab }) {
   const props = { className: "h-4 w-4", "aria-hidden": true };
   if (tab === "tasks") return <ClipboardList {...props} />;
-  if (tab === "grid") return <Table2 {...props} />;
+  if (tab === "myTasks") return <Table2 {...props} />;
   if (tab === "blockers") return <AlertCircle {...props} />;
   if (tab === "summary") return <ShieldCheck {...props} />;
   return <PencilRuler {...props} />;

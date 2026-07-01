@@ -219,3 +219,18 @@ export type TrackerAssignable = { id: string; name: string; state: string | null
 export function getTrackerAssignable(targetType: TrackerTargetType) {
   return trackerJson<TrackerAssignable[]>(`/tracker/assignable?targetType=${encodeURIComponent(targetType)}`);
 }
+
+export type TrackerMyTask = {
+  record_id: string;
+  template_id: string;
+  name: string;
+  deadline: string | null;
+  target_type: TrackerTargetType;
+  status: string;
+  blocked: boolean;
+  lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+};
+
+export function getTrackerMyTasks() {
+  return trackerJson<TrackerMyTask[]>("/tracker/my-tasks");
+}

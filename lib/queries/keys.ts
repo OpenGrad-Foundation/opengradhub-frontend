@@ -79,4 +79,5 @@ export const qk = {
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
   trackerAssignable: (targetType: string) => ['og', 'tracker', 'assignable', targetType] as const,
+  trackerMyTasks: () => ['og', 'tracker', 'my-tasks'] as const,
 };
