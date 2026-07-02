@@ -1,15 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, ArrowLeft, Loader2, Pencil, Table2, Trash2 } from "lucide-react";
-import { useDeleteTrackerField, useTrackerTemplate, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
-import type { TrackerField, TrackerRecurrence, TrackerTemplate } from "@/lib/tracker-api";
+import { AlertCircle, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
+import { useAddTrackerFields, useDeleteTrackerField, useTrackerSummary, useTrackerTemplate, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
+import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
+import { AudiencePicker } from "./audience-picker";
 
 const TARGET_LABEL: Record<string, string> = {
   student: "One row per student",
   fellow: "One task per fellow",
   school: "One task per school",
 };
+
+// Mirrors the backend PROFILE_ALLOWLIST + the builder, so fields added here match new-task fields.
+const FELLOW_PATHS = ["fellow.name", "fellow.email"];
+const STUDENT_PATHS = ["student.name", "student.category", "student.district", "student.contact", "school.name", "school.code"];
+const pathsFor = (t: TrackerTargetType): string[] => (t === "fellow" ? FELLOW_PATHS : t === "student" ? STUDENT_PATHS : []);
+const sourcesFor = (t: TrackerTargetType): TrackerFieldSource[] => (pathsFor(t).length ? ["input", "profile"] : ["input"]);
+const FIELD_TYPES: TrackerFieldType[] = ["text", "number", "date", "select", "multiselect", "boolean", "url"];
+
+function slugKey(label: string, used: Set<string>): string {
+  const base = label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
+  let key = base;
+  let n = 2;
+  while (used.has(key)) key = `${base}_${n++}`;
+  return key;
+}
 
 export function TaskDetail({
   template,
@@ -59,6 +76,7 @@ export function TaskDetail({
             <Meta label="Applies to" value={TARGET_LABEL[template.target_type] ?? template.target_type} />
             <Meta label="How it's completed" value={template.completion_style === "workflow" ? "Move through steps" : "Tick when done"} />
             <Meta label="Due by" value={template.deadline ? formatDate(template.deadline) : "No deadline"} />
+            <Meta label="Priority" value={template.priority.charAt(0).toUpperCase() + template.priority.slice(1)} />
             <Meta label="Repeats" value={template.recurrence_frequency ? `Every ${template.recurrence_frequency.replace(/ly$/, "")}` : "One-time"} />
             {template.completion_style === "workflow" && (
               <Meta label="Steps" value={(template.workflow_statuses ?? []).join("  →  ")} wide />
@@ -67,23 +85,35 @@ export function TaskDetail({
         </div>
       )}
 
+      {canAuthor && !editing && <TaskSummary templateId={template.id} />}
+
+      {canAuthor && !editing && <AssignSection template={template} canAuthor={canAuthor} />}
+
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">
-          <h3 className="text-base font-semibold text-gray-950">What you fill in</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Some details are filled in for you automatically.</p>
+          <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
+          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. Fellows fill these in on the task itself; “Auto-filled” ones come from the record.</p>
         </div>
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
         ) : error ? (
           <p className="flex items-center gap-2 px-4 py-6 text-sm text-red-700"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error instanceof Error ? error.message : "Failed to load."}</p>
         ) : fields.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-gray-500">Nothing to fill in — just mark it done.</p>
+          <p className="px-4 py-6 text-sm text-gray-500">No fields — this is a simple tick-when-done task.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {fields.map((f) => (
               <FieldRow key={f.field_key} templateId={template.id} field={f} editing={editing} />
             ))}
           </ul>
+        )}
+        {editing && (
+          <AddFieldForm
+            templateId={template.id}
+            targetType={template.target_type}
+            usedKeys={fields.map((f) => f.field_key)}
+            nextSort={fields.length}
+          />
         )}
       </div>
     </section>
@@ -110,6 +140,207 @@ function FieldRow({ templateId, field: f, editing }: { templateId: string; field
         )}
       </div>
     </li>
+  );
+}
+
+const TARGET_PLURAL: Record<string, string> = { student: "students", school: "schools", fellow: "fellows" };
+
+function AssignSection({ template, canAuthor }: { template: TrackerTemplate; canAuthor: boolean }) {
+  const invalidate = useInvalidate();
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<string | null>(null);
+  const word = TARGET_PLURAL[template.target_type] ?? "targets";
+
+  async function assign() {
+    if (selected.size === 0) return;
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const { created } = await assignTrackerTargets(template.id, Array.from(selected));
+      await invalidate("tracker");
+      setResult(`Assigned to ${created} ${word}.`);
+      setSelected(new Set());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not assign.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-5">
+      <h3 className="mb-1 text-base font-semibold text-gray-950">Assign to more {word}</h3>
+      <AudiencePicker targetType={template.target_type} canAuthor={canAuthor} selected={selected} onChange={setSelected} />
+      {error && <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {result && <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
+      <div className="mt-3">
+        <button type="button" onClick={assign} disabled={busy || selected.size === 0} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+          {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+          Assign to {selected.size} {word}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TaskSummary({ templateId }: { templateId: string }) {
+  const { data: rows = [], isLoading } = useTrackerSummary(templateId);
+  const totals = rows.reduce(
+    (a, r) => ({ done: a.done + r.done, pending: a.pending + r.pending, blocked: a.blocked + r.blocked, overdue: a.overdue + r.overdue }),
+    { done: 0, pending: 0, blocked: 0, overdue: 0 },
+  );
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="border-b border-gray-100 px-4 py-3">
+        <h3 className="text-base font-semibold text-gray-950">Progress</h3>
+        <p className="mt-0.5 text-xs text-gray-500">How your fellows are doing on this task.</p>
+      </div>
+      {isLoading ? (
+        <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+      ) : (
+        <div className="p-4">
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <SummaryMetric label="Done" value={totals.done} tone="text-emerald-700" />
+            <SummaryMetric label="Pending" value={totals.pending} tone="text-gray-700" />
+            <SummaryMetric label="Blocked" value={totals.blocked} tone="text-red-700" />
+            <SummaryMetric label="Overdue" value={totals.overdue} tone="text-amber-700" />
+          </div>
+          {rows.length === 0 ? (
+            <p className="text-sm text-gray-500">No one assigned yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Fellow</th>
+                    <th className="px-3 py-2 font-semibold">Done</th>
+                    <th className="px-3 py-2 font-semibold">Pending</th>
+                    <th className="px-3 py-2 font-semibold">Blocked</th>
+                    <th className="px-3 py-2 font-semibold">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r) => (
+                    <tr key={r.fellow_id ?? "unassigned"} className="border-t border-gray-100">
+                      <td className="px-3 py-2 font-medium text-gray-950">{r.fellow_name ?? r.fellow_id ?? "Unassigned"}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.done}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.pending}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.blocked}</td>
+                      <td className="px-3 py-2 text-gray-700">{r.overdue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SummaryMetric({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 px-3 py-2">
+      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+      <p className={`mt-0.5 text-2xl font-semibold ${tone}`}>{value}</p>
+    </div>
+  );
+}
+
+function AddFieldForm({
+  templateId,
+  targetType,
+  usedKeys,
+  nextSort,
+}: {
+  templateId: string;
+  targetType: TrackerTargetType;
+  usedKeys: string[];
+  nextSort: number;
+}) {
+  const add = useAddTrackerFields(templateId);
+  const sources = sourcesFor(targetType);
+  const paths = pathsFor(targetType);
+  const [open, setOpen] = useState(false);
+  const [label, setLabel] = useState("");
+  const [fieldType, setFieldType] = useState<TrackerFieldType>("text");
+  const [optionsText, setOptionsText] = useState("");
+  const [source, setSource] = useState<TrackerFieldSource>("input");
+  const [sourcePath, setSourcePath] = useState(paths[0] ?? "");
+  const [required, setRequired] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const inputClass = "h-10 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+
+  async function save() {
+    setErr(null);
+    if (!label.trim()) { setErr("Add a label."); return; }
+    const isSelect = fieldType === "select" || fieldType === "multiselect";
+    const options = isSelect ? optionsText.split(",").map((o) => o.trim()).filter(Boolean) : null;
+    if (isSelect && (!options || options.length === 0)) { setErr("Add at least one choice."); return; }
+    if (source === "profile" && !sourcePath) { setErr("Pick where it's filled from."); return; }
+    const field: TrackerField = {
+      field_key: slugKey(label, new Set(usedKeys)),
+      label: label.trim(),
+      field_type: fieldType,
+      options,
+      source,
+      source_path: source === "profile" ? sourcePath : null,
+      required,
+      visible_if: null,
+      sort_order: nextSort,
+    };
+    try {
+      await add.mutateAsync({ fields: [field] });
+      setLabel(""); setOptionsText(""); setRequired(false); setSource("input"); setFieldType("text"); setOpen(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not add the field.");
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="border-t border-gray-100 px-4 py-3">
+        <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add field
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-gray-100 bg-gray-50/60 px-4 py-3">
+      <div className="grid items-end gap-2 md:grid-cols-5">
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Field label" className={inputClass} />
+        <select value={fieldType} onChange={(e) => setFieldType(e.target.value as TrackerFieldType)} className={inputClass}>
+          {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <select value={source} onChange={(e) => setSource(e.target.value as TrackerFieldSource)} className={inputClass}>
+          {sources.map((s) => <option key={s} value={s}>{s === "profile" ? "Auto-filled" : "You enter"}</option>)}
+        </select>
+        {source === "profile" ? (
+          <select value={sourcePath} onChange={(e) => setSourcePath(e.target.value)} className={inputClass}>
+            {paths.map((p) => <option key={p} value={p}>{profilePathLabel(p)}</option>)}
+          </select>
+        ) : (fieldType === "select" || fieldType === "multiselect") ? (
+          <input value={optionsText} onChange={(e) => setOptionsText(e.target.value)} placeholder="choices: a, b" className={inputClass} />
+        ) : (
+          <div />
+        )}
+        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+          <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
+        </label>
+      </div>
+      {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" onClick={save} disabled={add.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+          {add.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Add field
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+      </div>
+    </div>
   );
 }
 

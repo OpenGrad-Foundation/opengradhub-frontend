@@ -9,7 +9,13 @@ import {
   getTrackerMineBlockers,
   getTrackerQueueBlockers,
   getTrackerAssignable,
+  addBlockerComment,
+  getBlockerThread,
+  getTrackerFellows,
+  getTrackerFellowTasks,
   getTrackerMyTasks,
+  getTrackerOverview,
+  getTrackerRecordHistory,
   getTrackerSummary,
   getTrackerTemplate,
   getTrackerTemplates,
@@ -64,6 +70,33 @@ export function useTrackerSummary(templateId: string | undefined) {
   });
 }
 
+export function useTrackerOverview(enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerOverview(),
+    queryFn: getTrackerOverview,
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerFellows(enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerFellows(),
+    queryFn: getTrackerFellows,
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useTrackerFellowTasks(fellowId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerFellowTasks(fellowId ?? ''),
+    queryFn: () => getTrackerFellowTasks(fellowId as string),
+    enabled: Boolean(fellowId),
+    staleTime: 30_000,
+  });
+}
+
 export function useTrackerMineBlockers() {
   return useQuery({
     queryKey: qk.trackerBlockersMine(),
@@ -95,6 +128,32 @@ export function useTrackerMyTasks(enabled = true) {
     queryFn: getTrackerMyTasks,
     enabled,
     staleTime: 30_000,
+  });
+}
+
+export function useTrackerRecordHistory(recordId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerRecordHistory(recordId ?? ''),
+    queryFn: () => getTrackerRecordHistory(recordId as string),
+    enabled: Boolean(recordId),
+    staleTime: 15_000,
+  });
+}
+
+export function useBlockerThread(blockerId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerBlockerThread(blockerId ?? ''),
+    queryFn: () => getBlockerThread(blockerId as string),
+    enabled: Boolean(blockerId),
+    staleTime: 5_000,
+  });
+}
+
+export function useAddBlockerComment() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ blockerId, text }: { blockerId: string; text: string }) => addBlockerComment(blockerId, text),
+    onSuccess: () => invalidate('tracker'),
   });
 }
 

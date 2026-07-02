@@ -15,8 +15,11 @@ function task(over: Partial<TrackerMyTask>): TrackerMyTask {
     template_id: "t1",
     name: "NEET Application (demo)",
     target_name: null,
+    school_name: null,
+    issued_at: "2026-07-01T00:00:00.000Z",
     deadline: null,
     target_type: "student",
+    priority: "medium",
     status: "not_started",
     blocked: false,
     lifecycle: "not_started",
@@ -37,9 +40,9 @@ describe("MyTasksList", () => {
     render(<MyTasksList onOpen={() => {}} />);
     expect(screen.getByText(/Ravi K/)).toBeTruthy();
     expect(screen.getByText(/Meena S/)).toBeTruthy();
-    // Distinct lifecycle pills render too.
-    expect(screen.getByText("Done")).toBeTruthy();
-    expect(screen.getByText("Stuck")).toBeTruthy();
+    // Distinct lifecycle pills render too (also present as filter options, hence getAllByText).
+    expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Stuck").length).toBeGreaterThan(0);
   });
 
   it("renders without a target name (falls back to template name only)", () => {

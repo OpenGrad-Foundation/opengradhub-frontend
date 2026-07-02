@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import {
   addTrackerFields,
@@ -12,16 +12,20 @@ import {
   type TrackerFieldType,
   type TrackerTargetType,
   type TrackerRecurrence,
+  type TrackerPriority,
+  profilePathLabel,
 } from "@/lib/tracker-api";
-import { useTrackerAssignable } from "@/lib/queries/tracker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { AudiencePicker } from "./audience-picker";
 
 // Mirrors the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts), per target type.
 const FELLOW_PATHS = ["fellow.name", "fellow.email"] as const;
+const STUDENT_PATHS = ["student.name", "student.category", "student.district", "student.contact", "school.name", "school.code"] as const;
 const SCHOOL_PATHS: readonly string[] = []; // school projection not wired yet
-const pathsFor = (t: TrackerTargetType): readonly string[] => (t === "fellow" ? FELLOW_PATHS : SCHOOL_PATHS);
+const pathsFor = (t: TrackerTargetType): readonly string[] =>
+  t === "fellow" ? FELLOW_PATHS : t === "student" ? STUDENT_PATHS : SCHOOL_PATHS;
 const sourcesFor = (t: TrackerTargetType): TrackerFieldSource[] =>
-  pathsFor(t).length ? ["input", "identity", "profile"] : ["input", "identity"];
+  pathsFor(t).length ? ["input", "profile"] : ["input"];
 
 const FIELD_TYPES: TrackerFieldType[] = ["text", "number", "date", "select", "multiselect", "boolean", "url"];
 
@@ -53,7 +57,6 @@ function prettyState(s: string | null): string {
 
 export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const invalidate = useInvalidate();
-  const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetType, setTargetType] = useState<TrackerTargetType>("fellow");
@@ -61,9 +64,9 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [statusesText, setStatusesText] = useState("");
   const [doneStatus, setDoneStatus] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [priority, setPriority] = useState<TrackerPriority>("medium");
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
-  const [stateFilter, setStateFilter] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [busy, setBusy] = useState(false);
@@ -72,17 +75,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
   const profilePaths = pathsFor(targetType);
   const sources = sourcesFor(targetType);
-  const assignable = useTrackerAssignable(targetType, canAuthor);
-  const targetWord = targetType === "school" ? "schools" : "fellows";
-
-  const states = useMemo(() => {
-    const set = new Set((assignable.data ?? []).map((t) => t.state).filter(Boolean) as string[]);
-    return Array.from(set).sort();
-  }, [assignable.data]);
-  const visibleTargets = useMemo(
-    () => (assignable.data ?? []).filter((t) => !stateFilter || t.state === stateFilter),
-    [assignable.data, stateFilter],
-  );
+  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "fellows";
 
   if (!canAuthor) {
     return (
@@ -98,7 +91,6 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
     setSelectedIds(new Set());
-    setStateFilter("");
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
     setColumns((cols) =>
@@ -108,14 +100,6 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         return { ...c, source, source_path };
       }),
     );
-  }
-
-  function toggleTarget(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
   }
 
   async function onSubmit(e: FormEvent) {
@@ -158,8 +142,10 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
           throw new Error(`"${f.label}" needs at least one choice.`);
       }
 
+      // Code is an internal unique key — auto-derived from the name so authors only type a name.
+      const autoCode = `${slug(name)}-${Date.now().toString(36)}`.toUpperCase();
       const { id } = await createTrackerTemplate({
-        code: code.trim(),
+        code: autoCode,
         name: name.trim(),
         description: description.trim() || undefined,
         target_type: targetType,
@@ -167,6 +153,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
         done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
         deadline: deadline || undefined,
+        priority,
         recurrence_frequency: recurrence || undefined,
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
@@ -177,7 +164,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
       await invalidate("tracker");
       setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : "."));
-      setCode(""); setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setRecurrence("");
+      setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
     } catch (err) {
@@ -189,15 +176,13 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
   const inputClass =
     "h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+  const filterClass =
+    "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
       <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-          Short code
-          <input required value={code} onChange={(e) => setCode(e.target.value)} placeholder="MONTHLY-REPORT" className={inputClass} />
-        </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
           Task name
           <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Monthly Report" className={inputClass} />
         </label>
@@ -210,11 +195,20 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
           <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
             <option value="fellow">Each fellow</option>
             <option value="school">Each school</option>
+            <option value="student">Each student</option>
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Due date
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          Priority
+          <select value={priority} onChange={(e) => setPriority(e.target.value as TrackerPriority)} className={inputClass}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+          </select>
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Repeats
@@ -266,7 +260,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
               </select>
               {col.source === "profile" ? (
                 <select value={col.source_path} onChange={(e) => setColumn(i, { source_path: e.target.value })} className={inputClass}>
-                  {profilePaths.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {profilePaths.map((p) => <option key={p} value={p}>{profilePathLabel(p)}</option>)}
                 </select>
               ) : (col.field_type === "select" || col.field_type === "multiselect") ? (
                 <input value={col.optionsText} onChange={(e) => setColumn(i, { optionsText: e.target.value })} placeholder="choices: a, b" className={inputClass} />
@@ -287,31 +281,9 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-950">Assign to {targetWord}</h3>
-          {states.length > 1 && (
-            <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500">
-              <option value="">All states</option>
-              {states.map((s) => <option key={s} value={s}>{prettyState(s)}</option>)}
-            </select>
-          )}
-        </div>
-        {assignable.isLoading ? (
-          <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
-        ) : visibleTargets.length === 0 ? (
-          <p className="py-4 text-sm text-gray-500">No {targetWord} in your scope.</p>
-        ) : (
-          <div className="grid max-h-56 gap-1 overflow-auto sm:grid-cols-2">
-            {visibleTargets.map((t) => (
-              <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
-                <input type="checkbox" checked={selectedIds.has(t.id)} onChange={() => toggleTarget(t.id)} />
-                <span className="text-gray-900">{t.name}</span>
-                {t.state && <span className="text-xs text-gray-400">{prettyState(t.state)}</span>}
-              </label>
-            ))}
-          </div>
-        )}
-        <p className="mt-2 text-xs text-gray-500">{selectedIds.size} selected. Leave empty to assign later.</p>
+        <h3 className="mb-1 text-sm font-semibold text-gray-950">Assign to {targetWord}</h3>
+        <AudiencePicker key={targetType} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} />
+        <p className="mt-2 text-xs text-gray-500">Leave empty to assign later.</p>
       </section>
 
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}

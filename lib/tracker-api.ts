@@ -3,7 +3,21 @@ import { API_BASE_URL, ApiError, apiFetch } from "./api";
 export type TrackerFieldType = "text" | "number" | "date" | "select" | "multiselect" | "boolean" | "url";
 export type TrackerFieldSource = "profile" | "identity" | "input";
 export type TrackerTargetType = "student" | "school" | "fellow";
+
+// Human labels for auto-filled (profile) source paths — shown instead of the raw `student.name` key.
+export const PROFILE_PATH_LABELS: Record<string, string> = {
+  "student.name": "Student name",
+  "student.category": "Student category",
+  "student.district": "District",
+  "student.contact": "Student contact",
+  "school.name": "School name",
+  "school.code": "School code",
+  "fellow.name": "Fellow name",
+  "fellow.email": "Fellow email",
+};
+export const profilePathLabel = (path: string): string => PROFILE_PATH_LABELS[path] ?? path;
 export type TrackerCompletionStyle = "checklist" | "workflow";
+export type TrackerPriority = "low" | "medium" | "high";
 
 export type TrackerVisibleIf = {
   field: string;
@@ -22,6 +36,7 @@ export type TrackerTemplate = {
   done_status: string | null;
   deadline: string | null;
   recurrence_frequency: string | null;
+  priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   created_by: string;
   created_at: string;
@@ -82,6 +97,10 @@ export type TrackerBlocker = {
   cleared_at: string | null;
   escalated_to_zm_at: string | null;
   escalated_to_pm_at: string | null;
+  template_id?: string | null;
+  task_name?: string | null;
+  target_type?: TrackerTargetType | null;
+  target_name?: string | null;
 };
 
 export type TrackerSummaryRow = {
@@ -105,6 +124,7 @@ export type CreateTrackerTemplateInput = {
   done_status?: string;
   deadline?: string;
   recurrence_frequency?: TrackerRecurrence;
+  priority?: TrackerPriority;
 };
 
 export type TrackerTemplatePatch = {
@@ -221,6 +241,15 @@ export function getTrackerSummary(templateId: string) {
   return trackerJson<TrackerSummaryRow[]>(`/tracker/templates/${encodeURIComponent(templateId)}/summary`);
 }
 
+export type TrackerOverview = {
+  totals: { done: number; pending: number; blocked: number; overdue: number };
+  perTask: Array<{ template_id: string; name: string; done: number; pending: number; blocked: number; overdue: number }>;
+};
+
+export function getTrackerOverview() {
+  return trackerJson<TrackerOverview>("/tracker/summary/overview");
+}
+
 export type TrackerAssignable = {
   id: string;
   name: string;
@@ -240,8 +269,11 @@ export type TrackerMyTask = {
   template_id: string;
   name: string;
   target_name: string | null;
+  school_name: string | null;
+  issued_at: string;
   deadline: string | null;
   target_type: TrackerTargetType;
+  priority: TrackerPriority;
   status: string;
   blocked: boolean;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
@@ -251,13 +283,24 @@ export function getTrackerMyTasks() {
   return trackerJson<TrackerMyTask[]>("/tracker/my-tasks");
 }
 
+export type TrackerFellowSummary = TrackerAssignable & { total: number; done: number; pending: number };
+
+export function getTrackerFellows() {
+  return trackerJson<TrackerFellowSummary[]>("/tracker/fellows");
+}
+
+export function getTrackerFellowTasks(fellowId: string) {
+  return trackerJson<TrackerMyTask[]>(`/tracker/fellows/${encodeURIComponent(fellowId)}/tasks`);
+}
+
 export type TrackerEventType =
   | "record_created"
   | "status_changed"
   | "values_changed"
   | "blocker_raised"
   | "blocker_cleared"
-  | "blocker_escalated";
+  | "blocker_escalated"
+  | "blocker_comment";
 
 export type TrackerEvent = {
   id: string;
@@ -275,4 +318,32 @@ export function getTrackerRecordHistory(recordId: string) {
 
 export function getTrackerTemplateHistory(templateId: string) {
   return trackerJson<TrackerEvent[]>(`/tracker/templates/${encodeURIComponent(templateId)}/history`);
+}
+
+export type TrackerBlockerThread = {
+  blocker: {
+    id: string;
+    text: string;
+    status: "open" | "cleared";
+    raised_by: string;
+    raised_by_name: string | null;
+    raised_at: string;
+    cleared_at: string | null;
+    escalated_to_zm_at: string | null;
+    escalated_to_pm_at: string | null;
+    record_id: string;
+    template_id: string | null;
+    task_name: string | null;
+    target_type: TrackerTargetType | null;
+    target_name: string | null;
+  };
+  events: TrackerEvent[];
+};
+
+export function getBlockerThread(blockerId: string) {
+  return trackerJson<TrackerBlockerThread>(`/tracker/blockers/${encodeURIComponent(blockerId)}/thread`);
+}
+
+export function addBlockerComment(blockerId: string, text: string) {
+  return trackerJson<{ ok: true }>(`/tracker/blockers/${encodeURIComponent(blockerId)}/comment`, jsonInit("POST", { text }));
 }
