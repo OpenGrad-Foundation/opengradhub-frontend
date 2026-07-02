@@ -77,4 +77,9 @@ export const LMS_GROUP_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
   "live_classes",
   "calendar",
   "resources",
+  "doubts",
+  "analytics",
+  "reports",
+  "student_export",
+  "batches",
 ]);

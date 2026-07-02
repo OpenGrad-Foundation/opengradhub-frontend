@@ -70,7 +70,7 @@ describe("Sidebar LMS Tools group", () => {
   });
 
   it("does not render the group header when no LMS module is granted", () => {
-    mockModules = [{ code: "dashboard" }, { code: "doubts" }];
+    mockModules = [{ code: "dashboard" }, { code: "tracker" }];
     render(<Sidebar />);
     expect(screen.queryByRole("button", { name: /lms tools/i })).toBeNull();
   });
@@ -87,7 +87,7 @@ describe("Sidebar LMS Tools group", () => {
 
   it("respects stored closed state when not on an LMS child", () => {
     localStorage.setItem("sidebar.lms.open", "false");
-    mockPathname = "/dashboard/doubts";
+    mockPathname = "/dashboard/tracker"; // tracker is flat, not an LMS child
     render(<Sidebar />);
     expect(screen.getByRole("button", { name: /lms tools/i }).getAttribute("aria-expanded")).toBe(
       "false",
