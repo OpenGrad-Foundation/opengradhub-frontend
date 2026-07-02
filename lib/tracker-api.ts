@@ -60,6 +60,9 @@ export type TrackerGridRow = {
   status: string;
   cells: TrackerCell[];
   blocked: boolean;
+  blocker: { id: string; text: string } | null;
+  school_name: string | null;
+  target_name: string | null;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -83,6 +86,7 @@ export type TrackerBlocker = {
 
 export type TrackerSummaryRow = {
   fellow_id: string | null;
+  fellow_name: string | null;
   done: number;
   pending: number;
   blocked: number;
@@ -131,7 +135,10 @@ async function trackerJson<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(message, res.status);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // Void endpoints (clear blocker, add/update/delete field, update template) return an
+  // empty body with a 200/201; res.json() would throw on that, so parse defensively.
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 function jsonInit(method: "POST" | "PATCH", body: unknown): RequestInit {
@@ -214,7 +221,15 @@ export function getTrackerSummary(templateId: string) {
   return trackerJson<TrackerSummaryRow[]>(`/tracker/templates/${encodeURIComponent(templateId)}/summary`);
 }
 
-export type TrackerAssignable = { id: string; name: string; state: string | null };
+export type TrackerAssignable = {
+  id: string;
+  name: string;
+  state: string | null;
+  district?: string | null;
+  programme?: string | null;
+  school_id?: string | null;
+  school_name?: string | null;
+};
 
 export function getTrackerAssignable(targetType: TrackerTargetType) {
   return trackerJson<TrackerAssignable[]>(`/tracker/assignable?targetType=${encodeURIComponent(targetType)}`);
@@ -224,6 +239,7 @@ export type TrackerMyTask = {
   record_id: string;
   template_id: string;
   name: string;
+  target_name: string | null;
   deadline: string | null;
   target_type: TrackerTargetType;
   status: string;
@@ -233,4 +249,30 @@ export type TrackerMyTask = {
 
 export function getTrackerMyTasks() {
   return trackerJson<TrackerMyTask[]>("/tracker/my-tasks");
+}
+
+export type TrackerEventType =
+  | "record_created"
+  | "status_changed"
+  | "values_changed"
+  | "blocker_raised"
+  | "blocker_cleared"
+  | "blocker_escalated";
+
+export type TrackerEvent = {
+  id: string;
+  event_type: TrackerEventType;
+  actor_id: string | null;
+  actor_name: string | null;
+  detail: Record<string, unknown>;
+  at: string;
+  record_id: string | null;
+};
+
+export function getTrackerRecordHistory(recordId: string) {
+  return trackerJson<TrackerEvent[]>(`/tracker/records/${encodeURIComponent(recordId)}/history`);
+}
+
+export function getTrackerTemplateHistory(templateId: string) {
+  return trackerJson<TrackerEvent[]>(`/tracker/templates/${encodeURIComponent(templateId)}/history`);
 }

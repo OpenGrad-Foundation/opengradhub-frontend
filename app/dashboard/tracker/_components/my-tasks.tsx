@@ -47,7 +47,10 @@ export function MyTasksList({ onOpen }: { onOpen: (templateId: string) => void }
               className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-teal-50/50"
             >
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-950">{task.name}</p>
+                <p className="truncate text-sm font-medium text-gray-950">
+                  {task.name}
+                  {task.target_name ? <span className="text-gray-500"> — {task.target_name}</span> : null}
+                </p>
                 <p className="mt-0.5 text-xs text-gray-500">{task.deadline ? `Due ${formatDate(task.deadline)}` : "No deadline"}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
