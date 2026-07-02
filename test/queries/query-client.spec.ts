@@ -7,10 +7,12 @@ describe('makeQueryClient', () => {
     expect(makeQueryClient()).toBeInstanceOf(QueryClient);
   });
 
-  it('sets a sane default staleTime and disables refetchOnWindowFocus', () => {
+  it('sets a sane default staleTime and refetches stale data on window focus', () => {
     const opts = makeQueryClient().getDefaultOptions();
     expect(opts.queries?.staleTime).toBeGreaterThan(0);
-    expect(opts.queries?.refetchOnWindowFocus).toBe(false);
+    // Focus-refetch is enabled but staleness-gated: fresh data stays cached,
+    // only past-staleTime queries refetch on tab return (caching strategy v2).
+    expect(opts.queries?.refetchOnWindowFocus).toBe(true);
   });
 
   it('limits query retries so a down backend fails fast', () => {
