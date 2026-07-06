@@ -38,6 +38,8 @@ export type TrackerTemplate = {
   recurrence_frequency: string | null;
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
+  require_photo: boolean;
+  require_location: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -125,6 +127,8 @@ export type CreateTrackerTemplateInput = {
   deadline?: string;
   recurrence_frequency?: TrackerRecurrence;
   priority?: TrackerPriority;
+  require_photo?: boolean;
+  require_location?: boolean;
 };
 
 export type TrackerTemplatePatch = {
@@ -133,6 +137,8 @@ export type TrackerTemplatePatch = {
   deadline?: string | null;
   status?: "draft" | "active" | "archived";
   recurrence_frequency?: TrackerRecurrence | null;
+  require_photo?: boolean;
+  require_location?: boolean;
 };
 
 export type TrackerFieldPatch = {
@@ -218,6 +224,40 @@ export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
   return trackerJson<{ saved: number }>("/tracker/records/batch", jsonInit("POST", { edits }));
 }
 
+export type TrackerProofPhoto = { id: string; url: string; created_at: string; created_by: string };
+export type TrackerProofLocation = { lat: number; lng: number; accuracy_m: number | null; captured_at: string };
+export type TrackerProofs = { photos: TrackerProofPhoto[]; location: TrackerProofLocation | null };
+
+export function getTrackerProofs(recordId: string) {
+  return trackerJson<TrackerProofs>(`/tracker/records/${encodeURIComponent(recordId)}/proofs`);
+}
+
+export async function uploadProofPhoto(recordId: string, file: Blob): Promise<{ id: string }> {
+  const form = new FormData();
+  // Filename hints the extension; the backend derives the real ext from mime.
+  form.append("photo", file, "proof.jpg");
+  // NOTE: do NOT set Content-Type — the browser sets the multipart boundary.
+  const res = await apiFetch(`${API_BASE_URL}/tracker/records/${encodeURIComponent(recordId)}/proofs/photo`, {
+    method: "POST", body: form, cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string | string[] } | null;
+    const message = Array.isArray(body?.message) ? body.message[0] : body?.message ?? "Photo upload failed.";
+    throw new ApiError(message, res.status);
+  }
+  return (await res.json()) as { id: string };
+}
+
+export function captureProofLocation(recordId: string, body: { lat: number; lng: number; accuracy_m?: number }) {
+  return trackerJson<{ ok: true }>(
+    `/tracker/records/${encodeURIComponent(recordId)}/proofs/location`, jsonInit("POST", body));
+}
+
+export function deleteProofPhoto(recordId: string, proofId: string) {
+  return trackerJson<{ ok: true }>(
+    `/tracker/records/${encodeURIComponent(recordId)}/proofs/${encodeURIComponent(proofId)}`, { method: "DELETE" });
+}
+
 export function raiseTrackerBlocker(recordId: string, text: string) {
   return trackerJson<{ id: string }>(
     `/tracker/records/${encodeURIComponent(recordId)}/blocker`,
@@ -300,7 +340,10 @@ export type TrackerEventType =
   | "blocker_raised"
   | "blocker_cleared"
   | "blocker_escalated"
-  | "blocker_comment";
+  | "blocker_comment"
+  | "proof_photo_added"
+  | "proof_photo_removed"
+  | "proof_location_captured";
 
 export type TrackerEvent = {
   id: string;

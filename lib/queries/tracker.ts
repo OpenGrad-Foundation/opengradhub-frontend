@@ -24,6 +24,10 @@ import {
   updateTrackerTemplate,
   updateTrackerField,
   deleteTrackerField,
+  getTrackerProofs,
+  uploadProofPhoto,
+  captureProofLocation,
+  deleteProofPhoto,
   type AddTrackerFieldsInput,
   type CreateTrackerTemplateInput,
   type TrackerBatchEdit,
@@ -225,6 +229,39 @@ export function useDeleteTrackerField(templateId: string) {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (fieldId: string) => deleteTrackerField(templateId, fieldId),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useTrackerProofs(recordId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerProofs(recordId ?? ''),
+    queryFn: () => getTrackerProofs(recordId as string),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useUploadProofPhoto(recordId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (file: Blob) => uploadProofPhoto(recordId, file),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useCaptureProofLocation(recordId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (body: { lat: number; lng: number; accuracy_m?: number }) => captureProofLocation(recordId, body),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useDeleteProofPhoto(recordId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (proofId: string) => deleteProofPhoto(recordId, proofId),
     onSuccess: () => invalidate('tracker'),
   });
 }
