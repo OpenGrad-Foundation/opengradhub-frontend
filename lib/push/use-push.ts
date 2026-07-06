@@ -41,7 +41,19 @@ export function usePush() {
     setPermission(Notification.permission);
     void navigator.serviceWorker.ready
       .then((reg) => reg.pushManager.getSubscription())
-      .then((sub) => setSubscribed(!!sub))
+      .then(async (sub) => {
+        setSubscribed(!!sub);
+        // Rebind any existing subscription to the CURRENT auth user. On a shared
+        // browser / profile switch the same endpoint may still be bound to a
+        // previous user server-side; re-POST so the server upsert reassigns it.
+        if (sub) {
+          try {
+            await savePushSubscription(sub.toJSON() as PushSubscriptionJSON, navigator.userAgent);
+          } catch {
+            /* best-effort — enable() re-saves on explicit toggle */
+          }
+        }
+      })
       .catch(() => undefined);
   }, []);
 
