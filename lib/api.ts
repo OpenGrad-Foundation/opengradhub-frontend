@@ -1234,6 +1234,7 @@ export type Notification = {
   channel: "IN_APP" | "EMAIL" | "WHATSAPP";
   is_read: boolean;
   triggered_at: string;
+  link: string | null;
 };
 
 export async function getNotifications(): Promise<Notification[]> {
@@ -1247,6 +1248,35 @@ export async function getUnreadCount(): Promise<number> {
   if (!r.ok) return 0;
   const data = await r.json() as { count: number };
   return data.count;
+}
+
+// ── Web Push ──────────────────────────────────────────────────────
+
+/** The server's VAPID public key (public value); null when push is unconfigured. */
+export async function getPushPublicKey(): Promise<string | null> {
+  const r = await apiFetch(`${API_BASE_URL}/push/public-key`, { cache: "no-store" });
+  if (!r.ok) return null;
+  const data = (await r.json()) as { publicKey: string | null };
+  return data.publicKey;
+}
+
+export async function savePushSubscription(
+  sub: PushSubscriptionJSON,
+  userAgent?: string,
+): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/push/subscriptions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...sub, userAgent }),
+  });
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/push/subscriptions`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ endpoint }),
+  });
 }
 
 export async function markAllNotificationsRead(): Promise<void> {
