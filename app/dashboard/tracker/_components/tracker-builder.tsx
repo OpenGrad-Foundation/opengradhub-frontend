@@ -66,6 +66,8 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [deadline, setDeadline] = useState("");
   const [priority, setPriority] = useState<TrackerPriority>("medium");
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
+  const [requirePhoto, setRequirePhoto] = useState(false);
+  const [requireLocation, setRequireLocation] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -155,6 +157,8 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         deadline: deadline || undefined,
         priority,
         recurrence_frequency: recurrence || undefined,
+        require_photo: requirePhoto,
+        require_location: requireLocation,
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
 
@@ -165,6 +169,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       await invalidate("tracker");
       setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : "."));
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
+      setRequirePhoto(false); setRequireLocation(false);
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
     } catch (err) {
@@ -238,6 +243,17 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
             </label>
           </>
         )}
+        <div className="flex flex-col gap-2 sm:col-span-2">
+          <span className="text-sm font-medium text-gray-700">Proof of visit</span>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
+            Require a photo before it can be marked done
+          </label>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={requireLocation} onChange={(e) => setRequireLocation(e.target.checked)} />
+            Require capturing location before it can be marked done
+          </label>
+        </div>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">

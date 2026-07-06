@@ -81,6 +81,9 @@ export function TaskDetail({
             {template.completion_style === "workflow" && (
               <Meta label="Steps" value={(template.workflow_statuses ?? []).join("  →  ")} wide />
             )}
+            {(template.require_photo || template.require_location) && (
+              <Meta label="Proof of visit" value={[template.require_photo ? "Photo" : null, template.require_location ? "Location" : null].filter(Boolean).join(" + ")} />
+            )}
           </dl>
         </div>
       )}
@@ -351,6 +354,8 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
   const [deadline, setDeadline] = useState(template.deadline ? template.deadline.slice(0, 10) : "");
   const [status, setStatus] = useState<TrackerTemplate["status"]>(template.status);
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>((template.recurrence_frequency as TrackerRecurrence) ?? "");
+  const [requirePhoto, setRequirePhoto] = useState(template.require_photo);
+  const [requireLocation, setRequireLocation] = useState(template.require_location);
   const [err, setErr] = useState<string | null>(null);
 
   const inputClass = "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
@@ -364,6 +369,8 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
         deadline: deadline || null,
         status,
         recurrence_frequency: recurrence || null,
+        require_photo: requirePhoto,
+        require_location: requireLocation,
       });
       onDone();
     } catch (e) {
@@ -402,6 +409,17 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
           <option value="archived">Archived</option>
         </select>
       </label>
+      <div className="flex flex-col gap-2 sm:col-span-2">
+        <span className="text-sm font-medium text-gray-700">Proof of visit</span>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
+          Require a photo
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={requireLocation} onChange={(e) => setRequireLocation(e.target.checked)} />
+          Require location capture
+        </label>
+      </div>
       {err && <p className="text-sm text-red-700 sm:col-span-2">{err}</p>}
       <div className="flex items-center gap-2 sm:col-span-2">
         <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
