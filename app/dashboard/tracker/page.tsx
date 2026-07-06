@@ -32,6 +32,7 @@ import { TrackerBuilder } from "./_components/tracker-builder";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
+import PushNudge from "@/components/PushNudge";
 
 type TrackerTab = "myTasks" | "blockers" | "builder";
 
@@ -77,6 +78,7 @@ export default function TrackerPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+      {isManagerView && <PushNudge />}
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Hub Module</p>
