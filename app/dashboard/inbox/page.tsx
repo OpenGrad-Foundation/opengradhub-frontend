@@ -14,7 +14,7 @@ import {
 } from "@/lib/queries/notifications";
 import { markAllAnnouncementsRead, markAllNotificationsRead } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
+import { notificationRoute } from "@/lib/notification-routes";
 import { ComposeMessageModal } from "@/components/ComposeMessageModal";
 
 type Filter = "all" | "unread" | "notifications" | "announcements";
@@ -61,7 +61,7 @@ export default function InboxPage() {
       else markNotifRead.mutate({ id: item.id, read: true });
     }
     if (item.source === "notification") {
-      const route = NOTIFICATION_ROUTES[item.type];
+      const route = notificationRoute(item.type, item.link);
       if (route) router.push(route);
     }
   }
@@ -165,7 +165,7 @@ export default function InboxPage() {
           {filtered.map((item, idx) => {
             const isAnn   = item.source === "announcement";
             const isUnread = !item.is_read;
-            const hasRoute = item.source === "notification" && !!NOTIFICATION_ROUTES[item.type];
+            const hasRoute = item.source === "notification" && !!notificationRoute(item.type, item.link);
             const isClickable = isUnread || hasRoute;
             const dateStr  = new Date(item.created_at).toLocaleDateString([], {
               month: "short", day: "numeric",

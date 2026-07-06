@@ -13,7 +13,7 @@ import { useInboxFeed, useInboxUnreadCount, type InboxItem } from "@/lib/queries
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
 import { useMarkNotificationRead } from "@/lib/queries/notifications";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
+import { notificationRoute } from "@/lib/notification-routes";
 import { usePush } from "@/lib/push/use-push";
 
 // ── Type icon map ──────────────────────────────────────────────
@@ -27,13 +27,6 @@ function itemIcon(item: InboxItem): string {
   if (type.includes("announce")   || type.includes("ANNOUNCE"))   return "📢";
   if (type.includes("warning")    || type.includes("WARNING"))    return "⚠️";
   return "🔔";
-}
-
-/** Only same-origin app paths are safe to router.push — reject absolute URLs
- *  and protocol-relative ("//host") links so a tainted link can't navigate away. */
-function safeInternalPath(link: string | null | undefined): string | undefined {
-  if (!link || !link.startsWith("/") || link.startsWith("//")) return undefined;
-  return link;
 }
 
 function relativeTime(iso: string): string {
@@ -106,7 +99,7 @@ export default function NotificationBell() {
     // Only notifications have deep-link routes. Prefer the row's persisted link
     // (set by the backend) over the static type→route fallback.
     if (item.source === "notification") {
-      const route = safeInternalPath(item.link) ?? NOTIFICATION_ROUTES[item.type];
+      const route = notificationRoute(item.type, item.link);
       if (route) {
         setOpen(false);
         router.push(route);
@@ -173,7 +166,7 @@ export default function NotificationBell() {
             ) : (
               items.map(item => {
                 const route = item.source === "notification"
-                  ? (safeInternalPath(item.link) ?? NOTIFICATION_ROUTES[item.type])
+                  ? notificationRoute(item.type, item.link)
                   : undefined;
                 const isClickable = !item.is_read || !!route;
                 const Tag = route ? "button" : "div";
