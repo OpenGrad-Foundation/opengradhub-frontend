@@ -307,13 +307,22 @@ export function TrackerEditableGrid({
       </div>
 
       {historyRecordId && (
-        <HistoryDrawer recordId={historyRecordId} onClose={() => setHistoryRecordId(null)} />
+        <HistoryDrawer
+          recordId={historyRecordId}
+          requirePhoto={template.require_photo}
+          requireLocation={template.require_location}
+          onClose={() => setHistoryRecordId(null)}
+        />
       )}
     </section>
   );
 }
 
-function HistoryDrawer({ recordId, onClose }: { recordId: string; onClose: () => void }) {
+function HistoryDrawer({
+  recordId, requirePhoto, requireLocation, onClose,
+}: {
+  recordId: string; requirePhoto: boolean; requireLocation: boolean; onClose: () => void;
+}) {
   const { data, isLoading, error } = useTrackerRecordHistory(recordId);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
@@ -330,6 +339,12 @@ function HistoryDrawer({ recordId, onClose }: { recordId: string; onClose: () =>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
+          {(requirePhoto || requireLocation) && (
+            <div className="mb-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Proof</p>
+              <RecordProofs recordId={recordId} requirePhoto={requirePhoto} requireLocation={requireLocation} editable={false} />
+            </div>
+          )}
           {isLoading ? (
             <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
           ) : error ? (
@@ -377,6 +392,12 @@ function describeEvent(ev: TrackerEvent): string {
       return "Blocker cleared";
     case "blocker_escalated":
       return `Escalated to ${roleLabel(String(d.to_role ?? ""))}`;
+    case "proof_photo_added":
+      return "Photo added";
+    case "proof_photo_removed":
+      return "Photo removed";
+    case "proof_location_captured":
+      return "Location captured";
     default:
       return ev.event_type;
   }
