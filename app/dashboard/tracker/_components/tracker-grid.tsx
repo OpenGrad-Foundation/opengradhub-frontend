@@ -9,6 +9,7 @@ import {
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
+import { RecordProofs } from "./record-proofs";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
 
@@ -30,6 +31,8 @@ export function TrackerEditableGrid({
   const [blockerText, setBlockerText] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null);
+  const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
+  const requiresProof = template.require_photo || template.require_location;
   const [schoolFilter, setSchoolFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -113,16 +116,25 @@ export function TrackerEditableGrid({
       );
     }
     const done = currentStatus === "done";
+    const proofBlocking = requiresProof && !done && proofReady[row.record_id] === false;
     if (big) {
       return (
-        <button
-          type="button"
-          disabled={!canFill}
-          onClick={() => setStatus(row.record_id, done ? "not_started" : "done")}
-          className={"flex h-12 w-full items-center justify-center gap-2 rounded-lg text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-gray-300 text-gray-700")}
-        >
-          <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            disabled={!canFill || proofBlocking}
+            onClick={() => setStatus(row.record_id, done ? "not_started" : "done")}
+            className={"flex h-12 w-full items-center justify-center gap-2 rounded-lg text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-gray-300 text-gray-700")}
+          >
+            <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
+          </button>
+          {proofBlocking && (
+            <p className="text-center text-xs text-amber-700">
+              {template.require_photo && template.require_location ? "Add a photo and capture your location first"
+                : template.require_photo ? "Add a photo first" : "Capture your location first"}
+            </p>
+          )}
+        </div>
       );
     }
     return (
@@ -277,6 +289,17 @@ export function TrackerEditableGrid({
                 </label>
               ))}
             </div>
+            {canFill && requiresProof && (
+              <div className="mt-3">
+                <RecordProofs
+                  recordId={row.record_id}
+                  requirePhoto={template.require_photo}
+                  requireLocation={template.require_location}
+                  editable={row.status !== "done"}
+                  onReadyChange={(ready) => setProofReady((s) => (s[row.record_id] === ready ? s : { ...s, [row.record_id]: ready }))}
+                />
+              </div>
+            )}
             <div className="mt-3">{statusControl(row, true)}</div>
             <div className="mt-3 border-t border-gray-100 pt-3">{blockerControl(row)}</div>
           </div>
