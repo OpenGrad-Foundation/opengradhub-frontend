@@ -9,19 +9,28 @@ import {
   useUploadProofPhoto,
 } from "@/lib/queries/tracker";
 
-/** Downscale a captured image to a max edge and re-encode as JPEG to keep field uploads small. */
+/** Downscale a captured image to a max edge and re-encode as JPEG to keep field uploads
+ *  small. Fails OPEN: on any decode/canvas error, send the original file rather than
+ *  blocking the upload (some browsers can't decode e.g. HEIC into an ImageBitmap). */
 export async function downscaleImage(file: File, maxEdge = 1600): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
-  const w = Math.round(bitmap.width * scale);
-  const h = Math.round(bitmap.height * scale);
-  const canvas = document.createElement("canvas");
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return file; // no canvas -> send original
-  ctx.drawImage(bitmap, 0, 0, w, h);
-  const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-  return blob ?? file;
+  let bitmap: ImageBitmap | null = null;
+  try {
+    bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file; // no canvas -> send original
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
+    return blob ?? file;
+  } catch {
+    return file; // decode/canvas failure -> send the original rather than losing the photo
+  } finally {
+    bitmap?.close();
+  }
 }
 
 export function RecordProofs({

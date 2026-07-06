@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Check, Clock, Loader2, Save, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
@@ -106,17 +106,37 @@ export function TrackerEditableGrid({
   const inputClass = "h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100";
 
   // Shared cell renderers, reused by the desktop table and the mobile card list.
+  const doneStatus = template.completion_style === "workflow" ? (template.done_status ?? "done") : "done";
+  const proofHint = template.require_photo && template.require_location ? "Add a photo and capture your location first"
+    : template.require_photo ? "Add a photo first" : "Capture your location first";
+  const onProofReady = (recordId: string) => (ready: boolean) =>
+    setProofReady((s) => (s[recordId] === ready ? s : { ...s, [recordId]: ready }));
+  const proofsFor = (row: TrackerGridRow) => (
+    <RecordProofs
+      recordId={row.record_id}
+      requirePhoto={template.require_photo}
+      requireLocation={template.require_location}
+      editable={row.status !== "done"}
+      onReadyChange={onProofReady(row.record_id)}
+    />
+  );
   const statusControl = (row: TrackerGridRow, big: boolean) => {
     const currentStatus = drafts[row.record_id]?.status ?? row.status;
+    // Block reaching the done status client-side until required proofs exist (the server
+    // 409s regardless; this just avoids a dead-end). Applies to workflow + checklist.
+    const proofUnmet = requiresProof && currentStatus !== doneStatus && proofReady[row.record_id] === false;
     if (template.completion_style === "workflow") {
       return (
-        <select value={currentStatus} disabled={!canFill} onChange={(e) => setStatus(row.record_id, e.target.value)} className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}>
-          {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <div className="flex flex-col gap-1">
+          <select value={currentStatus} disabled={!canFill} onChange={(e) => setStatus(row.record_id, e.target.value)} className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}>
+            {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={proofUnmet && s === doneStatus}>{s}</option>)}
+          </select>
+          {proofUnmet && <p className="text-xs text-amber-700">{proofHint}</p>}
+        </div>
       );
     }
     const done = currentStatus === "done";
-    const proofBlocking = requiresProof && !done && proofReady[row.record_id] === false;
+    const proofBlocking = proofUnmet;
     if (big) {
       return (
         <div className="flex flex-col gap-1">
@@ -128,18 +148,13 @@ export function TrackerEditableGrid({
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
-          {proofBlocking && (
-            <p className="text-center text-xs text-amber-700">
-              {template.require_photo && template.require_location ? "Add a photo and capture your location first"
-                : template.require_photo ? "Add a photo first" : "Capture your location first"}
-            </p>
-          )}
+          {proofBlocking && <p className="text-center text-xs text-amber-700">{proofHint}</p>}
         </div>
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600">
-        <input type="checkbox" disabled={!canFill} checked={done} onChange={(e) => setStatus(row.record_id, e.target.checked ? "done" : "not_started")} />
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking ? proofHint : undefined}>
+        <input type="checkbox" disabled={!canFill || proofBlocking} checked={done} onChange={(e) => setStatus(row.record_id, e.target.checked ? "done" : "not_started")} />
         {done ? "Done" : "Open"}
       </label>
     );
@@ -255,16 +270,23 @@ export function TrackerEditableGrid({
           </thead>
           <tbody>
             {visibleRows.map((row) => (
-              <tr key={row.record_id} className="border-t border-gray-100 align-top">
-                <td className="px-3 py-3">{statusControl(row, false)}</td>
-                {hasName && <td className="px-3 py-3 font-medium text-gray-900">{row.target_name ?? "—"}</td>}
-                {hasSchool && <td className="px-3 py-3 text-gray-700">{row.school_name ?? "—"}</td>}
-                {grid.columns.map((col) => (
-                  <td key={col.field_key} className="px-3 py-3 text-gray-700">{fieldControl(row, col)}</td>
-                ))}
-                <td className="px-3 py-3">{blockerControl(row)}</td>
-                <td className="px-3 py-3">{historyButton(row)}</td>
-              </tr>
+              <Fragment key={row.record_id}>
+                <tr className="border-t border-gray-100 align-top">
+                  <td className="px-3 py-3">{statusControl(row, false)}</td>
+                  {hasName && <td className="px-3 py-3 font-medium text-gray-900">{row.target_name ?? "—"}</td>}
+                  {hasSchool && <td className="px-3 py-3 text-gray-700">{row.school_name ?? "—"}</td>}
+                  {grid.columns.map((col) => (
+                    <td key={col.field_key} className="px-3 py-3 text-gray-700">{fieldControl(row, col)}</td>
+                  ))}
+                  <td className="px-3 py-3">{blockerControl(row)}</td>
+                  <td className="px-3 py-3">{historyButton(row)}</td>
+                </tr>
+                {canFill && requiresProof && (
+                  <tr className="border-t border-gray-50">
+                    <td colSpan={99} className="px-3 pb-3">{proofsFor(row)}</td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -289,17 +311,7 @@ export function TrackerEditableGrid({
                 </label>
               ))}
             </div>
-            {canFill && requiresProof && (
-              <div className="mt-3">
-                <RecordProofs
-                  recordId={row.record_id}
-                  requirePhoto={template.require_photo}
-                  requireLocation={template.require_location}
-                  editable={row.status !== "done"}
-                  onReadyChange={(ready) => setProofReady((s) => (s[row.record_id] === ready ? s : { ...s, [row.record_id]: ready }))}
-                />
-              </div>
-            )}
+            {canFill && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
             <div className="mt-3">{statusControl(row, true)}</div>
             <div className="mt-3 border-t border-gray-100 pt-3">{blockerControl(row)}</div>
           </div>
