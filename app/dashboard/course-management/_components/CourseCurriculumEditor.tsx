@@ -7,8 +7,9 @@ import {
   createModule,
   deleteLesson,
   deleteModule,
+  deleteQuiz,
   getCourseModules,
-  reorderLessons,
+  reorderModuleItems,
   reorderModules,
   updateLesson,
   updateModule,
@@ -99,11 +100,15 @@ function ModuleList({
   const dragModuleIdx = useRef<number | null>(null);
   const [dragOverModuleIdx, setDragOverModuleIdx] = useState<number | null>(null);
 
+  const dragItemRef = useRef<{ moduleId: string; idx: number } | null>(null);
+  const [dragOverItemInfo, setDragOverItemInfo] = useState<{ moduleId: string; idx: number } | null>(null);
+
   function onModuleDragStart(idx: number) {
     dragModuleIdx.current = idx;
   }
 
   function onModuleDragOver(event: React.DragEvent, idx: number) {
+    if (dragItemRef.current) return;
     event.preventDefault();
     setDragOverModuleIdx(idx);
   }
@@ -172,9 +177,13 @@ function ModuleList({
           <ModuleItem
             module={module}
             courseId={courseId}
+            modules={modules}
             setModules={setModules}
             onOpenSlideOver={onOpenSlideOver}
             setGlobalError={setGlobalError}
+            dragItemRef={dragItemRef}
+            dragOverItemInfo={dragOverItemInfo}
+            setDragOverItemInfo={setDragOverItemInfo}
           />
         </div>
       ))}
@@ -227,23 +236,34 @@ function ModuleList({
 function ModuleItem({
   module,
   courseId,
+  modules,
   setModules,
   onOpenSlideOver,
   setGlobalError,
+  dragItemRef,
+  dragOverItemInfo,
+  setDragOverItemInfo,
 }: {
   module: CourseModule;
   courseId: string;
+  modules: CourseModule[];
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
+  dragItemRef: React.MutableRefObject<{ moduleId: string; idx: number } | null>;
+  dragOverItemInfo: { moduleId: string; idx: number } | null;
+  setDragOverItemInfo: React.Dispatch<React.SetStateAction<{ moduleId: string; idx: number } | null>>;
 }) {
   const invalidate = useInvalidate();
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(module.title);
   const [saving, setSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const dragLessonIdx = useRef<number | null>(null);
-  const [dragOverLessonIdx, setDragOverLessonIdx] = useState<number | null>(null);
+
+  const items = [
+    ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
+    ...module.module_quizzes.map(q => ({ ...q, itemType: 'QUIZ' as const }))
+  ].sort((a, b) => a.order_index - b.order_index);
 
   async function saveTitle() {
     if (!editTitle.trim() || editTitle === module.title) {
@@ -289,25 +309,84 @@ function ModuleItem({
     }
   }
 
-  async function onLessonDrop(event: React.DragEvent, dropIdx: number) {
+  async function handleDeleteQuiz(quizId: string) {
+    if (!confirm("Delete this quiz?")) return;
+    try {
+      await deleteQuiz(quizId);
+      invalidate('courses');
+      setModules((prev) =>
+        prev.map((item) =>
+          item.id === module.id ? { ...item, module_quizzes: item.module_quizzes.filter((quiz) => quiz.id !== quizId) } : item,
+        ),
+      );
+    } catch (error) {
+      setGlobalError(error instanceof Error ? error.message : "Failed to delete quiz.");
+    }
+  }
+
+  async function onItemDrop(event: React.DragEvent, dropIdx: number, currentItems: typeof items) {
     event.preventDefault();
     event.stopPropagation();
-    const fromIdx = dragLessonIdx.current;
-    if (fromIdx === null || fromIdx === dropIdx) {
-      setDragOverLessonIdx(null);
+    
+    const dragInfo = dragItemRef.current;
+    if (!dragInfo) {
+      setDragOverItemInfo(null);
       return;
     }
-    const reordered = [...module.lessons];
-    const [moved] = reordered.splice(fromIdx, 1);
-    reordered.splice(dropIdx, 0, moved);
-    setModules((prev) => prev.map((item) => (item.id === module.id ? { ...item, lessons: reordered } : item)));
-    setDragOverLessonIdx(null);
-    dragLessonIdx.current = null;
+    const { moduleId: sourceModuleId, idx: sourceIdx } = dragInfo;
+    
+    if (sourceModuleId === module.id && sourceIdx === dropIdx) {
+      setDragOverItemInfo(null);
+      dragItemRef.current = null;
+      return;
+    }
+
+    const sourceModule = modules.find(m => m.id === sourceModuleId);
+    if (!sourceModule) return;
+
+    const sourceItems = [
+      ...sourceModule.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
+      ...sourceModule.module_quizzes.map(q => ({ ...q, itemType: 'QUIZ' as const }))
+    ].sort((a, b) => a.order_index - b.order_index);
+
+    const targetItems = sourceModuleId === module.id ? sourceItems : [...currentItems];
+
+    const [moved] = sourceItems.splice(sourceIdx, 1);
+    targetItems.splice(dropIdx, 0, moved);
+    
+    targetItems.forEach((item, index) => {
+      item.order_index = index;
+    });
+
+    if (sourceModuleId !== module.id) {
+      sourceItems.forEach((item, index) => {
+        item.order_index = index;
+      });
+    }
+
+    const newTargetLessons = targetItems.filter(item => item.itemType === 'LESSON') as CourseLesson[];
+    const newTargetQuizzes = targetItems.filter(item => item.itemType === 'QUIZ') as CourseModule['module_quizzes'];
+
+    const newSourceLessons = sourceItems.filter(item => item.itemType === 'LESSON') as CourseLesson[];
+    const newSourceQuizzes = sourceItems.filter(item => item.itemType === 'QUIZ') as CourseModule['module_quizzes'];
+
+    setModules((prev) => prev.map((m) => {
+      if (m.id === module.id) return { ...m, lessons: newTargetLessons, module_quizzes: newTargetQuizzes };
+      if (m.id === sourceModuleId) return { ...m, lessons: newSourceLessons, module_quizzes: newSourceQuizzes };
+      return m;
+    }));
+
+    setDragOverItemInfo(null);
+    dragItemRef.current = null;
+    
     try {
-      await reorderLessons(module.id, reordered.map((lesson) => lesson.id));
+      if (sourceModuleId !== module.id) {
+        await reorderModuleItems(sourceModuleId, sourceItems.map((item) => ({ id: item.id, type: item.itemType })));
+      }
+      await reorderModuleItems(module.id, targetItems.map((item) => ({ id: item.id, type: item.itemType })));
       invalidate('courses');
     } catch (error) {
-      setGlobalError(error instanceof Error ? error.message : "Lesson reorder failed.");
+      setGlobalError(error instanceof Error ? error.message : "Item reorder failed.");
     }
   }
 
@@ -348,90 +427,73 @@ function ModuleItem({
             <span style={{ flex: 1, fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "15px", color: "#034852" }}>
               {module.title}
             </span>
-            <button onClick={() => setEditing(true)} style={iconBtn} title="Edit title">✏</button>
+            <button onClick={() => setEditing(true)} style={{ fontSize: "12px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Edit</button>
             <button
               onClick={() => {
-                if (module.lessons.length > 0) {
-                  setDeleteError("Remove all lessons before deleting this module.");
+                if (items.length > 0) {
+                  setDeleteError("Remove all items before deleting this module.");
                 } else {
                   void handleDelete();
                 }
               }}
-              style={{ ...iconBtn, color: "#e53e3e" }}
-              title="Delete module"
+              style={{ fontSize: "12px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}
             >
-              🗑
+              Delete
             </button>
           </>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", margin: "-6px 0 14px", paddingLeft: "28px", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)", paddingTop: "2px" }}>
-          Module Quizzes
-        </span>
-        {module.module_quizzes.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {module.module_quizzes.map((quiz) => (
-              <div key={quiz.id} style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "#034852" }}>{quiz.title}</span>
-                <span
-                  style={{
-                    padding: "2px 8px",
-                    borderRadius: "999px",
-                    fontSize: "10px",
-                    fontWeight: 800,
-                    letterSpacing: "0.06em",
-                    background: quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
-                    color: quiz.published ? "#0abe62" : "#956f00",
-                  }}
-                >
-                  {quiz.published ? "Published" : "Unpublished"}
-                </span>
-                <Link
-                  href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`}
-                  style={{ fontSize: "12px", fontWeight: 700, color: "#209379", textDecoration: "none" }}
-                >
-                  Edit →
-                </Link>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>None</span>
-        )}
-      </div>
-
       {deleteError && <div style={{ ...errorBox, marginBottom: "12px" }}>{deleteError}</div>}
 
-      {module.lessons.length === 0 && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", marginBottom: "12px", paddingLeft: "28px" }}>No lessons yet.</p>
+      {items.length === 0 && (
+        <div 
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setDragOverItemInfo({ moduleId: module.id, idx: 0 });
+          }}
+          onDrop={(event) => void onItemDrop(event, 0, items)}
+          style={{ opacity: dragOverItemInfo?.moduleId === module.id ? 0.4 : 1, padding: "8px 0" }}
+        >
+          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", marginBottom: "12px", paddingLeft: "28px" }}>No items yet.</p>
+        </div>
       )}
 
-      {module.lessons.map((lesson, idx) => (
+      {items.map((item, idx) => (
         <div
-          key={lesson.id}
+          key={item.itemType + item.id}
           draggable
-          onDragStart={() => {
-            dragLessonIdx.current = idx;
+          onDragStart={(event) => {
+            event.stopPropagation();
+            dragItemRef.current = { moduleId: module.id, idx };
           }}
           onDragOver={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            setDragOverLessonIdx(idx);
+            setDragOverItemInfo({ moduleId: module.id, idx });
           }}
-          onDrop={(event) => void onLessonDrop(event, idx)}
-          onDragEnd={() => {
-            dragLessonIdx.current = null;
-            setDragOverLessonIdx(null);
+          onDrop={(event) => void onItemDrop(event, idx, items)}
+          onDragEnd={(event) => {
+            event.stopPropagation();
+            dragItemRef.current = null;
+            setDragOverItemInfo(null);
           }}
-          style={{ opacity: dragOverLessonIdx === idx ? 0.4 : 1 }}
+          style={{ opacity: dragOverItemInfo?.moduleId === module.id && dragOverItemInfo?.idx === idx ? 0.4 : 1 }}
         >
-          <LessonRow
-            lesson={lesson}
-            onEdit={() => onOpenSlideOver(module.id, lesson)}
-            onDelete={() => void handleDeleteLesson(lesson.id)}
-          />
+          {item.itemType === 'LESSON' ? (
+            <LessonRow
+              lesson={item}
+              onEdit={() => onOpenSlideOver(module.id, item)}
+              onDelete={() => void handleDeleteLesson(item.id)}
+            />
+          ) : (
+            <QuizRow 
+              quiz={item} 
+              courseId={courseId} 
+              onDelete={() => void handleDeleteQuiz(item.id)} 
+            />
+          )}
         </div>
       ))}
 
@@ -495,8 +557,59 @@ function LessonRow({
       <a href={lesson.youtube_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#209379", textDecoration: "none" }}>
         Preview
       </a>
-      <button onClick={onEdit} style={iconBtn} title="Edit">✏</button>
-      <button onClick={onDelete} style={{ ...iconBtn, color: "#e53e3e" }} title="Delete">🗑</button>
+      <button onClick={onEdit} style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Edit</button>
+      <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Delete</button>
+    </div>
+  );
+}
+
+function QuizRow({
+  quiz,
+  courseId,
+  onDelete,
+}: {
+  quiz: { id: string; title: string; published: boolean };
+  courseId: string;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "10px 12px",
+        borderRadius: "10px",
+        background: "rgba(3,72,82,0.03)",
+        border: "1px solid rgba(3,72,82,0.07)",
+        marginBottom: "6px",
+        cursor: "grab",
+      }}
+    >
+      <span style={{ ...dragHandle, fontSize: "14px" }}>⠿</span>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852", flex: 1 }}>{quiz.title} (Quiz)</span>
+      <span
+        style={{
+          padding: "2px 8px",
+          borderRadius: "999px",
+          fontSize: "10px",
+          fontWeight: 800,
+          letterSpacing: "0.06em",
+          background: quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
+          color: quiz.published ? "#0abe62" : "#956f00",
+        }}
+      >
+        {quiz.published ? "Published" : "Unpublished"}
+      </span>
+      <Link
+        href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`}
+        style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textDecoration: "none", padding: "4px" }}
+      >
+        Edit
+      </Link>
+      <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+        Delete
+      </button>
     </div>
   );
 }

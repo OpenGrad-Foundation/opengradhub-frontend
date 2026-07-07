@@ -48,6 +48,8 @@ export const qk = {
     ['og', 'quiz', quizId, 'attempts', studentId ?? 'self'] as const,
   myQuizAttempts: (studentId?: string) =>
     ['og', 'quiz-attempts', 'mine', studentId ?? 'self'] as const,
+  allQuizAttempts: (quizId: string) =>
+    ['og', 'quiz', quizId, 'all-attempts'] as const,
   availableQuizzes: () => ['og', 'quizzes', 'available'] as const,
   bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
   batches: (status?: string) => ['og', 'batches', status ?? 'ACTIVE'] as const,

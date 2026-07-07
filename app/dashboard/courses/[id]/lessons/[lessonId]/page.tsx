@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as Sentry from "@sentry/nextjs";
-import DOMPurify from "isomorphic-dompurify";
+import { sanitize as sanitizeHtml } from "@/lib/purify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
@@ -450,7 +450,7 @@ export default function LessonPage() {
   return (
     <div>
       {/* ── Breadcrumb ─────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
         <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{isPreview ? "Courses" : "My Courses"}</Link>
         <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
         <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</BackLink>
@@ -459,10 +459,25 @@ export default function LessonPage() {
       </div>
 
       {/* ── Main layout: video + sidebar ───────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "24px", alignItems: "flex-start" }}>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6 items-start">
 
-        {/* ── Left: Video + notes ─────────────────────── */}
-        <div>
+        {/* ── Mobile: Header (Top) | Desktop: Sidebar (Top Right) ───────────────── */}
+        <div className="lg:col-start-2 lg:row-start-1" style={glassCard}>
+          <p style={S.sectionLabel}>Module</p>
+          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "4px 0 14px" }}>{lesson.module_name}</p>
+
+          <p style={{ ...S.heading, fontSize: "18px", margin: "0 0 10px", lineHeight: 1.3 }}>{lesson.title}</p>
+
+          {lesson.duration_minutes && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
+              <span>⏱</span>
+              <span>{lesson.duration_minutes} min</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Mobile: Video (Middle) | Desktop: Main Content (Left) ─────────────────────── */}
+        <div className="lg:col-start-1 lg:row-start-1 lg:row-span-2">
           {/* 16:9 video container.
               IMPORTANT: #yt-player-wrapper is a STABLE React-owned element that
               never unmounts. initPlayer programmatically creates a fresh
@@ -549,23 +564,8 @@ export default function LessonPage() {
           )}
         </div>
 
-        {/* ── Right: Lesson info + quiz ───────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-
-          {/* Lesson info card */}
-          <div style={glassCard}>
-            <p style={S.sectionLabel}>Module</p>
-            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "4px 0 14px" }}>{lesson.module_name}</p>
-
-            <p style={{ ...S.heading, fontSize: "18px", margin: "0 0 10px", lineHeight: 1.3 }}>{lesson.title}</p>
-
-            {lesson.duration_minutes && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
-                <span>⏱</span>
-                <span>{lesson.duration_minutes} min</span>
-              </div>
-            )}
-          </div>
+        {/* ── Mobile: Controls (Bottom) | Desktop: Sidebar (Bottom Right) ───────────────── */}
+        <div className="lg:col-start-2 lg:row-start-2 flex flex-col gap-4">
 
           {/* Take Module Test(s) — a module can have several. Hidden while other
               lessons in the module are incomplete: the quiz isn't the next
@@ -682,16 +682,6 @@ export default function LessonPage() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-
-/**
- * Basic HTML sanitiser — strips <script> blocks and dangerous event attributes.
- * notes_html is also sanitised at write time by admin input; this is a defence-in-depth layer.
- */
-// Allowlist-based sanitizer (DOMPurify) — replaces the bypassable regex
-// (single-quote/unquoted handlers, svg/onload, iframes all slipped through).
-function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
-}
 
 function LoadingState() {
   return (

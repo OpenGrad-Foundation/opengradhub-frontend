@@ -938,7 +938,7 @@ function AddTestModal({
         loading={loading}
         items={filtered.map((q) => ({
           id: q.id, title: q.title,
-          meta: `${q.duration_minutes != null ? `${q.duration_minutes} min` : "No time limit"}${q.max_attempts != null ? ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}` : ""}`,
+          meta: `${q.duration_minutes != null ? `${q.duration_minutes} min` : "No time limit"}${q.max_attempts != null && q.max_attempts > 0 ? ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}` : ""}`,
         }))}
         selectedId={selected?.id ?? null}
         onSelect={(id) => { setSelected(quizzes.find((q) => q.id === id) ?? null); setError(null); }}

@@ -151,7 +151,7 @@ function ClerkSignInForm({
 
     try {
       // create() initiates sign-in; status updates on the resource reactively
-      const { error: createError } = await signIn.create({ identifier, password });
+      const { error: createError } = await signIn.create({ identifier: identifier.trim(), password: password.trim() });
       if (createError) {
         setError(createError.message ?? "Sign-in failed.");
         return;
@@ -331,7 +331,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code });
+      const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
       if (verifyError) {
         setError(verifyError.message ?? "Invalid code.");
         return;
@@ -626,7 +626,10 @@ export default function LoginPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await signIn({ identifier, password });
+      const response = await signIn({ 
+        identifier: identifier.trim(), 
+        password 
+      });
       persistAuthToken(response.accessToken);
       router.replace("/dashboard");
     } catch (caughtError) {

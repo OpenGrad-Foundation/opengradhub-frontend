@@ -25,7 +25,7 @@ export default function LiveClassesPage() {
 
   const [joining,      setJoining]      = useState<string | null>(null);
   const [deleting,     setDeleting]     = useState<string | null>(null);
-  const [now,          setNow]          = useState(0);
+  const [now,          setNow]          = useState(() => Date.now());
   const [selectedClass, setSelectedClass] = useState<{ id: string; title: string } | null>(null);
   const invalidate = useInvalidate();
 
@@ -168,7 +168,9 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onView
 
   function formatDatetime(iso: string) {
     const d = new Date(iso);
-    return `${d.toLocaleDateString()} at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    // Explicit locale prevents hydration mismatch: Lambda runs UTC while the
+    // browser uses the user's system locale, producing different date strings.
+    return `${d.toLocaleDateString("en-IN")} at ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
   }
 
   function msToCountdown(ms: number) {
