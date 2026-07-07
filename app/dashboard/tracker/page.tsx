@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
+  LayoutList,
   Loader2,
   PencilRuler,
   Send,
@@ -30,13 +31,18 @@ import {
 import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTemplate } from "@/lib/tracker-api";
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
+import { StatusCards } from "./_components/status-cards";
+import { countByTaskState, rollupFromCounts, type StateCounts } from "@/lib/tracker-status";
 import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
+import { AllTasksPanel } from "./_components/all-tasks";
+import { ZmView } from "./_components/zm-view";
 import PushNudge from "@/components/PushNudge";
 
-type TrackerTab = "myTasks" | "blockers" | "builder";
+type TrackerTab = "allTasks" | "myTasks" | "blockers" | "builder";
 
 const tabLabels: Record<TrackerTab, string> = {
+  allTasks: "All Tasks",
   myTasks: "Tasks",
   blockers: "Blockers",
   builder: "New task",
@@ -50,17 +56,24 @@ export default function TrackerPage() {
   const canClear = has(PERM.tracker.blocker_clear);
   const canAdmin = has(PERM.tracker.admin);
   const isManagerView = canAuthor || canClear || canAdmin;
+  const roleCode = currentUser?.role?.code ?? "";
+  const isPmOrAdmin = roleCode === "PROGRAM_MANAGER" || roleCode === "SUPER_ADMIN";
 
   const tabs = useMemo<TrackerTab[]>(() => {
     const next: TrackerTab[] = [];
+    if (isPmOrAdmin) next.push("allTasks");                 // program-wide task list — PM/Admin only
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
     if (canAuthor) next.push("builder");                   // new + manage templates
     return next;
-  }, [canAuthor, canFill, isManagerView]);
+  }, [canAuthor, canFill, isManagerView, isPmOrAdmin]);
 
   const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
+  const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
   const [fillTemplateId, setFillTemplateId] = useState<string | null>(null);
+  // Set when a manager drills into a task from one fellow's list, so the grid scopes to that
+  // fellow's rows instead of the manager's whole scope. Null = caller's own scope.
+  const [fillFellowId, setFillFellowId] = useState<string | null>(null);
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], error: templatesError } = useTrackerTemplates();
@@ -68,7 +81,7 @@ export default function TrackerPage() {
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? templates[0] ?? null;
   const templateId = selectedTemplate?.id;
 
-  const grid = useTrackerGrid(templateId);
+  const grid = useTrackerGrid(templateId, fillFellowId ?? undefined);
   const mine = useTrackerMineBlockers();
   const queue = useTrackerQueueBlockers();
 
@@ -110,10 +123,12 @@ export default function TrackerPage() {
 
       {templatesError ? (
         <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
+      ) : safeActiveTab === "allTasks" ? (
+        <AllTasksPanel />
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
-            <button type="button" onClick={() => setFillTemplateId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+            <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to my tasks
             </button>
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
@@ -122,9 +137,21 @@ export default function TrackerPage() {
           <div className="flex flex-col gap-4">
             <OverviewStrip />
             {canAuthor ? (
-              <TeamPanel onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); }} />
+              isPmOrAdmin ? (
+                <div className="flex flex-col gap-3">
+                  <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+                    <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Fellow</button>
+                  </div>
+                  {teamView === "zm"
+                    ? <ZmView onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
+                    : <TeamPanel onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />}
+                </div>
+              ) : (
+                <TeamPanel onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
+              )
             ) : (
-              <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); }} />
+              <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); }} />
             )}
           </div>
         )
@@ -160,7 +187,7 @@ function TasksPanel({
   const overview = useTrackerOverview();
   if (loading) return <TrackerLoading />;
   if (templates.length === 0) {
-    return <EmptyPanel title="No templates yet" detail="Create your first one in the “New task” tab, then assign it to fellows, schools, or students." />;
+    return <EmptyPanel title="No templates yet" detail="Create your first one in the “New task” tab, then assign it to staff, schools, or students." />;
   }
 
   const perTask = new Map((overview.data?.perTask ?? []).map((p) => [p.template_id, p]));
@@ -215,7 +242,7 @@ function TasksPanel({
   );
 }
 
-function TeamPanel({ onOpen }: { onOpen: (templateId: string) => void }) {
+function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) => void }) {
   const { data: fellows = [], isLoading } = useTrackerFellows();
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
   const [q, setQ] = useState("");
@@ -225,16 +252,16 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string) => void }) {
     return (
       <div className="flex flex-col gap-3">
         <button type="button" onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to fellows
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to team
         </button>
         <h3 className="text-sm font-semibold text-gray-950">{sel.name}&apos;s tasks</h3>
-        {tasks.isLoading ? <TrackerLoading /> : <TaskListView tasks={tasks.data ?? []} onOpen={onOpen} emptyTitle="No tasks" emptyDetail={`${sel.name} has no tasks yet.`} />}
+        {tasks.isLoading ? <TrackerLoading /> : <TaskListView tasks={tasks.data ?? []} onOpen={(tid) => onOpen(tid, sel.id)} emptyTitle="No tasks" emptyDetail={`${sel.name} has no tasks yet.`} />}
       </div>
     );
   }
 
   if (isLoading) return <TrackerLoading />;
-  if (fellows.length === 0) return <EmptyPanel title="No fellows" detail="Fellows you manage will appear here." />;
+  if (fellows.length === 0) return <EmptyPanel title="No team members" detail="Staff you manage will appear here." />;
 
   const shown = fellows.filter((f) => f.name.toLowerCase().includes(q.trim().toLowerCase()));
 
@@ -242,13 +269,13 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string) => void }) {
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div>
-          <h3 className="text-base font-semibold text-gray-950">Your fellows</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open a fellow to see their tasks.</p>
+          <h3 className="text-base font-semibold text-gray-950">Your team</h3>
+          <p className="mt-0.5 text-xs text-gray-500">Open a team member to see their tasks.</p>
         </div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search fellows…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search team…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
       </div>
       {shown.length === 0 ? (
-        <p className="px-4 py-8 text-sm text-gray-500">No fellows match “{q}”.</p>
+        <p className="px-4 py-8 text-sm text-gray-500">No team members match “{q}”.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
           {shown.map((f) => (
@@ -263,6 +290,11 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string) => void }) {
                     {f.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
                   </span>
                   <span className="truncate">{f.name}</span>
+                  {f.role && f.role !== "FELLOW" && (
+                    <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
+                      {f.role === "ZONAL_MANAGER" ? "ZM" : f.role === "PROGRAM_MANAGER" ? "PM" : f.role}
+                    </span>
+                  )}
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
                   <span className="hidden items-center gap-2 text-xs sm:flex">
@@ -338,26 +370,15 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
   );
 }
 
+/** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state. */
 function OverviewStrip() {
   const overview = useTrackerOverview();
-  const t = overview.data?.totals;
-  return (
-    <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      <OverviewMetric label="Done" value={t?.done} tone="text-emerald-700" />
-      <OverviewMetric label="Pending" value={t?.pending} tone="text-gray-700" />
-      <OverviewMetric label="Blocked" value={t?.blocked} tone="text-red-700" />
-      <OverviewMetric label="Overdue" value={t?.overdue} tone="text-amber-700" />
-    </section>
-  );
-}
-
-function OverviewMetric({ label, value, tone }: { label: string; value: number | undefined; tone: string }) {
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${tone}`}>{value ?? "—"}</p>
-    </div>
-  );
+  const counts: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
+  for (const task of overview.data?.perTask ?? []) {
+    const state = rollupFromCounts(task); // null for a task with no records in scope — skip it
+    if (state) counts[state] += 1;
+  }
+  return <StatusCards counts={counts} />;
 }
 
 function GridPanel({
@@ -380,7 +401,14 @@ function GridPanel({
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
   if (!grid || grid.rows.length === 0) return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
 
-  return <TrackerEditableGrid template={template} grid={grid} canFill={canFill} canClear={canClear} />;
+  // Per-task breakdown of THIS task's targets. Skipped for a single-target task (1/0/0/0 is noise).
+  const counts = grid.rows.length > 1 ? countByTaskState(grid.rows.map((r) => r.lifecycle)) : null;
+  return (
+    <div className="flex flex-col gap-4">
+      {counts && <StatusCards counts={counts} />}
+      <TrackerEditableGrid template={template} grid={grid} canFill={canFill} canClear={canClear} />
+    </div>
+  );
 }
 
 function BlockersPanel({
@@ -602,6 +630,7 @@ function roleLabel(code: string): string {
 
 function TabIcon({ tab }: { tab: TrackerTab }) {
   const props = { className: "h-4 w-4", "aria-hidden": true };
+  if (tab === "allTasks") return <LayoutList {...props} />;
   if (tab === "myTasks") return <Table2 {...props} />;
   if (tab === "blockers") return <AlertCircle {...props} />;
   return <PencilRuler {...props} />;
