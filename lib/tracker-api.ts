@@ -129,6 +129,7 @@ export type CreateTrackerTemplateInput = {
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  status?: "draft" | "active" | "archived";
 };
 
 export type TrackerTemplatePatch = {
@@ -175,8 +176,9 @@ function jsonInit(method: "POST" | "PATCH", body: unknown): RequestInit {
   };
 }
 
-export function getTrackerTemplates() {
-  return trackerJson<TrackerTemplate[]>("/tracker/templates");
+export function getTrackerTemplates(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return trackerJson<TrackerTemplate[]>(`/tracker/templates${qs}`);
 }
 
 export function getTrackerTemplate(id: string) {
@@ -185,6 +187,10 @@ export function getTrackerTemplate(id: string) {
 
 export function createTrackerTemplate(input: CreateTrackerTemplateInput) {
   return trackerJson<{ id: string }>("/tracker/templates", jsonInit("POST", input));
+}
+
+export function deleteTrackerTemplate(id: string) {
+  return trackerJson<void>(`/tracker/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function addTrackerFields(templateId: string, input: AddTrackerFieldsInput) {

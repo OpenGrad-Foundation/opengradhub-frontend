@@ -72,7 +72,7 @@ export const qk = {
   dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
 
-  trackerTemplates: () => ['og', 'tracker', 'templates'] as const,
+  trackerTemplates: (status?: string) => ['og', 'tracker', 'templates', 'list', status ?? 'default'] as const,
   trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,
   trackerGrid: (templateId: string) => ['og', 'tracker', 'grid', templateId] as const,
   trackerSummary: (templateId: string) => ['og', 'tracker', 'summary', templateId] as const,

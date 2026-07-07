@@ -24,6 +24,7 @@ import {
   updateTrackerTemplate,
   updateTrackerField,
   deleteTrackerField,
+  deleteTrackerTemplate,
   getTrackerProofs,
   uploadProofPhoto,
   captureProofLocation,
@@ -39,10 +40,10 @@ import {
 import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 
-export function useTrackerTemplates() {
+export function useTrackerTemplates(status?: string) {
   return useQuery({
-    queryKey: qk.trackerTemplates(),
-    queryFn: getTrackerTemplates,
+    queryKey: qk.trackerTemplates(status),
+    queryFn: () => getTrackerTemplates(status),
     staleTime: 2 * 60_000,
   });
 }
@@ -229,6 +230,14 @@ export function useDeleteTrackerField(templateId: string) {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (fieldId: string) => deleteTrackerField(templateId, fieldId),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useDeleteTrackerTemplate() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => deleteTrackerTemplate(id),
     onSuccess: () => invalidate('tracker'),
   });
 }
