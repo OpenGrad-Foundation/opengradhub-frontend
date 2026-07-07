@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ newPassword: password }),
+        body: JSON.stringify({ newPassword: password.trim() }),
       });
 
       if (!res.ok) {
