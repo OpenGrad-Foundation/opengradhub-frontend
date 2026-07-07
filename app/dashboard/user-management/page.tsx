@@ -52,6 +52,7 @@ export default function UserManagementPage() {
   const { has } = usePermissions();
   const canCreate = has(PERM.user_management.create);
   const canDelete = has(PERM.user_management.delete);
+  const invalidate = useInvalidate();
 
   const [users, setUsers] = useState<SafeUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -311,6 +312,10 @@ export default function UserManagementPage() {
                     }
                     setSelectedIds(new Set());
                     void fetchUsers();
+                    // fetchUsers() only refreshes this page's list; invalidate so
+                    // deleted users also drop from other cached views (managers
+                    // list, dashboards, analytics).
+                    invalidate('users');
                   } catch (err) {
                     setBulkDeleteError(err instanceof Error ? err.message : "Failed to delete users.");
                   } finally {
@@ -1967,6 +1972,15 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   const [csvHeaders,   setCsvHeaders]   = useState<string[]>([]);
   const [editableRows, setEditableRows] = useState<Array<Record<string, string>>>([]);
   const [bulkInputs,   setBulkInputs]   = useState<Record<string, string>>({});
+  const [schools,      setSchools]      = useState<SchoolOption[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchSchools().then((s) => {
+      if (!cancelled) setSchools(s);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Parse CSV when file changes
   useEffect(() => {
@@ -2203,6 +2217,8 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                     }
                     const isDropRole = col === "role";
                     const isDropProg = col === "programme_type";
+                    const isDropState = col === "state";
+                    const isDropSchool = col === "school_name";
                     if (isDropRole) {
                       return (
                         <td key={col} style={{ padding: "4px 6px" }}>
@@ -2244,6 +2260,50 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                             <option value="__CLEAR__">— Clear all —</option>
                             <option value="UG">UG</option>
                             <option value="PG">PG</option>
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (isDropState) {
+                      return (
+                        <td key={col} style={{ padding: "4px 6px" }}>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value === "__CLEAR__") {
+                                updateColumn(col, "");
+                              } else if (e.target.value) {
+                                updateColumn(col, e.target.value);
+                              }
+                              e.target.value = "";
+                            }}
+                            style={bulkInputStyle}
+                          >
+                            <option value="">Set all…</option>
+                            <option value="__CLEAR__">— Clear all —</option>
+                            {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                          </select>
+                        </td>
+                      );
+                    }
+                    if (isDropSchool) {
+                      return (
+                        <td key={col} style={{ padding: "4px 6px" }}>
+                          <select
+                            defaultValue=""
+                            onChange={(e) => {
+                              if (e.target.value === "__CLEAR__") {
+                                updateColumn(col, "");
+                              } else if (e.target.value) {
+                                updateColumn(col, e.target.value);
+                              }
+                              e.target.value = "";
+                            }}
+                            style={bulkInputStyle}
+                          >
+                            <option value="">Set all…</option>
+                            <option value="__CLEAR__">— Clear all —</option>
+                            {schools.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
                           </select>
                         </td>
                       );
@@ -2303,6 +2363,8 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                         const cellErr    = required && !val.trim();
                         const isDropRole = col === "role";
                         const isDropProg = col === "programme_type";
+                        const isDropState = col === "state";
+                        const isDropSchool = col === "school_name";
                         const tooltipMsg = cellErr ? `Required for ${(row.role ?? "this role").toUpperCase() || "all roles"}` : undefined;
 
                         const cellBase: React.CSSProperties = {
@@ -2350,6 +2412,32 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 <option value="UG">UG</option>
                                 <option value="PG">PG</option>
                               </select>
+                            ) : isDropState ? (
+                              geoRes && geoRes.status === "ambiguous" && geoRes.candidates ? (
+                                <select
+                                  value={val}
+                                  onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                  style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #b7791f" }}
+                                >
+                                  <option value={val}>{val} (keep)</option>
+                                  {geoRes.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                              ) : (
+                                <>
+                                  <select
+                                    value={geoRes && geoRes.status === "corrected" ? geoRes.value : val}
+                                    onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                    style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : (geoRes && geoRes.status === "corrected" ? "1.5px solid #0abe62" : "1px solid transparent") }}
+                                  >
+                                    <option value="">—</option>
+                                    {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                    {val && !STATES.some(s => s.value === val) && geoRes?.status !== "corrected" && <option value={val}>{val} (invalid)</option>}
+                                  </select>
+                                  {geoRes && geoRes.status === "corrected" && (
+                                    <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
+                                  )}
+                                </>
+                              )
                             ) : geoRes && geoRes.status === "ambiguous" && geoRes.candidates ? (
                               <select
                                 value={val}
@@ -2371,6 +2459,16 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 />
                                 <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
                               </>
+                            ) : isDropSchool ? (
+                              <select
+                                value={val}
+                                onChange={(e) => updateCell(rowIdx, col, e.target.value)}
+                                style={{ ...controlBase, cursor: "pointer", maxWidth: "200px" }}
+                              >
+                                <option value="">—</option>
+                                {schools.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                {val && !schools.some(s => s.name === val) && <option value={val}>{val} (invalid)</option>}
+                              </select>
                             ) : (
                               <input
                                 type="text"

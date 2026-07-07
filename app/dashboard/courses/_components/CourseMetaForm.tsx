@@ -157,7 +157,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
               onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter" || e.key === ",") {
                   e.preventDefault();
-                  const val = tagInput.trim();
+                  const val = tagInput.trim().toUpperCase();
                   if (val && !tags.includes(val)) {
                     setTags([...tags, val]);
                   }

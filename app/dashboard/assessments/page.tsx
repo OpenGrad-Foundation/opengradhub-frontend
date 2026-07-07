@@ -15,7 +15,8 @@ import {
 } from "@/lib/api";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
 import { useBatches } from "@/lib/queries/batches";
-import { useQuestionStats } from "@/lib/queries/quizzes";
+import { useQuestionStats, useAllQuizAttempts, useDeleteQuizAttempt } from "@/lib/queries/quizzes";
+import type { QuizAttemptWithStudent } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -779,7 +780,7 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 }
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
-  const [tab, setTab] = useState<'leaderboard' | 'questions'>('leaderboard');
+  const [tab, setTab] = useState<'leaderboard' | 'questions' | 'attempts'>('leaderboard');
   const { has } = usePermissions();
   const router = useRouter();
   const currentUrl = useCurrentUrl();
@@ -797,7 +798,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }}
       />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 520,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 520,
         background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)',
         zIndex: 51, display: 'flex', flexDirection: 'column',
       }}>
@@ -824,10 +825,13 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
           <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
           <DrawerTab label="Question Stats" active={tab === 'questions'}   onClick={() => setTab('questions')} />
+          <DrawerTab label="Attempts"       active={tab === 'attempts'}    onClick={() => setTab('attempts')} />
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
-          {tab === 'leaderboard' ? <DrawerLeaderboard quizId={quizId} /> : <DrawerQuestionStats quizId={quizId} />}
+          {tab === 'leaderboard' && <DrawerLeaderboard quizId={quizId} />}
+          {tab === 'questions'   && <DrawerQuestionStats quizId={quizId} />}
+          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
         </div>
       </div>
     </>
@@ -932,6 +936,145 @@ function DrawerQuestionStats({ quizId }: { quizId: string }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type StudentAttemptGroup = {
+  student_id: string;
+  student_name: string;
+  roll_number: string | null;
+  attempts: QuizAttemptWithStudent[];
+};
+
+function DrawerAttempts({ quizId }: { quizId: string }) {
+  const { data: attempts, isPending, isError, error: queryError } = useAllQuizAttempts(quizId);
+  const { has } = usePermissions();
+  const deleteAttempt = useDeleteQuizAttempt();
+
+  if (isError) return <p style={{ color: '#c53030', fontSize: '13px' }}>{queryError instanceof Error ? queryError.message : 'Failed to load.'}</p>;
+  if (isPending || attempts === undefined) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (attempts.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempts yet.</p>;
+
+  const groups = Object.values(attempts.reduce((acc, a) => {
+    if (!acc[a.student_id]) {
+      acc[a.student_id] = {
+        student_id: a.student_id,
+        student_name: a.student_name,
+        roll_number: a.roll_number,
+        attempts: [],
+      };
+    }
+    acc[a.student_id].attempts.push(a);
+    return acc;
+  }, {} as Record<string, StudentAttemptGroup>));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {groups.map((group) => (
+        <DrawerAttemptsGroup
+          key={group.student_id}
+          group={group}
+          quizId={quizId}
+          canDelete={has(PERM.assessments.edit)}
+          onDelete={(attemptId) => deleteAttempt.mutate(attemptId)}
+          deletingId={deleteAttempt.isPending ? (deleteAttempt.variables as string | undefined) : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DrawerAttemptsGroup({ group, quizId, canDelete, onDelete, deletingId }: {
+  group: StudentAttemptGroup;
+  quizId: string;
+  canDelete: boolean;
+  onDelete: (attemptId: string) => void;
+  deletingId: string | undefined;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
+
+  return (
+    <div style={{ border: '1px solid rgba(3,72,82,0.08)', borderRadius: '12px', overflow: 'hidden' }}>
+      <div
+        onClick={() => setExpanded((e) => !e)}
+        style={{
+          padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          cursor: 'pointer', background: expanded ? 'rgba(3,72,82,0.03)' : 'transparent',
+        }}
+      >
+        <div>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#034852' }}>{group.student_name}</p>
+          {group.roll_number && <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'rgba(3,72,82,0.5)' }}>{group.roll_number}</p>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(3,72,82,0.5)' }}>
+            {group.attempts.length} {group.attempts.length === 1 ? 'attempt' : 'attempts'}
+          </span>
+          <button style={{ padding: '4px 10px', background: 'rgba(32,147,121,0.08)', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: 700, color: '#209379', cursor: 'pointer' }}>
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(3,72,82,0.08)' }}>
+          {group.attempts.map((a) => (
+            <div
+              key={a.id}
+              style={{
+                padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                borderBottom: '1px solid rgba(3,72,82,0.04)', fontSize: '12px',
+              }}
+            >
+              <div>
+                <span style={{ fontWeight: 700, color: '#034852' }}>Attempt {a.attempt_number}</span>
+                <span style={{ marginLeft: 8, color: 'rgba(3,72,82,0.5)' }}>
+                  {a.is_complete
+                    ? `${a.score ?? '—'}/${a.max_score ?? '—'}`
+                    : 'In progress'}
+                </span>
+                {a.submitted_at && (
+                  <span style={{ marginLeft: 8, color: 'rgba(3,72,82,0.4)' }}>
+                    {new Date(a.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {a.is_complete && (
+                  <button
+                    onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
+                    style={{
+                      padding: '4px 10px', border: 'none', borderRadius: '6px',
+                      background: 'rgba(32,147,121,0.1)', color: '#209379', fontSize: '11px', fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    View
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      if (!confirm(`Delete attempt ${a.attempt_number} for ${group.student_name}? This lets them retry and cannot be undone.`)) return;
+                      onDelete(a.id);
+                    }}
+                    disabled={deletingId === a.id}
+                    style={{
+                      padding: '4px 10px', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '6px',
+                      background: 'transparent', color: '#dc2626', fontSize: '11px', fontWeight: 700,
+                      cursor: deletingId === a.id ? 'not-allowed' : 'pointer', opacity: deletingId === a.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deletingId === a.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

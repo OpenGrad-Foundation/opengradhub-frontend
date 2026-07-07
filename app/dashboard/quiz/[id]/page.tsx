@@ -1315,7 +1315,7 @@ export default function QuizTakingPage() {
                         onClick={() => setCurrentIdx(i)}
                         style={{
                           width: "100%",
-                          aspectRatio: "1",
+                          height: "40px",
                           borderRadius: "8px",
                           border: "none",
                           fontSize: "13px",

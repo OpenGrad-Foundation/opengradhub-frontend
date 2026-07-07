@@ -1,9 +1,17 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { getQuestionStats, getAvailableQuizzes, getQuizAttempts, getMyQuizAttempts } from '../api';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import {
+  getQuestionStats,
+  getAvailableQuizzes,
+  getQuizAttempts,
+  getMyQuizAttempts,
+  getAllQuizAttempts,
+  deleteQuizAttempt,
+} from '../api';
 import { qk } from './keys';
 import { makeIdbPersister } from './persister';
+import { useInvalidate } from '../mutations/invalidation';
 
 /** Layer 4 — Tier 1 quiz question stats. 5 min staleTime. */
 export function useQuestionStats(quizId: string) {
@@ -46,5 +54,27 @@ export function useMyQuizAttempts(studentId?: string) {
     queryKey: qk.myQuizAttempts(studentId),
     queryFn: () => getMyQuizAttempts(studentId),
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Layer 4 — Tier 2 batch: every student's attempts for one quiz, for the
+ * Quiz Details "Attempts" tab. Memory-only, 1 min staleTime.
+ */
+export function useAllQuizAttempts(quizId: string) {
+  return useQuery({
+    queryKey: qk.allQuizAttempts(quizId),
+    queryFn: () => getAllQuizAttempts(quizId),
+    enabled: !!quizId,
+    staleTime: 60_000,
+  });
+}
+
+/** Deletes a student's quiz attempt so they can retry. */
+export function useDeleteQuizAttempt() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (attemptId: string) => deleteQuizAttempt(attemptId),
+    onSuccess: () => invalidate('quizAttempt'),
   });
 }

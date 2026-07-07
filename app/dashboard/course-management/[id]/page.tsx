@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import CourseCurriculumEditor from "../_components/CourseCurriculumEditor";
 import CourseMetaForm from "../../courses/_components/CourseMetaForm";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -36,6 +37,7 @@ export default function CourseManagementPage() {
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const invalidate = useInvalidate();
+  const currentUrl = useCurrentUrl();
 
   const courseId = params.id;
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
@@ -103,13 +105,17 @@ export default function CourseManagementPage() {
         await unassignCourse(studentId, courseId);
         if (selectedStudentId === studentId) setSelectedStudentId(null);
         await loadStudents();
+        // loadStudents() only refreshes THIS roster; invalidate so the dropped
+        // enrolment also disappears from other cached views (the student's own
+        // course list, dashboards, enrolment counts).
+        invalidate('enrolment', 'courses');
       } catch (removeError) {
         setError(removeError instanceof Error ? removeError.message : "Failed to remove student.");
       } finally {
         setRemovingStudentId(null);
       }
     },
-    [courseId, loadStudents, selectedStudentId],
+    [courseId, invalidate, loadStudents, selectedStudentId],
   );
 
   useEffect(() => {
@@ -750,6 +756,7 @@ function StudentDetailSlideOver({
   loading: boolean;
   onClose: () => void;
 }) {
+  const currentUrl = useCurrentUrl();
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.35)", zIndex: 40, backdropFilter: "blur(2px)" }} />
@@ -807,15 +814,18 @@ function StudentDetailSlideOver({
             <SectionCard title="Quiz attempts">
               {detail.quiz_attempts.length === 0 && <p style={emptyText}>No quiz attempts yet.</p>}
               {detail.quiz_attempts.map((attempt) => (
-                <div key={attempt.id} style={listRow}>
-                  <div>
+                <Link key={attempt.id} href={`/dashboard/quiz/${attempt.quiz_id}/review/${attempt.id}?from=${encodeURIComponent(currentUrl)}`} style={{ ...listRow, textDecoration: "none", display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <div style={{ flex: 1 }}>
                     <p style={listTitle}>{attempt.title}</p>
                     <p style={listMeta}>{attempt.submitted_at ? formatDate(attempt.submitted_at) : "In progress"}</p>
                   </div>
-                  <span style={statusBadge(attempt.passed ? "PASSED" : attempt.score_percent != null ? "SCORED" : "PENDING")}>
-                    {attempt.score_percent != null ? `${attempt.score_percent}%` : "Pending"}
-                  </span>
-                </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={statusBadge(attempt.passed ? "PASSED" : attempt.score_percent != null ? "SCORED" : "PENDING")}>
+                      {attempt.score_percent != null ? `${attempt.score_percent}%` : "Pending"}
+                    </span>
+                    <span style={{ fontSize: "14px", color: "#006d6c", fontWeight: 600 }}>View →</span>
+                  </div>
+                </Link>
               ))}
             </SectionCard>
 

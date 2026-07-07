@@ -375,7 +375,7 @@ export default function CoursesPage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === ",") {
                       e.preventDefault();
-                      const val = tagInput.trim();
+                      const val = tagInput.trim().toUpperCase();
                       if (val && !tagsFilter.includes(val)) {
                         setTagsFilter([...tagsFilter, val]);
                         setPage(1);
@@ -518,8 +518,8 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
 
         <dl className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[rgba(248,250,251,0.95)] p-3">
           <Metric label="Lessons" value={`${course.lesson_count}`} />
+          <Metric label="Quizzes" value={`${course.quiz_count ?? 0}`} />
           <Metric label="Structure" value={course.locking_mode} />
-          <Metric label="Status" value={course.status} />
           <Metric label="Created" value={formatCompactDate(course.created_at)} />
         </dl>
 
@@ -862,16 +862,17 @@ function Badge({
   tone,
   children,
 }: {
-  tone: "dark" | "mint" | "sun" | "teal" | "green" | "gray";
+  tone: "dark" | "mint" | "sun" | "teal" | "green" | "gray" | "red";
   children: ReactNode;
 }) {
   const toneClasses: Record<string, string> = {
     dark: "bg-[rgba(255,255,255,0.16)] text-white border border-[rgba(255,255,255,0.16)]",
     mint: "bg-[rgba(10,190,98,0.12)] text-[var(--green)] border border-[rgba(10,190,98,0.16)]",
-    sun: "bg-[rgba(255,222,0,0.18)] text-[var(--dark-teal)] border border-[rgba(255,222,0,0.2)]",
+    sun: "bg-[rgba(255,222,0,0.18)] text-amber-500 border border-[rgba(255,222,0,0.2)]",
     teal: "bg-[rgba(0,109,108,0.08)] text-[var(--teal)] border border-[rgba(0,109,108,0.12)]",
-    green: "bg-[rgba(10,190,98,0.14)] text-[var(--teal)] border border-[rgba(10,190,98,0.18)]",
+    green: "bg-[rgba(10,190,98,0.14)] text-[var(--green)] border border-[rgba(10,190,98,0.18)]",
     gray: "bg-[rgba(3,72,82,0.08)] text-[rgba(3,72,82,0.76)] border border-[rgba(3,72,82,0.08)]",
+    red: "bg-[rgba(239,68,68,0.15)] text-red-500 border border-[rgba(239,68,68,0.2)]",
   };
 
   return (
@@ -883,9 +884,10 @@ function Badge({
   );
 }
 
-function statusTone(status: string): "green" | "sun" | "gray" {
+function statusTone(status: string): "green" | "sun" | "gray" | "red" {
   if (status === "ACTIVE") return "green";
   if (status === "DRAFT") return "sun";
+  if (status === "ARCHIVED") return "red";
   return "gray";
 }
 
