@@ -13,6 +13,10 @@ import {
   getBlockerThread,
   getTrackerFellows,
   getTrackerFellowTasks,
+  getTrackerAllTasks,
+  getTrackerZms,
+  getTrackerZmFellows,
+  type TrackerAllTasksFilters,
   getTrackerMyTasks,
   getTrackerOverview,
   getTrackerRecordHistory,
@@ -57,10 +61,10 @@ export function useTrackerTemplate(id: string | undefined) {
   });
 }
 
-export function useTrackerGrid(templateId: string | undefined) {
+export function useTrackerGrid(templateId: string | undefined, fellowId?: string) {
   return useQuery({
-    queryKey: qk.trackerGrid(templateId ?? ''),
-    queryFn: () => getTrackerGrid(templateId as string),
+    queryKey: qk.trackerGrid(templateId ?? '', fellowId ?? ''),
+    queryFn: () => getTrackerGrid(templateId as string, fellowId),
     enabled: Boolean(templateId),
     staleTime: 30_000,
   });
@@ -98,6 +102,28 @@ export function useTrackerFellowTasks(fellowId: string | undefined) {
     queryKey: qk.trackerFellowTasks(fellowId ?? ''),
     queryFn: () => getTrackerFellowTasks(fellowId as string),
     enabled: Boolean(fellowId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerAllTasks(filters: TrackerAllTasksFilters, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerAllTasks(filters as Record<string, unknown>),
+    queryFn: () => getTrackerAllTasks(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerZms(enabled = true) {
+  return useQuery({ queryKey: qk.trackerZms(), queryFn: getTrackerZms, enabled, staleTime: 60_000 });
+}
+
+export function useTrackerZmFellows(zmId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerZmFellows(zmId ?? ''),
+    queryFn: () => getTrackerZmFellows(zmId as string),
+    enabled: Boolean(zmId),
     staleTime: 30_000,
   });
 }

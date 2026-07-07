@@ -12,8 +12,8 @@ export const PROFILE_PATH_LABELS: Record<string, string> = {
   "student.contact": "Student contact",
   "school.name": "School name",
   "school.code": "School code",
-  "fellow.name": "Fellow name",
-  "fellow.email": "Fellow email",
+  "fellow.name": "Staff name",
+  "fellow.email": "Staff email",
 };
 export const profilePathLabel = (path: string): string => PROFILE_PATH_LABELS[path] ?? path;
 export type TrackerCompletionStyle = "checklist" | "workflow";
@@ -222,8 +222,9 @@ export function assignTrackerTargets(templateId: string, targetIds: string[]) {
   );
 }
 
-export function getTrackerGrid(templateId: string) {
-  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid`);
+export function getTrackerGrid(templateId: string, fellowId?: string) {
+  const q = fellowId ? `?fellowId=${encodeURIComponent(fellowId)}` : "";
+  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${q}`);
 }
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
@@ -300,6 +301,9 @@ export type TrackerAssignable = {
   id: string;
   name: string;
   state: string | null;
+  /** For a user (staff) target: the member's role code, e.g. FELLOW / ZONAL_MANAGER — lets the
+   *  picker group and label ZMs vs fellows. Absent for school / student targets. */
+  role?: string | null;
   district?: string | null;
   programme?: string | null;
   school_id?: string | null;
@@ -337,6 +341,49 @@ export function getTrackerFellows() {
 
 export function getTrackerFellowTasks(fellowId: string) {
   return trackerJson<TrackerMyTask[]>(`/tracker/fellows/${encodeURIComponent(fellowId)}/tasks`);
+}
+
+// --- PM/Admin: All Tasks + ZM roster ---------------------------------------
+
+export type TrackerAllTasksFilters = {
+  doerType?: "zm" | "fellow"; zmId?: string; fellowId?: string;
+  state?: string; district?: string; priority?: TrackerPriority;
+  status?: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+  q?: string; groupBy?: "zm" | "fellow"; page?: number; limit?: number;
+};
+
+export type TrackerAllTaskRow = {
+  record_id: string; template_id: string; task_name: string;
+  doer_id: string | null; doer_name: string | null;
+  doer_role: "FELLOW" | "ZONAL_MANAGER" | null;
+  zm_id: string | null; zm_name: string | null;
+  state: string | null; district: string | null;
+  priority: TrackerPriority; lifecycle: string; deadline: string | null;
+};
+
+export type TrackerAllTasksPage = {
+  rows: TrackerAllTaskRow[]; total: number; page: number; limit: number;
+  groupCounts?: Array<{ key: string; label: string; count: number }>;
+};
+
+export type TrackerZmRosterRow = {
+  id: string; name: string; state: string | null;
+  own_total: number; own_done: number; own_pending: number; fellow_count: number;
+};
+
+export function getTrackerAllTasks(f: TrackerAllTasksFilters) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "") p.set(k, String(v));
+  const qs = p.toString();
+  return trackerJson<TrackerAllTasksPage>(`/tracker/all-tasks${qs ? `?${qs}` : ""}`);
+}
+
+export function getTrackerZms() {
+  return trackerJson<TrackerZmRosterRow[]>("/tracker/zms");
+}
+
+export function getTrackerZmFellows(zmId: string) {
+  return trackerJson<TrackerFellowSummary[]>(`/tracker/zms/${encodeURIComponent(zmId)}/fellows`);
 }
 
 export type TrackerEventType =

@@ -74,7 +74,7 @@ export const qk = {
 
   trackerTemplates: (status?: string) => ['og', 'tracker', 'templates', 'list', status ?? 'default'] as const,
   trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,
-  trackerGrid: (templateId: string) => ['og', 'tracker', 'grid', templateId] as const,
+  trackerGrid: (templateId: string, fellowId = '') => ['og', 'tracker', 'grid', templateId, fellowId] as const,
   trackerSummary: (templateId: string) => ['og', 'tracker', 'summary', templateId] as const,
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
@@ -87,4 +87,7 @@ export const qk = {
   trackerOverview: () => ['og', 'tracker', 'overview'] as const,
   trackerFellows: () => ['og', 'tracker', 'fellows'] as const,
   trackerFellowTasks: (fellowId: string) => ['og', 'tracker', 'fellow-tasks', fellowId] as const,
+  trackerAllTasks: (f: Record<string, unknown>) => ['og', 'tracker', 'all-tasks', f] as const,
+  trackerZms: () => ['og', 'tracker', 'zms'] as const,
+  trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
 };
