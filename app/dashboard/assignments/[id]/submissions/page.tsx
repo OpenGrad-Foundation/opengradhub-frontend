@@ -74,10 +74,10 @@ export default function SubmissionsPage() {
   const activeSub = submissions.find(s => s.id === activeSubId) ?? null;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: activeSubId ? "1fr 420px" : "1fr", gap: "24px", alignItems: "flex-start" }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "24px", alignItems: "flex-start" }}>
 
       {/* ── Left: Assignment + table ────────────────── */}
-      <div>
+      <div style={{ flex: "1 1 400px", minWidth: 0 }}>
         {/* Header */}
         <div style={{ marginBottom: "20px" }}>
           <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
@@ -100,7 +100,8 @@ export default function SubmissionsPage() {
           </div>
         ) : (
           <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px", minWidth: "500px" }}>
               <thead>
                 <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
                   {["Student", "Roll No.", "Submitted", "Status", "Score", ""].map(h => (
@@ -153,22 +154,25 @@ export default function SubmissionsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
 
       {/* ── Right: Grade panel ──────────────────────── */}
       {activeSub && (
-        <GradePanel
-          key={activeSub.id}
-          submission={activeSub}
-          assignmentId={assignmentId}
-          graderId={userId}
-          onSaved={async () => {
-            await reload();
-          }}
-          onClose={() => setActiveSubId(null)}
-        />
+        <div style={{ flex: "1 1 420px", maxWidth: "100%" }}>
+          <GradePanel
+            key={activeSub.id}
+            submission={activeSub}
+            assignmentId={assignmentId}
+            graderId={userId}
+            onSaved={async () => {
+              await reload();
+            }}
+            onClose={() => setActiveSubId(null)}
+          />
+        </div>
       )}
     </div>
   );
