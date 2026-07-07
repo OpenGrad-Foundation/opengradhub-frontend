@@ -287,7 +287,8 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string) => void }) {
 
 function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; canFill: boolean; canClear: boolean }) {
   const [mode, setMode] = useState<"template" | "scratch">("template");
-  const { data: templates = [], isLoading } = useTrackerTemplates();
+  const [listView, setListView] = useState<"active" | "archived">("active");
+  const { data: templates = [], isLoading } = useTrackerTemplates(listView === "archived" ? "archived" : undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [gridId, setGridId] = useState<string | null>(null);
   const grid = useTrackerGrid(gridId ?? undefined);
@@ -318,9 +319,17 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-        <button type="button" onClick={() => setMode("template")} className={tabCls(mode === "template")}>Use existing</button>
-        <button type="button" onClick={() => setMode("scratch")} className={tabCls(mode === "scratch")}>Create new</button>
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+          <button type="button" onClick={() => setMode("template")} className={tabCls(mode === "template")}>Use existing</button>
+          <button type="button" onClick={() => setMode("scratch")} className={tabCls(mode === "scratch")}>Create new</button>
+        </div>
+        {mode === "template" && (
+          <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+            <button type="button" onClick={() => setListView("active")} className={tabCls(listView === "active")}>Active</button>
+            <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Archived</button>
+          </div>
+        )}
       </div>
       {mode === "template"
         ? <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={(id) => setDetailId(id)} />
