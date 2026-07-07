@@ -267,7 +267,7 @@ export default function QuizBuilderPage() {
         >
           ← {courseId ? "Back to Course Builder" : from ? "Back" : "Back to Question Bank"}
         </a>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap", gap: "16px" }}>
           <div>
             <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
             <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>{quiz?.title ?? "Quiz Builder"}</h1>
@@ -276,7 +276,7 @@ export default function QuizBuilderPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flexWrap: "wrap" }}>
             {/* Preview + Publish controls */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
               <button
@@ -330,7 +330,7 @@ export default function QuizBuilderPage() {
 
       {/* ── Settings card ─────────────────────────────────── */}
       <form onSubmit={(e) => void saveSettings(e)}>
-        <div style={{ ...glassCard, marginBottom: "24px" }}>
+        <div style={{ ...glassCard, padding: "clamp(16px, 4vw, 24px)", marginBottom: "24px" }}>
           <p style={{ ...S.sectionHeader, marginBottom: "16px" }}>Quiz Settings</p>
           <div style={{ display: "grid", gap: "16px" }}>
             <Field label="Title *">
@@ -345,7 +345,7 @@ export default function QuizBuilderPage() {
                 style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
               />
             </Field>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
               <Field label="Duration (min, 0=untimed)">
                 <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} style={S.input} placeholder="0" />
               </Field>
@@ -356,7 +356,7 @@ export default function QuizBuilderPage() {
                 <input type="number" min="0" max="100" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
               </Field>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
               <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
               <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />
             </div>
@@ -369,7 +369,7 @@ export default function QuizBuilderPage() {
               <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt (desktop only — mobile blocked)" />
               <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking (deduct marks for wrong answers; blanks never penalized)" />
               {negativeMarking && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
                   <Field label="Marks per correct answer">
                     <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
                   </Field>
@@ -405,11 +405,11 @@ export default function QuizBuilderPage() {
           />
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
               <p style={S.sectionHeader}>Questions ({questions.length})</p>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => setBankOpen(true)} style={S.outlineBtn}>+ Add from Bank</button>
-                <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={S.primaryBtn}>+ Add Question</button>
+                <button onClick={() => setBankOpen(true)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add from Bank</button>
+                <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={{ ...S.primaryBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add Question</button>
               </div>
             </div>
 
@@ -515,8 +515,8 @@ function SectionSettingsForm({
 
   return (
     <div style={{ background: "rgba(3,72,82,0.03)", borderRadius: "8px", padding: "16px", marginBottom: "20px" }}>
-      <div style={{ display: "grid", gridTemplateColumns: sequential ? "2fr 1fr 1fr auto auto" : "2fr 1fr auto auto", gap: "12px", alignItems: "end" }}>
-        <label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "end" }}>
+        <label style={{ flex: "1 1 200px" }}>
           <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Title</span>
           <input
             value={editTitle}
@@ -525,7 +525,7 @@ function SectionSettingsForm({
           />
         </label>
         {sequential && (
-          <label>
+          <label style={{ flex: "1 1 100px" }}>
             <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Duration (min)</span>
             <input
               type="number"
@@ -535,7 +535,7 @@ function SectionSettingsForm({
             />
           </label>
         )}
-        <label>
+        <label style={{ flex: "1 1 80px", maxWidth: "120px" }}>
           <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", display: "block", marginBottom: "4px" }}>Pass %</span>
           <input
             type="number"
@@ -544,19 +544,21 @@ function SectionSettingsForm({
             style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid rgba(3,72,82,0.15)", boxSizing: "border-box" }}
           />
         </label>
-        <button
-          onClick={() => void handleSave()}
-          disabled={saving}
-          style={{ padding: "8px 16px", borderRadius: "6px", border: "none", background: "#209379", color: "#fff", fontWeight: 600, cursor: saving ? "default" : "pointer" }}
-        >
-          {saving ? "Saving…" : "Save"}
-        </button>
-        <button
-          onClick={() => void onDelete()}
-          style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", fontWeight: 600, cursor: "pointer" }}
-        >
-          Delete
-        </button>
+        <div style={{ display: "flex", gap: "8px", flex: "1 1 200px" }}>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            style={{ flex: 1, padding: "10px 16px", borderRadius: "6px", border: "none", background: "#209379", color: "#fff", fontWeight: 600, cursor: saving ? "default" : "pointer" }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={() => void onDelete()}
+            style={{ flex: 1, padding: "10px 16px", borderRadius: "6px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", fontWeight: 600, cursor: "pointer" }}
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -584,13 +586,29 @@ function SectionsView({
   setPanelOpen: (open: boolean) => void;
 }) {
   const sections = quiz.sections;
-  const active = sections.find((s) => s.id === activeSectionId) ?? sections[0] ?? null;
-
   const invalidate = useInvalidate();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSectionTitle, setNewSectionTitle] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [addingSection, setAddingSection] = useState(false);
+
+  // Accordion state
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // Auto-expand first section on mount if none are expanded
+  useEffect(() => {
+    if (sections.length > 0 && Object.keys(expanded).length === 0) {
+      setExpanded({ [sections[0].id]: true });
+      if (!activeSectionId) {
+        setActiveSectionId(sections[0].id);
+      }
+    }
+  }, [sections, expanded, activeSectionId, setActiveSectionId]);
+
+  function toggleExpand(id: string) {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    setActiveSectionId(id);
+  }
 
   function handleAddSection() {
     setNewSectionTitle("");
@@ -610,6 +628,7 @@ function SectionsView({
       const created = await createQuizSection(quiz.id, { title });
       invalidate('quizzes');
       await onReload();
+      setExpanded((prev) => ({ ...prev, [created.id]: true }));
       setActiveSectionId(created.id);
       setShowAddModal(false);
       setNewSectionTitle("");
@@ -624,119 +643,126 @@ function SectionsView({
     }
   }
 
-  async function handleDeleteSection() {
-    if (!active) return;
-    if (!window.confirm(`Delete section "${active.title}"? Its questions stay in the bank but the section + its question links are removed.`)) return;
-    await deleteQuizSection(quiz.id, active.id);
-    invalidate('quizzes');
-    setActiveSectionId(null);
-    await onReload();
-  }
-
-  async function handleRemoveQuestion(questionId: string) {
-    if (!active) return;
-    await removeQuestionFromSection(quiz.id, active.id, questionId);
+  async function handleRemoveQuestion(sectionId: string, questionId: string) {
+    await removeQuestionFromSection(quiz.id, sectionId, questionId);
     invalidate('quizzes');
     await onReload();
   }
-
-  const activeQuestions = active?.questions ?? [];
 
   return (
-    <div>
-      {/* Tab strip */}
-      <div style={{ display: "flex", gap: "8px", borderBottom: "2px solid rgba(3,72,82,0.08)", marginBottom: "20px", flexWrap: "wrap" }}>
-        {sections.map((s) => (
-          <button
-            key={s.id}
-            onClick={() => setActiveSectionId(s.id)}
-            style={{
-              padding: "10px 16px",
-              border: "none",
-              background: s.id === active?.id ? "#fff" : "transparent",
-              borderBottom: s.id === active?.id ? "2px solid #209379" : "2px solid transparent",
-              marginBottom: "-2px",
-              fontWeight: 600,
-              color: "#034852",
-              cursor: "pointer",
-            }}
-          >
-            {s.title} ({s.questions.length})
-          </button>
-        ))}
-        {quiz.is_sectioned ? (
-          <button
-            onClick={handleAddSection}
-            style={{ padding: "10px 16px", border: "1px dashed #209379", background: "transparent", color: "#209379", fontWeight: 600, cursor: "pointer", borderRadius: "6px" }}
-          >
-            + Add Section
-          </button>
-        ) : (
-          <span style={{ padding: "10px 16px", fontSize: "13px", color: "rgba(3,72,82,0.5)", fontStyle: "italic", alignSelf: "center" }}>
-            Save settings with Section-wise quiz enabled first
-          </span>
-        )}
-      </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      {sections.length === 0 && (
+        <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>
+          No sections yet. Click + Add Section to create one.
+        </p>
+      )}
 
-      {!active ? (
-        <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic" }}>No sections yet. Click + Add Section to create one.</p>
-      ) : (
-        <>
-          {/* Section settings form — keyed by section id so state resets on tab switch */}
-          <SectionSettingsForm
-            key={active.id}
-            quizId={quiz.id}
-            section={active}
-            sequential={sequential}
-            onReload={onReload}
-            onDelete={handleDeleteSection}
-          />
+      {sections.map((section) => {
+        const isExpanded = expanded[section.id] || false;
+        const activeQuestions = section.questions;
 
-          {/* Section questions list */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-            <h3 style={{ margin: 0, fontSize: "16px", color: "#034852" }}>Questions in this section ({activeQuestions.length})</h3>
-            <div style={{ display: "flex", gap: "8px" }}>
+        return (
+          <div key={section.id} style={{ background: "#fff", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", overflow: "hidden", boxShadow: isExpanded ? "0 4px 12px rgba(3,72,82,0.04)" : "none", transition: "all 200ms ease" }}>
+            {/* Header */}
+            <div
+              onClick={() => toggleExpand(section.id)}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "16px 20px", cursor: "pointer", background: isExpanded ? "linear-gradient(135deg, rgba(3,72,82,0.03) 0%, rgba(10,190,98,0.03) 100%)" : "transparent", borderBottom: isExpanded ? "1px solid rgba(3,72,82,0.08)" : "none", transition: "background 150ms ease", gap: "12px" }}
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+                <span style={{ fontWeight: 800, color: "#034852", fontSize: "15px", lineHeight: 1.4 }}>{section.title}</span>
+                <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>{activeQuestions.length} {activeQuestions.length === 1 ? 'question' : 'questions'}</span>
+              </div>
               <button
-                onClick={() => { setEditTarget(null); setPanelOpen(true); }}
-                style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #209379", background: "#fff", color: "#209379", fontWeight: 600, cursor: "pointer" }}
+                type="button"
+                style={{ flexShrink: 0, padding: "6px 12px", background: "rgba(32,147,121,0.08)", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: 700, color: "#209379", cursor: "pointer", marginTop: "2px" }}
               >
-                + New Question
-              </button>
-              <button
-                onClick={() => setBankOpen(true)}
-                style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #209379", background: "#209379", color: "#fff", fontWeight: 600, cursor: "pointer" }}
-              >
-                Attach From Bank
+                {isExpanded ? "Collapse" : "Expand"}
               </button>
             </div>
-          </div>
 
-          {activeQuestions.length === 0 ? (
-            <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic" }}>No questions in this section yet.</p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {activeQuestions.map((q, idx) => (
-                <div key={q.id} style={{ padding: "12px 16px", background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "8px", display: "flex", gap: "12px", alignItems: "center" }}>
-                  <span style={{ minWidth: "32px", fontWeight: 700, color: "rgba(3,72,82,0.5)" }}>{idx + 1}.</span>
-                  <div style={{ flex: 1, minWidth: 0 }}><MathSnippet html={q.content_html} lines={1} /></div>
-                  <span style={{ ...typeBadge(q.question_type), flexShrink: 0 }}>{q.question_type}</span>
-                  <button
-                    onClick={() => { setEditTarget(q); setPanelOpen(true); }}
-                    style={{ padding: "4px 10px", borderRadius: "4px", border: "1px solid rgba(3,72,82,0.2)", background: "transparent", cursor: "pointer", fontSize: "12px" }}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => void handleRemoveQuestion(q.id)}
-                    style={{ padding: "4px 10px", borderRadius: "4px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", cursor: "pointer", fontSize: "12px" }}
-                  >
-                    Remove
-                  </button>
+            {/* Body */}
+            {isExpanded && (
+              <div style={{ padding: "20px" }}>
+                {/* Section settings form */}
+                <SectionSettingsForm
+                  quizId={quiz.id}
+                  section={section}
+                  sequential={sequential}
+                  onReload={onReload}
+                  onDelete={async () => {
+                    if (!window.confirm(`Delete section "${section.title}"? Its questions stay in the bank but the section + its question links are removed.`)) return;
+                    await deleteQuizSection(quiz.id, section.id);
+                    invalidate('quizzes');
+                    await onReload();
+                  }}
+                />
+
+                {/* Section questions list */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "12px" }}>
+                  <h3 style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#034852" }}>Questions in this section ({activeQuestions.length})</h3>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={() => { setActiveSectionId(section.id); setEditTarget(null); setPanelOpen(true); }}
+                      style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #209379", background: "#fff", color: "#209379", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
+                    >
+                      + New Question
+                    </button>
+                    <button
+                      onClick={() => { setActiveSectionId(section.id); setBankOpen(true); }}
+                      style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #209379", background: "#209379", color: "#fff", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
+                    >
+                      Attach From Bank
+                    </button>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </>
+
+                {activeQuestions.length === 0 ? (
+                  <p style={{ color: "rgba(3,72,82,0.6)", fontStyle: "italic", fontSize: "14px" }}>No questions in this section yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {activeQuestions.map((q, idx) => (
+                      <div key={q.id} style={{ padding: "12px 16px", background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "8px", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                        <div style={{ display: "flex", gap: "12px", alignItems: "center", flex: "1 1 200px" }}>
+                          <span style={{ minWidth: "24px", fontWeight: 700, color: "rgba(3,72,82,0.5)" }}>{idx + 1}.</span>
+                          <div style={{ flex: 1, minWidth: 0 }}><MathSnippet html={q.content_html} lines={1} /></div>
+                          <span style={{ ...typeBadge(q.question_type), flexShrink: 0 }}>{q.question_type}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: "8px", flexShrink: 0, marginLeft: "auto" }}>
+                          <button
+                            onClick={() => { setActiveSectionId(section.id); setEditTarget(q); setPanelOpen(true); }}
+                            style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid rgba(3,72,82,0.2)", background: "transparent", cursor: "pointer", fontSize: "12px" }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => void handleRemoveQuestion(section.id, q.id)}
+                            style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #e53e3e", background: "transparent", color: "#e53e3e", cursor: "pointer", fontSize: "12px" }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Add Section Button */}
+      {quiz.is_sectioned ? (
+        <button
+          onClick={handleAddSection}
+          style={{ padding: "14px", border: "1.5px dashed rgba(32,147,121,0.5)", background: "rgba(32,147,121,0.03)", color: "#209379", fontWeight: 700, cursor: "pointer", borderRadius: "12px", width: "100%", textAlign: "center", transition: "all 150ms ease" }}
+        >
+          + Add Section
+        </button>
+      ) : (
+        <span style={{ padding: "10px 16px", fontSize: "13px", color: "rgba(3,72,82,0.5)", fontStyle: "italic", textAlign: "center", display: "block" }}>
+          Save settings with Section-wise quiz enabled first
+        </span>
       )}
 
       {/* ── Add Section Modal ──────────────────────────────── */}
@@ -862,6 +888,7 @@ function QuizQuestionRow({
         padding: "14px 8px",
         borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)",
         cursor: "grab",
+        flexWrap: "wrap",
       }}
     >
       {/* Index + drag handle */}
@@ -876,7 +903,7 @@ function QuizQuestionRow({
       </span>
 
       {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
         <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
         <div style={{ display: "flex", gap: "6px", marginTop: "5px", flexWrap: "wrap" }}>
           {question.programme_type && <Tag>{question.programme_type}</Tag>}
@@ -888,7 +915,7 @@ function QuizQuestionRow({
       </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "auto" }}>
         <button style={S.outlineBtn} onClick={onEdit}>Edit</button>
         <button
           title="Removes from this quiz. Question stays in the bank."
@@ -1075,7 +1102,7 @@ function LoadingState() {
 
 const glassCard: React.CSSProperties = {
   background: "#ffffff",
-  borderRadius: "24px", padding: "28px 32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  borderRadius: "24px", padding: "clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
 };
 
 const S = {

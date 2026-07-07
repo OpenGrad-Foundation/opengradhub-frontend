@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import type { Quiz, Question, QuizAttemptQuestion } from "@/lib/api";
+import type { AttemptReviewQuestion } from "@/lib/api";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
+import { PassageCard, QuestionReviewCard } from "@/components/question-review-card";
 
 // ── Data conversion ───────────────────────────────────────────────────────────
 
@@ -17,6 +19,38 @@ function toAttemptQ(q: Question, sectionId?: string): QuizAttemptQuestion {
     image_url: q.image_url ?? null,
     options: q.options.map((o) => ({ id: o.id, option_text: o.option_text })),
     children: (q.children ?? []).map((c) => toAttemptQ(c, sectionId)),
+  };
+}
+
+function toReviewQ(q: Question, answers: AnswerMap, parentQ?: Question): AttemptReviewQuestion {
+  const studentAns = answers[q.id] ?? null;
+  let isCorrect: boolean | null = null;
+  if (q.question_type === "MCQ") {
+     isCorrect = studentAns ? (q.options.find(o => o.id === studentAns)?.is_correct ?? false) : false;
+  } else if (q.question_type === "NUMERICAL" || q.question_type === "FILL") {
+     isCorrect = studentAns?.trim().toLowerCase() === q.correct_answer?.trim().toLowerCase();
+  }
+
+  return {
+    snapshot_id: q.id,
+    section_id: null,
+    question_type: q.question_type,
+    content_html: q.content_html,
+    image_url: q.image_url ?? null,
+    parent_snapshot_id: parentQ?.id ?? null,
+    parent_content_html: parentQ?.content_html ?? null,
+    parent_image_url: parentQ?.image_url ?? null,
+    student_answer: studentAns,
+    correct_answer: q.correct_answer ?? null,
+    is_correct: isCorrect,
+    marks_awarded: isCorrect ? (q.marks ?? 1) : 0,
+    time_taken_seconds: 45,
+    explanation_video_url: q.explanation_video_url ?? null,
+    options: q.options.map(o => ({ id: o.id, option_text: o.option_text, is_correct: !!o.is_correct })),
+    avg_time_seconds: 60,
+    batch_correct_count: 75,
+    batch_total_count: 100,
+    solution_html: q.solution ?? null,
   };
 }
 
@@ -90,6 +124,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
   const total = allQuestions.length;
 
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [mode, setMode] = useState<"TAKING" | "REVIEW">("TAKING");
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
 
@@ -138,6 +173,69 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
 
   if (!q) return null;
 
+  if (mode === "REVIEW") {
+    const reviewQs: AttemptReviewQuestion[] = [];
+    const originalQuestions = isSectioned ? quiz.sections.flatMap(s => s.questions) : quiz.questions;
+    
+    originalQuestions.forEach(qItem => {
+      if (qItem.question_type === "GROUP") {
+        qItem.children?.forEach(child => reviewQs.push(toReviewQ(child, answers, qItem)));
+      } else {
+        reviewQs.push(toReviewQ(qItem, answers));
+      }
+    });
+
+    const correct = reviewQs.filter(rq => rq.is_correct === true).length;
+    const totalMarks = reviewQs.length;
+    const seenParents = new Set<string>();
+    
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#f0f2f5", fontFamily: "'Inter', sans-serif", color: "#034852", overflowY: "auto" }}>
+        <div style={{ background: "#034852", padding: "0 24px", height: "40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "3px 10px", borderRadius: "100px", background: "rgba(255,222,0,0.18)", border: "1px solid rgba(255,222,0,0.4)", color: "#ffe566", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em" }}>
+            PREVIEW MODE — Review Page
+          </span>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={() => setMode("TAKING")} style={{ padding: "4px 14px", borderRadius: "6px", border: "1.5px solid rgba(255,255,255,0.25)", background: "transparent", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+              Back to Quiz
+            </button>
+            <button onClick={onClose} style={{ padding: "4px 14px", borderRadius: "6px", border: "1.5px solid rgba(255,255,255,0.25)", background: "transparent", color: "#fff", fontWeight: 700, fontSize: "12px", cursor: "pointer" }}>
+              ✕ Exit Preview
+            </button>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: "960px", margin: "0 auto", padding: "32px 16px" }}>
+          <div style={{ background: "rgba(255,255,255,0.85)", borderRadius: "16px", padding: "28px 32px", boxShadow: "0 2px 24px rgba(3,72,82,0.08)", marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "24px", fontWeight: 800, margin: "0 0 16px" }}>Quiz Results (Mock)</h2>
+            <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
+              <div>
+                <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.5)" }}>Score</p>
+                <p style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "#0abe62" }}>{correct} / {totalMarks}</p>
+              </div>
+            </div>
+          </div>
+          
+          <h3 style={{ fontSize: "18px", fontWeight: 800, margin: "32px 0 16px", color: "#034852" }}>Detailed Review</h3>
+          {reviewQs.map((rq, idx) => {
+            const hasParent = rq.parent_snapshot_id != null;
+            const isFirstOfParent = hasParent && !seenParents.has(rq.parent_snapshot_id!);
+            if (isFirstOfParent) seenParents.add(rq.parent_snapshot_id!);
+
+            return (
+              <div key={rq.snapshot_id}>
+                {isFirstOfParent && (
+                  <PassageCard html={rq.parent_content_html ?? ""} imageUrl={rq.parent_image_url ?? null} />
+                )}
+                <QuestionReviewCard q={rq} idx={idx} revealed={true} questionLabel={`Q${idx + 1}`} />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 300,
@@ -181,9 +279,9 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
 
         {/* Section tabs — identical style to real quiz */}
         {isSectioned && sections.length > 0 && (
-          <div style={{
+          <div className="hide-scrollbar" style={{
             display: "flex", gap: "4px", marginBottom: "16px",
-            borderBottom: "2px solid rgba(3,72,82,0.08)", flexWrap: "wrap",
+            borderBottom: "2px solid rgba(3,72,82,0.08)", overflowX: "auto", whiteSpace: "nowrap", paddingBottom: "4px",
           }}>
             {sections.map((s) => {
               const isActive = currentSectionId === s.id || (currentSectionId == null && sections[0].id === s.id);
@@ -201,7 +299,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                     color: isActive ? "#0abe62" : "#034852",
                     borderBottom: `3px solid ${isActive ? "#0abe62" : "transparent"}`,
                     marginBottom: "-2px", cursor: "pointer",
-                    display: "inline-flex", alignItems: "center", gap: "8px",
+                    display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0,
                   }}
                 >
                   <span>{s.title}</span>
@@ -215,9 +313,9 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
         )}
 
         {/* Two-column layout — identical to real quiz */}
-        <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
           {/* Main question card */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: "1 1 400px", minWidth: 0, maxWidth: "100%" }}>
             <div style={card}>
               {/* Question header — identical to real quiz */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
@@ -256,8 +354,8 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
 
                 {isLast ? (
                   <button
-                    disabled
-                    style={{ ...primaryBtn, background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.35)", cursor: "default" }}
+                    onClick={() => setMode("REVIEW")}
+                    style={{ ...primaryBtn, background: "rgba(3,72,82,0.9)", color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}
                   >
                     Submit Quiz
                   </button>
@@ -274,7 +372,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
           </div>
 
           {/* Sidebar — identical to real quiz */}
-          <div style={{ width: "220px", flexShrink: 0 }}>
+          <div style={{ flex: "1 1 220px", maxWidth: "100%" }}>
             <div style={{ ...card, padding: "20px", marginBottom: "12px" }}>
               {/* Stats */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
@@ -319,7 +417,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                       key={qi.snapshot_id}
                       onClick={() => setCurrentIdx(i)}
                       style={{
-                        aspectRatio: "1",
+                        height: "40px",
                         border,
                         borderRadius: "8px",
                         background: bg,

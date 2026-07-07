@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { ParsedBulkQuiz, ParsedQuestion, ParsedOption } from "@/lib/api";
+import { sanitize } from "@/lib/purify";
+import { RichTextEditor } from "@/components/rich-text-editor";
+import { QuizStudentPreview } from "@/components/quiz-student-preview";
+import type { Quiz, Question, QuizSection } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -152,30 +156,80 @@ function OptionEditor({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      {options.map((opt, idx) => (
-        <div key={idx} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
-            type="button"
-            title={opt.is_correct ? "Correct answer" : "Mark as correct"}
-            onClick={() =>
-              onChange(options.map((o, i) => (i === idx ? { ...o, is_correct: !o.is_correct } : o)))
-            }
-            style={{
-              width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0,
-              border: `2px solid ${opt.is_correct ? "#0abe62" : "rgba(3,72,82,0.2)"}`,
-              background: opt.is_correct ? "#0abe62" : "transparent",
-              cursor: "pointer", padding: 0,
-            }}
-          />
-          <input
-            style={{ ...S.panelInput, flex: 1 }}
-            value={opt.text}
-            onChange={(e) =>
-              onChange(options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)))
-            }
-          />
-        </div>
-      ))}
+      {options.map((opt, idx) => {
+        const hasHtml = /<[a-z][\s\S]*>/i.test(opt.text);
+        return (
+          <div key={idx} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button
+                type="button"
+                title={opt.is_correct ? "Correct answer" : "Mark as correct"}
+                onClick={() =>
+                  onChange(options.map((o, i) => (i === idx ? { ...o, is_correct: !o.is_correct } : o)))
+                }
+                style={{
+                  width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0,
+                  border: `2px solid ${opt.is_correct ? "#0abe62" : "rgba(3,72,82,0.2)"}`,
+                  background: opt.is_correct ? "#0abe62" : "transparent",
+                  cursor: "pointer", padding: 0,
+                }}
+              />
+              <input
+                style={{ ...S.panelInput, flex: 1 }}
+                value={opt.text}
+                onChange={(e) =>
+                  onChange(options.map((o, i) => (i === idx ? { ...o, text: e.target.value } : o)))
+                }
+              />
+            </div>
+            {hasHtml && (
+              <div 
+                style={{ 
+                  marginLeft: "24px", 
+                  padding: "6px 10px", 
+                  background: "rgba(3,72,82,0.02)", 
+                  border: "1px dashed rgba(3,72,82,0.2)",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  overflow: "auto"
+                }}
+                dangerouslySetInnerHTML={{ __html: sanitize(opt.text) }}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Html Field Editor ─────────────────────────────────────────────────────────
+
+function HtmlFieldEditor({
+  label,
+  value,
+  onChange,
+  rows = 4,
+  placeholder,
+  disableImageUpload,
+}: {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  rows?: number;
+  placeholder?: string;
+  disableImageUpload?: boolean;
+}) {
+  return (
+    <div>
+      <span style={{ ...S.fieldLabel, marginBottom: "5px" }}>{label}</span>
+      <RichTextEditor
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        minHeight={Math.max(rows * 20, 72)}
+        disableImageUpload={disableImageUpload}
+      />
     </div>
   );
 }
@@ -195,26 +249,21 @@ function QuestionEditorForm({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {question.instruction !== undefined && (
-        <div>
-          <span style={S.fieldLabel}>Instruction / Passage</span>
-          <textarea
-            style={S.panelTextarea}
-            value={question.instruction ?? ""}
-            onChange={(e) => set("instruction", e.target.value || undefined)}
-            rows={3}
-          />
-        </div>
+        <HtmlFieldEditor
+          label="Instruction / Passage"
+          value={question.instruction ?? ""}
+          onChange={(val) => set("instruction", val || undefined)}
+          rows={3}
+          disableImageUpload
+        />
       )}
 
-      <div>
-        <span style={S.fieldLabel}>Question</span>
-        <textarea
-          style={S.panelTextarea}
-          value={question.content}
-          onChange={(e) => set("content", e.target.value)}
-          rows={4}
-        />
-      </div>
+      <HtmlFieldEditor
+        label="Question"
+        value={question.content}
+        onChange={(val) => set("content", val)}
+        rows={4}
+      />
 
       {question.question_type === "MCQ" && question.options.length > 0 && (
         <div>
@@ -295,27 +344,15 @@ function QuestionEditorForm({
         </div>
       </div>
 
-      <div>
-        <span style={S.fieldLabel}>Image URL (optional)</span>
-        <input
-          style={S.panelInput}
-          value={question.image ?? ""}
-          placeholder="https://..."
-          type="url"
-          onChange={(e) => set("image", e.target.value || undefined)}
-        />
-      </div>
 
-      <div>
-        <span style={S.fieldLabel}>Solution (optional)</span>
-        <textarea
-          style={S.panelTextarea}
-          value={question.solution ?? ""}
-          rows={3}
-          placeholder="Explanation shown after submission..."
-          onChange={(e) => set("solution", e.target.value || undefined)}
-        />
-      </div>
+
+      <HtmlFieldEditor
+        label="Solution (optional)"
+        value={question.solution ?? ""}
+        placeholder="Explanation shown after submission..."
+        onChange={(val) => set("solution", val || undefined)}
+        rows={3}
+      />
     </div>
   );
 }
@@ -523,8 +560,8 @@ function QuizDetailsCard({
             onChange={(e) => set("title", e.target.value || undefined)}
           />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-          <div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ flex: "1 1 140px" }}>
             <span style={S.fieldLabel}>Duration (minutes)</span>
             <input
               style={S.panelInput}
@@ -537,7 +574,7 @@ function QuizDetailsCard({
               }
             />
           </div>
-          <div>
+          <div style={{ flex: "1 1 140px" }}>
             <span style={S.fieldLabel}>Total Marks</span>
             <input
               style={S.panelInput}
@@ -566,6 +603,81 @@ function QuizDetailsCard({
   );
 }
 
+// ── Mock Quiz Generator for Preview ───────────────────────────────────────────
+
+function mockQuizFromParsed(parsed: ParsedBulkQuiz): Quiz {
+  let qIdCounter = 1;
+  let oIdCounter = 1;
+  let sIdCounter = 1;
+
+  const toMockQuestion = (pq: ParsedQuestion): Question => ({
+    id: `mock-q-${qIdCounter++}`,
+    quiz_id: "mock-quiz",
+    question_type: pq.question_type,
+    content_html: pq.content,
+    correct_answer: pq.correct_answer ?? null,
+    tolerance: pq.tolerance ?? null,
+    programme_type: null,
+    subject: pq.subject ?? null,
+    topic: pq.topic ?? null,
+    difficulty: pq.difficulty ?? null,
+    explanation_video_url: null,
+    marks: pq.marks ?? null,
+    negative_marks: pq.negative_marks ?? null,
+    answer_time_minutes: pq.answer_time_minutes ?? null,
+    instruction_html: pq.instruction ?? null,
+    evaluation_criteria_json: pq.evaluation_criteria ? pq.evaluation_criteria.map(c => ({ criteria: c.criteria, percentage: c.percentage })) : null,
+    tag: pq.tag ?? null,
+    solution: pq.solution ?? null,
+    image_url: pq.image ?? null,
+    created_by: null,
+    options: (pq.options || []).map(o => ({
+      id: `mock-o-${oIdCounter++}`,
+      option_text: o.text,
+      is_correct: o.is_correct,
+    })),
+    children: (pq.children || []).map(toMockQuestion),
+  });
+
+  const safeSections = parsed.sections || [];
+  const sections: QuizSection[] = safeSections.map((s, idx) => ({
+    id: `mock-s-${sIdCounter++}`,
+    quiz_id: "mock-quiz",
+    title: s.title,
+    order_index: idx,
+    duration_minutes: s.duration_minutes ?? null,
+    pass_threshold_percent: null,
+    questions: (s.questions || []).map(toMockQuestion),
+  }));
+
+  const isSectioned = safeSections.length > 1 || (safeSections.length === 1 && safeSections[0].title.toLowerCase() !== "default");
+
+  return {
+    id: "mock-quiz",
+    module_id: null,
+    title: parsed.title || "Untitled Quiz",
+    description: parsed.instruction || null,
+    duration_minutes: parsed.duration_minutes ?? null,
+    max_attempts: null,
+    pass_threshold_percent: null,
+    shuffle_questions: false,
+    show_answers_after: true,
+    quiz_type: "GLOBAL_TEST",
+    published: false,
+    created_by: null,
+    created_at: new Date().toISOString(),
+    questions: safeSections.flatMap(s => (s.questions || []).map(toMockQuestion)),
+    is_sectioned: isSectioned,
+    sequential_sections: false,
+    sections,
+    first_attempt_counts: true,
+    require_fullscreen: false,
+    negative_marking: safeSections.some(s => (s.questions || []).some(q => q.negative_marks != null && q.negative_marks > 0)),
+    correct_marks: 1,
+    wrong_marks: 0,
+  };
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export interface QuizPreviewEditorProps {
@@ -587,13 +699,16 @@ export function QuizPreviewEditor({
 }: QuizPreviewEditorProps) {
   const [activeQ, setActiveQ] = useState<QuestionAddress>(null);
   const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
+  const [previewOpen, setPreviewOpen] = useState(false);
 
-  const totalQuestions = data.sections.reduce((acc, s) => acc + s.questions.length, 0);
+  const safeSections = data?.sections || [];
+  const totalQuestions = safeSections.reduce((acc, s) => acc + (s.questions?.length || 0), 0);
 
   const updateQuestion = (sIdx: number, qIdx: number, q: ParsedQuestion) => {
-    const sections = data.sections.map((s, i) => {
+    const sections = safeSections.map((s, i) => {
       if (i !== sIdx) return s;
-      return { ...s, questions: s.questions.map((existing, j) => (j === qIdx ? q : existing)) };
+      const qs = s.questions || [];
+      return { ...s, questions: qs.map((existing, j) => (j === qIdx ? q : existing)) };
     });
     onChange({ ...data, sections });
   };
@@ -602,12 +717,12 @@ export function QuizPreviewEditor({
     sIdx: number,
     patch: Partial<{ title: string; duration_minutes: number | undefined; marks: number | undefined }>,
   ) => {
-    const sections = data.sections.map((s, i) => (i === sIdx ? { ...s, ...patch } : s));
+    const sections = safeSections.map((s, i) => (i === sIdx ? { ...s, ...patch } : s));
     onChange({ ...data, sections });
   };
 
   const openQuestion = activeQ
-    ? data.sections[activeQ.sIdx]?.questions[activeQ.qIdx] ?? null
+    ? safeSections[activeQ.sIdx]?.questions?.[activeQ.qIdx] ?? null
     : null;
 
   return (
@@ -625,7 +740,7 @@ export function QuizPreviewEditor({
             fontWeight: 600,
           }}
         >
-          Parsed successfully — {data.sections.length} section{data.sections.length !== 1 ? "s" : ""},{" "}
+          Parsed successfully — {safeSections.length} section{safeSections.length !== 1 ? "s" : ""},{" "}
           {totalQuestions} question{totalQuestions !== 1 ? "s" : ""}.{" "}
           <span style={{ fontWeight: 400, opacity: 0.7 }}>
             Review quiz details and click any question to edit, then save.
@@ -636,7 +751,7 @@ export function QuizPreviewEditor({
         <QuizDetailsCard data={data} onChange={onChange} />
 
         {/* Section cards */}
-        {data.sections.map((sec, sIdx) => (
+        {safeSections.map((sec, sIdx) => (
           <div key={sIdx} style={S.sectionCard}>
             <div style={{ ...S.sectionHeader, flexWrap: "wrap", gap: "10px" }}>
               {/* Section title (editable) */}
@@ -664,7 +779,7 @@ export function QuizPreviewEditor({
                 onChange={(e) => updateSection(sIdx, { title: e.target.value })}
               />
 
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", maxWidth: "100%" }}>
                 {/* Section duration */}
                 <label style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                   <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(3,72,82,0.5)", whiteSpace: "nowrap" }}>
@@ -716,7 +831,7 @@ export function QuizPreviewEditor({
                 </label>
 
                 <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)" }}>
-                  {sec.questions.length} Q
+                  {(sec.questions || []).length} Q
                 </span>
                 <button
                   type="button"
@@ -730,7 +845,7 @@ export function QuizPreviewEditor({
 
             {!collapsed[sIdx] && (
               <div>
-                {sec.questions.map((q, qIdx) => (
+                {(sec.questions || []).map((q, qIdx) => (
                   <QuestionRowItem
                     key={qIdx}
                     question={q}
@@ -761,13 +876,21 @@ export function QuizPreviewEditor({
         )}
 
         {/* Action bar */}
-        <div style={S.actionBar}>
-          <button type="button" style={S.secondaryBtn} onClick={onBack} disabled={saving}>
+        <div style={{ ...S.actionBar, flexWrap: "wrap-reverse" }}>
+          <button type="button" style={{ ...S.secondaryBtn, flex: "1 1 120px", textAlign: "center" }} onClick={onBack} disabled={saving}>
             ← Back
           </button>
           <button
             type="button"
-            style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}
+            style={{ ...S.secondaryBtn, flex: "1 1 140px", textAlign: "center" }}
+            onClick={() => setPreviewOpen(true)}
+            disabled={saving}
+          >
+            Student Preview
+          </button>
+          <button
+            type="button"
+            style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1, flex: "2 1 200px", textAlign: "center", whiteSpace: "normal" }}
             onClick={onConfirm}
             disabled={saving}
           >
@@ -785,6 +908,11 @@ export function QuizPreviewEditor({
           onClose={() => setActiveQ(null)}
           onChange={(q) => updateQuestion(activeQ.sIdx, activeQ.qIdx, q)}
         />
+      )}
+
+      {/* Student Preview Modal */}
+      {previewOpen && (
+        <QuizStudentPreview quiz={mockQuizFromParsed(data)} onClose={() => setPreviewOpen(false)} />
       )}
     </>
   );

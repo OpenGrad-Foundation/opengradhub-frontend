@@ -95,11 +95,11 @@ export default function NewBundlePage() {
               <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>
             )}
 
-            <div style={{ display: "flex", gap: "10px" }}>
-              <Link href="/dashboard/bundles" style={{ ...ghostBtn, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap-reverse" }}>
+              <Link href="/dashboard/bundles" style={{ ...ghostBtn, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "120px" }}>
                 Cancel
               </Link>
-              <button type="submit" disabled={submitting} style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}>
+              <button type="submit" disabled={submitting} style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1, minWidth: "160px" }}>
                 {submitting ? "Creating…" : "Create Bundle & Add Courses →"}
               </button>
             </div>
@@ -145,7 +145,7 @@ const primaryBtn: React.CSSProperties = {
   background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
   color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
   fontSize: "14px", cursor: "pointer",
-  boxShadow: "0 6px 14px rgba(10,190,98,0.2)", whiteSpace: "nowrap",
+  boxShadow: "0 6px 14px rgba(10,190,98,0.2)",
 };
 
 const ghostBtn: React.CSSProperties = {

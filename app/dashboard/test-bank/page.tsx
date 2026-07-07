@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, type Question, type Quiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { QuizDeleteModal } from "./_components/QuizDeleteModal";
 import {
   QuestionSlideOver,
   QUESTION_TYPES,
@@ -21,13 +23,26 @@ import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
 // route guard.
 
 export default function TestBankPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <TestBankPageContent />
+    </Suspense>
+  );
+}
+
+function TestBankPageContent() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const userId = data?.user?.id ?? "";
   const invalidate = useInvalidate();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [uploadJobId, setUploadJobId] = useState<string | null>(searchParams.get("uploadJobId"));
+  const [uploadStatus, setUploadStatus] = useState<string>("Uploading and queuing...");
 
   const [filterType, setFilterType]       = useState("");
   const [filterProg, setFilterProg]       = useState("");
@@ -43,6 +58,26 @@ export default function TestBankPage() {
 
   // Created Global/Program tests — entry point to re-open them in the builder.
   const [globalTests, setGlobalTests] = useState<Omit<Quiz, "questions">[]>([]);
+  const [globalTestsExpanded, setGlobalTestsExpanded] = useState<boolean>(!!searchParams.get("uploadJobId"));
+
+  const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+
+  const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
+    try {
+      const uniques = await getUniqueQuestionsForQuiz(quiz.id);
+      if (uniques.length > 0) {
+        setQuizToDelete({ id: quiz.id, title: quiz.title });
+        setUniqueQuestionsForDelete(uniques);
+      } else {
+        if (!confirm(`Delete test: "${quiz.title}"?`)) return;
+        await deleteQuiz(quiz.id);
+        fetchGlobalTests();
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to check unique questions.");
+    }
+  };
 
   const fetchQuestions = useCallback(async () => {
     setLoading(true);
@@ -79,6 +114,42 @@ export default function TestBankPage() {
     if (!userLoading) void fetchGlobalTests();
   }, [userLoading, fetchGlobalTests]);
 
+  useEffect(() => {
+    if (!uploadJobId) return;
+    let cancelled = false;
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const status = await getBulkParseJobStatus(uploadJobId);
+          if (status.status === "completed") {
+            if (!cancelled) {
+              setUploadJobId(null);
+              fetchGlobalTests();
+              router.replace("/dashboard/test-bank");
+            }
+            break;
+          } else if (status.status === "failed") {
+            if (!cancelled) {
+              setUploadJobId(null);
+              alert("Quiz upload failed: " + (status.error || "Unknown error"));
+              router.replace("/dashboard/test-bank");
+            }
+            break;
+          } else {
+            if (!cancelled) {
+              setUploadStatus(status.status === "active" ? "Processing quiz..." : "Queued...");
+            }
+          }
+        } catch (err) {
+          // Ignore transient errors
+        }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    };
+    poll();
+    return () => { cancelled = true; };
+  }, [uploadJobId, fetchGlobalTests, router]);
+
   if (userLoading) return <LoadingState />;
 
   function openAdd()  { setEditTarget(null); setPanelOpen(true); }
@@ -100,7 +171,10 @@ export default function TestBankPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Delete ${selectedIds.size} selected question(s)?`)) return;
     try {
-      await deleteQuestions(Array.from(selectedIds));
+      const res = await deleteQuestions(Array.from(selectedIds));
+      if (res.skipped > 0) {
+        alert(`Deleted ${res.deleted} question(s).\nSkipped ${res.skipped} question(s) because they are actively used in quizzes.`);
+      }
       invalidate('quizzes');
       setSelectedIds(new Set());
       void fetchQuestions();
@@ -143,22 +217,69 @@ export default function TestBankPage() {
       )}
 
       {/* ── Program / Global tests ────────────────────────── */}
-      {globalTests.length > 0 && (
+      {(globalTests.length > 0 || uploadJobId) && (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
-          <div style={{ padding: "18px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-            <p style={labelStyle}>Program Quizzes</p>
-            <p style={{ ...mutedStyle, fontSize: "13px", marginTop: "2px" }}>
-              {globalTests.length} created · click Edit to manage questions &amp; settings
-            </p>
+          <div 
+            onClick={() => setGlobalTestsExpanded(e => !e)}
+            style={{ padding: "18px 24px", borderBottom: globalTestsExpanded ? "1px solid rgba(3,72,82,0.06)" : "none", display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer", background: globalTestsExpanded ? "linear-gradient(135deg, rgba(3,72,82,0.03) 0%, rgba(10,190,98,0.03) 100%)" : "transparent", transition: "background 150ms ease", gap: "12px" }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
+              <p style={{ ...labelStyle, margin: 0 }}>Program Quizzes</p>
+              <p style={{ ...mutedStyle, fontSize: "13px", margin: 0 }}>
+                {globalTests.length} created · click Edit to manage questions &amp; settings
+              </p>
+            </div>
+            <button
+                type="button"
+                style={{ flexShrink: 0, padding: "6px 12px", background: "rgba(32,147,121,0.08)", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: 700, color: "#209379", cursor: "pointer", marginTop: "2px" }}
+              >
+                {globalTestsExpanded ? "Collapse" : "Expand"}
+            </button>
           </div>
-          {globalTests.map((t, i) => (
-            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => {
-              if (confirm(`Delete test: "${t.title}"?`)) {
-                deleteQuiz(t.id).then(() => fetchGlobalTests()).catch(e => alert(e.message));
-              }
-            }} />
+          {globalTestsExpanded && uploadJobId && (
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                  <div style={{ width: "200px", height: "18px", background: "rgba(3,72,82,0.1)", borderRadius: "4px", animation: "og-pulse 1.5s infinite ease-in-out" }}></div>
+                </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <div style={{ width: "40px", height: "14px", background: "rgba(3,72,82,0.05)", borderRadius: "10px" }}></div>
+                  <div style={{ width: "80px", height: "14px", background: "rgba(3,72,82,0.05)", borderRadius: "10px" }}></div>
+                </div>
+              </div>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "#209379", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span aria-hidden style={{ width: "14px", height: "14px", border: "2px solid rgba(32,147,121,0.25)", borderTopColor: "#209379", borderRadius: "50%", animation: "og-spin 0.8s linear infinite" }} />
+                {uploadStatus}
+              </div>
+              <style>{`@keyframes og-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } } @keyframes og-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+          {globalTestsExpanded && globalTests.map((t, i) => (
+            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => handleDeleteQuiz(t)} />
           ))}
         </div>
+      )}
+
+      {quizToDelete && (
+        <QuizDeleteModal 
+          quizTitle={quizToDelete.title}
+          uniqueQuestions={uniqueQuestionsForDelete}
+          onClose={() => setQuizToDelete(null)}
+          onConfirm={async (selectedIds) => {
+            try {
+              await deleteQuiz(quizToDelete.id);
+              if (selectedIds.length > 0) {
+                await deleteQuestions(selectedIds);
+                await cleanupOrphanedImages();
+              }
+              setQuizToDelete(null);
+              fetchGlobalTests();
+              fetchQuestions();
+            } catch (e) {
+              alert(e instanceof Error ? e.message : "Deletion failed.");
+            }
+          }}
+        />
       )}
 
       {/* ── Filter bar ────────────────────────────────────── */}
@@ -209,6 +330,18 @@ export default function TestBankPage() {
         </div>
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", gap: "12px", alignItems: "center", background: "rgba(3,72,82,0.01)" }}>
+            <input 
+              type="checkbox" 
+              checked={questions.length > 0 && selectedIds.size === questions.length}
+              onChange={(e) => {
+                if (e.target.checked) setSelectedIds(new Set(questions.map(q => q.id)));
+                else setSelectedIds(new Set());
+              }}
+              style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
+            />
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({questions.length} questions)</span>
+          </div>
           {questions.map((q, i) => (
             <QuestionRow
               key={q.id}

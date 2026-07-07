@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import { toast } from "sonner";
 import {
   markAllNotificationsRead,
   markAllAnnouncementsRead,
@@ -70,8 +71,46 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Toast for new notifications
+  const latestItemId = items[0]?.id;
+  const previousLatestItemId = useRef(latestItemId);
+  const initialLoadRef = useRef(true);
+
+  useEffect(() => {
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      previousLatestItemId.current = latestItemId;
+      return;
+    }
+
+    if (items.length > 0 && latestItemId !== previousLatestItemId.current) {
+      if (previousLatestItemId.current !== undefined) {
+        const previousLatestItem = items.find(i => i.id === previousLatestItemId.current);
+        const newItems = previousLatestItem 
+          ? items.filter(item => item.created_at > previousLatestItem.created_at)
+          : [items[0]];
+        
+        newItems.forEach(item => {
+          if (!item.is_read) {
+            toast(item.title, {
+              description: item.body,
+              icon: itemIcon(item),
+            });
+          }
+        });
+      }
+      previousLatestItemId.current = latestItemId;
+    }
+  }, [items, latestItemId]);
+
   function handleOpen() {
-    setOpen(prev => !prev);
+    setOpen(prev => {
+      const next = !prev;
+      if (next && count > 0) {
+        void handleMarkAll();
+      }
+      return next;
+    });
   }
 
   async function handleMarkAll() {
