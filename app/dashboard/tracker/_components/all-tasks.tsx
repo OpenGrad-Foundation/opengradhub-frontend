@@ -4,6 +4,9 @@ import { useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useTrackerAllTasks, useTrackerZms } from "@/lib/queries/tracker";
 import type { TrackerAllTasksFilters, TrackerAllTaskRow } from "@/lib/tracker-api";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { NudgeButton } from "./nudge-button";
 
 const LIFECYCLE_LABEL: Record<string, string> = {
   done: "Done", blocked: "Stuck", overdue: "Overdue",
@@ -16,6 +19,7 @@ export function AllTasksPanel() {
   const set = (patch: Partial<TrackerAllTasksFilters>) => setF((p) => ({ ...p, page: 1, ...patch }));
   const { data: zms = [] } = useTrackerZms();
   const { data, isLoading, error } = useTrackerAllTasks(f);
+  const canNudge = usePermissions().has(PERM.tracker.author);
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -94,6 +98,7 @@ export function AllTasksPanel() {
                   <th className="px-4 py-3 font-semibold">Priority</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Due</th>
+                  {canNudge && <th className="px-4 py-3 font-semibold" />}
                 </tr>
               </thead>
               <tbody>
@@ -110,6 +115,11 @@ export function AllTasksPanel() {
                     <td className="px-4 py-3 capitalize text-gray-600">{r.priority}</td>
                     <td className="px-4 py-3 text-gray-700">{LIFECYCLE_LABEL[r.lifecycle] ?? r.lifecycle}</td>
                     <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
+                    {canNudge && (
+                      <td className="px-4 py-3">
+                        {r.doer_id && r.lifecycle !== "done" && <NudgeButton doerId={r.doer_id} templateId={r.template_id} lastNudgedAt={r.last_nudged_at} />}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

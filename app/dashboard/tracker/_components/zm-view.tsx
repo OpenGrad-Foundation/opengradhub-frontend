@@ -4,6 +4,9 @@ import { useState } from "react";
 import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useTrackerZms, useTrackerZmFellows, useTrackerFellowTasks } from "@/lib/queries/tracker";
 import { TaskListView } from "./my-tasks";
+import { NudgeButton } from "./nudge-button";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 
 function Loading() {
   return <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
@@ -75,6 +78,7 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
   const fellows = useTrackerZmFellows(zm.id);
   const [fellow, setFellow] = useState<{ id: string; name: string } | null>(null);
   const fellowTasks = useTrackerFellowTasks(fellow?.id);
+  const canNudge = usePermissions().has(PERM.tracker.author);
 
   if (fellow) {
     return (
@@ -107,9 +111,9 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <ul className="divide-y divide-gray-100">
               {(fellows.data ?? []).map((f) => (
-                <li key={f.id}>
+                <li key={f.id} className="flex items-center gap-2 px-1">
                   <button type="button" onClick={() => setFellow({ id: f.id, name: f.name })}
-                    className="group flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3.5 text-left text-sm transition-colors hover:bg-teal-50">
+                    className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-3.5 text-left text-sm transition-colors hover:bg-teal-50">
                     <span className="truncate font-medium text-gray-900">{f.name}</span>
                     <span className="flex shrink-0 items-center gap-3">
                       <span className="hidden items-center gap-2 text-xs sm:flex">
@@ -120,6 +124,9 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
                       <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
                     </span>
                   </button>
+                  {canNudge && f.pending > 0 && (
+                    <NudgeButton doerId={f.id} lastNudgedAt={f.last_nudged_all_at} label="Nudge all" />
+                  )}
                 </li>
               ))}
             </ul>

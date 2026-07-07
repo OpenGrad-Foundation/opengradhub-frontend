@@ -333,7 +333,7 @@ export function getTrackerMyTasks() {
   return trackerJson<TrackerMyTask[]>("/tracker/my-tasks");
 }
 
-export type TrackerFellowSummary = TrackerAssignable & { total: number; done: number; pending: number };
+export type TrackerFellowSummary = TrackerAssignable & { total: number; done: number; pending: number; last_nudged_all_at: string | null; };
 
 export function getTrackerFellows() {
   return trackerJson<TrackerFellowSummary[]>("/tracker/fellows");
@@ -359,6 +359,7 @@ export type TrackerAllTaskRow = {
   zm_id: string | null; zm_name: string | null;
   state: string | null; district: string | null;
   priority: TrackerPriority; lifecycle: string; deadline: string | null;
+  last_nudged_at: string | null;
 };
 
 export type TrackerAllTasksPage = {
@@ -442,4 +443,8 @@ export function getBlockerThread(blockerId: string) {
 
 export function addBlockerComment(blockerId: string, text: string) {
   return trackerJson<{ ok: true }>(`/tracker/blockers/${encodeURIComponent(blockerId)}/comment`, jsonInit("POST", { text }));
+}
+
+export function nudgeTracker(body: { doerId: string; templateId?: string }) {
+  return trackerJson<{ sent: boolean; nextAllowedAt: string }>("/tracker/nudges", jsonInit("POST", body));
 }

@@ -37,6 +37,7 @@ import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
 import { ZmView } from "./_components/zm-view";
+import { NudgeButton } from "./_components/nudge-button";
 import PushNudge from "@/components/PushNudge";
 
 type TrackerTab = "allTasks" | "myTasks" | "blockers" | "builder";
@@ -135,9 +136,10 @@ export default function TrackerPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            <OverviewStrip />
             {canAuthor ? (
-              isPmOrAdmin ? (
+              <>
+              <OverviewStrip />
+              {isPmOrAdmin ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
@@ -149,7 +151,8 @@ export default function TrackerPage() {
                 </div>
               ) : (
                 <TeamPanel onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
-              )
+              )}
+              </>
             ) : (
               <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); }} />
             )}
@@ -247,6 +250,7 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
   const [q, setQ] = useState("");
   const tasks = useTrackerFellowTasks(sel?.id);
+  const canNudge = usePermissions().has(PERM.tracker.author);
 
   if (sel) {
     return (
@@ -279,11 +283,11 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
       ) : (
         <ul className="divide-y divide-gray-100">
           {shown.map((f) => (
-            <li key={f.id}>
+            <li key={f.id} className="flex items-center gap-2 px-1">
               <button
                 type="button"
                 onClick={() => setSel({ id: f.id, name: f.name })}
-                className="group flex w-full cursor-pointer items-center justify-between gap-3 px-4 py-3.5 text-left text-sm transition-colors hover:bg-teal-50"
+                className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-3.5 text-left text-sm transition-colors hover:bg-teal-50"
               >
                 <span className="flex min-w-0 items-center gap-2 font-medium text-gray-900">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700">
@@ -309,6 +313,9 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
                   </span>
                 </span>
               </button>
+              {canNudge && f.pending > 0 && (
+                <NudgeButton doerId={f.id} lastNudgedAt={f.last_nudged_all_at} label="Nudge all" />
+              )}
             </li>
           ))}
         </ul>

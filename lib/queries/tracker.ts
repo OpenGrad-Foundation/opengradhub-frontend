@@ -33,6 +33,7 @@ import {
   uploadProofPhoto,
   captureProofLocation,
   deleteProofPhoto,
+  nudgeTracker,
   type AddTrackerFieldsInput,
   type CreateTrackerTemplateInput,
   type TrackerBatchEdit,
@@ -297,6 +298,14 @@ export function useDeleteProofPhoto(recordId: string) {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (proofId: string) => deleteProofPhoto(recordId, proofId),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useNudge() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (v: { doerId: string; templateId?: string }) => nudgeTracker(v),
     onSuccess: () => invalidate('tracker'),
   });
 }

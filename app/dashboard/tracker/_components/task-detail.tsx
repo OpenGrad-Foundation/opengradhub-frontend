@@ -9,7 +9,7 @@ import { AudiencePicker } from "./audience-picker";
 
 const TARGET_LABEL: Record<string, string> = {
   student: "One row per student",
-  fellow: "One task per fellow",
+  fellow: "One task per staff member",
   school: "One task per school",
 };
 
@@ -148,14 +148,14 @@ export function TaskDetail({
         </div>
       )}
 
-      {canAuthor && !editing && <TaskSummary templateId={template.id} />}
+      {canAuthor && !editing && <TaskSummary templateId={template.id} targetType={template.target_type} />}
 
       {canAuthor && !editing && <AssignSection template={template} canAuthor={canAuthor} />}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">
           <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
-          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. Fellows fill these in on the task itself; “Auto-filled” ones come from the record.</p>
+          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. The assignee fills these in on the task itself; “Auto-filled” ones come from the record.</p>
         </div>
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -206,7 +206,7 @@ function FieldRow({ templateId, field: f, editing }: { templateId: string; field
   );
 }
 
-const TARGET_PLURAL: Record<string, string> = { student: "students", school: "schools", fellow: "fellows" };
+const TARGET_PLURAL: Record<string, string> = { student: "students", school: "schools", fellow: "staff" };
 
 function AssignSection({ template, canAuthor }: { template: TrackerTemplate; canAuthor: boolean }) {
   const invalidate = useInvalidate();
@@ -247,8 +247,11 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
   );
 }
 
-function TaskSummary({ templateId }: { templateId: string }) {
+function TaskSummary({ templateId, targetType }: { templateId: string; targetType: TrackerTargetType }) {
   const { data: rows = [], isLoading } = useTrackerSummary(templateId);
+  // For a user-doer (fellow) task the row IS the assignee (a fellow or a delegated manager);
+  // for student/school tasks the row is the fellow who owns that school.
+  const ownerHeader = targetType === "fellow" ? "Staff member" : "Fellow";
   const totals = rows.reduce(
     (a, r) => ({ done: a.done + r.done, pending: a.pending + r.pending, blocked: a.blocked + r.blocked, overdue: a.overdue + r.overdue }),
     { done: 0, pending: 0, blocked: 0, overdue: 0 },
@@ -257,7 +260,7 @@ function TaskSummary({ templateId }: { templateId: string }) {
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h3 className="text-base font-semibold text-gray-950">Progress</h3>
-        <p className="mt-0.5 text-xs text-gray-500">How your fellows are doing on this task.</p>
+        <p className="mt-0.5 text-xs text-gray-500">How your team is doing on this task.</p>
       </div>
       {isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -276,7 +279,7 @@ function TaskSummary({ templateId }: { templateId: string }) {
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-3 py-2 font-semibold">Fellow</th>
+                    <th className="px-3 py-2 font-semibold">{ownerHeader}</th>
                     <th className="px-3 py-2 font-semibold">Done</th>
                     <th className="px-3 py-2 font-semibold">Pending</th>
                     <th className="px-3 py-2 font-semibold">Blocked</th>
