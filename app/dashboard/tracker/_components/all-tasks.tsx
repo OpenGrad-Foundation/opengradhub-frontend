@@ -1,20 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { useTrackerAllTasks, useTrackerZms } from "@/lib/queries/tracker";
 import type { TrackerAllTasksFilters, TrackerAllTaskRow } from "@/lib/tracker-api";
+import { TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } from "@/lib/tracker-status";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { NudgeButton } from "./nudge-button";
+import { StatusCards } from "./status-cards";
 
-const LIFECYCLE_LABEL: Record<string, string> = {
-  done: "Done", blocked: "Stuck", overdue: "Overdue",
-  in_progress: "In progress", not_started: "To do",
-};
 const selCls = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500";
+const ZERO_COUNTS: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
 
-export function AllTasksPanel() {
+export function AllTasksPanel({ onOpen }: { onOpen: (templateId: string, doerId: string) => void }) {
   const [f, setF] = useState<TrackerAllTasksFilters>({ page: 1, limit: 50 });
   const set = (patch: Partial<TrackerAllTasksFilters>) => setF((p) => ({ ...p, page: 1, ...patch }));
   const { data: zms = [] } = useTrackerZms();
@@ -26,9 +25,15 @@ export function AllTasksPanel() {
   const limit = f.limit ?? 50;
   const page = f.page ?? 1;
   const pages = Math.max(1, Math.ceil(total / limit));
+  const stateCounts = data?.stateCounts ?? ZERO_COUNTS;
 
   return (
     <div className="flex flex-col gap-3">
+      <StatusCards
+        counts={stateCounts}
+        activeState={(f.status ?? null) as TaskState | null}
+        onSelect={(s) => set({ status: f.status === s ? undefined : s })}
+      />
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={f.q ?? ""} onChange={(e) => set({ q: e.target.value })}
@@ -50,11 +55,7 @@ export function AllTasksPanel() {
         </select>
         <select value={f.status ?? ""} onChange={(e) => set({ status: (e.target.value || undefined) as TrackerAllTasksFilters["status"] })} className={selCls}>
           <option value="">All statuses</option>
-          <option value="not_started">To do</option>
-          <option value="in_progress">In progress</option>
-          <option value="blocked">Stuck</option>
-          <option value="overdue">Overdue</option>
-          <option value="done">Done</option>
+          {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
         </select>
         <input value={f.state ?? ""} onChange={(e) => set({ state: e.target.value || undefined })} placeholder="State" className={selCls + " w-28"} />
         <input value={f.district ?? ""} onChange={(e) => set({ district: e.target.value || undefined })} placeholder="District" className={selCls + " w-28"} />
@@ -96,32 +97,42 @@ export function AllTasksPanel() {
                   <th className="px-4 py-3 font-semibold">State</th>
                   <th className="px-4 py-3 font-semibold">District</th>
                   <th className="px-4 py-3 font-semibold">Priority</th>
+                  <th className="px-4 py-3 font-semibold">Progress</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Due</th>
-                  {canNudge && <th className="px-4 py-3 font-semibold" />}
+                  <th className="px-4 py-3 font-semibold" />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r: TrackerAllTaskRow) => (
-                  <tr key={r.record_id} className="border-t border-gray-100">
-                    <td className="px-4 py-3 font-medium text-gray-950">{r.task_name}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {r.doer_name ?? "—"}
-                      {r.doer_role === "ZONAL_MANAGER" && <span className="ml-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">ZM</span>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{r.zm_name ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-600">{prettyState(r.state)}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.district ?? "—"}</td>
-                    <td className="px-4 py-3 capitalize text-gray-600">{r.priority}</td>
-                    <td className="px-4 py-3 text-gray-700">{LIFECYCLE_LABEL[r.lifecycle] ?? r.lifecycle}</td>
-                    <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
-                    {canNudge && (
-                      <td className="px-4 py-3">
-                        {r.doer_id && r.lifecycle !== "done" && <NudgeButton doerId={r.doer_id} templateId={r.template_id} lastNudgedAt={r.last_nudged_at} />}
+                {rows.map((r: TrackerAllTaskRow) => {
+                  const clickable = Boolean(r.doer_id);
+                  return (
+                    <tr
+                      key={`${r.template_id}:${r.doer_id ?? "none"}`}
+                      onClick={() => { if (r.doer_id) onOpen(r.template_id, r.doer_id); }}
+                      className={"border-t border-gray-100 " + (clickable ? "cursor-pointer transition-colors hover:bg-teal-50/50" : "")}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-950">{r.task_name}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {r.doer_name ?? "—"}
+                        {r.doer_role === "ZONAL_MANAGER" && <span className="ml-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">ZM</span>}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td className="px-4 py-3 text-gray-600">{r.zm_name ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-600">{prettyState(r.state)}</td>
+                      <td className="px-4 py-3 text-gray-600">{r.district ?? "—"}</td>
+                      <td className="px-4 py-3 capitalize text-gray-600">{r.priority}</td>
+                      <td className="px-4 py-3 text-gray-700">{r.done}/{r.total} done</td>
+                      <td className="px-4 py-3"><StatePill state={r.rolled_state} /></td>
+                      <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          {canNudge && r.doer_id && r.rolled_state !== "done" && <NudgeButton doerId={r.doer_id} templateId={r.template_id} lastNudgedAt={r.last_nudged_at} />}
+                          {clickable && <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -138,6 +149,17 @@ export function AllTasksPanel() {
       </div>
     </div>
   );
+}
+
+function StatePill({ state }: { state: TaskState }) {
+  const meta = TASK_STATE_META[state];
+  const toneClass = {
+    green: "bg-emerald-50 text-emerald-700",
+    gray: "bg-gray-100 text-gray-700",
+    red: "bg-red-50 text-red-700",
+    amber: "bg-amber-50 text-amber-700",
+  }[meta.tone];
+  return <span className={`inline-flex w-20 justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>{meta.label}</span>;
 }
 
 function prettyState(s: string | null): string {

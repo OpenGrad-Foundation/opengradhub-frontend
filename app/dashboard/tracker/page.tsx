@@ -32,7 +32,7 @@ import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTemplate } from 
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { StatusCards } from "./_components/status-cards";
-import { countByTaskState, rollupFromCounts, type StateCounts } from "@/lib/tracker-status";
+import { countByTaskState, rollupFromCounts, TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
 import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
@@ -71,6 +71,9 @@ export default function TrackerPage() {
 
   const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
   const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
+  // Manager overview: when a status card is clicked, show only the tasks in that state
+  // (replacing the team roster) until cleared. Null = no filter, show the roster.
+  const [overviewState, setOverviewState] = useState<TaskState | null>(null);
   const [fillTemplateId, setFillTemplateId] = useState<string | null>(null);
   // Set when a manager drills into a task from one fellow's list, so the grid scopes to that
   // fellow's rows instead of the manager's whole scope. Null = caller's own scope.
@@ -125,7 +128,16 @@ export default function TrackerPage() {
       {templatesError ? (
         <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
       ) : safeActiveTab === "allTasks" ? (
-        <AllTasksPanel />
+        fillTemplateId ? (
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to all tasks
+            </button>
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
+          </div>
+        ) : (
+          <AllTasksPanel onOpen={(tid, did) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(did); }} />
+        )
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
@@ -138,8 +150,14 @@ export default function TrackerPage() {
           <div className="flex flex-col gap-4">
             {canAuthor ? (
               <>
-              <OverviewStrip />
-              {isPmOrAdmin ? (
+              <OverviewStrip activeState={overviewState} onSelect={(s) => setOverviewState((prev) => (prev === s ? null : s))} />
+              {overviewState ? (
+                <OverviewFilteredTasks
+                  state={overviewState}
+                  onClear={() => setOverviewState(null)}
+                  onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); }}
+                />
+              ) : isPmOrAdmin ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
@@ -377,15 +395,73 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
   );
 }
 
-/** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state. */
-function OverviewStrip() {
+/** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state.
+ *  Cards are filter toggles — clicking one shows only that state's tasks below. */
+function OverviewStrip({ activeState, onSelect }: { activeState: TaskState | null; onSelect: (s: TaskState) => void }) {
   const overview = useTrackerOverview();
   const counts: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
   for (const task of overview.data?.perTask ?? []) {
     const state = rollupFromCounts(task); // null for a task with no records in scope — skip it
     if (state) counts[state] += 1;
   }
-  return <StatusCards counts={counts} />;
+  return <StatusCards counts={counts} activeState={activeState} onSelect={onSelect} />;
+}
+
+/** Tasks whose rolled-up state matches the clicked overview card. Program-wide for PM/Admin,
+ *  team-wide for a ZM — both come from the same overview endpoint, so counts match the card
+ *  exactly. Opening a task drills into its whole-scope grid. */
+function OverviewFilteredTasks({
+  state,
+  onOpen,
+  onClear,
+}: {
+  state: TaskState;
+  onOpen: (templateId: string) => void;
+  onClear: () => void;
+}) {
+  const overview = useTrackerOverview();
+  const meta = TASK_STATE_META[state];
+  const tasks = (overview.data?.perTask ?? []).filter((t) => rollupFromCounts(t) === state);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-950">{meta.label} tasks</h3>
+        <button type="button" onClick={onClear} className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900">
+          <X className="h-4 w-4" aria-hidden="true" /> Clear filter
+        </button>
+      </div>
+      {overview.isLoading ? (
+        <TrackerLoading />
+      ) : tasks.length === 0 ? (
+        <EmptyPanel title={`No ${meta.label.toLowerCase()} tasks`} detail="Nothing matches this status right now." />
+      ) : (
+        <ul className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          {tasks.map((task) => {
+            const total = task.done + task.pending + task.blocked + task.overdue;
+            return (
+              <li key={task.template_id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(task.template_id)}
+                  className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-teal-50/50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-950">{task.name}</p>
+                    <p className="mt-0.5 text-xs text-gray-500">{task.done}/{total} done · {total} target{total === 1 ? "" : "s"}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <StatusPill label={meta.label} tone={meta.tone} />
+                    <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function GridPanel({

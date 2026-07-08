@@ -348,22 +348,25 @@ export function getTrackerFellowTasks(fellowId: string) {
 export type TrackerAllTasksFilters = {
   doerType?: "zm" | "fellow"; zmId?: string; fellowId?: string;
   state?: string; district?: string; priority?: TrackerPriority;
-  status?: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+  status?: "done" | "pending" | "overdue" | "blocked";
   q?: string; groupBy?: "zm" | "fellow"; page?: number; limit?: number;
 };
 
 export type TrackerAllTaskRow = {
-  record_id: string; template_id: string; task_name: string;
+  template_id: string; task_name: string;
   doer_id: string | null; doer_name: string | null;
   doer_role: "FELLOW" | "ZONAL_MANAGER" | null;
   zm_id: string | null; zm_name: string | null;
   state: string | null; district: string | null;
-  priority: TrackerPriority; lifecycle: string; deadline: string | null;
+  priority: TrackerPriority; deadline: string | null;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: "done" | "pending" | "overdue" | "blocked";
   last_nudged_at: string | null;
 };
 
 export type TrackerAllTasksPage = {
   rows: TrackerAllTaskRow[]; total: number; page: number; limit: number;
+  stateCounts: { done: number; pending: number; blocked: number; overdue: number };
   groupCounts?: Array<{ key: string; label: string; count: number }>;
 };
 
