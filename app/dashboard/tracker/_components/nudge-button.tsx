@@ -27,7 +27,7 @@ export function NudgeButton({
 
   if (within) {
     return (
-      <button type="button" disabled className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-400" title={`Reminded ${hoursAgo(lastNudgedAt!)}`}>
+      <button type="button" disabled className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-400" title={`Reminded ${hoursAgo(lastNudgedAt!)}`}>
         <Bell className="h-3.5 w-3.5" aria-hidden="true" /> Reminded {hoursAgo(lastNudgedAt!)}
       </button>
     );
@@ -37,7 +37,7 @@ export function NudgeButton({
       type="button"
       onClick={(e) => { e.stopPropagation(); nudge.mutate({ doerId, templateId }); }}
       disabled={nudge.isPending}
-      className="inline-flex items-center gap-1 rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:opacity-50"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:opacity-50"
     >
       {nudge.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Bell className="h-3.5 w-3.5" aria-hidden="true" />} {label}
     </button>
