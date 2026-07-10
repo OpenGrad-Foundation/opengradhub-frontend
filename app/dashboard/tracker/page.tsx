@@ -12,6 +12,7 @@ import {
   Send,
   Table2,
   X,
+  Users,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -30,6 +31,7 @@ import {
 } from "@/lib/queries/tracker";
 import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTemplate } from "@/lib/tracker-api";
 import { TrackerBuilder } from "./_components/tracker-builder";
+import { StudentFieldsManager } from "./_components/student-fields-manager";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { StatusCards } from "./_components/status-cards";
 import { countByTaskState, rollupFromCounts, TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
@@ -39,14 +41,18 @@ import { AllTasksPanel } from "./_components/all-tasks";
 import { ZmView } from "./_components/zm-view";
 import { NudgeButton } from "./_components/nudge-button";
 import PushNudge from "@/components/PushNudge";
+import { HierarchicalStudentsPanel } from "./_components/hierarchical-students";
+import { GraduationCap } from "lucide-react";
 
-type TrackerTab = "allTasks" | "myTasks" | "blockers" | "builder";
+type TrackerTab = "allTasks" | "myTasks" | "blockers" | "builder" | "studentDetails" | "myStudents";
 
 const tabLabels: Record<TrackerTab, string> = {
   allTasks: "All Tasks",
   myTasks: "Tasks",
   blockers: "Blockers",
+  myStudents: "Team & Students",
   builder: "New task",
+  studentDetails: "Fields Setup",
 };
 
 export default function TrackerPage() {
@@ -65,7 +71,9 @@ export default function TrackerPage() {
     if (isPmOrAdmin) next.push("allTasks");                 // program-wide task list — PM/Admin only
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
+    if (canFill || isManagerView) next.push("myStudents"); // own students list
     if (canAuthor) next.push("builder");                   // new + manage templates
+    if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
   }, [canAuthor, canFill, isManagerView, isPmOrAdmin]);
 
@@ -187,6 +195,12 @@ export default function TrackerPage() {
           isManagerView={isManagerView}
           canClear={canClear}
         />
+      ) : safeActiveTab === "studentDetails" ? (
+        <div className="flex flex-col gap-4">
+          <StudentFieldsManager canAuthor={canAuthor} />
+        </div>
+      ) : safeActiveTab === "myStudents" ? (
+        <HierarchicalStudentsPanel />
       ) : (
         <NewTaskPanel canAuthor={canAuthor} canFill={canFill} canClear={canClear} />
       )}
@@ -716,6 +730,8 @@ function TabIcon({ tab }: { tab: TrackerTab }) {
   if (tab === "allTasks") return <LayoutList {...props} />;
   if (tab === "myTasks") return <Table2 {...props} />;
   if (tab === "blockers") return <AlertCircle {...props} />;
+  if (tab === "myStudents") return <GraduationCap {...props} />;
+  if (tab === "studentDetails") return <Users {...props} />;
   return <PencilRuler {...props} />;
 }
 

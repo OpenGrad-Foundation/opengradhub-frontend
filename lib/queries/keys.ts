@@ -90,4 +90,11 @@ export const qk = {
   trackerAllTasks: (f: Record<string, unknown>) => ['og', 'tracker', 'all-tasks', f] as const,
   trackerZms: () => ['og', 'tracker', 'zms'] as const,
   trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
+  trackerFellowSchools: (fellowId: string) => ['og', 'tracker', 'fellow-schools', fellowId] as const,
+  trackerSchoolStudents: (schoolId: string) => ['og', 'tracker', 'school-students', schoolId] as const,
+  trackerPms: () => ['og', 'tracker', 'pms'] as const,
+  trackerPmZms: (pmId: string) => ['og', 'tracker', 'pm-zms', pmId] as const,
+  trackerStudentFields: (status?: string) => ['og', 'tracker', 'student-fields', status ?? 'all'] as const,
+  trackerStudentDetails: (studentId: string) => ['og', 'tracker', 'student-details', studentId] as const,
+  trackerProfilePaths: (target: string) => ['og', 'tracker', 'profile-paths', target] as const,
 };

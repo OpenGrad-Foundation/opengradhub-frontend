@@ -80,6 +80,10 @@ export type TrackerGridRow = {
   blocker: { id: string; text: string } | null;
   school_name: string | null;
   target_name: string | null;
+  /** The row's target entity id (student/school/fellow user id). Present for student-target
+   *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
+   *  Optional for backward-compatibility while the grid projection is updated to emit it. */
+  target_id?: string | null;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -168,7 +172,7 @@ async function trackerJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-function jsonInit(method: "POST" | "PATCH", body: unknown): RequestInit {
+function jsonInit(method: "POST" | "PATCH" | "PUT", body: unknown): RequestInit {
   return {
     method,
     headers: { "Content-Type": "application/json" },
@@ -390,6 +394,34 @@ export function getTrackerZmFellows(zmId: string) {
   return trackerJson<TrackerFellowSummary[]>(`/tracker/zms/${encodeURIComponent(zmId)}/fellows`);
 }
 
+export type TrackerFellowSchoolRow = {
+  id: string; name: string; state: string | null; district: string | null;
+};
+
+export function getTrackerFellowSchools(fellowId: string) {
+  return trackerJson<TrackerFellowSchoolRow[]>(`/tracker/fellows/${encodeURIComponent(fellowId)}/schools`);
+}
+
+export type TrackerSchoolStudentRow = {
+  id: string; name: string; programme: string | null;
+};
+
+export function getTrackerSchoolStudents(schoolId: string) {
+  return trackerJson<TrackerSchoolStudentRow[]>(`/tracker/schools/${encodeURIComponent(schoolId)}/students`);
+}
+
+export type TrackerPmRosterRow = {
+  id: string; name: string; zm_count: number;
+};
+
+export function getTrackerPms() {
+  return trackerJson<TrackerPmRosterRow[]>("/tracker/pms");
+}
+
+export function getTrackerPmZms(pmId: string) {
+  return trackerJson<TrackerZmRosterRow[]>(`/tracker/pms/${encodeURIComponent(pmId)}/zms`);
+}
+
 export type TrackerEventType =
   | "record_created"
   | "status_changed"
@@ -450,4 +482,131 @@ export function addBlockerComment(blockerId: string, text: string) {
 
 export function nudgeTracker(body: { doerId: string; templateId?: string }) {
   return trackerJson<{ sent: boolean; nextAllowedAt: string }>("/tracker/nudges", jsonInit("POST", body));
+}
+
+// --- Additional Student Details (Fellow Tracker) ---------------------------
+// PM-defined dynamic student attributes (e.g. Date of Birth, Aadhaar URL) that
+// Fellows fill per student and templates auto-fill via `student.custom.<field_key>`.
+
+export type TrackerStudentFieldStatus = "active" | "archived";
+
+export type TrackerStudentFieldDef = {
+  id: string;
+  field_key: string;
+  label: string;
+  field_type: TrackerFieldType;
+  options: string[] | null;
+  required: boolean;
+  sort_order: number;
+  status: TrackerStudentFieldStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TrackerStudentDetail = {
+  field: TrackerStudentFieldDef;
+  value: unknown | null;
+  updated_at: string | null;
+};
+
+export type TrackerStudentDetailsResponse = {
+  student_id: string;
+  details: TrackerStudentDetail[];
+};
+
+export type TrackerProfilePath = {
+  path: string;
+  label: string;
+  custom: boolean;
+};
+
+export type CreateStudentFieldInput = {
+  label: string;
+  field_type: TrackerFieldType;
+  options?: string[] | null;
+  required?: boolean;
+  sort_order?: number;
+};
+
+export type StudentFieldPatch = {
+  label?: string;
+  options?: string[] | null;
+  required?: boolean;
+  sort_order?: number;
+  status?: TrackerStudentFieldStatus;
+};
+
+export type SaveStudentDetailsResult = { student_id: string; saved: string[] };
+
+/**
+ * Thrown when the save-details endpoint returns a 400 with per-field validation
+ * errors. `fieldErrors` maps `field_key` → human message so the form can render
+ * each error next to its input.
+ */
+export class StudentDetailsValidationError extends ApiError {
+  readonly fieldErrors: Record<string, string>;
+  constructor(message: string, status: number, fieldErrors: Record<string, string>) {
+    super(message, status);
+    this.name = "StudentDetailsValidationError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+export function listStudentFields(status?: TrackerStudentFieldStatus) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return trackerJson<{ fields: TrackerStudentFieldDef[] }>(`/tracker/student-fields${qs}`);
+}
+
+export function createStudentField(input: CreateStudentFieldInput) {
+  return trackerJson<{ field: TrackerStudentFieldDef }>("/tracker/student-fields", jsonInit("POST", input));
+}
+
+export function updateStudentField(id: string, patch: StudentFieldPatch) {
+  return trackerJson<{ field: TrackerStudentFieldDef }>(
+    `/tracker/student-fields/${encodeURIComponent(id)}`,
+    jsonInit("PATCH", patch),
+  );
+}
+
+export function deleteStudentField(id: string) {
+  return trackerJson<void>(
+    `/tracker/student-fields/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getStudentDetails(
+studentId: string) {
+  return trackerJson<TrackerStudentDetailsResponse>(
+    `/tracker/students/${encodeURIComponent(studentId)}/details`,
+  );
+}
+
+export async function saveStudentDetails(
+  studentId: string,
+  values: Record<string, unknown>,
+): Promise<SaveStudentDetailsResult> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/tracker/students/${encodeURIComponent(studentId)}/details`,
+    jsonInit("PUT", { values }),
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { message?: string | string[]; errors?: Record<string, string> }
+      | null;
+    const message = Array.isArray(body?.message)
+      ? body.message[0]
+      : body?.message ?? "Could not save student details.";
+    if (res.status === 400 && body?.errors && typeof body.errors === "object") {
+      throw new StudentDetailsValidationError(message, res.status, body.errors);
+    }
+    throw new ApiError(message, res.status);
+  }
+  return (await res.json()) as SaveStudentDetailsResult;
+}
+
+export function listProfilePaths(target: TrackerTargetType) {
+  return trackerJson<{ paths: TrackerProfilePath[] }>(
+    `/tracker/profile-paths?target=${encodeURIComponent(target)}`,
+  );
 }

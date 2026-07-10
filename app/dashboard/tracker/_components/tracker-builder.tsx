@@ -16,9 +16,12 @@ import {
   profilePathLabel,
 } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { useProfilePaths } from "@/lib/queries/tracker";
 import { AudiencePicker } from "./audience-picker";
 
-// Mirrors the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts), per target type.
+// Fallback mirror of the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts),
+// used only when GET /tracker/profile-paths fails. The API is the source of truth and
+// additionally returns dynamic `student.custom.*` paths for PM-defined student fields.
 const FELLOW_PATHS = ["fellow.name", "fellow.email"] as const;
 const STUDENT_PATHS = ["student.name", "student.category", "student.district", "student.contact", "school.name", "school.code"] as const;
 const SCHOOL_PATHS: readonly string[] = []; // school projection not wired yet
@@ -77,8 +80,13 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const profilePaths = pathsFor(targetType);
-  const sources = sourcesFor(targetType);
+  // Source of truth for auto-fill paths: GET /tracker/profile-paths (static allow-list +
+  // dynamic student.custom.* fields). Falls back to the hardcoded mirror if the request fails.
+  const profilePathsQuery = useProfilePaths(targetType, canAuthor);
+  const apiPaths = profilePathsQuery.data?.paths ?? [];
+  const profilePaths: string[] = apiPaths.length ? apiPaths.map((p) => p.path) : [...pathsFor(targetType)];
+  const pathLabel = (p: string): string => apiPaths.find((x) => x.path === p)?.label ?? profilePathLabel(p);
+  const sources: TrackerFieldSource[] = profilePaths.length ? ["input", "profile"] : ["input"];
   const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "staff";
 
   if (!canAuthor) {
@@ -301,7 +309,20 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
               </select>
               {col.source === "profile" ? (
                 <select value={col.source_path} onChange={(e) => setColumn(i, { source_path: e.target.value })} className={inputClass}>
-                  {profilePaths.map((p) => <option key={p} value={p}>{profilePathLabel(p)}</option>)}
+                  {apiPaths.length > 0 ? (
+                    <>
+                      <optgroup label="Standard Details">
+                        {apiPaths.filter(p => !p.custom).map((p) => <option key={p.path} value={p.path}>{p.label}</option>)}
+                      </optgroup>
+                      {apiPaths.some(p => p.custom) && (
+                        <optgroup label="Additional Details">
+                          {apiPaths.filter(p => p.custom).map((p) => <option key={p.path} value={p.path}>{p.label}</option>)}
+                        </optgroup>
+                      )}
+                    </>
+                  ) : (
+                    profilePaths.map((p) => <option key={p} value={p}>{pathLabel(p)}</option>)
+                  )}
                 </select>
               ) : (col.field_type === "select" || col.field_type === "multiselect") ? (
                 <input value={col.optionsText} onChange={(e) => setColumn(i, { optionsText: e.target.value })} placeholder="choices: a, b" className={inputClass} />
