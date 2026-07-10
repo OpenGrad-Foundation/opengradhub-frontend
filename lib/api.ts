@@ -534,9 +534,11 @@ export type Course = {
   locking_mode: string;
   access_type: string;
   status: string;
+  tags: string[];
   created_by: string;
   created_at: string;
   lesson_count: number;
+  quiz_count?: number;
 };
 
 export type CourseListParams = {
@@ -548,6 +550,7 @@ export type CourseListParams = {
   status?: string;
   accessType?: string;
   lockingMode?: string;
+  tags?: string[];
   page?: number;
   pageSize?: number;
 };
@@ -571,6 +574,9 @@ function appendCourseListParams(url: URL, params: CourseListParams, paginate = f
   if (params.status) url.searchParams.set("status", params.status);
   if (params.accessType) url.searchParams.set("access_type", params.accessType);
   if (params.lockingMode) url.searchParams.set("locking_mode", params.lockingMode);
+  if (params.tags) {
+    params.tags.forEach(tag => url.searchParams.append("tags", tag));
+  }
   if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
   if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
   if (paginate) url.searchParams.set("paginate", "true");
@@ -719,7 +725,7 @@ export type CourseManagementStudentRow = {
 
 export type CourseManagementStudentDetail = CourseManagementStudentRow & {
   lessons: { id: string; title: string; module_title: string; is_complete: boolean; completed_at: string | null }[];
-  quiz_attempts: { id: string; title: string; score_percent: number | null; passed: boolean | null; submitted_at: string | null }[];
+  quiz_attempts: { id: string; quiz_id: string; title: string; score_percent: number | null; passed: boolean | null; submitted_at: string | null }[];
   assignments: { id: string; title: string; status: string; score: number | null; submitted_at: string | null }[];
 };
 
@@ -839,7 +845,7 @@ export type ModuleWithProgress = {
   lessons: LessonWithProgress[];
   is_module_complete: boolean;
   is_locked: boolean;
-  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
+  module_quizzes: Array<{ id: string; title: string; published: boolean; order_index: number; is_complete?: boolean }>;
 };
 
 export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
@@ -868,6 +874,7 @@ export async function createCourse(payload: {
   programme_type: string;
   locking_mode?: string;
   access_type?: string;
+  tags?: string[];
   cover_image_url?: string;
   created_by: string;
 }): Promise<Course> {
@@ -896,6 +903,7 @@ export async function updateCourse(
     programme_type?: string;
     locking_mode?: string;
     access_type?: string;
+    tags?: string[];
     cover_image_url?: string;
     status?: string;
     caller_id: string;
@@ -944,6 +952,9 @@ export type Question = {
   answer_time_minutes: number | null;
   instruction_html: string | null;
   evaluation_criteria_json: EvaluationCriterion[] | null;
+  tag: string | null;
+  solution: string | null;
+  image_url: string | null;
   created_by: string | null;
   options: QuestionOption[];
   children: Question[];
@@ -962,6 +973,13 @@ export type CreateChildPayload = {
   instruction_html?: string;
   evaluation_criteria_json?: EvaluationCriterion[];
   options?: CreateOptionPayload[];
+  tag?: string;
+  subject?: string;
+  topic?: string;
+  difficulty?: string;
+  solution?: string;
+  image_url?: string;
+  explanation_video_url?: string;
 };
 
 export type CreateQuestionPayload = {
@@ -975,6 +993,9 @@ export type CreateQuestionPayload = {
   topic?: string;
   difficulty?: string;
   explanation_video_url?: string;
+  tag?: string;
+  solution?: string;
+  image_url?: string;
   marks?: number;
   negative_marks?: number;
   answer_time_minutes?: number;
@@ -995,6 +1016,7 @@ export type QuestionFilters = {
   quiz_id?: string;
   /** Full-text search on content_html. */
   search?: string;
+  tag?: string;
 };
 
 export async function getQuestions(filters: QuestionFilters = {}): Promise<Question[]> {
@@ -1006,6 +1028,7 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.difficulty) url.searchParams.set("difficulty", filters.difficulty);
   if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
   if (filters.search) url.searchParams.set("search", filters.search);
+  if (filters.tag) url.searchParams.set("tag", filters.tag);
   const response = await apiFetch(url.toString());
   if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
   return (await response.json()) as Question[];
@@ -1023,6 +1046,21 @@ export async function createQuestion(payload: CreateQuestionPayload): Promise<Qu
     throw new ApiError(err?.message ?? "Failed to create question.", response.status);
   }
   return (await response.json()) as Question;
+}
+
+export async function uploadQuestionImage(file: File): Promise<{ key: string }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await apiFetch(`${API_BASE_URL}/questions/images`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to upload image.", response.status);
+  }
+  return (await response.json()) as { key: string };
 }
 
 export async function updateQuestion(
@@ -1540,6 +1578,7 @@ export type Quiz = {
   id: string;
   module_id: string | null;
   title: string;
+  description: string | null;
   duration_minutes: number | null;
   max_attempts: number | null;
   pass_threshold_percent: number | null;
@@ -1694,7 +1733,7 @@ export async function updateCalendarEvent(
 }
 
 
-export async function deleteQuestions(ids: string[]): Promise<{ deleted: number }> {
+export async function deleteQuestions(ids: string[]): Promise<{ deleted: number; skipped: number }> {
   const r = await apiFetch(`${API_BASE_URL}/questions/bulk-delete`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1704,9 +1743,19 @@ export async function deleteQuestions(ids: string[]): Promise<{ deleted: number 
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to delete questions.", r.status);
   }
-  return (await r.json()) as { deleted: number };
+  return (await r.json()) as { deleted: number; skipped: number };
 }
 
+export async function cleanupOrphanedImages(): Promise<{ checked: number; deleted: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/cleanup-images`, {
+    method: "POST",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to run garbage collection.", r.status);
+  }
+  return (await r.json()) as { checked: number; deleted: number };
+}
 export async function getBatchComparison(studentId: string, courseId: string): Promise<BatchComparison> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/batch-comparison?course_id=${courseId}`);
   if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r.status);
@@ -1739,6 +1788,17 @@ export async function deleteQuiz(id: string): Promise<{ success: boolean }> {
   return (await r.json()) as { success: boolean };
 }
 
+export async function getUniqueQuestionsForQuiz(id: string): Promise<{ id: string; content_html: string; question_type: string }[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/unique-questions`, {
+    method: "GET",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch unique questions.", r.status);
+  }
+  return (await r.json()) as { id: string; content_html: string; question_type: string }[];
+}
+
 export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes`, {
     method: "POST",
@@ -1767,7 +1827,12 @@ export async function bulkImportQuiz(fileContent: string): Promise<{ quiz_id: st
   return (await r.json()) as { quiz_id: string; sections: number; questions: number };
 }
 
-export async function bulkImportQuizFromPdf(file: File): Promise<{ quiz_id: string; sections: number; questions: number }> {
+/**
+ * Enqueues a background import of a PDF quiz (parse + persist). Returns the
+ * BullMQ job handle; poll getBulkParseJobStatus() until it completes with a
+ * { quiz_id, sections, questions } result.
+ */
+export async function bulkImportQuizFromPdf(file: File): Promise<BulkPdfJobHandle> {
   const formData = new FormData();
   formData.append("file", file);
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import-pdf`, {
@@ -1779,13 +1844,151 @@ export async function bulkImportQuizFromPdf(file: File): Promise<{ quiz_id: stri
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to import quiz from PDF.", r.status);
   }
-  return (await r.json()) as { quiz_id: string; sections: number; questions: number };
+  return (await r.json()) as BulkPdfJobHandle;
+}
+
+// ── Parsed bulk quiz types (mirror of backend ParsedBulkQuiz) ────────────────
+
+export interface ParsedOption {
+  text: string;
+  is_correct: boolean;
+}
+
+export interface ParsedQuestion {
+  instruction?: string;
+  content: string;
+  question_type: "MCQ" | "NUMERICAL" | "FILL" | "ESSAY" | "GROUP";
+  options: ParsedOption[];
+  correct_answer?: string;
+  tolerance?: number;
+  marks?: number;
+  negative_marks?: number;
+  tag?: string;
+  difficulty?: string;
+  answer_time_minutes?: number;
+  solution?: string;
+  subject?: string;
+  topic?: string;
+  image?: string;
+  evaluation_criteria?: Array<{ criteria: string; percentage: number }>;
+  children?: ParsedQuestion[];
+}
+
+export interface ParsedSection {
+  title: string;
+  duration_minutes?: number;
+  marks?: number;
+  questions: ParsedQuestion[];
+}
+
+export interface ParsedBulkQuiz {
+  title?: string;
+  instruction?: string;
+  duration_minutes?: number;
+  max_marks?: number;
+  sections: ParsedSection[];
+}
+
+export async function bulkParseQuiz(fileContent: string): Promise<ParsedBulkQuiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-parse`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ file_content: fileContent }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to parse quiz.", r.status);
+  }
+  return (await r.json()) as ParsedBulkQuiz;
+}
+
+// ── Background PDF parse/import jobs (BullMQ) ────────────────────────────────
+
+/** Returned when a PDF is accepted for background processing. */
+export interface BulkPdfJobHandle {
+  jobId: string;
+  status: string;
+}
+
+export interface BulkParseJobStatus {
+  jobId: string;
+  status: "waiting" | "active" | "delayed" | "completed" | "failed" | string;
+  progress: number;
+  /** ParsedBulkQuiz for parse jobs; { quiz_id, ... } for import jobs. */
+  result?: (ParsedBulkQuiz & { image_keys?: string[] }) | { quiz_id: string; sections: number; questions: number };
+  error?: string;
+}
+
+/**
+ * Enqueues a background parse of a PDF (no DB write). Returns the BullMQ job
+ * handle; poll getBulkParseJobStatus() until it completes with a
+ * ParsedBulkQuiz result.
+ */
+export async function bulkParseQuizFromPdf(file: File): Promise<BulkPdfJobHandle> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-parse-pdf`, {
+    method: "POST",
+    body: formData,
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to parse PDF.", r.status);
+  }
+  return (await r.json()) as BulkPdfJobHandle;
+}
+
+/** Polls the status of a background PDF parse/import job. */
+export async function getBulkParseJobStatus(jobId: string): Promise<BulkParseJobStatus> {
+  const r = await apiFetch(
+    `${API_BASE_URL}/quizzes/bulk-parse/status/${encodeURIComponent(jobId)}`,
+    { cache: "no-store" },
+  );
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch job status.", r.status);
+  }
+  return (await r.json()) as BulkParseJobStatus;
+}
+
+/**
+ * Deletes images uploaded by a bulk parse whose preview was abandoned.
+ * The backend only deletes keys that are not referenced by any saved quiz.
+ */
+export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-parse-cancel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys: imageKeys }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to clean up uploaded images.", r.status);
+  }
+}
+
+export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz): Promise<{ jobId: string }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(parsedData),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to save quiz.", r.status);
+  }
+  return (await r.json()) as { jobId: string };
 }
 
 export async function updateQuiz(
   id: string,
   payload: {
     title?: string;
+    description?: string | null;
     duration_minutes?: number | null;
     max_attempts?: number | null;
     pass_threshold_percent?: number | null;
@@ -2068,6 +2271,29 @@ export async function getMyQuizAttempts(studentId?: string): Promise<QuizAttempt
   return (await r.json()) as QuizAttempt[];
 }
 
+export type QuizAttemptWithStudent = QuizAttempt & {
+  student_name: string;
+  roll_number: string | null;
+};
+
+/** Every student's attempts for one quiz, for the Quiz Details "Attempts" tab. */
+export async function getAllQuizAttempts(quizId: string): Promise<QuizAttemptWithStudent[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/all-attempts`);
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  return (await r.json()) as QuizAttemptWithStudent[];
+}
+
+export async function deleteQuizAttempt(attemptId: string): Promise<{ success: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to delete quiz attempt.", r.status);
+  }
+  return (await r.json()) as { success: boolean };
+}
+
 // Live-attempt question payload. Intentionally has NO correct_answer / is_correct
 // — the server never sends the answer key during an attempt (anti-cheat).
 export type QuizAttemptQuestion = {
@@ -2075,14 +2301,18 @@ export type QuizAttemptQuestion = {
   section_id?: string | null;
   question_type: string;
   content_html: string;
+  instruction_html?: string | null;
   tolerance: number | null;
+  image_url?: string | null;
   options: { id: string; option_text: string }[];
   children: {
     snapshot_id: string;
     section_id?: string | null;
     question_type: string;
     content_html: string;
+    instruction_html?: string | null;
     tolerance: number | null;
+    image_url?: string | null;
     options: { id: string; option_text: string }[];
   }[];
 };
@@ -2137,9 +2367,13 @@ export async function submitQuizAttempt(
 
 export type AttemptReviewQuestion = {
   snapshot_id: string;
-  section_id: string | null;   // ← new
+  section_id: string | null;
   question_type: string;
   content_html: string;
+  image_url: string | null;
+  parent_snapshot_id: string | null;
+  parent_content_html: string | null;
+  parent_image_url: string | null;
   student_answer: string | null;
   correct_answer: string | null;
   is_correct: boolean | null;
@@ -2150,6 +2384,7 @@ export type AttemptReviewQuestion = {
   avg_time_seconds: number | null;
   batch_correct_count: number;
   batch_total_count: number;
+  solution_html?: string | null;
 };
 
 export type AttemptReviewSection = {
@@ -2312,7 +2547,7 @@ export type CourseModule = {
   title: string;
   order_index: number;
   lessons: CourseLesson[];
-  module_quizzes: Array<{ id: string; title: string; published: boolean }>;
+  module_quizzes: Array<{ id: string; title: string; published: boolean; order_index: number }>;
 };
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
@@ -2363,10 +2598,10 @@ export async function createLesson(
   return (await r.json()) as CourseLesson;
 }
 
-export async function reorderLessons(moduleId: string, ids: string[]): Promise<void> {
-  await apiFetch(`${API_BASE_URL}/modules/${moduleId}/lessons/reorder`, {
+export async function reorderModuleItems(moduleId: string, items: { id: string, type: 'LESSON' | 'QUIZ' }[]): Promise<void> {
+  await apiFetch(`${API_BASE_URL}/modules/${moduleId}/items/reorder`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids }), cache: "no-store",
+    body: JSON.stringify({ items }), cache: "no-store",
   });
 }
 
@@ -3948,7 +4183,8 @@ export async function removeTestFromBatch(
   return (await r.json()) as { removed: boolean };
 }
 
-// ── Password reset (UG students) ────────────────────────────────────────────
+
+// ── Tests (Deprecated Name) / Assessments (New Name) ────────────────────────────────────────────
 
 export type PasswordResetRequest = {
   id: string;

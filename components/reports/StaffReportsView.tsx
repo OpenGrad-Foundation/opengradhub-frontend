@@ -355,7 +355,7 @@ export function StaffReportsView() {
           placeholder="Search name or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, minWidth: "220px" }}
+          style={{ ...inputStyle, minWidth: "220px", flex: "1 1 auto" }}
         />
         <select
           value={programme}
@@ -395,40 +395,42 @@ export function StaffReportsView() {
             No students found.
           </p>
         ) : (
-          <table style={tableStyle}>
-            <thead>
-              <tr style={tableHeaderRow}>
-                <th style={headerCellStyle}>Name</th>
-                <th style={headerCellStyle}>Email</th>
-                <th style={headerCellStyle}>Programme</th>
-                <th style={{ ...headerCellStyle, textAlign: "right" }}>
-                  Reports
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((student, index) => (
-                <tr
-                  key={student.id}
-                  style={{
-                    background:
-                      index % 2 === 0 ? "#ffffff" : "rgba(3,72,82,0.04)",
-                  }}
-                >
-                  <td style={cellStyle}>{student.name}</td>
-                  <td style={cellStyle}>{student.email ?? "-"}</td>
-                  <td style={cellStyle}>{student.programme_type ?? "-"}</td>
-                  <td style={{ ...cellStyle, textAlign: "right" }}>
-                    <StudentReportsMenu
-                      studentId={student.id}
-                      studentName={student.name}
-                      onToast={showToast}
-                    />
-                  </td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={tableStyle}>
+              <thead>
+                <tr style={tableHeaderRow}>
+                  <th style={headerCellStyle}>Name</th>
+                  <th style={headerCellStyle}>Email</th>
+                  <th style={headerCellStyle}>Programme</th>
+                  <th style={{ ...headerCellStyle, textAlign: "right" }}>
+                    Reports
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {students.map((student, index) => (
+                  <tr
+                    key={student.id}
+                    style={{
+                      background:
+                        index % 2 === 0 ? "#ffffff" : "rgba(3,72,82,0.04)",
+                    }}
+                  >
+                    <td style={cellStyle}>{student.name}</td>
+                    <td style={cellStyle}>{student.email ?? "-"}</td>
+                    <td style={cellStyle}>{student.programme_type ?? "-"}</td>
+                    <td style={{ ...cellStyle, textAlign: "right" }}>
+                      <StudentReportsMenu
+                        studentId={student.id}
+                        studentName={student.name}
+                        onToast={showToast}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 

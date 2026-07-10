@@ -31,7 +31,7 @@ export function NeedsAttention({
 }: { data: NonNullable<InsightsResponse["needs_attention"]> }) {
   const currentUrl = useCurrentUrl();
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: "16px" }}>
       <div style={card}>
         <p style={header}>At-risk students</p>
         {data.at_risk_students.length === 0 ? (

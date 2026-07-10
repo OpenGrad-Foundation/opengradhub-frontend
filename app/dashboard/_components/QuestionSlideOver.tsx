@@ -7,12 +7,17 @@ import {
   addQuizQuestion,
   type Question,
   type EvaluationCriterion,
-  type CreateOptionPayload,
   type CreateChildPayload,
   type CreateQuestionPayload,
+  type QuizAttemptQuestion,
+  type AttemptReviewQuestion,
+  uploadQuestionImage,
 } from "@/lib/api";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import { MathTextEditor } from "./MathTextEditor";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { QuestionView, type AnswerMap } from "@/components/question-view";
+import { PassageCard, QuestionReviewCard } from "@/components/question-review-card";
 
 // ── Shared constants ───────────────────────────────────────────
 
@@ -54,6 +59,7 @@ export function emptyChild(): DraftChild {
 // ── Shared small components ────────────────────────────────────
 
 export function stripHtml(html: string): string {
+  // Keeping stripHtml just in case it's needed for fallback, but removing its usage from initial state
   return html.replace(/<[^>]*>/g, "").trim();
 }
 
@@ -130,7 +136,7 @@ export function QuestionSlideOver({
   const invalidate = useInvalidate();
 
   const [qType, setQType] = useState<QType>((initial?.question_type as QType) ?? "MCQ");
-  const [content, setContent] = useState(initial ? stripHtml(initial.content_html) : "");
+  const [content, setContent] = useState(initial ? initial.content_html : "");
   const [progType, setProgType] = useState(initial?.programme_type ?? "");
   const [subject, setSubject] = useState(initial?.subject ?? "");
   const [topic, setTopic] = useState(initial?.topic ?? "");
@@ -140,6 +146,9 @@ export function QuestionSlideOver({
   const [negativeMarks, setNegativeMarks] = useState(initial?.negative_marks?.toString() ?? "");
   const [answerTime, setAnswerTime] = useState(initial?.answer_time_minutes?.toString() ?? "");
   const [instruction, setInstruction] = useState(initial?.instruction_html ?? "");
+  const [tag, setTag] = useState(initial?.tag ?? "");
+  const [solution, setSolution] = useState(initial?.solution ?? "");
+  const [imageUrl, setImageUrl] = useState(initial?.image_url ?? "");
   const [evaluationCriteria, setEvaluationCriteria] = useState<DraftEvaluationCriterion[]>(() => {
     try {
       const raw = initial?.evaluation_criteria_json;
@@ -168,9 +177,18 @@ export function QuestionSlideOver({
       ? initial.children.map(c => ({
           _key: nextKey(),
           question_type: c.question_type as "MCQ" | "FILL" | "NUMERICAL",
-          content_html: stripHtml(c.content_html),
+          content_html: c.content_html || "",
           correct_answer: c.correct_answer ?? "",
           tolerance: c.tolerance ?? undefined,
+          marks: c.marks ?? undefined,
+          negative_marks: c.negative_marks ?? undefined,
+          subject: c.subject ?? undefined,
+          topic: c.topic ?? undefined,
+          difficulty: c.difficulty ?? undefined,
+          tag: c.tag ?? undefined,
+          image_url: c.image_url ?? undefined,
+          explanation_video_url: c.explanation_video_url ?? undefined,
+          solution: c.solution ?? undefined,
           options: c.question_type === "MCQ"
             ? c.options.map(o => ({ ...o, _key: nextKey() }))
             : [emptyOption(), emptyOption(), emptyOption(), emptyOption()],
@@ -180,6 +198,7 @@ export function QuestionSlideOver({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   function handleTypeChange(t: QType) {
     setQType(t);
@@ -214,6 +233,12 @@ export function QuestionSlideOver({
     setChildren(p => p.map(c => c._key === key ? { ...c, content_html: text } : c));
   const setChildAnswer = (key: number, text: string) =>
     setChildren(p => p.map(c => c._key === key ? { ...c, correct_answer: text } : c));
+  const setChildMarks = (key: number, val: string) =>
+    setChildren(p => p.map(c => c._key === key ? { ...c, marks: val ? Number(val) : undefined } : c));
+  const setChildNegativeMarks = (key: number, val: string) =>
+    setChildren(p => p.map(c => c._key === key ? { ...c, negative_marks: val ? Number(val) : undefined } : c));
+  const setChildField = (key: number, field: keyof DraftChild, val: string) =>
+    setChildren(p => p.map(c => c._key === key ? { ...c, [field]: val || undefined } : c));
   const setChildOptText = (ck: number, ok: number, text: string) =>
     setChildren(p => p.map(c => c._key === ck
       ? { ...c, options: c.options.map(o => o._key === ok ? { ...o, option_text: text } : o) }
@@ -224,6 +249,25 @@ export function QuestionSlideOver({
       : c));
   const addChild = () => setChildren(p => [...p, emptyChild()]);
   const removeChild = (key: number) => setChildren(p => p.filter(c => c._key !== key));
+
+  // ── Image Upload ────────────────────────────────────────────────
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, setter: (url: string) => void) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploadingImage(true);
+    setFormError(null);
+    try {
+      const res = await uploadQuestionImage(file);
+      // The backend returns { key: string }. We use this key directly, which gets presigned by /quizzes/images
+      setter(res.key);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Failed to upload image.");
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = ""; // Reset input
+    }
+  }
 
   // ── Submit ─────────────────────────────────────────────────────
 
@@ -255,7 +299,10 @@ export function QuestionSlideOver({
         negative_marks: negativeMarks ? Number(negativeMarks) : undefined,
         answer_time_minutes: answerTime ? Number(answerTime) : undefined,
         instruction_html: instruction.trim() || undefined,
-        evaluation_criteria_json: evaluationCriteria.length > 0 
+        tag: tag.trim() || undefined,
+        solution: solution.trim() || undefined,
+        image_url: imageUrl.trim() || undefined,
+        evaluation_criteria_json: evaluationCriteria.length > 0
           ? evaluationCriteria.filter(c => c.criteria.trim()).map(c => ({ criteria: c.criteria.trim(), percentage: c.percentage ? Number(c.percentage) : 0 }))
           : undefined,
       };
@@ -282,7 +329,20 @@ export function QuestionSlideOver({
         }
         if (qType === "GROUP") {
           payload.children = children.map(c => {
-            const child: CreateChildPayload = { question_type: c.question_type, content_html: c.content_html, correct_answer: c.correct_answer || undefined };
+            const child: CreateChildPayload = { 
+              question_type: c.question_type, 
+              content_html: c.content_html, 
+              correct_answer: c.correct_answer || undefined,
+              marks: c.marks,
+              negative_marks: c.negative_marks,
+              subject: c.subject,
+              topic: c.topic,
+              difficulty: c.difficulty,
+              tag: c.tag,
+              image_url: c.image_url,
+              explanation_video_url: c.explanation_video_url,
+              solution: c.solution
+            };
             if (c.question_type === "MCQ") {
               child.options = c.options.filter(o => o.option_text.trim()).map(({ option_text, is_correct }) => ({ option_text, is_correct }));
             }
@@ -307,11 +367,155 @@ export function QuestionSlideOver({
     }
   }
 
+  const [previewAnswers, setPreviewAnswers] = useState<AnswerMap>({});
+  const [previewMode, setPreviewMode] = useState<"TAKING" | "REVIEW">("TAKING");
+
+  const mockQ: QuizAttemptQuestion = {
+    snapshot_id: "preview",
+    section_id: null,
+    question_type: qType,
+    content_html: content || "<p style='color: #aaa'>Question content...</p>",
+    instruction_html: instruction || null,
+    tolerance: qType === "NUMERICAL" && tolerance ? Number(tolerance) : null,
+    image_url: imageUrl || null,
+    options: options.filter(o => o.option_text.trim()).map(o => ({ id: String(o._key), option_text: o.option_text })),
+    children: children.map(c => ({
+      snapshot_id: String(c._key),
+      section_id: null,
+      question_type: c.question_type,
+      content_html: c.content_html || "<p style='color: #aaa'>Sub-question content...</p>",
+      instruction_html: null,
+      tolerance: c.tolerance ?? null,
+      image_url: c.image_url ?? null,
+      options: c.options.filter(o => o.option_text.trim()).map(o => ({ id: String(o._key), option_text: o.option_text })),
+      children: [],
+    })),
+  };
+
   const panelTitle = isEdit ? "Update question" : inQuiz ? "Add to quiz" : "Add to bank";
 
   return (
     <>
+      <style>{`
+        @media (max-width: 1024px) {
+          .live-preview-panel { display: none !important; }
+        }
+      `}</style>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }} />
+      
+      <div className="live-preview-panel" style={{
+        position: "fixed", top: 0, left: 0, bottom: 0, right: "600px",
+        zIndex: 41, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: "40px", overflowY: "auto", pointerEvents: "none"
+      }}>
+        <div style={{
+          width: "100%", maxWidth: "800px", background: "#fff",
+          borderRadius: "16px", padding: "32px", boxShadow: "0 12px 48px rgba(3,72,82,0.15)",
+          pointerEvents: "auto", maxHeight: "100%", overflowY: "auto"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0abe62", margin: 0 }}>Live Preview</p>
+            
+            <div style={{ display: "flex", background: "rgba(3,72,82,0.06)", borderRadius: "100px", padding: "4px" }}>
+              <button
+                type="button"
+                onClick={() => setPreviewMode("TAKING")}
+                style={{
+                  ...S.ghost, padding: "6px 14px", borderRadius: "100px", color: previewMode === "TAKING" ? "#fff" : "rgba(3,72,82,0.6)",
+                  background: previewMode === "TAKING" ? "#034852" : "transparent", transition: "all 0.2s"
+                }}
+              >
+                Taking
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewMode("REVIEW")}
+                style={{
+                  ...S.ghost, padding: "6px 14px", borderRadius: "100px", color: previewMode === "REVIEW" ? "#fff" : "rgba(3,72,82,0.6)",
+                  background: previewMode === "REVIEW" ? "#0abe62" : "transparent", transition: "all 0.2s"
+                }}
+              >
+                Review
+              </button>
+            </div>
+          </div>
+          
+          {previewMode === "TAKING" ? (
+            <QuestionView q={mockQ} answers={previewAnswers} setAnswer={(sid, val) => setPreviewAnswers(p => ({ ...p, [sid]: val }))} />
+          ) : (
+            qType === "GROUP" ? (
+              <div>
+                <PassageCard html={content || "<p style='color: #aaa'>Question content...</p>"} imageUrl={imageUrl || null} />
+                {children.map((child, i) => {
+                  const studentAns = previewAnswers[String(child._key)] ?? null;
+                  let isCorrect: boolean | null = null;
+                  if (child.question_type === "MCQ") {
+                    isCorrect = studentAns ? (child.options.find(o => String(o._key) === studentAns)?.is_correct ?? false) : false;
+                  } else if (child.question_type === "NUMERICAL" || child.question_type === "FILL") {
+                    isCorrect = studentAns?.trim().toLowerCase() === child.correct_answer?.trim().toLowerCase();
+                  }
+                  
+                  const rq: AttemptReviewQuestion = {
+                    snapshot_id: String(child._key),
+                    section_id: null,
+                    question_type: child.question_type,
+                    content_html: child.content_html || "<p style='color: #aaa'>Sub-question content...</p>",
+                    image_url: child.image_url ?? null,
+                    parent_snapshot_id: "preview",
+                    parent_content_html: content,
+                    parent_image_url: imageUrl,
+                    student_answer: studentAns,
+                    correct_answer: child.correct_answer || null,
+                    is_correct: isCorrect,
+                    marks_awarded: isCorrect ? (Number(child.marks) || 1) : 0,
+                    time_taken_seconds: 45,
+                    explanation_video_url: child.explanation_video_url ?? null,
+                    options: child.options.filter(o => o.option_text.trim()).map(o => ({ id: String(o._key), option_text: o.option_text, is_correct: !!o.is_correct })),
+                    avg_time_seconds: 60,
+                    batch_correct_count: 75,
+                    batch_total_count: 100,
+                    solution_html: child.solution ?? null,
+                  };
+                  return <QuestionReviewCard key={child._key} q={rq} idx={i + 1} revealed={true} />;
+                })}
+              </div>
+            ) : (
+              (() => {
+                const studentAns = previewAnswers["preview"] ?? null;
+                let isCorrect: boolean | null = null;
+                if (qType === "MCQ") {
+                  isCorrect = studentAns ? (options.find(o => String(o._key) === studentAns)?.is_correct ?? false) : false;
+                } else if (qType === "NUMERICAL" || qType === "FILL") {
+                  isCorrect = studentAns?.trim().toLowerCase() === correctAnswer?.trim().toLowerCase();
+                }
+                const rq: AttemptReviewQuestion = {
+                  snapshot_id: "preview",
+                  section_id: null,
+                  question_type: qType,
+                  content_html: content || "<p style='color: #aaa'>Question content...</p>",
+                  image_url: imageUrl || null,
+                  parent_snapshot_id: null,
+                  parent_content_html: null,
+                  parent_image_url: null,
+                  student_answer: studentAns,
+                  correct_answer: correctAnswer || null,
+                  is_correct: isCorrect,
+                  marks_awarded: isCorrect ? (Number(marks) || 1) : 0,
+                  time_taken_seconds: 45,
+                  explanation_video_url: explanationVideoUrl || null,
+                  options: options.filter(o => o.option_text.trim()).map(o => ({ id: String(o._key), option_text: o.option_text, is_correct: !!o.is_correct })),
+                  avg_time_seconds: 60,
+                  batch_correct_count: 75,
+                  batch_total_count: 100,
+                  solution_html: solution || null,
+                };
+                return <QuestionReviewCard q={rq} idx={1} revealed={true} />;
+              })()
+            )
+          )}
+        </div>
+      </div>
+
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 100vw)",
         background: "#ffffff",
@@ -339,11 +543,11 @@ export function QuestionSlideOver({
 
           {/* Content */}
           <FieldGroup label="Content *">
-            <MathTextEditor
+            <RichTextEditor
               value={content}
               onChange={setContent}
-              rows={4}
-              placeholder="Enter question text… click ƒx to add an equation"
+              minHeight={150}
+              placeholder="Enter question text..."
             />
           </FieldGroup>
 
@@ -385,12 +589,28 @@ export function QuestionSlideOver({
           </div>
           
           <FieldGroup label="Question Instruction (optional)">
-            <MathTextEditor
-              compact
-              rows={1}
+            <RichTextEditor
+              minHeight={70}
               value={instruction}
               onChange={setInstruction}
               placeholder="e.g. Read the passage and answer..."
+              disableImageUpload
+            />
+          </FieldGroup>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <FieldGroup label="Tag">
+              <input value={tag} onChange={e => setTag(e.target.value.toUpperCase())} style={S.input} placeholder="e.g. FUNCTIONS" />
+            </FieldGroup>
+            <div></div>
+          </div>
+
+          <FieldGroup label="Solution (optional)">
+            <RichTextEditor
+              minHeight={100}
+              value={solution}
+              onChange={setSolution}
+              placeholder="Explanation shown after quiz completion..."
             />
           </FieldGroup>
 
@@ -403,7 +623,7 @@ export function QuestionSlideOver({
                   <div key={opt._key} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                     <input type="radio" name="correct-option" value={String(opt._key)} checked={opt.is_correct} onChange={() => setOptionCorrect(opt._key)} onClick={() => setOptionCorrect(opt._key)} style={{ accentColor: "#0abe62", width: "16px", height: "16px", flexShrink: 0, cursor: "pointer", marginTop: "32px" }} title="Mark as correct" />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <MathTextEditor compact rows={1} value={opt.option_text} onChange={v => setOptionText(opt._key, v)} placeholder={`Option ${i + 1}`} />
+                      <RichTextEditor minHeight={50} value={opt.option_text} onChange={v => setOptionText(opt._key, v)} placeholder={`Option ${i + 1}`} disableImageUpload />
                     </div>
                     {options.length > 2 && (
                       <button type="button" onClick={() => removeOption(opt._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "16px", padding: "0 4px", marginTop: "28px" }}>✕</button>
@@ -482,7 +702,28 @@ export function QuestionSlideOver({
                         <option value="FILL">Fill in the Blank</option>
                         <option value="NUMERICAL">Numerical</option>
                       </select>
-                      <MathTextEditor compact rows={2} value={child.content_html} onChange={v => setChildContent(child._key, v)} placeholder="Sub-question content…" />
+                      <RichTextEditor minHeight={70} value={child.content_html} onChange={v => setChildContent(child._key, v)} placeholder="Sub-question content…" />
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <input type="number" step="any" value={child.marks ?? ""} onChange={e => setChildMarks(child._key, e.target.value)} style={S.input} placeholder="Marks (default: 1)" />
+                        <input type="number" step="any" min="0" value={child.negative_marks ?? ""} onChange={e => setChildNegativeMarks(child._key, e.target.value)} style={S.input} placeholder="Negative Marks" />
+                      </div>
+                      
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <input type="text" value={child.subject ?? ""} onChange={e => setChildField(child._key, "subject", e.target.value)} style={S.input} placeholder="Subject" />
+                        <input type="text" value={child.topic ?? ""} onChange={e => setChildField(child._key, "topic", e.target.value)} style={S.input} placeholder="Topic" />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <select value={child.difficulty ?? ""} onChange={e => setChildField(child._key, "difficulty", e.target.value)} style={S.input}>
+                          <option value="">Difficulty (Optional)</option>
+                          {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        <input type="text" value={child.tag ?? ""} onChange={e => setChildField(child._key, "tag", e.target.value)} style={S.input} placeholder="Tag (e.g., Comprehension)" />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
+                        <input type="text" value={child.explanation_video_url ?? ""} onChange={e => setChildField(child._key, "explanation_video_url", e.target.value)} style={S.input} placeholder="Video URL (Optional)" />
+                      </div>
+                      <RichTextEditor minHeight={70} value={child.solution ?? ""} onChange={v => setChildField(child._key, "solution", v)} placeholder="Solution (Optional)…" />
+
                       {(child.question_type === "FILL" || child.question_type === "NUMERICAL") && (
                         <input value={child.correct_answer ?? ""} onChange={e => setChildAnswer(child._key, e.target.value)} style={S.input} placeholder="Correct answer" />
                       )}

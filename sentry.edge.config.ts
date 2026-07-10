@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.NEXT_PUBLIC_SENTRY_ENV || process.env.NODE_ENV || 'local',
   sendDefaultPii: true,
   // Dev tracing off: matches the client + server configs; no tracing overhead
   // locally while still capturing errors.
