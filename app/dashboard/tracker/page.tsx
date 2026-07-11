@@ -29,7 +29,7 @@ import {
   useTrackerQueueBlockers,
   useTrackerTemplates,
 } from "@/lib/queries/tracker";
-import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTemplate } from "@/lib/tracker-api";
+import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTaskSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { StudentFieldsManager } from "./_components/student-fields-manager";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
@@ -38,6 +38,7 @@ import { countByTaskState, rollupFromCounts, TASK_STATE_META, type StateCounts, 
 import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
+import { TaskBreakdown } from "./_components/task-breakdown";
 import { ZmView } from "./_components/zm-view";
 import { NudgeButton } from "./_components/nudge-button";
 import PushNudge from "@/components/PushNudge";
@@ -68,14 +69,14 @@ export default function TrackerPage() {
 
   const tabs = useMemo<TrackerTab[]>(() => {
     const next: TrackerTab[] = [];
-    if (isPmOrAdmin) next.push("allTasks");                 // program-wide task list — PM/Admin only
+    if (isPmOrAdmin || roleCode === "ZONAL_MANAGER") next.push("allTasks"); // task-first drill — PM/Admin/ZM
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
     if (canFill || isManagerView) next.push("myStudents"); // own students list
     if (canAuthor) next.push("builder");                   // new + manage templates
     if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
-  }, [canAuthor, canFill, isManagerView, isPmOrAdmin]);
+  }, [canAuthor, canFill, isManagerView, isPmOrAdmin, roleCode]);
 
   const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
   const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
@@ -86,6 +87,8 @@ export default function TrackerPage() {
   // Set when a manager drills into a task from one fellow's list, so the grid scopes to that
   // fellow's rows instead of the manager's whole scope. Null = caller's own scope.
   const [fillFellowId, setFillFellowId] = useState<string | null>(null);
+  // The task whose org-tree drill-down is open on the All Tasks tab. Null = task list.
+  const [drillTask, setDrillTask] = useState<TrackerTaskSummaryRow | null>(null);
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], error: templatesError } = useTrackerTemplates();
@@ -139,12 +142,20 @@ export default function TrackerPage() {
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
             <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to all tasks
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to task
             </button>
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
           </div>
+        ) : drillTask ? (
+          <TaskBreakdown
+            task={drillTask}
+            roleCode={roleCode}
+            currentUserId={currentUser?.user.id ?? ""}
+            canNudge={canAuthor}
+            onBack={() => setDrillTask(null)}
+          />
         ) : (
-          <AllTasksPanel onOpen={(tid, did) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(did); }} />
+          <AllTasksPanel onOpenDrill={(task) => setDrillTask(task)} />
         )
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
@@ -493,6 +504,9 @@ function GridPanel({
   canFill: boolean;
   canClear: boolean;
 }) {
+  // Shared status filter (4-state) driving both the cards and the grid's status dropdown,
+  // mirroring the My-Tasks strip: click a card to filter the rows below, click again to clear.
+  const [statusFilter, setStatusFilter] = useState<TaskState | "">("");
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
@@ -502,8 +516,21 @@ function GridPanel({
   const counts = grid.rows.length > 1 ? countByTaskState(grid.rows.map((r) => r.lifecycle)) : null;
   return (
     <div className="flex flex-col gap-4">
-      {counts && <StatusCards counts={counts} />}
-      <TrackerEditableGrid template={template} grid={grid} canFill={canFill} canClear={canClear} />
+      {counts && (
+        <StatusCards
+          counts={counts}
+          activeState={statusFilter || null}
+          onSelect={(s) => setStatusFilter((prev) => (prev === s ? "" : s))}
+        />
+      )}
+      <TrackerEditableGrid
+        template={template}
+        grid={grid}
+        canFill={canFill}
+        canClear={canClear}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+      />
     </div>
   );
 }

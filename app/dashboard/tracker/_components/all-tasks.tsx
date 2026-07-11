@@ -2,23 +2,20 @@
 
 import { useState } from "react";
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
-import { useTrackerAllTasks, useTrackerZms } from "@/lib/queries/tracker";
-import type { TrackerAllTasksFilters, TrackerAllTaskRow } from "@/lib/tracker-api";
+import { useTrackerTaskSummary } from "@/lib/queries/tracker";
+import type { TrackerTaskSummaryFilters, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } from "@/lib/tracker-status";
-import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
-import { NudgeButton } from "./nudge-button";
 import { StatusCards } from "./status-cards";
 
 const selCls = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500";
 const ZERO_COUNTS: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
 
-export function AllTasksPanel({ onOpen }: { onOpen: (templateId: string, doerId: string) => void }) {
-  const [f, setF] = useState<TrackerAllTasksFilters>({ page: 1, limit: 50 });
-  const set = (patch: Partial<TrackerAllTasksFilters>) => setF((p) => ({ ...p, page: 1, ...patch }));
-  const { data: zms = [] } = useTrackerZms();
-  const { data, isLoading, error } = useTrackerAllTasks(f);
-  const canNudge = usePermissions().has(PERM.tracker.author);
+/** Task-first list: one row per task with its overall completion. Clicking a task drills the
+ *  org tree (ZM → fellow → school → student) scoped to that task. */
+export function AllTasksPanel({ onOpenDrill }: { onOpenDrill: (task: TrackerTaskSummaryRow) => void }) {
+  const [f, setF] = useState<TrackerTaskSummaryFilters>({ page: 1, limit: 50 });
+  const set = (patch: Partial<TrackerTaskSummaryFilters>) => setF((p) => ({ ...p, page: 1, ...patch }));
+  const { data, isLoading, error } = useTrackerTaskSummary(f);
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -37,44 +34,18 @@ export function AllTasksPanel({ onOpen }: { onOpen: (templateId: string, doerId:
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={f.q ?? ""} onChange={(e) => set({ q: e.target.value })}
-          placeholder="Search task, doer, school…" className={selCls + " w-56"} />
-        <select value={f.doerType ?? ""} onChange={(e) => set({ doerType: (e.target.value || undefined) as TrackerAllTasksFilters["doerType"] })} className={selCls}>
-          <option value="">All doers</option>
-          <option value="zm">Zonal Managers</option>
-          <option value="fellow">Fellows</option>
-        </select>
-        <select value={f.zmId ?? ""} onChange={(e) => set({ zmId: e.target.value || undefined })} className={selCls}>
-          <option value="">All ZMs</option>
-          {zms.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
-        </select>
-        <select value={f.priority ?? ""} onChange={(e) => set({ priority: (e.target.value || undefined) as TrackerAllTasksFilters["priority"] })} className={selCls}>
+          placeholder="Search tasks…" className={selCls + " w-56"} />
+        <select value={f.priority ?? ""} onChange={(e) => set({ priority: (e.target.value || undefined) as TrackerTaskSummaryFilters["priority"] })} className={selCls}>
           <option value="">All priorities</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
-        <select value={f.status ?? ""} onChange={(e) => set({ status: (e.target.value || undefined) as TrackerAllTasksFilters["status"] })} className={selCls}>
+        <select value={f.status ?? ""} onChange={(e) => set({ status: (e.target.value || undefined) as TrackerTaskSummaryFilters["status"] })} className={selCls}>
           <option value="">All statuses</option>
           {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
         </select>
-        <input value={f.state ?? ""} onChange={(e) => set({ state: e.target.value || undefined })} placeholder="State" className={selCls + " w-28"} />
-        <input value={f.district ?? ""} onChange={(e) => set({ district: e.target.value || undefined })} placeholder="District" className={selCls + " w-28"} />
-        <select value={f.groupBy ?? ""} onChange={(e) => set({ groupBy: (e.target.value || undefined) as TrackerAllTasksFilters["groupBy"] })} className={selCls + " ml-auto"}>
-          <option value="">Group: none</option>
-          <option value="zm">Group by ZM</option>
-          <option value="fellow">Group by fellow</option>
-        </select>
       </div>
-
-      {data?.groupCounts && data.groupCounts.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {data.groupCounts.map((g) => (
-            <span key={g.key} className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs text-gray-700">
-              {g.label} <span className="font-semibold text-gray-950">{g.count}</span>
-            </span>
-          ))}
-        </div>
-      )}
 
       {isLoading ? (
         <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -92,47 +63,34 @@ export function AllTasksPanel({ onOpen }: { onOpen: (templateId: string, doerId:
               <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Task</th>
-                  <th className="px-4 py-3 font-semibold">Doer</th>
-                  <th className="px-4 py-3 font-semibold">ZM</th>
-                  <th className="px-4 py-3 font-semibold">State</th>
-                  <th className="px-4 py-3 font-semibold">District</th>
+                  <th className="px-4 py-3 font-semibold">Assigned to</th>
                   <th className="px-4 py-3 font-semibold">Priority</th>
                   <th className="px-4 py-3 font-semibold">Progress</th>
+                  <th className="px-4 py-3 font-semibold">People</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Due</th>
                   <th className="px-4 py-3 font-semibold" />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r: TrackerAllTaskRow) => {
-                  const clickable = Boolean(r.doer_id);
-                  return (
-                    <tr
-                      key={`${r.template_id}:${r.doer_id ?? "none"}`}
-                      onClick={() => { if (r.doer_id) onOpen(r.template_id, r.doer_id); }}
-                      className={"border-t border-gray-100 " + (clickable ? "cursor-pointer transition-colors hover:bg-teal-50/50" : "")}
-                    >
-                      <td className="px-4 py-3 font-medium text-gray-950">{r.task_name}</td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {r.doer_name ?? "—"}
-                        {r.doer_role === "ZONAL_MANAGER" && <span className="ml-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">ZM</span>}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">{r.zm_name ?? "—"}</td>
-                      <td className="px-4 py-3 text-gray-600">{prettyState(r.state)}</td>
-                      <td className="px-4 py-3 text-gray-600">{r.district ?? "—"}</td>
-                      <td className="px-4 py-3 capitalize text-gray-600">{r.priority}</td>
-                      <td className="px-4 py-3 text-gray-700">{r.done}/{r.total} done</td>
-                      <td className="px-4 py-3"><StatePill state={r.rolled_state} /></td>
-                      <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          {canNudge && r.doer_id && r.rolled_state !== "done" && <NudgeButton doerId={r.doer_id} templateId={r.template_id} lastNudgedAt={r.last_nudged_at} />}
-                          {clickable && <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {rows.map((r) => (
+                  <tr
+                    key={r.template_id}
+                    onClick={() => onOpenDrill(r)}
+                    className="cursor-pointer border-t border-gray-100 transition-colors hover:bg-teal-50/50"
+                  >
+                    <td className="px-4 py-3 font-medium text-gray-950">{r.name}</td>
+                    <td className="px-4 py-3 text-gray-600">{TARGET_LABEL[r.target_type]}</td>
+                    <td className="px-4 py-3 capitalize text-gray-600">{r.priority}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <ProgressBar done={r.done} total={r.total} />
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{r.total}</td>
+                    <td className="px-4 py-3"><StatePill state={r.rolled_state} /></td>
+                    <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
+                    <td className="px-4 py-3"><ChevronRight className="ml-auto h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -151,6 +109,24 @@ export function AllTasksPanel({ onOpen }: { onOpen: (templateId: string, doerId:
   );
 }
 
+const TARGET_LABEL: Record<TrackerTaskSummaryRow["target_type"], string> = {
+  student: "Students",
+  school: "Schools",
+  fellow: "Staff",
+};
+
+function ProgressBar({ done, total }: { done: number; total: number }) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-100">
+        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="whitespace-nowrap text-xs text-gray-600">{done}/{total} done</span>
+    </div>
+  );
+}
+
 function StatePill({ state }: { state: TaskState }) {
   const meta = TASK_STATE_META[state];
   const toneClass = {
@@ -162,10 +138,6 @@ function StatePill({ state }: { state: TaskState }) {
   return <span className={`inline-flex w-20 justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>{meta.label}</span>;
 }
 
-function prettyState(s: string | null): string {
-  if (!s) return "—";
-  return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
-}
 function formatDate(value: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;

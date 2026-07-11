@@ -14,6 +14,10 @@ import {
   getTrackerFellows,
   getTrackerFellowTasks,
   getTrackerAllTasks,
+  getTrackerTaskSummary,
+  getTrackerTaskBreakdown,
+  type TrackerTaskSummaryFilters,
+  type TrackerDrillLevel,
   getTrackerZms,
   getTrackerZmFellows,
   getTrackerFellowSchools,
@@ -126,6 +130,30 @@ export function useTrackerAllTasks(filters: TrackerAllTasksFilters, enabled = tr
     queryKey: qk.trackerAllTasks(filters as Record<string, unknown>),
     queryFn: () => getTrackerAllTasks(filters),
     enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerTaskSummary(filters: TrackerTaskSummaryFilters, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerTaskSummary(filters as Record<string, unknown>),
+    queryFn: () => getTrackerTaskSummary(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerTaskBreakdown(
+  templateId: string | undefined,
+  level: TrackerDrillLevel,
+  parentId: string | undefined,
+  q: string,
+  page: number,
+) {
+  return useQuery({
+    queryKey: qk.trackerTaskBreakdown(templateId ?? '', level, parentId ?? '', q, page),
+    queryFn: () => getTrackerTaskBreakdown(templateId as string, { level, parentId, q: q || undefined, page }),
+    enabled: Boolean(templateId),
     staleTime: 30_000,
   });
 }

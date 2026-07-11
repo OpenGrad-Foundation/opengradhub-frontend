@@ -422,6 +422,57 @@ export function getTrackerPmZms(pmId: string) {
   return trackerJson<TrackerZmRosterRow[]>(`/tracker/pms/${encodeURIComponent(pmId)}/zms`);
 }
 
+// --- Task-first list + task-scoped org drill (redesigned All Tasks tab) --------
+
+export type TrackerTaskState = "done" | "pending" | "overdue" | "blocked";
+
+export type TrackerTaskSummaryFilters = {
+  q?: string; priority?: TrackerPriority; status?: TrackerTaskState;
+  page?: number; limit?: number;
+};
+
+export type TrackerTaskSummaryRow = {
+  template_id: string; name: string; target_type: TrackerTargetType;
+  priority: TrackerPriority; deadline: string | null;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: TrackerTaskState;
+};
+
+export type TrackerTaskSummaryPage = {
+  rows: TrackerTaskSummaryRow[]; total: number; page: number; limit: number;
+  stateCounts: { done: number; pending: number; blocked: number; overdue: number };
+};
+
+export function getTrackerTaskSummary(f: TrackerTaskSummaryFilters) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "") p.set(k, String(v));
+  const qs = p.toString();
+  return trackerJson<TrackerTaskSummaryPage>(`/tracker/all-tasks/summary${qs ? `?${qs}` : ""}`);
+}
+
+export type TrackerDrillLevel = "zm" | "fellow" | "school" | "student";
+
+export type TrackerBreakdownRow = {
+  id: string; name: string; child_count: number;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: TrackerTaskState; record_id: string | null;
+};
+
+export type TrackerBreakdownPage = {
+  rows: TrackerBreakdownRow[]; total: number; page: number; limit: number;
+};
+
+export function getTrackerTaskBreakdown(
+  templateId: string,
+  params: { level: TrackerDrillLevel; parentId?: string; q?: string; page?: number; limit?: number },
+) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") p.set(k, String(v));
+  return trackerJson<TrackerBreakdownPage>(
+    `/tracker/all-tasks/${encodeURIComponent(templateId)}/breakdown?${p.toString()}`,
+  );
+}
+
 export type TrackerEventType =
   | "record_created"
   | "status_changed"
