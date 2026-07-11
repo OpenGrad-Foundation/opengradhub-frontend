@@ -504,9 +504,6 @@ function GridPanel({
   canFill: boolean;
   canClear: boolean;
 }) {
-  // Shared status filter (4-state) driving both the cards and the grid's status dropdown,
-  // mirroring the My-Tasks strip: click a card to filter the rows below, click again to clear.
-  const [statusFilter, setStatusFilter] = useState<TaskState | "">("");
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
@@ -516,21 +513,8 @@ function GridPanel({
   const counts = grid.rows.length > 1 ? countByTaskState(grid.rows.map((r) => r.lifecycle)) : null;
   return (
     <div className="flex flex-col gap-4">
-      {counts && (
-        <StatusCards
-          counts={counts}
-          activeState={statusFilter || null}
-          onSelect={(s) => setStatusFilter((prev) => (prev === s ? "" : s))}
-        />
-      )}
-      <TrackerEditableGrid
-        template={template}
-        grid={grid}
-        canFill={canFill}
-        canClear={canClear}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-      />
+      {counts && <StatusCards counts={counts} />}
+      <TrackerEditableGrid template={template} grid={grid} canFill={canFill} canClear={canClear} />
     </div>
   );
 }
