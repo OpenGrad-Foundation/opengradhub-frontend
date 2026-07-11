@@ -963,6 +963,7 @@ export type Question = {
 export type CreateOptionPayload = { option_text: string; is_correct: boolean };
 
 export type CreateChildPayload = {
+  id?: string;
   question_type: "MCQ" | "FILL" | "NUMERICAL";
   content_html: string;
   correct_answer?: string;
@@ -1074,6 +1075,7 @@ export async function updateQuestion(
     topic?: string;
     difficulty?: string;
     options?: CreateOptionPayload[];
+    children?: CreateChildPayload[];
   },
 ): Promise<Question> {
   const response = await apiFetch(`${API_BASE_URL}/questions/${id}`, {
