@@ -9,6 +9,7 @@ import {
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
+import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
 import { StudentDetailsForm } from "./student-details-form";
 
@@ -19,11 +20,16 @@ export function TrackerEditableGrid({
   grid,
   canFill,
   canClear,
+  statusFilter = "",
+  onStatusFilterChange,
 }: {
   template: TrackerTemplate;
   grid: TrackerGrid;
   canFill: boolean;
   canClear: boolean;
+  /** 4-state status filter shared with the card strip above the grid. */
+  statusFilter?: TaskState | "";
+  onStatusFilterChange?: (state: TaskState | "") => void;
 }) {
   const save = useSaveTrackerBatch();
   const raise = useRaiseTrackerBlocker();
@@ -40,7 +46,6 @@ export function TrackerEditableGrid({
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
   const [schoolFilter, setSchoolFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
 
   const editableKeys = useMemo(
@@ -55,12 +60,12 @@ export function TrackerEditableGrid({
   const hasSchool = schools.length > 0;
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
-  const nameHeader = template.target_type === "fellow" ? "Staff member" : "Student";
+  const nameHeader = template.target_type === "fellow" ? "Fellow" : "Student";
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return grid.rows.filter((r) =>
       (!schoolFilter || r.school_name === schoolFilter) &&
-      (!statusFilter || r.lifecycle === statusFilter) &&
+      (!statusFilter || taskStateFromLifecycle(r.lifecycle) === statusFilter) &&
       (!q || (r.target_name ?? "").toLowerCase().includes(q) || (r.school_name ?? "").toLowerCase().includes(q)
         || r.cells.some((c) => String(c.value ?? "").toLowerCase().includes(q))));
   }, [grid.rows, schoolFilter, statusFilter, search]);
@@ -262,13 +267,9 @@ export function TrackerEditableGrid({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rows…" className="h-8 w-40 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
+          <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
             <option value="">All statuses</option>
-            <option value="not_started">To do</option>
-            <option value="in_progress">In progress</option>
-            <option value="blocked">Stuck</option>
-            <option value="overdue">Overdue</option>
-            <option value="done">Done</option>
+            {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
           {schools.length > 1 && (
             <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">

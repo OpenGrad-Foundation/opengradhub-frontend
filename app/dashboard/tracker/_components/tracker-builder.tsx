@@ -231,7 +231,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Who does this task?
           <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-            <option value="fellow">Each staff member</option>
+            <option value="fellow">Each fellow</option>
             <option value="school">Each school</option>
             <option value="student">Each student</option>
           </select>
