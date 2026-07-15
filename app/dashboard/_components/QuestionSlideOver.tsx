@@ -35,7 +35,7 @@ export type QType = "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
 
 export type DraftOption = { _key: number; option_text: string; is_correct: boolean };
 export type DraftEvaluationCriterion = { _key: number; criteria: string; percentage: string };
-export type DraftChild = Omit<CreateChildPayload, "options"> & { _key: number; options: DraftOption[] };
+export type DraftChild = Omit<CreateChildPayload, "options"> & { id?: string; _key: number; options: DraftOption[] };
 
 // Monotonically increasing key generator — stable across re-renders unlike nextKey().
 let _nextKey = 1;
@@ -175,6 +175,7 @@ export function QuestionSlideOver({
   const [children, setChildren] = useState<DraftChild[]>(
     () => initial?.question_type === "GROUP"
       ? initial.children.map(c => ({
+          id: c.id,
           _key: nextKey(),
           question_type: c.question_type as "MCQ" | "FILL" | "NUMERICAL",
           content_html: c.content_html || "",
@@ -315,6 +316,29 @@ export function QuestionSlideOver({
         if (qType === "FILL" || qType === "NUMERICAL") {
           patch.correct_answer = correctAnswer;
           patch.tolerance = qType === "NUMERICAL" && tolerance ? Number(tolerance) : null;
+        }
+        if (qType === "GROUP") {
+          patch.children = children.map(c => {
+            const child: CreateChildPayload = {
+              id: c.id,
+              question_type: c.question_type,
+              content_html: c.content_html,
+              correct_answer: c.correct_answer || undefined,
+              marks: c.marks,
+              negative_marks: c.negative_marks,
+              subject: c.subject,
+              topic: c.topic,
+              difficulty: c.difficulty,
+              tag: c.tag,
+              image_url: c.image_url,
+              explanation_video_url: c.explanation_video_url,
+              solution: c.solution
+            };
+            if (c.question_type === "MCQ") {
+              child.options = c.options.filter(o => o.option_text.trim()).map(({ option_text, is_correct }) => ({ option_text, is_correct }));
+            }
+            return child;
+          });
         }
         await updateQuestion(initial!.id, patch);
         invalidate('quizzes');
