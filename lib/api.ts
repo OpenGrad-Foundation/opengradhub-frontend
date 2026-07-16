@@ -3564,6 +3564,12 @@ export async function removeTestFromBundle(
 export type AvailableQuiz = Omit<Quiz, "questions"> & {
   /** false when the quiz is batch-granted and outside its availability window. */
   attemptable?: boolean;
+  /**
+   * Past due with nothing to show for it — no completed attempt, no grace window.
+   * Server-derived: never recompute it from due_at on the client, or the badge
+   * stops matching what the backend actually enforced.
+   */
+  missed?: boolean;
   available_from?: string | null;
   due_at?: string | null;
 };

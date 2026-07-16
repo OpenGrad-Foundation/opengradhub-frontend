@@ -166,6 +166,7 @@ export default function AssessmentsPage() {
                     label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
                     locked={q.attemptable === false}
+                    missed={q.missed === true}
                     lockedTitle={
                       q.available_from && new Date(q.available_from) > new Date()
                         ? `Opens ${new Date(q.available_from).toLocaleString()}`
@@ -215,7 +216,7 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, locked, lockedTitle, windowInfo, onStart, onReview, onPractice,
+  quiz, label, attempts, locked, lockedTitle, windowInfo, missed, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
@@ -226,6 +227,8 @@ function QuizRow({
   lockedTitle?: string;
   /** Optional “Opens …” / “Due …” badge for batch-windowed tests. */
   windowInfo?: string;
+  /** Past due and never completed — takes the window badge's place. */
+  missed?: boolean;
   onStart: () => void;
   onReview: (attemptId: string) => void;
   onPractice: () => void;
@@ -293,9 +296,13 @@ function QuizRow({
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 shrink-0 w-full lg:w-auto pl-[38px] lg:pl-0">
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 }}>
-            {windowInfo && (
+            {/* A missed quiz is past due with nothing to show for it — the neutral
+                "Past due" window badge would read the same as one they actually sat. */}
+            {missed ? (
+              <Pill style={{ background: "rgba(229,62,62,0.1)", color: "#c53030" }}>⚠ Missed</Pill>
+            ) : windowInfo ? (
               <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
-            )}
+            ) : null}
             {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
             {maxAttempts != null && maxAttempts > 0 ? (
               <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
