@@ -57,6 +57,7 @@ export const PERM = {
     edit: "live_classes.edit",
     delete: "live_classes.delete",
     join: "live_classes.join",
+    attendance: "live_classes.attendance",
   },
   calendar: {
     view:   "calendar.view",

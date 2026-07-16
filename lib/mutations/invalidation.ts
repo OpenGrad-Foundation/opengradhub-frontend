@@ -44,6 +44,8 @@ const DOMAIN_KEYS = {
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
   // calendar/live-class changes affect the calendar + dashboard "upcoming" card, not analytics
   calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
+  // manual attendance marking — rosters, grids, list attendee counts, dashboards + attendancePct
+  liveClassAttendance: [['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
   resources: [['og', 'resources']],
   // doubts have their own dashboard card; keep dashboard, drop analytics
   doubts: [['og', 'doubts'], ['og', 'dashboard']],
