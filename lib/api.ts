@@ -1632,6 +1632,10 @@ export type Quiz = {
   negative_marking: boolean;
   correct_marks: number;
   wrong_marks: number;
+  // ── Due date + archive ──
+  // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
+  due_at: string | null;
+  archived_at: string | null;
 };
 
 export type CreateQuizPayload = {
@@ -1653,13 +1657,38 @@ export type CreateQuizPayload = {
   wrong_marks?: number;
 };
 
-export async function getQuizzes(params: { module_id?: string; quiz_type?: string } = {}): Promise<Omit<Quiz, "questions">[]> {
+export async function getQuizzes(
+  params: { module_id?: string; quiz_type?: string; archived?: boolean } = {},
+): Promise<Omit<Quiz, "questions">[]> {
   const url = new URL(`${API_BASE_URL}/quizzes`);
   if (params.module_id) url.searchParams.set("module_id", params.module_id);
   if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
+  // Default (omitted) lists live quizzes only; archived=true shows the archive.
+  if (params.archived) url.searchParams.set("archived", "true");
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
+}
+
+/** Hard-close a quiz: hidden from students, unassignable, in-flight attempts voided. */
+export async function archiveQuiz(id: string): Promise<{ archived: true; voided_attempts: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/archive`, { method: "POST" });
+  if (!r.ok) throw new ApiError("Failed to archive quiz.", r.status);
+  return (await r.json()) as { archived: true; voided_attempts: number };
+}
+
+/** Restore an archived quiz. Attempts voided by the archive stay voided. */
+export async function unarchiveQuiz(id: string): Promise<{ archived: false }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/unarchive`, { method: "POST" });
+  if (!r.ok) throw new ApiError("Failed to restore quiz.", r.status);
+  return (await r.json()) as { archived: false };
+}
+
+/** Live attempt count — powers the archive confirm dialog's warning. */
+export async function getInFlightCount(id: string): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/in-flight-count`);
+  if (!r.ok) throw new ApiError("Failed to check in-flight attempts.", r.status);
+  return ((await r.json()) as { count: number }).count;
 }
 
 export type ModuleQuiz = Omit<Quiz, "questions"> & {
@@ -2038,6 +2067,8 @@ export async function updateQuiz(
     negative_marking?: boolean;
     correct_marks?: number;
     wrong_marks?: number;
+    // Omit to leave unchanged; null clears the deadline.
+    due_at?: string | null;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {

@@ -33,6 +33,25 @@ import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuizStudentPreview } from "@/components/quiz-student-preview";
 import { QuestionBulkUploadPanel } from "@/app/dashboard/test-bank/QuestionBulkUploadPanel";
 
+// ── due_at ⇄ <input type="datetime-local"> ─────────────────────
+// The input speaks LOCAL wall-clock time with no zone; the API speaks UTC ISO.
+// Slicing the ISO string would render UTC in a local-time field — off by the
+// viewer's offset (5.5h in IST) — so convert through Date both ways.
+
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 // ── Page ───────────────────────────────────────────────────────
 
 export default function QuizBuilderPage() {
@@ -68,6 +87,7 @@ export default function QuizBuilderPage() {
   const [negativeMarking, setNegativeMarking] = useState(false);
   const [correctMarks, setCorrectMarks]       = useState("1");
   const [wrongMarks, setWrongMarks]           = useState("0");
+  const [dueAt, setDueAt]                     = useState("");
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [settingsErr, setSettingsErr]     = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -116,6 +136,7 @@ export default function QuizBuilderPage() {
       setNegativeMarking(q.negative_marking);
       setCorrectMarks(String(q.correct_marks ?? 1));
       setWrongMarks(String(q.wrong_marks ?? 0));
+      setDueAt(isoToLocalInput(q.due_at));
       if (q.is_sectioned && q.sections.length > 0) {
         setActiveSectionId(prev => prev ?? q.sections[0].id);
       }
@@ -175,6 +196,7 @@ export default function QuizBuilderPage() {
         negative_marking:       negativeMarking,
         correct_marks:          correctMarks ? Number(correctMarks) : 1,
         wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
+        due_at:                 localInputToIso(dueAt),
       });
       invalidate('quizzes');
       setSettingsSaved(true);
@@ -364,6 +386,18 @@ export default function QuizBuilderPage() {
                 <input type="number" min="0" max="100" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
               </Field>
             </div>
+            <Field label="Due Date (optional)">
+              <input
+                type="datetime-local"
+                value={dueAt}
+                onChange={e => setDueAt(e.target.value)}
+                style={S.input}
+              />
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>
+                Default deadline for this quiz. A batch that sets its own due date overrides
+                it. Leave empty for no deadline.
+              </p>
+            </Field>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
               <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
               <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />

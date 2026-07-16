@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import {
-  savePayload, getPayload, saveProgress, getProgress, clearProgress,
+  savePayload, getPayload, clearPayload, saveProgress, getProgress, clearProgress,
   type PracticePayload,
 } from '../lib/practiceStore';
 
@@ -18,6 +18,7 @@ const payload: PracticePayload = {
 describe('practiceStore', () => {
   beforeEach(async () => {
     await clearProgress('quiz-1');
+    await clearPayload('quiz-1');
   });
 
   it('round-trips a payload', async () => {
@@ -34,5 +35,19 @@ describe('practiceStore', () => {
     expect(await getProgress('quiz-1')).toEqual({ s1: 'o1' });
     await clearProgress('quiz-1');
     expect(await getProgress('quiz-1')).toBeNull();
+  });
+
+  // The store has no TTL and no versioning: a cached payload otherwise survives forever,
+  // so an archived quiz would stay practisable on that device indefinitely. clearPayload
+  // is how the practice page evicts it once the server reports the quiz archived.
+  it('clears a cached payload', async () => {
+    await savePayload(payload);
+    expect(await getPayload('quiz-1')).not.toBeNull();
+    await clearPayload('quiz-1');
+    expect(await getPayload('quiz-1')).toBeNull();
+  });
+
+  it('clearPayload is a no-op when nothing is cached', async () => {
+    await expect(clearPayload('quiz-nonexistent')).resolves.toBeUndefined();
   });
 });
