@@ -22,7 +22,9 @@ import {
   type QuizAttemptQuestion,
   type WrongExplanation,
   type StudentReportPdf,
+  getMyQuestionReports,
 } from "@/lib/api";
+import { ReportQuestionButton } from "@/components/report-question-modal";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
@@ -229,6 +231,7 @@ export default function QuizTakingPage() {
   // Question-by-question navigation state
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [reportedSnapshots, setReportedSnapshots] = useState<Set<string>>(new Set());
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showReloadWarning, setShowReloadWarning] = useState(false);
   const [calcOpen, setCalcOpen] = useState(false);
@@ -388,6 +391,22 @@ export default function QuizTakingPage() {
       }
     };
   }, [currentIdx, phase, attempt]);
+
+  // Which questions this student already reported — so the button shows "Reported" after a reload.
+  useEffect(() => {
+    const attemptId = attempt?.attempt_id;
+    if (!attemptId) return;
+    let cancelled = false;
+    getMyQuestionReports(attemptId)
+      .then((rows) => {
+        if (cancelled) return;
+        setReportedSnapshots(
+          new Set(rows.map((r) => r.question_snapshot_id).filter((s): s is string => !!s)),
+        );
+      })
+      .catch(() => undefined); // non-blocking: a failure here must never break the attempt
+    return () => { cancelled = true; };
+  }, [attempt?.attempt_id]);
 
   // Fullscreen proctoring: detect and log exits
   useEffect(() => {
@@ -1130,24 +1149,34 @@ export default function QuizTakingPage() {
                   <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#034852" }}>
                     Question {currentIdx + 1} of {total}
                   </p>
-                  <button
-                    onClick={() => toggleFlag(q.snapshot_id)}
-                    style={{
-                      background: isFlagged ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.06)",
-                      color: isFlagged ? "#e53e3e" : "rgba(3,72,82,0.5)",
-                      border: "none",
-                      borderRadius: "8px",
-                      padding: "6px 14px",
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    {/* A GROUP parent is not answerable — its children carry their own buttons. */}
+                    {q.question_type !== "GROUP" && (
+                      <ReportQuestionButton
+                        snapshotId={q.snapshot_id}
+                        alreadyReported={reportedSnapshots.has(q.snapshot_id)}
+                        onReported={() => setReportedSnapshots((prev) => new Set(prev).add(q.snapshot_id))}
+                      />
+                    )}
+                    <button
+                      onClick={() => toggleFlag(q.snapshot_id)}
+                      style={{
+                        background: isFlagged ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.06)",
+                        color: isFlagged ? "#e53e3e" : "rgba(3,72,82,0.5)",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "6px 14px",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Question body */}
@@ -1155,6 +1184,13 @@ export default function QuizTakingPage() {
                   q={q}
                   answers={answers}
                   setAnswer={setAnswer}
+                  renderReportButton={(snapshotId) => (
+                    <ReportQuestionButton
+                      snapshotId={snapshotId}
+                      alreadyReported={reportedSnapshots.has(snapshotId)}
+                      onReported={() => setReportedSnapshots((prev) => new Set(prev).add(snapshotId))}
+                    />
+                  )}
                 />
 
                 {/* Navigation */}
