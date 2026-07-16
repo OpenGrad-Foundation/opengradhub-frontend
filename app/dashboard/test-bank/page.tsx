@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
 import {
@@ -62,6 +62,46 @@ function TestBankPageContent() {
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
+
+  const handleArchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
+    setArchiveBusy(quiz.id);
+    try {
+      // The in-flight count is the point of this dialog: archiving voids those attempts
+      // and un-archiving will not bring them back, so say so before it happens.
+      const inFlight = await getInFlightCount(quiz.id);
+      const warning = inFlight > 0
+        ? `\n\n${inFlight} student${inFlight === 1 ? " is" : "s are"} taking this quiz right now. `
+          + `Archiving voids ${inFlight === 1 ? "that attempt" : "those attempts"} — `
+          + `${inFlight === 1 ? "it" : "they"} will NOT be graded, and restoring the quiz will not bring `
+          + `${inFlight === 1 ? "it" : "them"} back.`
+        : "";
+      if (!confirm(`Archive "${quiz.title}"?\n\nIt disappears for students and cannot be assigned.${warning}`)) {
+        return;
+      }
+      await archiveQuiz(quiz.id);
+      invalidate("quizzes");
+      await fetchGlobalTests();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to archive quiz.");
+    } finally {
+      setArchiveBusy(null);
+    }
+  };
+
+  const handleUnarchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
+    setArchiveBusy(quiz.id);
+    try {
+      await unarchiveQuiz(quiz.id);
+      invalidate("quizzes");
+      await fetchGlobalTests();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to restore quiz.");
+    } finally {
+      setArchiveBusy(null);
+    }
+  };
 
   const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
     try {
@@ -104,11 +144,11 @@ function TestBankPageContent() {
 
   const fetchGlobalTests = useCallback(async () => {
     try {
-      setGlobalTests(await getQuizzes({ quiz_type: "GLOBAL_TEST" }));
+      setGlobalTests(await getQuizzes({ quiz_type: "GLOBAL_TEST", archived: showArchived }));
     } catch {
       setGlobalTests([]);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     if (!userLoading) void fetchGlobalTests();
@@ -217,7 +257,9 @@ function TestBankPageContent() {
       )}
 
       {/* ── Program / Global tests ────────────────────────── */}
-      {(globalTests.length > 0 || uploadJobId) && (
+      {/* showArchived keeps the card mounted when the archive is empty — otherwise the
+          toggle unmounts with it and there is no way back to the live list. */}
+      {(globalTests.length > 0 || uploadJobId || showArchived) && (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
           <div 
             onClick={() => setGlobalTestsExpanded(e => !e)}
@@ -226,8 +268,30 @@ function TestBankPageContent() {
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
               <p style={{ ...labelStyle, margin: 0 }}>Program Quizzes</p>
               <p style={{ ...mutedStyle, fontSize: "13px", margin: 0 }}>
-                {globalTests.length} created · click Edit to manage questions &amp; settings
+                {showArchived
+                  ? `${globalTests.length} archived · restore to make assignable again`
+                  : `${globalTests.length} created · click Edit to manage questions & settings`}
               </p>
+            </div>
+            {/* stopPropagation: the header row itself toggles expand/collapse. */}
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ display: "flex", flexShrink: 0, borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(3,72,82,0.12)", marginTop: "2px" }}
+            >
+              {([false, true] as const).map(archived => (
+                <button
+                  key={String(archived)}
+                  type="button"
+                  onClick={() => { setShowArchived(archived); setGlobalTestsExpanded(true); }}
+                  style={{
+                    padding: "6px 12px", border: "none", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                    background: showArchived === archived ? "#209379" : "transparent",
+                    color: showArchived === archived ? "#fff" : "#6b7280",
+                  }}
+                >
+                  {archived ? "Archived" : "Active"}
+                </button>
+              ))}
             </div>
             <button
                 type="button"
@@ -255,8 +319,23 @@ function TestBankPageContent() {
             </div>
           )}
           {globalTestsExpanded && globalTests.map((t, i) => (
-            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => handleDeleteQuiz(t)} />
+            <GlobalTestRow
+              key={t.id}
+              quiz={t}
+              isLast={i === globalTests.length - 1}
+              onDelete={() => handleDeleteQuiz(t)}
+              onArchive={() => handleArchiveQuiz(t)}
+              onUnarchive={() => handleUnarchiveQuiz(t)}
+              busy={archiveBusy === t.id}
+            />
           ))}
+          {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
+            <p style={{ ...mutedStyle, fontSize: "13px", margin: 0, padding: "18px 24px" }}>
+              {showArchived
+                ? "No archived quizzes. Archiving a quiz hides it from students and stops it being assigned."
+                : "No program quizzes yet."}
+            </p>
+          )}
         </div>
       )}
 
@@ -376,24 +455,43 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions">; isLast: boolean; onDelete: () => void }) {
-  const created = new Date(quiz.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }: {
+  quiz: Omit<Quiz, "questions">;
+  isLast: boolean;
+  onDelete: () => void;
+  onArchive: () => void;
+  onUnarchive: () => void;
+  busy: boolean;
+}) {
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const created = fmt(quiz.created_at);
+  const isArchived = quiz.archived_at != null;
   return (
     <div
       className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3.5 px-6 py-4"
-      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)" }}
+      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)", opacity: isArchived ? 0.75 : 1 }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>{quiz.title}</p>
         <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{
-            fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-            background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
-            color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
-          }}>
-            {quiz.published ? "Published" : "Draft"}
-          </span>
+          {isArchived ? (
+            <span style={{
+              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
+              background: "rgba(229,62,62,0.1)", color: "#e53e3e",
+            }}>
+              Archived
+            </span>
+          ) : (
+            <span style={{
+              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
+              background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
+              color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
+            }}>
+              {quiz.published ? "Published" : "Draft"}
+            </span>
+          )}
           {quiz.duration_minutes != null && <Tag>{quiz.duration_minutes} min</Tag>}
+          {quiz.due_at != null && <Tag>Due {fmt(quiz.due_at)}</Tag>}
           <Tag>Created {created}</Tag>
         </div>
       </div>
@@ -401,6 +499,15 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
         <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
           Edit →
         </Link>
+        {isArchived ? (
+          <button onClick={onUnarchive} disabled={busy} style={{ ...outlineBtn, color: "#209379", borderColor: "rgba(32,147,121,0.3)", opacity: busy ? 0.5 : 1 }}>
+            {busy ? "…" : "Restore"}
+          </button>
+        ) : (
+          <button onClick={onArchive} disabled={busy} style={{ ...outlineBtn, opacity: busy ? 0.5 : 1 }}>
+            {busy ? "…" : "Archive"}
+          </button>
+        )}
         <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
           Delete
         </button>
