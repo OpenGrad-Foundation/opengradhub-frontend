@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   bulkParseCancel,
   bulkParseQuiz,
   bulkParseQuizFromPdf,
   bulkSaveQuiz,
   getBulkParseJobStatus,
+  getCourseModules,
   type BulkParseJobStatus,
   type ParsedBulkQuiz,
 } from "@/lib/api";
@@ -63,6 +64,15 @@ const S = {
     color: "#034852",
     margin: "0 0 8px 0",
   } as React.CSSProperties,
+  targetBanner: {
+    background: "rgba(0,109,108,0.08)",
+    border: "1px solid rgba(0,109,108,0.2)",
+    borderRadius: "10px",
+    padding: "10px 14px",
+    fontSize: "14px",
+    color: "#034852",
+    margin: "0 0 16px 0",
+  } as React.CSSProperties,
   primaryBtn: {
     padding: "12px 28px",
     border: "none",
@@ -80,6 +90,17 @@ const S = {
 
 export default function BulkImportQuizPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Present when the curriculum editor sent the user here: the quiz is saved
+  // into this module instead of the global quiz bank. course_id is carried for
+  // the redirect only — the backend validates module_id on its own.
+  //
+  // Both params or neither: a module import lands back on its course page, and
+  // without a course to return to there is nowhere to show the saved quiz — so
+  // a half-specified URL falls back to a plain global import.
+  const courseId = searchParams.get("course_id") ?? undefined;
+  const moduleId = (courseId && searchParams.get("module_id")) || undefined;
+  const [moduleTitle, setModuleTitle] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
@@ -104,6 +125,20 @@ export default function BulkImportQuizPage() {
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
   }, [toast]);
+
+  // Names the destination module in the banner. Best-effort: the import works
+  // without the title, so a failed lookup just leaves the generic wording.
+  useEffect(() => {
+    if (!moduleId || !courseId) return;
+    let cancelled = false;
+    void getCourseModules(courseId)
+      .then((modules) => {
+        if (cancelled) return;
+        setModuleTitle(modules.find((m) => m.id === moduleId)?.title ?? null);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [moduleId, courseId]);
 
   // ── Step 1: parse the file ────────────────────────────────────────────────
 
@@ -183,12 +218,17 @@ export default function BulkImportQuizPage() {
     setError(null);
 
     try {
-      const result = await bulkSaveQuiz(previewData);
+      const result = await bulkSaveQuiz(previewData, moduleId);
       // The saved quiz now references the images — they must not be cleaned up.
       setImageKeys([]);
       setToast("Quiz saving started in the background. You will be notified when it completes.");
+      // Back where the import started: the module's course page, or the test
+      // bank for a global import.
+      const destination = courseId
+        ? `/dashboard/course-management/${courseId}?uploadJobId=${result.jobId}`
+        : `/dashboard/test-bank?uploadJobId=${result.jobId}`;
       setTimeout(() => {
-        router.push(`/dashboard/test-bank?uploadJobId=${result.jobId}`);
+        router.push(destination);
       }, 2500);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to queue quiz for saving");
@@ -218,7 +258,14 @@ export default function BulkImportQuizPage() {
           {previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
-              <h1 style={S.heading}>Bulk Import Quiz</h1>
+              <h1 style={S.heading}>Bulk Upload Quiz</h1>
+              {moduleId && (
+                <p style={S.targetBanner}>
+                  Uploading into course module
+                  {moduleTitle ? <strong> {moduleTitle}</strong> : null}. The quiz will appear in
+                  this course, not the global quiz bank.
+                </p>
+              )}
               <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "24px" }}>
                 Upload a markdown (.md, .txt) or PDF file following the OpenGrad Quiz format.
                 After uploading you can review and edit the parsed data before saving.

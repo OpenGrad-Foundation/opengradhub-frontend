@@ -31,6 +31,7 @@ import {
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuizStudentPreview } from "@/components/quiz-student-preview";
+import { QuestionBulkUploadPanel } from "@/app/dashboard/test-bank/QuestionBulkUploadPanel";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -82,10 +83,17 @@ export default function QuizBuilderPage() {
   const [panelOpen, setPanelOpen]       = useState(false);
   const [editTarget, setEditTarget]     = useState<Question | null>(null);
   const [bankOpen, setBankOpen]         = useState(false);
+  const [csvOpen, setCsvOpen]           = useState(false);
 
   // DnD ordering
   const [questions, setQuestions]   = useState<Question[]>([]);
   const dragIdx = useRef<number | null>(null);
+
+  // Where a CSV upload's questions land. A sectioned quiz reads its questions
+  // through its sections, so it needs one picked before the panel can open.
+  const csvTarget = quiz?.is_sectioned
+    ? (activeSectionId ? { quizId, sectionId: activeSectionId } : undefined)
+    : { quizId };
 
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
 
@@ -390,6 +398,16 @@ export default function QuizBuilderPage() {
         </div>
       </form>
 
+      {/* ── Bulk CSV upload into this quiz ────────────────── */}
+      {csvOpen && csvTarget && (
+        <QuestionBulkUploadPanel
+          createdBy={userId}
+          target={csvTarget}
+          onClose={() => setCsvOpen(false)}
+          onDone={() => { void reload(); }}
+        />
+      )}
+
       {/* ── Questions card ────────────────────────────────── */}
       <div style={glassCard}>
         {quiz?.is_sectioned ? (
@@ -400,6 +418,7 @@ export default function QuizBuilderPage() {
             sequential={quiz.sequential_sections}
             onReload={reload}
             setBankOpen={setBankOpen}
+            setCsvOpen={setCsvOpen}
             setEditTarget={setEditTarget}
             setPanelOpen={setPanelOpen}
           />
@@ -409,6 +428,7 @@ export default function QuizBuilderPage() {
               <p style={S.sectionHeader}>Questions ({questions.length})</p>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button onClick={() => setBankOpen(true)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add from Bank</button>
+                <button onClick={() => setCsvOpen((v) => !v)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px", color: "#932079", borderColor: "rgba(147,32,121,0.3)" }}>⬆ Upload CSV</button>
                 <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={{ ...S.primaryBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add Question</button>
               </div>
             </div>
@@ -573,6 +593,7 @@ function SectionsView({
   sequential,
   onReload,
   setBankOpen,
+  setCsvOpen,
   setEditTarget,
   setPanelOpen,
 }: {
@@ -582,6 +603,7 @@ function SectionsView({
   sequential: boolean;
   onReload: () => Promise<void>;
   setBankOpen: (open: boolean) => void;
+  setCsvOpen: (open: boolean) => void;
   setEditTarget: (q: Question | null) => void;
   setPanelOpen: (open: boolean) => void;
 }) {
@@ -712,6 +734,12 @@ function SectionsView({
                       style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #209379", background: "#209379", color: "#fff", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
                     >
                       Attach From Bank
+                    </button>
+                    <button
+                      onClick={() => { setActiveSectionId(section.id); setCsvOpen(true); }}
+                      style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #932079", background: "#fff", color: "#932079", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
+                    >
+                      ⬆ Upload CSV
                     </button>
                   </div>
                 </div>

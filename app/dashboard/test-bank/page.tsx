@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
+import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
 import {
@@ -35,14 +36,10 @@ function TestBankPageContent() {
   const userId = data?.user?.id ?? "";
   const invalidate = useInvalidate();
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [uploadJobId, setUploadJobId] = useState<string | null>(searchParams.get("uploadJobId"));
-  const [uploadStatus, setUploadStatus] = useState<string>("Uploading and queuing...");
 
   const [filterType, setFilterType]       = useState("");
   const [filterProg, setFilterProg]       = useState("");
@@ -114,41 +111,12 @@ function TestBankPageContent() {
     if (!userLoading) void fetchGlobalTests();
   }, [userLoading, fetchGlobalTests]);
 
-  useEffect(() => {
-    if (!uploadJobId) return;
-    let cancelled = false;
-    const poll = async () => {
-      while (!cancelled) {
-        try {
-          const status = await getBulkParseJobStatus(uploadJobId);
-          if (status.status === "completed") {
-            if (!cancelled) {
-              setUploadJobId(null);
-              fetchGlobalTests();
-              router.replace("/dashboard/test-bank");
-            }
-            break;
-          } else if (status.status === "failed") {
-            if (!cancelled) {
-              setUploadJobId(null);
-              alert("Quiz upload failed: " + (status.error || "Unknown error"));
-              router.replace("/dashboard/test-bank");
-            }
-            break;
-          } else {
-            if (!cancelled) {
-              setUploadStatus(status.status === "active" ? "Processing quiz..." : "Queued...");
-            }
-          }
-        } catch (err) {
-          // Ignore transient errors
-        }
-        await new Promise(r => setTimeout(r, 1500));
-      }
-    };
-    poll();
-    return () => { cancelled = true; };
-  }, [uploadJobId, fetchGlobalTests, router]);
+  // A bulk-imported global quiz is saved by a background worker — poll it in
+  // and refresh the list once it lands.
+  const { jobId: uploadJobId, status: uploadStatus, expired: uploadExpired } = useBulkSaveJob({
+    cleanupUrl: "/dashboard/test-bank",
+    onCompleted: fetchGlobalTests,
+  });
 
   if (userLoading) return <LoadingState />;
 
@@ -217,7 +185,7 @@ function TestBankPageContent() {
       )}
 
       {/* ── Program / Global tests ────────────────────────── */}
-      {(globalTests.length > 0 || uploadJobId) && (
+      {(globalTests.length > 0 || uploadJobId || uploadExpired) && (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
           <div 
             onClick={() => setGlobalTestsExpanded(e => !e)}
@@ -252,6 +220,12 @@ function TestBankPageContent() {
                 {uploadStatus}
               </div>
               <style>{`@keyframes og-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } } @keyframes og-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+          {globalTestsExpanded && uploadExpired && (
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+              This upload’s progress is no longer being tracked. It may still have saved — reload the
+              page to see the current quizzes.
             </div>
           )}
           {globalTestsExpanded && globalTests.map((t, i) => (
