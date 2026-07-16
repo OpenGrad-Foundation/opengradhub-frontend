@@ -74,6 +74,26 @@ function TestBankPageContent() {
       .catch(() => undefined); // badges are an affordance; never break the page over them
   }, [canTriage]);
 
+  // Deep link from a QUESTION_REPORTED notification: /dashboard/test-bank?question=<id>.
+  // Fetch by id rather than searching the loaded page — the active filters may exclude it,
+  // and the list is paginated in memory, so a lookup would silently no-op.
+  const deepLinkQuestionId = searchParams.get("question");
+  useEffect(() => {
+    if (!deepLinkQuestionId) return;
+    let cancelled = false;
+    // Clear filters so the row is visible behind the panel once the user closes it.
+    setFilterType(""); setFilterProg(""); setFilterSubject("");
+    setFilterTopic(""); setFilterDiff(""); setFilterTag("");
+    getQuestionById(deepLinkQuestionId)
+      .then((q) => {
+        if (cancelled) return;
+        setEditTarget(q);
+        setPanelOpen(true);
+      })
+      .catch(() => undefined); // deleted/inaccessible question: fall through to the plain list
+    return () => { cancelled = true; };
+  }, [deepLinkQuestionId]);
+
   const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
     try {
       const uniques = await getUniqueQuestionsForQuiz(quiz.id);
