@@ -108,6 +108,22 @@ export default function LiveClassesPage() {
         </div>
       )}
 
+      {!isManager && !canAttendance && past.length > 0 && (() => {
+        const attendedCount = past.filter((c) => c.attended).length;
+        const pct = Math.round((attendedCount / past.length) * 100);
+        return (
+          <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "16px", padding: "16px 24px", marginBottom: "20px" }}>
+            <span style={{ fontSize: "22px" }}>🗓️</span>
+            <div>
+              <p style={{ ...S.label, marginBottom: "2px" }}>My Attendance</p>
+              <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#034852" }}>
+                {attendedCount}/{past.length} classes attended ({pct}%)
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
       {tab === "students" && canAttendance ? (
         <AttendanceGrid />
       ) : loading ? <LoadingState /> : error ? (
@@ -315,7 +331,7 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onView
               ? { background: "rgba(10,190,98,0.12)", color: "#0abe62" }
               : { background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.4)" }),
           }}>
-            {cls.attended ? "Joined" : "Missed"}
+            {cls.attended ? "Present" : "Absent"}
           </span>
         </div>
       )}
