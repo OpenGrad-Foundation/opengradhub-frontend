@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById } from "@/lib/api";
+import { usePermission } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
@@ -59,6 +61,18 @@ function TestBankPageContent() {
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+
+  // Open student reports per bank question, for the ⚠ badges.
+  const canTriage = usePermission(PERM.test_bank.manage_questions);
+  const [reportCounts, setReportCounts] = useState<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!canTriage) return;
+    // No quiz_id: this page lists the whole bank, not one quiz.
+    getQuestionReportCounts()
+      .then((rows) => setReportCounts(new Map(rows.map((r) => [r.bank_question_id, r.open_count]))))
+      .catch(() => undefined); // badges are an affordance; never break the page over them
+  }, [canTriage]);
 
   const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
     try {
@@ -321,6 +335,7 @@ function TestBankPageContent() {
               key={q.id}
               question={q}
               isLast={i === questions.length - 1}
+              openReports={reportCounts.get(q.id) ?? 0}
               selected={selectedIds.has(q.id)}
               onToggleSelect={() => {
                 const next = new Set(selectedIds);
@@ -385,7 +400,7 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
 
 // ── Question Row ───────────────────────────────────────────────
 
-function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void }) {
+function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete, openReports = 0 }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void; openReports?: number }) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = question.question_type === "GROUP" && question.children.length > 0;
 
@@ -405,6 +420,17 @@ function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDel
           />
         </div>
         <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
+        {openReports > 0 && (
+          <span
+            title={`${openReports} open student ${openReports === 1 ? "report" : "reports"}`}
+            style={{
+              flexShrink: 0, marginTop: "2px", padding: "2px 8px", borderRadius: "999px",
+              background: "rgba(229,62,62,0.1)", color: "#e53e3e", fontSize: "11px", fontWeight: 700,
+            }}
+          >
+            ⚠ {openReports}
+          </span>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
           <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
