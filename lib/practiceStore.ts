@@ -101,6 +101,24 @@ export async function getPayload(quizId: string): Promise<PracticePayload | null
   }
 }
 
+/**
+ * Evict a cached payload. This store has no TTL and no versioning, so a payload otherwise
+ * lives forever — an archived quiz would stay practisable on that device indefinitely.
+ * The practice page calls this once the server reports the quiz gone (404 / archived),
+ * which also stops practice on that device while it is offline.
+ */
+export async function clearPayload(quizId: string): Promise<void> {
+  if (!hasIndexedDb()) {
+    memPayloads.delete(quizId);
+    return;
+  }
+  try {
+    await tx(PAYLOADS, 'readwrite', (s) => s.delete(quizId));
+  } catch {
+    // best-effort cache — ignore delete failures
+  }
+}
+
 export async function saveProgress(quizId: string, answers: PracticeAnswers): Promise<void> {
   if (!hasIndexedDb()) {
     memProgress.set(quizId, answers);

@@ -13,6 +13,7 @@ import { getBackHref } from "@/lib/nav";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { ApiError, getPracticePayload, type QuizAttemptQuestion } from "@/lib/api";
 import {
+  clearPayload,
   clearProgress,
   getPayload,
   getProgress,
@@ -171,10 +172,26 @@ export default function PracticePage() {
 
     (async () => {
       try {
-        let payload = await getPayload(quizId);
-        if (!payload) {
+        // Server first, cache as fallback. Reading the cache first (as this once did)
+        // meant an already-cached quiz never contacted the server again, so an archived
+        // quiz stayed practisable forever — the payload store has no TTL or versioning.
+        let payload: PracticePayload;
+        try {
           payload = await getPracticePayload(quizId);
           await savePayload(payload);
+        } catch (fetchErr) {
+          // 404 = archived or deleted server-side. Evict the local copy so practice stops
+          // on this device too, then surface the error rather than serving stale content.
+          if (fetchErr instanceof ApiError && fetchErr.status === 404) {
+            await clearPayload(quizId);
+            await clearProgress(quizId);
+            throw fetchErr;
+          }
+          // Network/server failure — fall back to the cached payload so practice still
+          // works offline, which is the whole point of caching it.
+          const cached = await getPayload(quizId);
+          if (!cached) throw fetchErr;
+          payload = cached;
         }
         if (cancelled) return;
 
