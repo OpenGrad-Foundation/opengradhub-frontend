@@ -1146,7 +1146,7 @@ export default function QuizTakingPage() {
                       gap: "6px",
                     }}
                   >
-                    ⚑ {isFlagged ? "Flagged" : "Flag"}
+                    ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
                   </button>
                 </div>
 
@@ -1289,8 +1289,8 @@ export default function QuizTakingPage() {
                         {([
                           ["Answered", showStats.answered],
                           ["Unanswered", showStats.unanswered],
-                          ["Flagged", showStats.flagged],
-                          ["Flagged + Answered", showStats.flaggedAndAnswered],
+                          ["Marked for Review", showStats.flagged],
+                          ["Marked + Answered", showStats.flaggedAndAnswered],
                         ] as const).map(([label, value]) => (
                           <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                             <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>
