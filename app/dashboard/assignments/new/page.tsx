@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { createAssignment, getCourses, getBatches, type Course, type Batch } from "@/lib/api";
+import { createAssignment, getCourses, getBatches, type Course, type Batch, type SubmissionType } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 export default function NewAssignmentPage() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function NewAssignmentPage() {
   const [title, setTitle]         = useState("");
   const [instructions, setInstr]  = useState("");
   const [attachUrl, setAttachUrl] = useState("");
+  const [submissionType, setSubmissionType] = useState<SubmissionType>("FILE");
   const [dueAt, setDueAt]         = useState("");
   const [courseId, setCourseId]   = useState("");
   const [batchId, setBatchId]     = useState("");
@@ -58,6 +59,7 @@ export default function NewAssignmentPage() {
         title:             title.trim(),
         instructions_html: instructions.trim() || undefined,
         attachment_url:    attachUrl.trim() || undefined,
+        submission_type:   submissionType,
         due_at:            new Date(dueAt).toISOString(),
         course_id:         courseId || undefined,
         batch_id:          batchId || undefined,
@@ -96,6 +98,21 @@ export default function NewAssignmentPage() {
               placeholder="Describe the assignment task, requirements, and expected format…"
               style={{ ...S.input, resize: "vertical", lineHeight: 1.7 }}
             />
+          </Field>
+
+          <Field label="What students submit *">
+            <select
+              value={submissionType}
+              onChange={e => setSubmissionType(e.target.value as SubmissionType)}
+              style={S.input}
+            >
+              <option value="FILE">File upload — PDF, Word, or image (max 10 MB each)</option>
+              <option value="LINK">Google Drive link — for video or anything large</option>
+              <option value="BOTH">Either a file or a Google Drive link</option>
+            </select>
+            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)", margin: "6px 0 0", lineHeight: 1.6 }}>
+              This can&apos;t be changed once students start submitting.
+            </p>
           </Field>
 
           <Field label="Due Date & Time *">

@@ -96,6 +96,25 @@ export function GradePanel({
         </div>
       )}
 
+      {sub.link_url && (
+        <div style={{ marginBottom: "14px" }}>
+          <p style={{ ...sectionLabel, marginBottom: "8px" }}>Google Drive</p>
+          <a
+            href={sub.link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "8px",
+              padding: "9px 14px", background: "rgba(32,147,121,0.1)",
+              border: "1px solid rgba(32,147,121,0.3)", borderRadius: "10px",
+              fontSize: "13px", fontWeight: 700, color: "#209379", textDecoration: "none",
+            }}
+          >
+            🔗 Open Drive link ↗
+          </a>
+        </div>
+      )}
+
       {sub.file_urls.length > 0 && (
         <div style={{ marginBottom: "14px" }}>
           <p style={{ ...sectionLabel, marginBottom: "8px" }}>Files</p>
@@ -103,7 +122,7 @@ export function GradePanel({
         </div>
       )}
 
-      {!sub.response_text && sub.file_urls.length === 0 && (
+      {!sub.response_text && !sub.link_url && sub.file_urls.length === 0 && (
         <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", fontStyle: "italic", marginBottom: "14px" }}>No response submitted yet.</p>
       )}
 
