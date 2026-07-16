@@ -660,6 +660,9 @@ function mockQuizFromParsed(parsed: ParsedBulkQuiz): Quiz {
     duration_minutes: parsed.duration_minutes ?? null,
     max_attempts: null,
     pass_threshold_percent: null,
+    // Preview-only mock: never deadlined, never archived.
+    due_at: null,
+    archived_at: null,
     shuffle_questions: false,
     show_answers_after: true,
     quiz_type: "GLOBAL_TEST",

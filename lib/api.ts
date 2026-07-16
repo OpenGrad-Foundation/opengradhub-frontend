@@ -1601,6 +1601,10 @@ export type Quiz = {
   negative_marking: boolean;
   correct_marks: number;
   wrong_marks: number;
+  // ── Due date + archive ──
+  // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
+  due_at: string | null;
+  archived_at: string | null;
 };
 
 export type CreateQuizPayload = {
@@ -2003,6 +2007,8 @@ export async function updateQuiz(
     negative_marking?: boolean;
     correct_marks?: number;
     wrong_marks?: number;
+    // Omit to leave unchanged; null clears the deadline.
+    due_at?: string | null;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
