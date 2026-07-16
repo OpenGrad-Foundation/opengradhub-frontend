@@ -258,7 +258,7 @@ export default function BulkImportQuizPage() {
           {previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
-              <h1 style={S.heading}>Bulk Upload Quiz</h1>
+              <h1 style={S.heading}>Upload Entire Quiz</h1>
               {moduleId && (
                 <p style={S.targetBanner}>
                   Uploading into course module

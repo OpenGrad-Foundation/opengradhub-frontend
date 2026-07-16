@@ -245,7 +245,7 @@ function TestBankPageContent() {
             ⬆ Upload CSV
           </button>
           <Link href="/dashboard/quiz-builder/bulk-import" style={{ ...primaryBtn, background: "linear-gradient(135deg, #932079 0%, #4a0f3d 100%)", textDecoration: "none" }}>
-            ⬆ Bulk Import Quiz
+            ⬆ Upload Entire Quiz
           </Link>
         </div>
       </div>

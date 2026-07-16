@@ -545,23 +545,6 @@ function ModuleItem({
         >
           + Add Module Quiz
         </Link>
-        <Link
-          href={`/dashboard/quiz-builder/bulk-import?module_id=${module.id}&course_id=${courseId}`}
-          style={{
-            ...ghostBtn,
-            flex: 1,
-            justifyContent: "center",
-            padding: "10px",
-            fontSize: "13px",
-            textDecoration: "none",
-            display: "flex",
-            alignItems: "center",
-            color: "#932079",
-            borderColor: "rgba(147,32,121,0.3)",
-          }}
-        >
-          ⬆ Bulk Upload Quiz
-        </Link>
       </div>
     </div>
   );
