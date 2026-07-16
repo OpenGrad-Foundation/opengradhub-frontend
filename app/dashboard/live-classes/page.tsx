@@ -11,6 +11,7 @@ import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { LiveClassAttendeesModal } from "./_components/LiveClassAttendeesModal";
 import { AttendanceSheet } from "./_components/AttendanceSheet";
+import { AttendanceGrid } from "./_components/AttendanceGrid";
 
 export default function LiveClassesPage() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function LiveClassesPage() {
   const [now,          setNow]          = useState(() => Date.now());
   const [selectedClass, setSelectedClass] = useState<{ id: string; title: string } | null>(null);
   const [attendanceClass, setAttendanceClass] = useState<{ id: string; title: string } | null>(null);
+  const [tab, setTab] = useState<"classes" | "students">("classes");
   const invalidate = useInvalidate();
 
   const { data: classes = [], isPending: loading, error: queryError } = useLiveClasses();
@@ -92,7 +94,23 @@ export default function LiveClassesPage() {
         )}
       </div>
 
-      {loading ? <LoadingState /> : error ? (
+      {canAttendance && (
+        <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+          {(["classes", "students"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ padding: "8px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)",
+                border: tab === t ? "none" : "1.5px solid rgba(3,72,82,0.15)",
+                background: tab === t ? "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" : "transparent",
+                color: tab === t ? "#fff" : "#034852" }}>
+              {t === "classes" ? "Classes" : "Students"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "students" && canAttendance ? (
+        <AttendanceGrid />
+      ) : loading ? <LoadingState /> : error ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
         </div>
