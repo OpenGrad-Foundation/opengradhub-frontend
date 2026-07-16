@@ -1109,11 +1109,23 @@ export type BulkQuestionResult = {
   skippedRows: Array<Record<string, string>>;
 };
 
-/** CSV bulk upload to the question bank. `createdBy` = current user's DB id. */
-export async function bulkUploadQuestions(file: File, createdBy?: string): Promise<BulkQuestionResult> {
+/**
+ * CSV bulk upload. `createdBy` = current user's DB id. Without `target` the
+ * questions land in the shared bank; with one they are also attached to that
+ * quiz (`sectionId` required when the quiz is sectioned).
+ */
+export async function bulkUploadQuestions(
+  file: File,
+  createdBy?: string,
+  target?: { quizId: string; sectionId?: string },
+): Promise<BulkQuestionResult> {
   const formData = new FormData();
   formData.append("file", file);
   if (createdBy) formData.append("created_by", createdBy);
+  if (target) {
+    formData.append("quiz_id", target.quizId);
+    if (target.sectionId) formData.append("section_id", target.sectionId);
+  }
   const response = await apiFetch(`${API_BASE_URL}/questions/bulk`, {
     method: "POST",
     body: formData,
@@ -1351,11 +1363,18 @@ export async function clearReadNotifications(): Promise<void> {
 
 // ── Assignments API ────────────────────────────────────────────
 
+/**
+ * What a student may submit for an assignment.
+ * FILE — uploads only · LINK — a Google Drive URL only · BOTH — either.
+ */
+export type SubmissionType = "FILE" | "LINK" | "BOTH";
+
 export type Assignment = {
   id: string;
   title: string;
   instructions_html: string | null;
   attachment_url: string | null;
+  submission_type: SubmissionType;
   due_at: string;
   course_id: string | null;
   course_title: string | null;
@@ -1364,10 +1383,13 @@ export type Assignment = {
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
+  /** True once any student has submitted — the type is locked from then on. */
+  has_submissions?: boolean;
   /** The caller's own submission + grade (only populated by getAssignmentById). */
   my_submission?: {
     response_text: string | null;
     file_urls: string[];
+    link_url: string | null;
     status: string;
     score: number | null;
     feedback: string | null;
@@ -1385,6 +1407,7 @@ export type Submission = {
   student_roll: string | null;
   response_text: string | null;
   file_urls: string[];
+  link_url: string | null;
   status: string;
   submitted_at: string | null;
   is_late: boolean;
@@ -1415,6 +1438,7 @@ export async function createAssignment(payload: {
   title: string;
   instructions_html?: string;
   attachment_url?: string;
+  submission_type?: SubmissionType;
   due_at: string;
   course_id?: string;
   batch_id?: string;
@@ -1438,6 +1462,8 @@ export async function updateAssignment(
     title: string;
     instructions_html?: string;
     attachment_url?: string;
+    /** Omit to preserve the stored type; the server rejects a change once students have submitted. */
+    submission_type?: SubmissionType;
     due_at: string;
     course_id?: string;
     batch_id?: string;
@@ -1469,10 +1495,11 @@ export async function deleteAssignment(id: string): Promise<void> {
 
 export async function submitAssignment(
   assignmentId: string,
-  payload: { response_text?: string; files?: File[] },
+  payload: { response_text?: string; files?: File[]; link_url?: string },
 ): Promise<Submission> {
   const form = new FormData();
   if (payload.response_text) form.append("response_text", payload.response_text);
+  if (payload.link_url) form.append("link_url", payload.link_url);
   for (const file of payload.files ?? []) {
     form.append("files", file);
   }
@@ -1541,6 +1568,10 @@ export type SubmissionQueueRow = {
   is_overdue: boolean;
   score: number | null;
   submitted_at: string | null;
+  /** Submission content, so the queue's grade panel can show it without a second fetch. */
+  response_text: string | null;
+  file_urls: string[];
+  link_url: string | null;
 };
 
 export type SubmissionQueueResult = {
@@ -1972,11 +2003,15 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
   }
 }
 
-export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz): Promise<{ jobId: string }> {
+/**
+ * Queues a parsed quiz for saving. With `moduleId` it is saved as that
+ * module's course quiz; without one it becomes a global quiz.
+ */
+export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz, moduleId?: string): Promise<{ jobId: string }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(parsedData),
+    body: JSON.stringify(moduleId ? { ...parsedData, module_id: moduleId } : parsedData),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -4249,4 +4284,110 @@ export async function rejectPasswordResetRequest(id: string): Promise<void> {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
   }
+}
+
+// ── Question reports ───────────────────────────────────────────────────────
+
+export const REPORT_CATEGORIES = [
+  "WRONG_ANSWER", "UNCLEAR_OR_TYPO", "IMAGE_BROKEN", "OPTIONS_WRONG", "OTHER",
+] as const;
+export type ReportCategory = typeof REPORT_CATEGORIES[number];
+
+/** Student-facing labels. Keep in sync with REPORT_CATEGORIES. */
+export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
+  WRONG_ANSWER:    "Wrong or missing answer",
+  UNCLEAR_OR_TYPO: "Typo or unclear wording",
+  IMAGE_BROKEN:    "Image or diagram broken",
+  OPTIONS_WRONG:   "Options are wrong",
+  OTHER:           "Something else",
+};
+
+export type QuestionReport = {
+  id: string;
+  question_id: string;
+  parent_question_id: string | null;
+  quiz_id: string;
+  attempt_id: string | null;
+  question_snapshot_id: string | null;
+  student_id: string;
+  category: ReportCategory;
+  note: string | null;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+export type QuestionReportRow = QuestionReport & {
+  student_name: string;
+  quiz_title: string;
+  used_in_quizzes: number;
+};
+
+export type MyQuestionReport = {
+  question_snapshot_id: string | null;
+  question_id: string;
+  category: ReportCategory;
+  status: string;
+};
+
+export async function reportQuestion(
+  snapshotId: string,
+  category: ReportCategory,
+  note?: string | null,
+): Promise<QuestionReport> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ snapshot_id: snapshotId, category, note: note ?? null }),
+  });
+  if (!r.ok) throw new ApiError("Failed to submit report.", r.status);
+  return r.json();
+}
+
+export async function getMyQuestionReports(attemptId: string): Promise<MyQuestionReport[]> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/mine?attempt_id=${attemptId}`);
+  if (!r.ok) throw new ApiError("Failed to load your reports.", r.status);
+  return r.json();
+}
+
+export async function getQuestionReports(
+  params: { quiz_id?: string; status?: string } = {},
+): Promise<QuestionReportRow[]> {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v) as [string, string][],
+  ).toString();
+  const r = await apiFetch(`${API_BASE_URL}/question-reports${qs ? `?${qs}` : ""}`);
+  if (!r.ok) throw new ApiError("Failed to load reports.", r.status);
+  return r.json();
+}
+
+export async function getQuestionReportCounts(
+  quizId?: string,
+): Promise<{ bank_question_id: string; open_count: number }[]> {
+  const r = await apiFetch(
+    `${API_BASE_URL}/question-reports/counts${quizId ? `?quiz_id=${quizId}` : ""}`,
+  );
+  if (!r.ok) throw new ApiError("Failed to load report counts.", r.status);
+  return r.json();
+}
+
+export async function resolveQuestionReport(
+  id: string,
+  status: "RESOLVED" | "DISMISSED",
+  resolutionNote?: string | null,
+): Promise<QuestionReport> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, resolution_note: resolutionNote ?? null }),
+  });
+  if (!r.ok) throw new ApiError("Failed to update report.", r.status);
+  return r.json();
+}
+
+export async function getQuestionById(id: string): Promise<Question> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/${id}`);
+  if (!r.ok) throw new ApiError("Failed to load question.", r.status);
+  return r.json();
 }

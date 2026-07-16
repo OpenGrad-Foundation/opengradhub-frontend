@@ -2,6 +2,8 @@
 export const NOTIFICATION_ROUTES: Record<string, string> = {
   PASSWORD_RESET_REQUESTED: "/dashboard/password-resets",
   ATTEMPT_RESET: "/dashboard/assessments",
+  // The per-row `link` carries ?question=<id>; this is only the fallback.
+  QUESTION_REPORTED: "/dashboard/test-bank",
 };
 
 /** Only same-origin app paths are safe to router.push — reject absolute URLs and
