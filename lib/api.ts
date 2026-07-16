@@ -4352,7 +4352,7 @@ export async function getMyQuestionReports(attemptId: string): Promise<MyQuestio
 }
 
 export async function getQuestionReports(
-  params: { quiz_id?: string; status?: string } = {},
+  params: { quiz_id?: string; status?: string; question_id?: string } = {},
 ): Promise<QuestionReportRow[]> {
   const qs = new URLSearchParams(
     Object.entries(params).filter(([, v]) => v) as [string, string][],
