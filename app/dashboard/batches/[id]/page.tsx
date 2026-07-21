@@ -10,6 +10,9 @@ import {
   deleteBatch,
   addBatchMembers,
   removeBatchMember,
+  setBatchMembersFellow,
+  getFellows,
+  type FellowOption,
   addCourseToBatch,
   removeCourseFromBatch,
   addBundleToBatch,
@@ -309,6 +312,32 @@ function MemberTable({
   const invalidate = useInvalidate();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [removing, setRemoving] = useState(false);
+  const [fellows, setFellows] = useState<FellowOption[]>([]);
+  const [fellowChoice, setFellowChoice] = useState<string>("");
+  const [assigning, setAssigning] = useState(false);
+
+  useEffect(() => {
+    if (!canRemove) return;
+    getFellows().then(setFellows).catch(() => setFellows([]));
+  }, [canRemove]);
+
+  async function assignFellow(clear: boolean) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!clear && !fellowChoice) return;
+    setAssigning(true);
+    setGlobalError(null);
+    try {
+      await setBatchMembersFellow(batchId, ids, clear ? null : fellowChoice);
+      invalidate('batches', 'enrolment');
+      setSelectedIds(new Set());
+      onChanged();
+    } catch (e) {
+      setGlobalError(e instanceof Error ? e.message : "Failed to set batch fellow.");
+    } finally {
+      setAssigning(false);
+    }
+  }
 
   // Drop any selected ids that no longer exist (e.g. after a removal refetch).
   useEffect(() => {
@@ -379,7 +408,40 @@ function MemberTable({
               {removing ? "Removing…" : `Remove ${selectedIds.size} Selected`}
             </button>
           )}
+          {selectedIds.size > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+              <select
+                value={fellowChoice}
+                onChange={(e) => setFellowChoice(e.target.value)}
+                disabled={assigning}
+                aria-label="Fellow to assign"
+                style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", fontSize: "12px" }}
+              >
+                <option value="">Choose fellow…</option>
+                {fellows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+              <button
+                onClick={() => void assignFellow(false)}
+                disabled={assigning || !fellowChoice}
+                style={{ ...primaryBtn, padding: "7px 14px", opacity: assigning || !fellowChoice ? 0.6 : 1 }}
+              >
+                {assigning ? "Assigning…" : `Assign to ${selectedIds.size}`}
+              </button>
+              <button
+                onClick={() => void assignFellow(true)}
+                disabled={assigning}
+                style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, cursor: "pointer", opacity: assigning ? 0.6 : 1 }}
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
+      )}
+      {canRemove && (
+        <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: "0 0 10px" }}>
+          Batch fellows own Tracker tasks assigned to this batch. Student doubts still route to the school fellow.
+        </p>
       )}
       <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
@@ -396,7 +458,7 @@ function MemberTable({
                   />
                 </th>
               )}
-              {["Name", "Roll Number", "Email", "Joined"].map((h) => (
+              {["Name", "Roll Number", "Email", "Fellow", "Joined"].map((h) => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
               ))}
             </tr>
@@ -420,6 +482,7 @@ function MemberTable({
                   <td style={tdSt}><strong style={{ color: "#034852" }}>{m.name}</strong></td>
                   <td style={tdSt}>{m.roll_number ?? "—"}</td>
                   <td style={tdSt}>{m.email || "—"}</td>
+                  <td style={tdSt}>{m.fellow_name ?? "—"}</td>
                   <td style={tdSt}>{new Date(m.enrolled_at).toLocaleDateString()}</td>
                 </tr>
               );

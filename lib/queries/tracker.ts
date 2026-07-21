@@ -218,10 +218,10 @@ export function useTrackerQueueBlockers() {
   });
 }
 
-export function useTrackerAssignable(targetType: TrackerTargetType, enabled = true) {
+export function useTrackerAssignable(targetType: TrackerTargetType, enabled = true, batchId?: string) {
   return useQuery({
-    queryKey: qk.trackerAssignable(targetType),
-    queryFn: () => getTrackerAssignable(targetType),
+    queryKey: [...(qk.trackerAssignable(targetType) as readonly unknown[]), batchId ?? ""],
+    queryFn: () => getTrackerAssignable(targetType, batchId || undefined),
     enabled,
     staleTime: 60_000,
   });

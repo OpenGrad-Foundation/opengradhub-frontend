@@ -3964,6 +3964,8 @@ export type BatchMember = {
   email: string;
   roll_number: string | null;
   enrolled_at: string;
+  fellow_id: string | null;
+  fellow_name: string | null;
 };
 
 export type BatchCourseEntry = {
@@ -4090,6 +4092,25 @@ export async function removeBatchMember(
     throw new ApiError(err?.message ?? "Failed to remove student from batch.", r.status);
   }
   return (await r.json()) as { removed: boolean };
+}
+
+export async function setBatchMembersFellow(
+  batchId: string,
+  userIds: string[],
+  fellowId: string | null,
+  reassignOpen = false,
+): Promise<{ updated: number; reassigned: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/members/fellow`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds, fellow_id: fellowId, reassign_open: reassignOpen }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to set batch fellow.", r.status);
+  }
+  return (await r.json()) as { updated: number; reassigned: number };
 }
 
 export async function addCourseToBatch(
