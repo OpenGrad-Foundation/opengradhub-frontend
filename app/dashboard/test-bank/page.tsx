@@ -114,6 +114,14 @@ function TestBankPageContent() {
       .catch(() => undefined); // badges are an affordance; never break the page over them
   }, [canTriage]);
 
+  // Deep-link from the dashboard "Reported Questions" card: show only questions
+  // that currently have open reports. The reportCounts map is already loaded for
+  // triagers, so this is a pure client-side narrowing — no extra fetch.
+  const reportsOnly = searchParams.get("reports") === "open";
+  const visibleQuestions = reportsOnly
+    ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
+    : questions;
+
   // Deep link from a QUESTION_REPORTED notification: /dashboard/test-bank?question=<id>.
   // Fetch by id rather than searching the loaded page — the active filters may exclude it,
   // and the list is paginated in memory, so a lookup would silently no-op.
@@ -371,6 +379,14 @@ function TestBankPageContent() {
 
       {/* ── Filter bar ────────────────────────────────────── */}
       <div style={{ ...glassCard, padding: "18px 24px", marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+        {reportsOnly && (
+          <Link
+            href="/dashboard/test-bank"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "999px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.3)", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "#e53e3e", textDecoration: "none" }}
+          >
+            Reported only <span aria-hidden>✕</span>
+          </Link>
+        )}
         <Sel value={filterType} onChange={setFilterType} placeholder="All Types">
           {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </Sel>
@@ -409,7 +425,7 @@ function TestBankPageContent() {
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
         </div>
-      ) : questions.length === 0 ? (
+      ) : visibleQuestions.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
           <p style={labelStyle}>Empty Bank</p>
           <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions yet</p>
@@ -418,22 +434,22 @@ function TestBankPageContent() {
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", gap: "12px", alignItems: "center", background: "rgba(3,72,82,0.01)" }}>
-            <input 
-              type="checkbox" 
-              checked={questions.length > 0 && selectedIds.size === questions.length}
+            <input
+              type="checkbox"
+              checked={visibleQuestions.length > 0 && selectedIds.size === visibleQuestions.length}
               onChange={(e) => {
-                if (e.target.checked) setSelectedIds(new Set(questions.map(q => q.id)));
+                if (e.target.checked) setSelectedIds(new Set(visibleQuestions.map(q => q.id)));
                 else setSelectedIds(new Set());
               }}
               style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
             />
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({questions.length} questions)</span>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({visibleQuestions.length} questions)</span>
           </div>
-          {questions.map((q, i) => (
+          {visibleQuestions.map((q, i) => (
             <QuestionRow
               key={q.id}
               question={q}
-              isLast={i === questions.length - 1}
+              isLast={i === visibleQuestions.length - 1}
               openReports={reportCounts.get(q.id) ?? 0}
               selected={selectedIds.has(q.id)}
               onToggleSelect={() => {
