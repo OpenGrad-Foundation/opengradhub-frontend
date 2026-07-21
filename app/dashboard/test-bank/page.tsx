@@ -121,6 +121,8 @@ function TestBankPageContent() {
   const visibleQuestions = reportsOnly
     ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
     : questions;
+  // How many bank questions currently have open reports — drives the filter button badge.
+  const reportedQuestionCount = [...reportCounts.values()].filter((n) => n > 0).length;
 
   // Deep link from a QUESTION_REPORTED notification: /dashboard/test-bank?question=<id>.
   // Fetch by id rather than searching the loaded page — the active filters may exclude it,
@@ -379,12 +381,21 @@ function TestBankPageContent() {
 
       {/* ── Filter bar ────────────────────────────────────── */}
       <div style={{ ...glassCard, padding: "18px 24px", marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        {reportsOnly && (
+        {canTriage && (
           <Link
-            href="/dashboard/test-bank"
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 12px", borderRadius: "999px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.3)", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "#e53e3e", textDecoration: "none" }}
+            href={reportsOnly ? "/dashboard/test-bank" : "/dashboard/test-bank?reports=open"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px",
+              fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, textDecoration: "none",
+              background: reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.06)",
+              border: `1px solid ${reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.3)"}`,
+              color: reportsOnly ? "#fff" : "#e53e3e",
+            }}
+            title={reportsOnly ? "Show all questions" : "Show only questions with open reports"}
           >
-            Reported only <span aria-hidden>✕</span>
+            <span aria-hidden>⚠</span> Reported
+            {reportedQuestionCount > 0 && ` (${reportedQuestionCount})`}
+            {reportsOnly && <span aria-hidden>✕</span>}
           </Link>
         )}
         <Sel value={filterType} onChange={setFilterType} placeholder="All Types">
