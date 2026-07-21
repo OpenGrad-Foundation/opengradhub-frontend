@@ -4380,6 +4380,13 @@ export async function getQuestionReportCounts(
   return r.json();
 }
 
+export async function getOpenReportedCount(): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/open-count`);
+  if (!r.ok) throw new ApiError("Failed to load reported-question count.", r.status);
+  const body = (await r.json()) as { count: number };
+  return body.count;
+}
+
 export async function resolveQuestionReport(
   id: string,
   status: "RESOLVED" | "DISMISSED",
