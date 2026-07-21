@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 
 type StatCardProps = {
   label: string;
@@ -10,6 +11,7 @@ type StatCardProps = {
   isLoading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  href?: string;
 };
 
 export default function StatCard({
@@ -20,11 +22,12 @@ export default function StatCard({
   isLoading,
   error,
   onRetry,
+  href,
 }: StatCardProps) {
   const display = value === null || value === undefined ? '—' : String(value);
 
-  return (
-    <div className="relative rounded-[24px] bg-white px-6 py-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
+  const body = (
+    <>
       {isLoading ? (
         <div data-testid="stat-skeleton" className="h-12 animate-pulse rounded bg-slate-100" />
       ) : error ? (
@@ -69,6 +72,18 @@ export default function StatCard({
           )}
         </>
       )}
-    </div>
+    </>
   );
+
+  const baseClass = "relative block rounded-[24px] bg-white px-6 py-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)]";
+
+  if (href && !isLoading && !error) {
+    return (
+      <Link href={href} className={`${baseClass} transition-shadow hover:shadow-[0_16px_40px_rgba(0,0,0,0.14)]`}>
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={baseClass}>{body}</div>;
 }

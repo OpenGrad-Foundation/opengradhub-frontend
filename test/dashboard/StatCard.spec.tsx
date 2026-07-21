@@ -25,6 +25,19 @@ describe('StatCard', () => {
     expect(container.querySelector('[data-testid="stat-skeleton"]')).toBeTruthy();
   });
 
+  it('wraps the card in a link when href is set', () => {
+    const { container } = render(<StatCard label="Reported" value={3} href="/dashboard/test-bank?reports=open" />);
+    const anchor = container.querySelector('a');
+    expect(anchor).toBeTruthy();
+    expect(anchor?.getAttribute('href')).toBe('/dashboard/test-bank?reports=open');
+    expect(screen.getByText('3')).toBeTruthy();
+  });
+
+  it('renders no link when href is absent', () => {
+    const { container } = render(<StatCard label="Plain" value={5} />);
+    expect(container.querySelector('a')).toBeNull();
+  });
+
   it('renders error state with onRetry callback', () => {
     let retried = false;
     render(
