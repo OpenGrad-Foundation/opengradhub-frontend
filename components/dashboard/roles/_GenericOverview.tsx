@@ -33,6 +33,7 @@ export default function GenericOverview({ role, widgets, isLoading, error, refet
             value={s.value}
             isLoading={isLoading}
             helperText={s.value === 0 ? s.helper : undefined}
+            href={s.href}
           />
         ))}
       </div>
