@@ -20,6 +20,7 @@ export function withReportedStat(
         value: opts.count,
         href: "/dashboard/test-bank?reports=open",
         helper: "None open",
+        tone: opts.count > 0 ? "danger" : undefined,
       },
     ],
   };

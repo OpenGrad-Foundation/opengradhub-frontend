@@ -34,6 +34,7 @@ export default function GenericOverview({ role, widgets, isLoading, error, refet
             isLoading={isLoading}
             helperText={s.value === 0 ? s.helper : undefined}
             href={s.href}
+            tone={s.tone}
           />
         ))}
       </div>

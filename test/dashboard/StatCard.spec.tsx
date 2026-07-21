@@ -38,6 +38,11 @@ describe('StatCard', () => {
     expect(container.querySelector('a')).toBeNull();
   });
 
+  it('applies a red tone to the value when tone is danger', () => {
+    const { container } = render(<StatCard label="Reported" value={3} tone="danger" />);
+    expect(container.querySelector('.text-rose-600')).toBeTruthy();
+  });
+
   it('renders error state with onRetry callback', () => {
     let retried = false;
     render(

@@ -23,14 +23,17 @@ describe('withReportedStat', () => {
       label: 'Reported Questions',
       value: 4,
       href: '/dashboard/test-bank?reports=open',
+      tone: 'danger',
     });
     // Original object is not mutated.
     expect(base.stats).toHaveLength(1);
   });
 
-  it('appends a zero-value stat when there are no open reports', () => {
+  it('appends a zero-value stat with no danger tone when there are no open reports', () => {
     const out = withReportedStat(base, { show: true, count: 0 });
-    expect(out.stats[out.stats.length - 1].value).toBe(0);
-    expect(out.stats[out.stats.length - 1].helper).toBe('None open');
+    const stat = out.stats[out.stats.length - 1];
+    expect(stat.value).toBe(0);
+    expect(stat.helper).toBe('None open');
+    expect(stat.tone).toBeUndefined();
   });
 });
