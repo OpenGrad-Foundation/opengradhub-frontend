@@ -1321,11 +1321,18 @@ export async function clearReadNotifications(): Promise<void> {
 
 // ── Assignments API ────────────────────────────────────────────
 
+/**
+ * What a student may submit for an assignment.
+ * FILE — uploads only · LINK — a Google Drive URL only · BOTH — either.
+ */
+export type SubmissionType = "FILE" | "LINK" | "BOTH";
+
 export type Assignment = {
   id: string;
   title: string;
   instructions_html: string | null;
   attachment_url: string | null;
+  submission_type: SubmissionType;
   due_at: string;
   course_id: string | null;
   course_title: string | null;
@@ -1334,10 +1341,13 @@ export type Assignment = {
   created_by: string | null;
   created_at: string;
   submission_status: string | null;
+  /** True once any student has submitted — the type is locked from then on. */
+  has_submissions?: boolean;
   /** The caller's own submission + grade (only populated by getAssignmentById). */
   my_submission?: {
     response_text: string | null;
     file_urls: string[];
+    link_url: string | null;
     status: string;
     score: number | null;
     feedback: string | null;
@@ -1355,6 +1365,7 @@ export type Submission = {
   student_roll: string | null;
   response_text: string | null;
   file_urls: string[];
+  link_url: string | null;
   status: string;
   submitted_at: string | null;
   is_late: boolean;
@@ -1385,6 +1396,7 @@ export async function createAssignment(payload: {
   title: string;
   instructions_html?: string;
   attachment_url?: string;
+  submission_type?: SubmissionType;
   due_at: string;
   course_id?: string;
   batch_id?: string;
@@ -1408,6 +1420,8 @@ export async function updateAssignment(
     title: string;
     instructions_html?: string;
     attachment_url?: string;
+    /** Omit to preserve the stored type; the server rejects a change once students have submitted. */
+    submission_type?: SubmissionType;
     due_at: string;
     course_id?: string;
     batch_id?: string;
@@ -1439,10 +1453,11 @@ export async function deleteAssignment(id: string): Promise<void> {
 
 export async function submitAssignment(
   assignmentId: string,
-  payload: { response_text?: string; files?: File[] },
+  payload: { response_text?: string; files?: File[]; link_url?: string },
 ): Promise<Submission> {
   const form = new FormData();
   if (payload.response_text) form.append("response_text", payload.response_text);
+  if (payload.link_url) form.append("link_url", payload.link_url);
   for (const file of payload.files ?? []) {
     form.append("files", file);
   }
@@ -1511,6 +1526,10 @@ export type SubmissionQueueRow = {
   is_overdue: boolean;
   score: number | null;
   submitted_at: string | null;
+  /** Submission content, so the queue's grade panel can show it without a second fetch. */
+  response_text: string | null;
+  file_urls: string[];
+  link_url: string | null;
 };
 
 export type SubmissionQueueResult = {

@@ -12,6 +12,7 @@ import {
   submitAssignment,
   type Assignment,
   type Submission,
+  type SubmissionType,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
@@ -136,6 +137,7 @@ export default function AssignmentDetailPage() {
         <SubmissionForm
           assignmentId={assignmentId}
           studentId={studentId}
+          submissionType={assignment.submission_type}
           isResubmit={isSubmitted}
           onSubmitted={onSubmitted}
         />
@@ -157,6 +159,7 @@ function PriorSubmission({ sub }: { sub: MySubmission }) {
       {sub.response_text && (
         <p style={{ fontSize: "14px", color: "#034852", lineHeight: 1.7, margin: "0 0 10px", whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
       )}
+      <SubmissionLink url={sub.link_url} />
       <SubmissionFiles files={sub.file_urls} />
       {sub.submitted_at && (
         <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "10px 0 0" }}>
@@ -164,6 +167,29 @@ function PriorSubmission({ sub }: { sub: MySubmission }) {
         </p>
       )}
     </div>
+  );
+}
+
+/** Renders a submitted Google Drive link, if there is one. */
+function SubmissionLink({ url }: { url: string | null }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: "8px",
+        padding: "8px 12px", marginBottom: "6px",
+        background: "rgba(32,147,121,0.08)", borderRadius: "8px",
+        border: "1px solid rgba(32,147,121,0.25)",
+        fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none",
+        maxWidth: "100%",
+      }}
+    >
+      <span style={{ flexShrink: 0 }}>🔗</span>
+      <span style={{ wordBreak: "break-all" }}>Open Google Drive link ↗</span>
+    </a>
   );
 }
 
@@ -259,11 +285,18 @@ function GradedResult({ sub }: { sub: MySubmission }) {
           <p style={{ fontSize: "14px", color: "#034852", lineHeight: 1.7, margin: 0 }}>{sub.feedback}</p>
         </>
       )}
-      {sub.response_text && (
+      {/* Each part renders on its own terms — gating the whole block on response_text
+          hid the attachments of any submission that had no typed comment. */}
+      {(sub.response_text || sub.link_url || sub.file_urls.length > 0) && (
         <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
           <p style={{ ...S.sectionLabel, margin: "0 0 8px" }}>Your Submission</p>
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
-          <div style={{ marginTop: "8px" }}><SubmissionFiles files={sub.file_urls} /></div>
+          {sub.response_text && (
+            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
+          )}
+          <div style={{ marginTop: "8px" }}>
+            <SubmissionLink url={sub.link_url} />
+            <SubmissionFiles files={sub.file_urls} />
+          </div>
         </div>
       )}
     </div>
@@ -279,21 +312,27 @@ const MAX_FILES = 3;
 function SubmissionForm({
   assignmentId,
   studentId,
+  submissionType,
   isResubmit,
   onSubmitted,
 }: {
   assignmentId: string;
   studentId: string;
+  submissionType: SubmissionType;
   isResubmit: boolean;
   onSubmitted: (s: Submission) => void;
 }) {
   const [responseText, setResponseText] = useState("");
   const [files, setFiles]               = useState<File[]>([]);
+  const [linkUrl, setLinkUrl]           = useState("");
   const [fileError, setFileError]       = useState<string | null>(null);
   const [submitting, setSubmitting]     = useState(false);
   const [submitError, setSubmitError]   = useState<string | null>(null);
   const [submitted, setSubmitted]       = useState(false);
   const invalidate = useInvalidate();
+
+  const allowsFiles = submissionType === "FILE" || submissionType === "BOTH";
+  const allowsLink  = submissionType === "LINK" || submissionType === "BOTH";
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setFileError(null);
@@ -320,16 +359,29 @@ function SubmissionForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!responseText.trim() && files.length === 0) {
-      setSubmitError("Add a text response or attach at least one file.");
+
+    // Mirrors the server's rule: a typed comment is never a submission by itself.
+    const trimmedLink = linkUrl.trim();
+    if (allowsFiles && files.length === 0 && !(allowsLink && trimmedLink)) {
+      setSubmitError(
+        allowsLink
+          ? "Attach a file or add a Google Drive link to submit."
+          : "Attach at least one file to submit.",
+      );
       return;
     }
+    if (submissionType === "LINK" && !trimmedLink) {
+      setSubmitError("Add your Google Drive link to submit.");
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError(null);
     try {
       const sub = await submitAssignment(assignmentId, {
         response_text: responseText.trim() || undefined,
-        files,
+        files: allowsFiles ? files : [],
+        link_url: allowsLink ? trimmedLink || undefined : undefined,
       });
       invalidate('assignments');
       setSubmitted(true);
@@ -362,20 +414,40 @@ function SubmissionForm({
       <form onSubmit={(e) => void handleSubmit(e)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div>
-            <p style={fieldLabel}>Text Response</p>
+            <p style={fieldLabel}>Comments (optional)</p>
             <textarea
               value={responseText}
               onChange={e => setResponseText(e.target.value)}
               rows={6}
-              placeholder="Write your response here…"
+              placeholder="Anything you'd like your reviewer to know…"
               style={{ ...S.input, resize: "vertical", lineHeight: 1.7 }}
             />
           </div>
 
+          {/* Google Drive link */}
+          {allowsLink && (
+            <div>
+              <p style={fieldLabel}>
+                Google Drive link{submissionType === "BOTH" ? " (optional)" : ""}
+              </p>
+              <input
+                type="url"
+                value={linkUrl}
+                onChange={e => setLinkUrl(e.target.value)}
+                placeholder="https://drive.google.com/file/d/…"
+                style={S.input}
+              />
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)", margin: "6px 0 0", lineHeight: 1.6 }}>
+                ⚠️ Set sharing to <strong>&quot;Anyone with the link&quot;</strong> — otherwise your reviewer can&apos;t open it.
+              </p>
+            </div>
+          )}
+
           {/* File upload */}
+          {allowsFiles && (
           <div>
             <p style={fieldLabel}>
-              Attachments — up to {MAX_FILES} files, {MAX_FILE_SIZE_MB} MB each (PDF, Word, JPEG, PNG)
+              Attachments{submissionType === "BOTH" ? " (optional)" : ""} — up to {MAX_FILES} files, {MAX_FILE_SIZE_MB} MB each (PDF, Word, JPEG, PNG)
             </p>
             {files.length < MAX_FILES && (
               <label style={{
@@ -401,6 +473,7 @@ function SubmissionForm({
               </div>
             )}
           </div>
+          )}
 
           {submitError && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{submitError}</p>}
 

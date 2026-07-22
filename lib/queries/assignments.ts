@@ -30,16 +30,11 @@ export function useSubmissionQueue(filters: {
 export function useUpdateAssignment() {
   const invalidate = useInvalidate();
   return useMutation({
+    // Payload shape is derived from updateAssignment rather than restated, so a new
+    // field on the API can't silently go missing here.
     mutationFn: ({ id, payload }: {
       id: string;
-      payload: {
-        title: string;
-        instructions_html?: string;
-        attachment_url?: string;
-        due_at: string;
-        course_id?: string;
-        batch_id?: string;
-      };
+      payload: Parameters<typeof updateAssignment>[1];
     }) => updateAssignment(id, payload),
     onSuccess: () => invalidate('assignments'),
   });
