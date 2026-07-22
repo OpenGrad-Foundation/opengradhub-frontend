@@ -79,6 +79,10 @@ export const qk = {
     ['og', 'dashboard', role, tab] as const,
   dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
+  /** Open-report count behind the dashboard "Reported Questions" card. */
+  openReportedCount: () => ['og', 'dashboard', 'reported-count'] as const,
+  /** Per-bank-question open-report counts behind the Test Bank badges + filter. */
+  questionReportCounts: () => ['og', 'question-reports', 'counts'] as const,
 
   trackerTemplates: (status?: string) => ['og', 'tracker', 'templates', 'list', status ?? 'default'] as const,
   trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,

@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getOpenReportedCount } from "@/lib/api";
+import { qk } from "@/lib/queries/keys";
 
 const FIVE_MIN = 5 * 60_000;
 
@@ -12,7 +13,7 @@ const FIVE_MIN = 5 * 60_000;
  */
 export function useOpenReportedCount(enabled: boolean): { count: number; isLoading: boolean } {
   const query = useQuery<number, Error>({
-    queryKey: ["dashboard", "reported-count"],
+    queryKey: qk.openReportedCount(),
     enabled,
     staleTime: FIVE_MIN,
     refetchOnWindowFocus: false,

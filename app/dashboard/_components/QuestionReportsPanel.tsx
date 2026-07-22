@@ -7,6 +7,7 @@ import {
 } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 /**
  * Student reports filed against one bank question, with inline Resolve/Dismiss.
@@ -18,6 +19,7 @@ export function QuestionReportsPanel({ questionId }: { questionId: string }) {
   const canTriage = usePermission(PERM.test_bank.manage_questions);
   const [reports, setReports] = useState<QuestionReportRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     if (!canTriage || !questionId) return;
@@ -38,6 +40,9 @@ export function QuestionReportsPanel({ questionId }: { questionId: string }) {
     try {
       const updated = await resolveQuestionReport(id, status);
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
+      // Closing a report changes the Test Bank ⚠ badges, the reported-only filter
+      // and the dashboard card — refresh them instead of waiting for a reload.
+      invalidate("questionReports");
     } catch {
       // Leave the row as-is; the next open of the panel re-fetches the truth.
     } finally {

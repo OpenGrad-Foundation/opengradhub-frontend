@@ -58,6 +58,9 @@ const DOMAIN_KEYS = {
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // tracker has its own surfaces + a dashboard tasks card; not analytics
   tracker: [['og', 'tracker'], ['og', 'dashboard']],
+  // resolving/dismissing a student question report — busts the Test Bank badge
+  // counts and the dashboard "Reported Questions" card
+  questionReports: [['og', 'question-reports'], ['og', 'dashboard']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;

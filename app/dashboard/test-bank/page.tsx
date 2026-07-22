@@ -7,6 +7,8 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/queries/keys";
 import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
@@ -20,6 +22,10 @@ import {
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
+
+// Stable empty fallback — a fresh Map() per render would change identity every
+// pass and retrigger anything keyed on it.
+const EMPTY_REPORT_COUNTS = new Map<string, number>();
 
 // ── Page ───────────────────────────────────────────────────────
 // Access (`test_bank.view`) is enforced by the backend and the dashboard
@@ -103,16 +109,18 @@ function TestBankPageContent() {
   };
 
   // Open student reports per bank question, for the ⚠ badges.
+  // Held in react-query (not local state) so resolving a report from the slide-over
+  // can invalidate it and the badges/filter update without a page refresh.
   const canTriage = usePermission(PERM.test_bank.manage_questions);
-  const [reportCounts, setReportCounts] = useState<Map<string, number>>(new Map());
-
-  useEffect(() => {
-    if (!canTriage) return;
+  const { data: reportCounts = EMPTY_REPORT_COUNTS } = useQuery({
+    queryKey: qk.questionReportCounts(),
+    enabled: canTriage,
     // No quiz_id: this page lists the whole bank, not one quiz.
-    getQuestionReportCounts()
-      .then((rows) => setReportCounts(new Map(rows.map((r) => [r.bank_question_id, r.open_count]))))
-      .catch(() => undefined); // badges are an affordance; never break the page over them
-  }, [canTriage]);
+    queryFn: async () => {
+      const rows = await getQuestionReportCounts();
+      return new Map(rows.map((r) => [r.bank_question_id, r.open_count]));
+    },
+  });
 
   // Deep-link from the dashboard "Reported Questions" card: show only questions
   // that currently have open reports. The reportCounts map is already loaded for
