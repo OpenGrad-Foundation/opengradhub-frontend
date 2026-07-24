@@ -6,6 +6,7 @@ import { BackLink } from "@/components/back-link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import CourseCurriculumEditor from "../_components/CourseCurriculumEditor";
+import CollaboratorsPanel from "./collaborators-panel";
 import CourseMetaForm from "../../courses/_components/CourseMetaForm";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -577,9 +578,18 @@ export default function CourseManagementPage() {
               ))}
             </div>
           </div>
-          <div className="course-mgmt-card" style={card}>
-            <CourseCurriculumEditor courseId={courseId} />
-          </div>
+          {has(PERM.courses.manage_curriculum) ? (
+            <div className="course-mgmt-card" style={card}>
+              <CourseCurriculumEditor courseId={courseId} />
+            </div>
+          ) : (
+            <div className="course-mgmt-card" style={card}>
+              <p style={subtitle}>
+                You can view this course&apos;s curriculum snapshot above, but editing modules and
+                lessons requires the curriculum-management permission.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
@@ -609,6 +619,15 @@ export default function CourseManagementPage() {
             }}
           />
         </div>
+      )}
+
+      {activeTab === "settings" && currentCourse && (
+        <CollaboratorsPanel
+          courseId={courseId}
+          createdBy={currentCourse.created_by}
+          callerId={callerId}
+          callerRole={roleCode}
+        />
       )}
 
       {selectedStudentId && (
