@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getCourseCollaborators,
   getEligibleCollaborators,
@@ -30,11 +30,36 @@ export default function CollaboratorsPanel({
 
   const [collaborators, setCollaborators] = useState<CourseCollaborator[]>([]);
   const [eligible, setEligible] = useState<EligibleCollaborator[]>([]);
-  const [selected, setSelected] = useState("");
+  const [query, setQuery] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
   const addMutation = useAddCollaborator();
   const removeMutation = useRemoveCollaborator();
+
+  const filteredEligible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return eligible;
+    return eligible.filter(
+      (u) =>
+        u.name.toLowerCase().includes(q) ||
+        (u.email ?? "").toLowerCase().includes(q) ||
+        u.role.replace(/_/g, " ").toLowerCase().includes(q),
+    );
+  }, [eligible, query]);
+
+  // Close the picker on outside click.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [pickerOpen]);
 
   const load = useCallback(async () => {
     try {
@@ -53,12 +78,12 @@ export default function CollaboratorsPanel({
     void load();
   }, [load]);
 
-  const handleAdd = async () => {
-    if (!selected) return;
+  const handleAdd = async (userId: string) => {
     try {
       setError(null);
-      await addMutation.mutateAsync({ courseId, userId: selected });
-      setSelected("");
+      await addMutation.mutateAsync({ courseId, userId });
+      setQuery("");
+      setPickerOpen(false);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add collaborator.");
@@ -77,6 +102,10 @@ export default function CollaboratorsPanel({
 
   return (
     <div className="course-mgmt-card" style={card}>
+      <style>{`
+        .collab-pick-row:hover:not(:disabled) { background: rgba(10,190,98,0.08); }
+        .collab-pick-row:disabled { opacity: 0.6; cursor: default; }
+      `}</style>
       <div style={{ marginBottom: "14px" }}>
         <p style={eyebrow}>Sharing</p>
         <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Collaborators</h3>
@@ -121,28 +150,50 @@ export default function CollaboratorsPanel({
       )}
 
       {canShare && !loading && (
-        <div style={addRow}>
-          <select
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-            style={select}
-            aria-label="Select a user to add as collaborator"
-          >
-            <option value="">Select a user…</option>
-            {eligible.map((u) => (
-              <option key={u.user_id} value={u.user_id}>
-                {u.name} — {u.role.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => void handleAdd()}
-            disabled={!selected || addMutation.isPending}
-            style={addBtn}
-          >
-            {addMutation.isPending ? "Adding…" : "Add collaborator"}
-          </button>
+        <div ref={pickerRef} style={pickerWrap}>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPickerOpen(true);
+            }}
+            onFocus={() => setPickerOpen(true)}
+            placeholder="Search people to add — name, email, or role…"
+            aria-label="Search users to add as collaborator"
+            style={searchInput}
+          />
+          {pickerOpen && (
+            <div style={dropdown} role="listbox" aria-label="Eligible collaborators">
+              {filteredEligible.length === 0 && (
+                <p style={dropdownEmpty}>
+                  {eligible.length === 0
+                    ? "Everyone eligible is already a collaborator."
+                    : `No matches for "${query.trim()}".`}
+                </p>
+              )}
+              {filteredEligible.map((u) => (
+                <button
+                  key={u.user_id}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  className="collab-pick-row"
+                  onClick={() => void handleAdd(u.user_id)}
+                  disabled={addMutation.isPending}
+                  style={dropdownRow}
+                >
+                  <span style={avatar}>{initials(u.name)}</span>
+                  <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                    <span style={rowName}>{u.name}</span>
+                    <span style={rowMeta}>{u.email ?? "no email"}</span>
+                  </span>
+                  <span style={roleChip}>{u.role.replace(/_/g, " ")}</span>
+                  <span style={addHint}>{addMutation.isPending ? "Adding…" : "+ Add"}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -238,30 +289,98 @@ const removeBtn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const addRow: React.CSSProperties = {
-  display: "flex",
-  gap: "10px",
+function initials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+const pickerWrap: React.CSSProperties = {
+  position: "relative",
   marginTop: "16px",
-  flexWrap: "wrap",
 };
 
-const select: React.CSSProperties = {
-  flex: "1 1 240px",
+const searchInput: React.CSSProperties = {
+  width: "100%",
   border: "1px solid rgba(3,72,82,0.15)",
   borderRadius: "12px",
-  padding: "10px 12px",
+  padding: "11px 14px",
   fontSize: "14px",
   color: "#034852",
   background: "#ffffff",
+  outline: "none",
+  boxSizing: "border-box",
 };
 
-const addBtn: React.CSSProperties = {
+const dropdown: React.CSSProperties = {
+  position: "absolute",
+  top: "calc(100% + 6px)",
+  left: 0,
+  right: 0,
+  zIndex: 30,
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.12)",
+  borderRadius: "16px",
+  boxShadow: "0 18px 40px rgba(3,72,82,0.14)",
+  maxHeight: "280px",
+  overflowY: "auto",
+  padding: "6px",
+};
+
+const dropdownEmpty: React.CSSProperties = {
+  margin: 0,
+  padding: "14px 12px",
+  fontSize: "13px",
+  color: "rgba(3,72,82,0.55)",
+};
+
+const dropdownRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  width: "100%",
   border: "none",
-  background: "linear-gradient(135deg, #0abe62, #209379)",
-  color: "#ffffff",
+  background: "transparent",
   borderRadius: "12px",
-  padding: "10px 18px",
-  fontSize: "14px",
-  fontWeight: 700,
+  padding: "10px 12px",
   cursor: "pointer",
+  textAlign: "left",
+};
+
+const avatar: React.CSSProperties = {
+  flex: "0 0 auto",
+  width: "34px",
+  height: "34px",
+  borderRadius: "50%",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: "12px",
+  fontWeight: 800,
+  color: "#034852",
+  background: "rgba(10,190,98,0.14)",
+  border: "1px solid rgba(10,190,98,0.18)",
+};
+
+const roleChip: React.CSSProperties = {
+  flex: "0 0 auto",
+  fontSize: "10px",
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "var(--teal, #006d6c)",
+  background: "rgba(0,109,108,0.08)",
+  border: "1px solid rgba(0,109,108,0.12)",
+  borderRadius: "999px",
+  padding: "4px 10px",
+};
+
+const addHint: React.CSSProperties = {
+  flex: "0 0 auto",
+  fontSize: "12px",
+  fontWeight: 700,
+  color: "#209379",
 };
