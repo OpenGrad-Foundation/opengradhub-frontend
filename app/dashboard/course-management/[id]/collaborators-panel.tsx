@@ -104,7 +104,14 @@ export default function CollaboratorsPanel({
     <div className="course-mgmt-card" style={card}>
       <style>{`
         .collab-pick-row:hover:not(:disabled) { background: rgba(10,190,98,0.08); }
+        .collab-pick-row:focus-visible { outline: 2px solid #209379; outline-offset: -2px; background: rgba(10,190,98,0.08); }
         .collab-pick-row:disabled { opacity: 0.6; cursor: default; }
+        .collab-pick-row .collab-add-hint { opacity: 0; transition: opacity 150ms ease-out; }
+        .collab-pick-row:hover .collab-add-hint,
+        .collab-pick-row:focus-visible .collab-add-hint { opacity: 1; }
+        @media (hover: none) { .collab-pick-row .collab-add-hint { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .collab-pick-row .collab-add-hint { transition: none; } }
+        .collab-search:focus { border-color: rgba(32,147,121,0.55); box-shadow: 0 0 0 3px rgba(32,147,121,0.12); }
       `}</style>
       <div style={{ marginBottom: "14px" }}>
         <p style={eyebrow}>Sharing</p>
@@ -153,13 +160,17 @@ export default function CollaboratorsPanel({
         <div ref={pickerRef} style={pickerWrap}>
           <input
             type="text"
+            className="collab-search"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
               setPickerOpen(true);
             }}
             onFocus={() => setPickerOpen(true)}
-            placeholder="Search people to add — name, email, or role…"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setPickerOpen(false);
+            }}
+            placeholder="Add people: search by name, email, or role"
             aria-label="Search users to add as collaborator"
             style={searchInput}
           />
@@ -189,7 +200,9 @@ export default function CollaboratorsPanel({
                     <span style={rowMeta}>{u.email ?? "no email"}</span>
                   </span>
                   <span style={roleChip}>{u.role.replace(/_/g, " ")}</span>
-                  <span style={addHint}>{addMutation.isPending ? "Adding…" : "+ Add"}</span>
+                  <span className="collab-add-hint" style={addHint}>
+                    {addMutation.isPending ? "Adding…" : "Add"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -245,7 +258,8 @@ const list: React.CSSProperties = {
   padding: 0,
   display: "flex",
   flexDirection: "column",
-  gap: "10px",
+  gap: "8px",
+  maxWidth: "560px",
 };
 
 const row: React.CSSProperties = {
@@ -255,8 +269,8 @@ const row: React.CSSProperties = {
   gap: "12px",
   background: "rgba(244,250,248,0.9)",
   border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "14px",
-  padding: "12px 16px",
+  borderRadius: "10px",
+  padding: "10px 14px",
 };
 
 const emptyRow: React.CSSProperties = {
@@ -301,38 +315,40 @@ function initials(name: string): string {
 const pickerWrap: React.CSSProperties = {
   position: "relative",
   marginTop: "16px",
+  maxWidth: "560px",
 };
 
 const searchInput: React.CSSProperties = {
   width: "100%",
   border: "1px solid rgba(3,72,82,0.15)",
-  borderRadius: "12px",
-  padding: "11px 14px",
+  borderRadius: "10px",
+  padding: "10px 14px",
   fontSize: "14px",
   color: "#034852",
   background: "#ffffff",
   outline: "none",
   boxSizing: "border-box",
+  transition: "border-color 150ms ease-out, box-shadow 150ms ease-out",
 };
 
 const dropdown: React.CSSProperties = {
   position: "absolute",
-  top: "calc(100% + 6px)",
+  top: "calc(100% + 4px)",
   left: 0,
   right: 0,
   zIndex: 30,
   background: "#ffffff",
   border: "1px solid rgba(3,72,82,0.12)",
-  borderRadius: "16px",
-  boxShadow: "0 18px 40px rgba(3,72,82,0.14)",
-  maxHeight: "280px",
+  borderRadius: "10px",
+  boxShadow: "0 8px 24px rgba(3,72,82,0.10)",
+  maxHeight: "264px",
   overflowY: "auto",
-  padding: "6px",
+  padding: "4px",
 };
 
 const dropdownEmpty: React.CSSProperties = {
   margin: 0,
-  padding: "14px 12px",
+  padding: "12px",
   fontSize: "13px",
   color: "rgba(3,72,82,0.55)",
 };
@@ -340,25 +356,25 @@ const dropdownEmpty: React.CSSProperties = {
 const dropdownRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: "12px",
+  gap: "10px",
   width: "100%",
   border: "none",
   background: "transparent",
-  borderRadius: "12px",
-  padding: "10px 12px",
+  borderRadius: "8px",
+  padding: "8px 10px",
   cursor: "pointer",
   textAlign: "left",
 };
 
 const avatar: React.CSSProperties = {
   flex: "0 0 auto",
-  width: "34px",
-  height: "34px",
+  width: "30px",
+  height: "30px",
   borderRadius: "50%",
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
-  fontSize: "12px",
+  fontSize: "11px",
   fontWeight: 800,
   color: "#034852",
   background: "rgba(10,190,98,0.14)",
