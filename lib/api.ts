@@ -539,6 +539,8 @@ export type Course = {
   created_at: string;
   lesson_count: number;
   quiz_count?: number;
+  /** Management list only: caller is creator, collaborator, or SUPER_ADMIN. */
+  can_manage?: boolean;
 };
 
 export type CourseListParams = {
@@ -923,6 +925,65 @@ export async function updateCourse(
   }
 
   return (await response.json()) as Course;
+}
+
+// ── Course collaborators API ───────────────────────────────────
+
+export type CourseCollaborator = {
+  user_id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  added_at: string;
+};
+
+export type EligibleCollaborator = {
+  user_id: string;
+  name: string;
+  email: string | null;
+  role: string;
+};
+
+export async function getCourseCollaborators(courseId: string): Promise<CourseCollaborator[]> {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/collaborators`);
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch collaborators.", r.status);
+  }
+  return (await r.json()) as CourseCollaborator[];
+}
+
+export async function getEligibleCollaborators(courseId: string): Promise<EligibleCollaborator[]> {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/collaborators/eligible`);
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch eligible collaborators.", r.status);
+  }
+  return (await r.json()) as EligibleCollaborator[];
+}
+
+export async function addCourseCollaborator(courseId: string, userId: string): Promise<{ added: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/collaborators`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to add collaborator.", r.status);
+  }
+  return (await r.json()) as { added: boolean };
+}
+
+export async function removeCourseCollaborator(courseId: string, userId: string): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/collaborators/${userId}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to remove collaborator.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
 }
 
 // ── Questions / Test Bank API ──────────────────────────────────
