@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createCourse, updateCourse } from '../api';
+import { addCourseCollaborator, createCourse, removeCourseCollaborator, updateCourse } from '../api';
 import { qk } from '../queries/keys';
 
 /**
@@ -31,6 +31,32 @@ export function useUpdateCourse() {
     onSuccess: (_data, args) => {
       void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
       void qc.invalidateQueries({ queryKey: qk.course(args.id) });
+    },
+  });
+}
+
+export function useAddCollaborator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { courseId: string; userId: string }) =>
+      addCourseCollaborator(args.courseId, args.userId),
+    onSuccess: (_data, args) => {
+      // Panel reloads its own local list; only the courses domain (badges,
+      // can_manage) lives in the query cache.
+      void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
+    },
+  });
+}
+
+export function useRemoveCollaborator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { courseId: string; userId: string }) =>
+      removeCourseCollaborator(args.courseId, args.userId),
+    onSuccess: (_data, args) => {
+      // Panel reloads its own local list; only the courses domain (badges,
+      // can_manage) lives in the query cache.
+      void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
     },
   });
 }

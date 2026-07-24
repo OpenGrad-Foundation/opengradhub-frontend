@@ -440,11 +440,20 @@ export default function CoursesPage() {
           {viewMode === "grid" ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {managementCourses.map((course) => (
-                <ManagerCourseCard key={course.id} course={course} canManage={canManage} />
+                <ManagerCourseCard
+                  key={course.id}
+                  course={course}
+                  canManage={canManage}
+                  callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+                />
               ))}
             </div>
           ) : (
-            <CourseTable courses={managementCourses} canManage={canManage} />
+            <CourseTable
+              courses={managementCourses}
+              canManage={canManage}
+              callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+            />
           )}
         </section>
       )}
@@ -484,8 +493,20 @@ function StudentCoursesSection({
   );
 }
 
-function ManagerCourseCard({ course, canManage }: { course: Course; canManage: boolean }) {
+function ManagerCourseCard({
+  course,
+  canManage,
+  callerId,
+}: {
+  course: Course;
+  canManage: boolean;
+  callerId: string | null;
+}) {
   const currentUrl = useCurrentUrl();
+  // Per-course authority: can_manage is only present in the management list
+  // view (creator/collaborator/SA). Absent flag keeps legacy behavior.
+  const manageable = canManage && course.can_manage !== false;
+  const isShared = Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId;
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
       <div className="border-b border-[rgba(3,72,82,0.08)] bg-(--dark-teal) px-4 py-4 text-white">
@@ -494,6 +515,8 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
             <div className="flex flex-wrap gap-1.5">
               <Badge tone="dark">{course.programme_type}</Badge>
               <Badge tone={course.access_type === "PAID" ? "sun" : "mint"}>{course.access_type}</Badge>
+              {isShared && <Badge tone="mint">Shared</Badge>}
+              {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
             </div>
             <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-snug">{course.title}</h2>
           </div>
@@ -525,14 +548,14 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           <Link
-            href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+            href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
             className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-              canManage
+              manageable
                 ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(10,190,98,0.22)]"
                 : "border border-[rgba(3,72,82,0.16)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.3)] hover:bg-[rgba(3,72,82,0.03)]"
             }`}
           >
-            {canManage ? "Manage" : "Open"}
+            {manageable ? "Manage" : "Open"}
           </Link>
         </div>
       </div>
@@ -540,7 +563,15 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
   );
 }
 
-function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boolean }) {
+function CourseTable({
+  courses,
+  canManage,
+  callerId,
+}: {
+  courses: Course[];
+  canManage: boolean;
+  callerId: string | null;
+}) {
   const currentUrl = useCurrentUrl();
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_18px_40px_rgba(3,72,82,0.06)]">
@@ -559,7 +590,9 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
             </tr>
           </thead>
           <tbody>
-            {courses.map((course) => (
+            {courses.map((course) => {
+              const manageable = canManage && course.can_manage !== false;
+              return (
               <tr key={course.id} className="border-t border-[rgba(3,72,82,0.08)] align-top text-sm text-[var(--dark-teal)]">
                 <td className="px-5 py-4">
                   <div className="max-w-[18rem]">
@@ -582,7 +615,13 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                   <Badge tone="teal">{course.programme_type}</Badge>
                 </td>
                 <td className="px-5 py-4">
-                  <Badge tone={statusTone(course.status)}>{course.status}</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone={statusTone(course.status)}>{course.status}</Badge>
+                    {Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId && (
+                      <Badge tone="mint">Shared</Badge>
+                    )}
+                    {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
+                  </div>
                 </td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.access_type}</td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.locking_mode}</td>
@@ -591,19 +630,20 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+                      href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-                        canManage
+                        manageable
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
                           : "border border-[rgba(3,72,82,0.14)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.28)] hover:bg-[rgba(3,72,82,0.03)]"
                       }`}
                     >
-                      {canManage ? "Manage" : "Open"}
+                      {manageable ? "Manage" : "Open"}
                     </Link>
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
