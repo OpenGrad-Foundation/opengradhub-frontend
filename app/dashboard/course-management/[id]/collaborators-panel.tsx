@@ -333,7 +333,9 @@ const searchInput: React.CSSProperties = {
 
 const dropdown: React.CSSProperties = {
   position: "absolute",
-  top: "calc(100% + 4px)",
+  // Opens upward: the picker sits at the bottom of the settings tab, so a
+  // downward popover would run off the viewport/card edge.
+  bottom: "calc(100% + 4px)",
   left: 0,
   right: 0,
   zIndex: 30,
