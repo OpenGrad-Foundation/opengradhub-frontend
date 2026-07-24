@@ -2568,10 +2568,11 @@ export async function createModule(courseId: string, title: string): Promise<Cou
 }
 
 export async function reorderModules(courseId: string, ids: string[]): Promise<void> {
-  await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules/reorder`, {
+  const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules/reorder`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }), cache: "no-store",
   });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder modules.", r.status); }
 }
 
 export async function updateModule(moduleId: string, title: string): Promise<CourseModule> {
@@ -2601,10 +2602,11 @@ export async function createLesson(
 }
 
 export async function reorderModuleItems(moduleId: string, items: { id: string, type: 'LESSON' | 'QUIZ' }[]): Promise<void> {
-  await apiFetch(`${API_BASE_URL}/modules/${moduleId}/items/reorder`, {
+  const r = await apiFetch(`${API_BASE_URL}/modules/${moduleId}/items/reorder`, {
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ items }), cache: "no-store",
   });
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder items.", r.status); }
 }
 
 export async function updateLesson(

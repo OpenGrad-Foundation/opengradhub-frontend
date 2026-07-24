@@ -590,7 +590,9 @@ function CourseTable({
             </tr>
           </thead>
           <tbody>
-            {courses.map((course) => (
+            {courses.map((course) => {
+              const manageable = canManage && course.can_manage !== false;
+              return (
               <tr key={course.id} className="border-t border-[rgba(3,72,82,0.08)] align-top text-sm text-[var(--dark-teal)]">
                 <td className="px-5 py-4">
                   <div className="max-w-[18rem]">
@@ -628,19 +630,20 @@ function CourseTable({
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={withFrom(canManage && course.can_manage !== false ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+                      href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-                        canManage && course.can_manage !== false
+                        manageable
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
                           : "border border-[rgba(3,72,82,0.14)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.28)] hover:bg-[rgba(3,72,82,0.03)]"
                       }`}
                     >
-                      {canManage && course.can_manage !== false ? "Manage" : "Open"}
+                      {manageable ? "Manage" : "Open"}
                     </Link>
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

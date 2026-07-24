@@ -41,8 +41,9 @@ export function useAddCollaborator() {
     mutationFn: (args: { courseId: string; userId: string }) =>
       addCourseCollaborator(args.courseId, args.userId),
     onSuccess: (_data, args) => {
+      // Panel reloads its own local list; only the courses domain (badges,
+      // can_manage) lives in the query cache.
       void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
-      void qc.invalidateQueries({ queryKey: ['og', 'course-collaborators', args.courseId] });
     },
   });
 }
@@ -53,8 +54,9 @@ export function useRemoveCollaborator() {
     mutationFn: (args: { courseId: string; userId: string }) =>
       removeCourseCollaborator(args.courseId, args.userId),
     onSuccess: (_data, args) => {
+      // Panel reloads its own local list; only the courses domain (badges,
+      // can_manage) lives in the query cache.
       void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
-      void qc.invalidateQueries({ queryKey: ['og', 'course-collaborators', args.courseId] });
     },
   });
 }

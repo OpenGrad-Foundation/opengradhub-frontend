@@ -578,9 +578,18 @@ export default function CourseManagementPage() {
               ))}
             </div>
           </div>
-          <div className="course-mgmt-card" style={card}>
-            <CourseCurriculumEditor courseId={courseId} />
-          </div>
+          {has(PERM.courses.manage_curriculum) ? (
+            <div className="course-mgmt-card" style={card}>
+              <CourseCurriculumEditor courseId={courseId} />
+            </div>
+          ) : (
+            <div className="course-mgmt-card" style={card}>
+              <p style={subtitle}>
+                You can view this course&apos;s curriculum snapshot above, but editing modules and
+                lessons requires the curriculum-management permission.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
