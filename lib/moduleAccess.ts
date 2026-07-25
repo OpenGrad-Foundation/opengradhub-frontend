@@ -37,7 +37,8 @@ export type ModuleKey =
   | "role_management"
   | "bulk_assign"
   | "schools"
-  | "batches";
+  | "batches"
+  | "attendance";
 
 export type ModuleMeta = { label: string; href: string };
 
@@ -61,4 +62,5 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
+  attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
