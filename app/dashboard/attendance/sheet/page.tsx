@@ -30,7 +30,7 @@ function SheetInner() {
         </p>
         <button
           onClick={() => window.print()}
-          className="ml-4 shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700"
+          className="ml-4 shrink-0 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]"
         >
           Print
         </button>

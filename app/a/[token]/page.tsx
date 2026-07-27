@@ -58,7 +58,7 @@ export default function PublicAttendancePage() {
   return (
     <main className="min-h-screen flex items-center justify-center bg-slate-50 px-4 py-8">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center">
-        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 mb-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--teal)] mb-4">
           OpenGrad · Live Class Attendance
         </p>
 
@@ -68,7 +68,7 @@ export default function PublicAttendancePage() {
 
         {state.phase === "not-found" && (
           <div className="py-10">
-            <p className="text-lg font-semibold text-slate-800">Link invalid</p>
+            <p className="text-lg font-semibold text-[var(--dark-teal)]">Link invalid</p>
             <p className="mt-2 text-sm text-slate-500">
               This attendance link is not valid. Please ask your OpenGrad fellow for a new one.
             </p>
@@ -77,7 +77,7 @@ export default function PublicAttendancePage() {
 
         {state.phase === "ready" && (
           <>
-            <h1 className="text-xl font-bold text-slate-900">{state.view.class_title}</h1>
+            <h1 className="text-xl font-bold text-[var(--dark-teal)]">{state.view.class_title}</h1>
             <p className="mt-1 text-sm text-slate-600">
               {new Date(state.view.scheduled_at).toLocaleString(undefined, {
                 dateStyle: "medium",
@@ -103,7 +103,7 @@ export default function PublicAttendancePage() {
                 <button
                   onClick={mark}
                   disabled={state.marking}
-                  className="w-full rounded-xl bg-indigo-600 px-6 py-4 text-lg font-semibold text-white shadow hover:bg-indigo-700 active:scale-[0.99] disabled:opacity-60"
+                  className="w-full rounded-xl px-6 py-4 text-lg font-semibold text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.25)] active:scale-[0.99] disabled:opacity-60"
                 >
                   {state.marking ? "Marking…" : "Mark our school present"}
                 </button>

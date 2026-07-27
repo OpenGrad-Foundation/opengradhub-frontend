@@ -22,12 +22,12 @@ export function StudentView() {
           <p className="mt-2 text-slate-500">No attendance recorded yet.</p>
         ) : (
           <>
-            <p className="mt-2 text-4xl font-bold text-slate-900">{data.register.percent}%</p>
+            <p className="mt-2 text-4xl font-bold text-[var(--dark-teal)]">{data.register.percent}%</p>
             <div className="mt-3 space-y-1.5">
               {data.register.months.map((m) => (
                 <div key={m.month} className="flex items-center justify-between text-sm">
                   <span className="text-slate-600">{monthLabel(m.month)}</span>
-                  <span className="font-medium text-slate-800">
+                  <span className="font-medium text-[var(--dark-teal)]">
                     {m.present} / {m.total} days
                   </span>
                 </div>
@@ -42,7 +42,7 @@ export function StudentView() {
         {data.school_links.total === 0 ? (
           <p className="mt-2 text-slate-500">No live classes for your school yet.</p>
         ) : (
-          <p className="mt-2 text-lg text-slate-800">
+          <p className="mt-2 text-lg text-[var(--dark-teal)]">
             Your school attended{" "}
             <b>{data.school_links.attended} of {data.school_links.total}</b> live classes
           </p>
@@ -55,7 +55,7 @@ export function StudentView() {
           <p className="mt-2 text-slate-500">No global quizzes assigned yet.</p>
         ) : (
           <>
-            <p className="mt-2 text-lg text-slate-800">
+            <p className="mt-2 text-lg text-[var(--dark-teal)]">
               Completed <b>{data.quizzes.completed} of {data.quizzes.assigned}</b>
             </p>
             <div className="mt-3 space-y-1.5">

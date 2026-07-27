@@ -5,25 +5,16 @@
  *  - attendance.view (staff): Live Classes links | Registers | Overview tabs
  *  - attendance.view_own (students): personal stats view
  */
-import { useState } from "react";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
+import { Tabs } from "../_components/Tabs";
 import { LinksTab } from "./_components/LinksTab";
 import { RegistersTab } from "./_components/RegistersTab";
 import { OverviewTab } from "./_components/OverviewTab";
 import { StudentView } from "./_components/StudentView";
 
-type StaffTab = "links" | "registers" | "overview";
-
-const TABS: { key: StaffTab; label: string }[] = [
-  { key: "links", label: "Live Classes" },
-  { key: "registers", label: "Registers" },
-  { key: "overview", label: "Overview" },
-];
-
 export default function AttendancePage() {
   const { has, isLoading } = usePermissions();
-  const [tab, setTab] = useState<StaffTab>("links");
 
   if (isLoading) {
     return <div className="p-6 text-slate-500">Loading…</div>;
@@ -43,7 +34,12 @@ export default function AttendancePage() {
   if (studentOnly) {
     return (
       <div className="p-4 sm:p-6 max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-slate-900 mb-4">My Attendance</h1>
+        <h1
+          className="text-2xl font-bold text-[var(--dark-teal)] mb-4"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          My Attendance
+        </h1>
         <StudentView />
       </div>
     );
@@ -53,31 +49,25 @@ export default function AttendancePage() {
 
   return (
     <div className="p-4 sm:p-6">
-      <h1 className="text-2xl font-bold text-slate-900">Attendance</h1>
+      <h1
+        className="text-2xl font-bold text-[var(--dark-teal)]"
+        style={{ fontFamily: "var(--font-heading)" }}
+      >
+        Attendance
+      </h1>
       <p className="mt-1 text-sm text-slate-500">
         Per-school live-class links and paper register uploads.
       </p>
 
-      <div className="mt-4 flex gap-1 border-b border-slate-200">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? "border-indigo-600 text-indigo-700 bg-indigo-50/50"
-                : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       <div className="mt-4">
-        {tab === "links" && <LinksTab canManage={canManage} />}
-        {tab === "registers" && <RegistersTab canManage={canManage} />}
-        {tab === "overview" && <OverviewTab />}
+        <Tabs
+          ariaLabel="Attendance tabs"
+          tabs={[
+            { key: "links", label: "Live Classes", panel: <LinksTab canManage={canManage} /> },
+            { key: "registers", label: "Registers", panel: <RegistersTab canManage={canManage} /> },
+            { key: "overview", label: "Overview", panel: <OverviewTab /> },
+          ]}
+        />
       </div>
     </div>
   );

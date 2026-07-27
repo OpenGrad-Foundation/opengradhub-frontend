@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { addSchoolLinksBatch } from '@/lib/attendance-bulk';
 import {
   getClassLinks,
   generateClassLinks,
@@ -85,12 +86,18 @@ export function useGenerateLinks() {
   });
 }
 
-export function useAddSchoolLink() {
+/**
+ * Links several schools to a live class in one interaction. The endpoint is
+ * one-school-per-call, so this fans out (bounded) and reports per-school
+ * failures; `onSettled` invalidates exactly once for the whole batch rather
+ * than once per school.
+ */
+export function useAddSchoolLinks() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: ({ classId, schoolId }: { classId: string; schoolId: string }) =>
-      addSchoolLink(classId, schoolId),
-    onSuccess: () => invalidate('attendance'),
+    mutationFn: ({ classId, schoolIds }: { classId: string; schoolIds: string[] }) =>
+      addSchoolLinksBatch(schoolIds, (schoolId) => addSchoolLink(classId, schoolId)),
+    onSettled: () => invalidate('attendance'),
   });
 }
 

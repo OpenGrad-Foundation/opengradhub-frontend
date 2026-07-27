@@ -29,7 +29,7 @@ export function OverviewTab() {
               : null;
             return (
               <tr key={s.school_id} className="border-b border-slate-100 last:border-0">
-                <td className="px-4 py-2.5 font-medium text-slate-800">{s.school_name}</td>
+                <td className="px-4 py-2.5 font-medium text-[var(--dark-teal)]">{s.school_name}</td>
                 <td className="px-4 py-2.5 text-slate-600">
                   {s.link_total > 0 ? `Attended ${s.link_attended} of ${s.link_total}` : "—"}
                 </td>

@@ -13,7 +13,13 @@ import {
   useRegisterUpload,
   useUploadRegister,
 } from "@/lib/queries/attendance";
+import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { ReviewGrid } from "./ReviewGrid";
+
+/** House primary button — mirrors the gradient CTA used across the dashboard. */
+const PRIMARY_BTN =
+  "rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 " +
+  "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -27,10 +33,13 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
   const [image, setImage] = useState<File | null>(null);
   const [openUploadId, setOpenUploadId] = useState<string | null>(null);
 
-  const { data: schools } = useQuery({
+  // Only the manage-only controls below use this list, so don't fetch (and don't
+  // surface a permission error) for a view-only user who can't act on it anyway.
+  const { data: schools, isError: schoolsFailed, isLoading: schoolsLoading } = useQuery({
     queryKey: ["og", "schools", "options"],
     queryFn: fetchSchools,
     staleTime: 5 * 60_000,
+    enabled: canManage,
   });
   const { data: uploads, isLoading } = useRegisterUploads(schoolId ? { school_id: schoolId } : {});
   const { data: openUpload } = useRegisterUpload(openUploadId);
@@ -58,22 +67,32 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
     <div className="space-y-4">
       {canManage && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="font-semibold text-slate-800">Printable sheet</h3>
+          <h3
+            className="font-semibold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Printable sheet
+          </h3>
           <p className="mt-1 text-xs text-slate-500">
             Print a pre-filled register for the school; the teacher marks P/A per class day and
             writes the date in each column header.
           </p>
+          {schoolsFailed ? (
+            <p className="mt-2 text-sm text-red-600">
+              Can&apos;t load the school list — your role may not have permission to view schools.
+              Ask an admin.
+            </p>
+          ) : (
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <select
-              value={schoolId}
-              onChange={(e) => setSchoolId(e.target.value)}
-              className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-            >
-              <option value="">Select school…</option>
-              {(schools ?? []).map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <div className="min-w-[260px] flex-1">
+              <SchoolSearchPicker
+                schools={schools ?? []}
+                value={schoolId}
+                onChange={setSchoolId}
+                disabled={schoolsLoading}
+                placeholder={schoolsLoading ? "Loading schools…" : "Search school by name, code or district…"}
+              />
+            </div>
             <input
               type="month"
               value={month}
@@ -85,19 +104,25 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
               aria-disabled={!schoolId}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
                 schoolId
-                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                  ? "text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]"
                   : "bg-slate-200 text-slate-400 pointer-events-none"
               }`}
             >
               Open printable sheet
             </Link>
           </div>
+          )}
         </div>
       )}
 
       {canManage && (
         <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="font-semibold text-slate-800">Upload register photo</h3>
+          <h3
+            className="font-semibold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Upload register photo
+          </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <label className="text-xs text-slate-500">Period</label>
             <input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)}
@@ -114,7 +139,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             <button
               disabled={upload.isPending}
               onClick={doUpload}
-              className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              className={PRIMARY_BTN}
             >
               {upload.isPending ? "Extracting…" : "Upload & extract"}
             </button>
@@ -135,7 +160,12 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="font-semibold text-slate-800">Uploads</h3>
+        <h3
+          className="font-semibold text-[var(--dark-teal)]"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          Uploads
+        </h3>
         {isLoading ? (
           <p className="mt-2 text-sm text-slate-500">Loading…</p>
         ) : (uploads ?? []).length === 0 ? (
@@ -150,7 +180,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
                 onClick={() => setOpenUploadId(u.id)}
                 className="w-full flex flex-wrap items-center gap-2 py-2 text-left hover:bg-slate-50 rounded-lg px-2"
               >
-                <span className="text-sm font-medium text-slate-800">{u.school_name}</span>
+                <span className="text-sm font-medium text-[var(--dark-teal)]">{u.school_name}</span>
                 <span className="text-xs text-slate-500">{u.period_start} → {u.period_end}</span>
                 <span className="flex-1" />
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${

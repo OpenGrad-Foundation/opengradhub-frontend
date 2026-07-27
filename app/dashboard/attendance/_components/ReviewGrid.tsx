@@ -104,7 +104,7 @@ export function ReviewGrid({ upload, onDone }: { upload: UploadDetail; onDone: (
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-semibold text-slate-800">
+        <h3 className="font-semibold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>
           {upload.school_name} · {upload.period_start} → {upload.period_end}
         </h3>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -136,7 +136,7 @@ export function ReviewGrid({ upload, onDone }: { upload: UploadDetail; onDone: (
               onSuccess: () => toast.success("Extraction re-run — reopen this upload to see results"),
               onError: (e) => toast.error(e.message),
             })}
-            className="rounded-lg border border-indigo-200 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
+            className="rounded-lg border border-[var(--color-border)] px-2.5 py-1 text-xs font-medium text-[var(--dark-teal)] hover:bg-[var(--color-mint-soft)]"
           >
             {retry.isPending ? "Retrying…" : "Retry extraction"}
           </button>
@@ -158,7 +158,7 @@ export function ReviewGrid({ upload, onDone }: { upload: UploadDetail; onDone: (
             {upload.grid.map((row) => (
               <tr key={row.student_id} className="border-t border-slate-100">
                 <td className="px-2 py-1.5 text-slate-400">{row.short_code}</td>
-                <td className="px-2 py-1.5 font-medium text-slate-800 whitespace-nowrap">{row.name}</td>
+                <td className="px-2 py-1.5 font-medium text-[var(--dark-teal)] whitespace-nowrap">{row.name}</td>
                 {dates.map((d) => {
                   const v = marks[row.student_id]?.[d] ?? null;
                   return (
@@ -170,7 +170,7 @@ export function ReviewGrid({ upload, onDone }: { upload: UploadDetail; onDone: (
                           v === true ? "bg-green-100 text-green-700"
                           : v === false ? "bg-red-100 text-red-600"
                           : "bg-slate-100 text-slate-300"
-                        } ${readOnly ? "cursor-default" : "hover:ring-2 hover:ring-indigo-200"}`}
+                        } ${readOnly ? "cursor-default" : "hover:ring-2 hover:ring-[var(--teal)]"}`}
                       >
                         {v === true ? "P" : v === false ? "A" : "·"}
                       </button>
@@ -215,7 +215,7 @@ export function ReviewGrid({ upload, onDone }: { upload: UploadDetail; onDone: (
           <button
             disabled={commit.isPending}
             onClick={doCommit}
-            className="rounded-lg bg-indigo-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]"
           >
             {commit.isPending ? "Committing…" : `Commit ${entries.length} entries`}
           </button>

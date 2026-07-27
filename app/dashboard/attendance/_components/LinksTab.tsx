@@ -10,14 +10,24 @@ import { useLiveClasses } from "@/lib/queries/live-classes";
 import {
   useClassLinks,
   useGenerateLinks,
-  useAddSchoolLink,
+  useAddSchoolLinks,
   useRemoveLink,
   useOverrideLink,
   useRegenerateLink,
 } from "@/lib/queries/attendance";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSchools } from "@/lib/api";
+import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
 import type { LinkRow } from "@/lib/attendance-api";
+
+/** House primary button — mirrors the gradient CTA used across the dashboard. */
+const PRIMARY_BTN =
+  "rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 " +
+  "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
+
+const SECONDARY_BTN =
+  "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium " +
+  "text-[var(--dark-teal)] hover:bg-[var(--color-mint-soft)]";
 
 function publicUrl(token: string): string {
   return `${window.location.origin}/a/${token}`;
@@ -40,21 +50,23 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
 }) {
   const { data: links, isLoading } = useClassLinks(classId);
   const generate = useGenerateLinks();
-  const addSchool = useAddSchoolLink();
+  const addSchools = useAddSchoolLinks();
   const removeLink = useRemoveLink();
   const override = useOverrideLink();
   const regenerate = useRegenerateLink();
-  const [addingSchool, setAddingSchool] = useState("");
+  const [addingIds, setAddingIds] = useState<string[]>([]);
 
-  const { data: schools } = useQuery({
+  const { data: schools, isError: schoolsFailed, isLoading: schoolsLoading } = useQuery({
     queryKey: ["og", "schools", "options"],
     queryFn: fetchSchools,
     staleTime: 5 * 60_000,
     enabled: canManage,
   });
 
-  const linkedIds = useMemo(() => new Set((links ?? []).map((l) => l.school_id)), [links]);
-  const addable = (schools ?? []).filter((s) => !linkedIds.has(s.id));
+  // Already-linked schools stay in the list but are disabled, rather than being
+  // filtered out — filtering would drop a chip from the selection if someone
+  // else linked that school between renders.
+  const linkedIds = useMemo(() => (links ?? []).map((l) => l.school_id), [links]);
 
   if (isLoading) return <p className="p-3 text-sm text-slate-500">Loading links…</p>;
 
@@ -65,7 +77,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
       )}
       {(links ?? []).map((link) => (
         <div key={link.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-white border border-slate-200 px-3 py-2">
-          <span className="font-medium text-sm text-slate-800">{link.school_name}</span>
+          <span className="font-medium text-sm text-[var(--dark-teal)]">{link.school_name}</span>
           {link.origin === "MANUAL" && (
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">MANUAL</span>
           )}
@@ -135,45 +147,61 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
       ))}
 
       {canManage && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <select
-            value={addingSchool}
-            onChange={(e) => setAddingSchool(e.target.value)}
-            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm text-slate-700"
-          >
-            <option value="">Add school…</option>
-            {addable.map((s) => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
-          <button
-            disabled={!addingSchool || addSchool.isPending}
-            onClick={() =>
-              addSchool.mutate(
-                { classId, schoolId: addingSchool },
-                {
-                  onSuccess: () => setAddingSchool(""),
+        <div className="pt-1 space-y-2">
+          {schoolsFailed ? (
+            <p className="text-sm text-red-600">
+              Can&apos;t load the school list — your role may not have permission to view schools.
+              Ask an admin.
+            </p>
+          ) : (
+            <SchoolMultiPicker
+              schools={schools ?? []}
+              value={addingIds}
+              onChange={setAddingIds}
+              disabledIds={linkedIds}
+              isLoading={schoolsLoading}
+              placeholder="Add schools — search by name, code or district…"
+            />
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              disabled={addingIds.length === 0 || addSchools.isPending}
+              onClick={() =>
+                addSchools.mutate(
+                  { classId, schoolIds: addingIds },
+                  {
+                    onSuccess: ({ linked, failed }) => {
+                      if (failed.length === 0) {
+                        toast.success(`Added ${linked} school${linked === 1 ? "" : "s"}`);
+                        setAddingIds([]);
+                      } else {
+                        toast.error(`${linked} added, ${failed.length} failed — ${failed[0].message}`);
+                        // Keep only what still needs attention selected.
+                        setAddingIds(failed.map((f) => f.id));
+                      }
+                    },
+                    onError: (e) => toast.error(e.message),
+                  },
+                )
+              }
+              className={PRIMARY_BTN}
+            >
+              {addSchools.isPending ? "Adding…" : `Add${addingIds.length ? ` (${addingIds.length})` : ""}`}
+            </button>
+            <span className="flex-1" />
+            <button
+              disabled={generate.isPending}
+              onClick={() =>
+                generate.mutate(classId, {
+                  onSuccess: (r) => toast.success(`Re-synced: +${r.added} / −${r.removed}`),
                   onError: (e) => toast.error(e.message),
-                },
-              )
-            }
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            Add
-          </button>
-          <span className="flex-1" />
-          <button
-            disabled={generate.isPending}
-            onClick={() =>
-              generate.mutate(classId, {
-                onSuccess: (r) => toast.success(`Re-synced: +${r.added} / −${r.removed}`),
-                onError: (e) => toast.error(e.message),
-              })
-            }
-            className="rounded-lg border border-indigo-200 px-3 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-50"
-          >
-            Re-sync from targeting
-          </button>
+                })
+              }
+              className={SECONDARY_BTN}
+            >
+              Re-sync from targeting
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -184,10 +212,14 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
   const { data: classes, isLoading } = useLiveClasses();
   const [openId, setOpenId] = useState<string | null>(null);
 
+  // Read the clock once per mount instead of on every render: reading it during
+  // render is impure (React 19 lint) and would let the upcoming/past split shift
+  // under the user mid-session.
+  const [now] = useState(() => Date.now());
+
   const sorted = useMemo(() => {
     const list = [...(classes ?? [])];
     // Upcoming first (soonest at top), then past classes newest-first.
-    const now = Date.now();
     return list.sort((a, b) => {
       const at = new Date(a.scheduled_at).getTime();
       const bt = new Date(b.scheduled_at).getTime();
@@ -195,7 +227,7 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
       if (aUp !== bUp) return aUp ? -1 : 1;
       return aUp ? at - bt : bt - at;
     });
-  }, [classes]);
+  }, [classes, now]);
 
   if (isLoading) return <p className="text-slate-500">Loading live classes…</p>;
   if (sorted.length === 0) return <p className="text-slate-500">No live classes yet.</p>;
@@ -208,7 +240,9 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
             onClick={() => setOpenId(openId === cls.id ? null : cls.id)}
             className="w-full flex flex-wrap items-center gap-2 px-4 py-3 text-left hover:bg-slate-50"
           >
-            <span className="font-semibold text-slate-800">{cls.title}</span>
+            <span className="font-semibold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>
+              {cls.title}
+            </span>
             <span className="text-sm text-slate-500">
               {new Date(cls.scheduled_at).toLocaleString(undefined, {
                 dateStyle: "medium",
