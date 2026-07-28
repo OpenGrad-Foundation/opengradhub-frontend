@@ -47,7 +47,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
 
   const doUpload = () => {
     if (!schoolId || !periodStart || !periodEnd || !image) {
-      toast.error("Pick a school, period and photo first.");
+      toast.error("Pick a school, period and file first.");
       return;
     }
     upload.mutate(
@@ -121,7 +121,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             className="font-semibold text-[var(--dark-teal)]"
             style={{ fontFamily: "var(--font-heading)" }}
           >
-            Upload register photo
+            Upload register
           </h3>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <label className="text-xs text-slate-500">Period</label>
@@ -132,7 +132,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
               className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm" />
             <input
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => setImage(e.target.files?.[0] ?? null)}
               className="text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium"
             />
@@ -145,8 +145,9 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-400">
-            Uses the school selected above. JPEG/PNG/WebP/HEIC, max 10 MB. Extraction runs
-            immediately; you review and correct before anything is saved.
+            Uses the school selected above. Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel,
+            max 10 MB. Spreadsheets are read directly; photos and PDFs go through extraction.
+            Either way you review and correct before anything is saved.
           </p>
         </div>
       )}
