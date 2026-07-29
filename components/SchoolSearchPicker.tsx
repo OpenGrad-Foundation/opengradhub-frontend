@@ -45,10 +45,11 @@ export function SchoolSearchPicker({
     const q = query.trim().toLowerCase();
     const list = !q
       ? schools
-      : schools.filter(
-          (s) =>
-            s.name.toLowerCase().includes(q) ||
-            (s.code ?? "").toLowerCase().includes(q),
+      : schools.filter((s) =>
+          // Every field the dropdown row renders is searchable — users type what
+          // they can see, and the row shows code · district · state.
+          [s.name, s.code, s.district, s.state]
+            .some((f) => (f ?? "").toLowerCase().includes(q)),
         );
     return list.slice(0, 50);
   }, [schools, query]);

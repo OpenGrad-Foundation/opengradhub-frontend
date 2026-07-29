@@ -57,6 +57,11 @@ export const PERM = {
     delete: "live_classes.delete",
     join: "live_classes.join",
   },
+  attendance: {
+    manage: "attendance.manage",
+    view: "attendance.view",
+    view_own: "attendance.view_own",
+  },
   calendar: {
     view:   "calendar.view",
     create: "calendar.create",
@@ -162,6 +167,7 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   "quiz-builder": PERM.test_bank.view,
   assignments: PERM.assignments.view,
   "live-classes": PERM.live_classes.view,
+  attendance: [PERM.attendance.view, PERM.attendance.view_own],
   calendar: PERM.calendar.view,
   resources: PERM.resources.view,
   doubts: PERM.doubts.view,
