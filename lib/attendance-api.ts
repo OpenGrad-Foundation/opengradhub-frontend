@@ -147,14 +147,26 @@ export async function uploadRegister(args: {
   school_id: string;
   period_start: string;
   period_end: string;
-  image: File;
+  images: File[];
 }): Promise<UploadDetail> {
   const form = new FormData();
   form.append("school_id", args.school_id);
   form.append("period_start", args.period_start);
   form.append("period_end", args.period_end);
-  form.append("image", args.image);
+  for (const image of args.images) form.append("images", image);
   return json(await apiFetch(`${API_BASE_URL}/attendance/registers`, { method: "POST", body: form }));
+}
+
+export type PeekResult = {
+  school_guess: string | null;
+  period_start_guess: string | null;
+  period_end_guess: string | null;
+};
+
+export async function peekRegister(file: File, signal?: AbortSignal): Promise<PeekResult> {
+  const form = new FormData();
+  form.append("file", file);
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/peek`, { method: "POST", body: form, signal }));
 }
 
 export async function listRegisterUploads(filters: { school_id?: string; status?: string }): Promise<UploadSummary[]> {
@@ -179,6 +191,10 @@ export async function commitRegister(id: string, entries: CommitEntry[]): Promis
 
 export async function discardRegister(id: string): Promise<{ status: "DISCARDED" }> {
   return json(await apiFetch(`${API_BASE_URL}/attendance/registers/${id}/discard`, { method: "POST" }));
+}
+
+export async function deleteRegister(id: string): Promise<{ status: "DELETED" }> {
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/${id}`, { method: "DELETE" }));
 }
 
 export async function retryRegisterExtraction(id: string): Promise<UploadDetail> {
