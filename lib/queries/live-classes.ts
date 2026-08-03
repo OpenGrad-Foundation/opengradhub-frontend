@@ -46,7 +46,7 @@ export function useAttendanceSummary(params: {
 }) {
   const enabled = !!params.course_id || !!params.batch_id;
   return useQuery({
-    queryKey: qk.attendanceSummary(params),
+    queryKey: qk.liveClassAttendanceSummary(params),
     queryFn: () => getAttendanceSummary(params),
     enabled,
     staleTime: 60_000,

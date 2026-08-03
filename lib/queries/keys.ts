@@ -61,7 +61,10 @@ export const qk = {
     ['og', 'live-classes', id, 'attendees'] as const,
   liveClassRoster: (id: string) =>
     ['og', 'live-classes', id, 'roster'] as const,
-  attendanceSummary: (filters: Record<string, unknown>) =>
+  // Live-class attendance summary. Distinct from `attendanceSummary` below,
+  // which is the register/attendance-module summary — different feature, and
+  // the two collided on this name when the branches merged.
+  liveClassAttendanceSummary: (filters: Record<string, unknown>) =>
     ['og', 'live-classes', 'attendance-summary', filters] as const,
   studentAttendance: (studentId: string) =>
     ['og', 'live-classes', 'student-attendance', studentId] as const,
@@ -74,6 +77,17 @@ export const qk = {
     ['og', 'calendar', from ?? '', to ?? ''] as const,
   studentEnrolments: (studentId: string) =>
     ['og', 'student', studentId, 'enrolments'] as const,
+
+  attendanceLinks: (classId: string) =>
+    ['og', 'attendance', 'links', classId] as const,
+  attendanceRegisters: (filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'registers', filters] as const,
+  attendanceRegister: (id: string) =>
+    ['og', 'attendance', 'register', id] as const,
+  attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
+  attendanceMe: () => ['og', 'attendance', 'me'] as const,
+  attendanceSheet: (schoolId: string, month: string) =>
+    ['og', 'attendance', 'sheet', schoolId, month] as const,
 
   dashboard: (role: string, tab: 'overview' | 'activity') =>
     ['og', 'dashboard', role, tab] as const,

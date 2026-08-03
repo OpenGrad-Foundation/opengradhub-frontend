@@ -61,6 +61,8 @@ const DOMAIN_KEYS = {
   // resolving/dismissing a student question report — busts the Test Bank badge
   // counts and the dashboard "Reported Questions" card
   questionReports: [['og', 'question-reports'], ['og', 'dashboard']],
+  // attendance writes (link marks/overrides, register commits) — also feeds dashboards
+  attendance: [['og', 'attendance'], ['og', 'dashboard']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;

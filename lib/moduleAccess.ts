@@ -38,7 +38,8 @@ export type ModuleKey =
   | "bulk_assign"
   | "schools"
   | "batches"
-  | "tracker";
+  | "tracker"
+  | "attendance";
 
 export type ModuleMeta = { label: string; href: string };
 
@@ -63,6 +64,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
   tracker:          { label: "Tracker",         href: "/dashboard/tracker" },
+  attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 
 // Module keys that nest under the collapsible "LMS Tools" sidebar group.
