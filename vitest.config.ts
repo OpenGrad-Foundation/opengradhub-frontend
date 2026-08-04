@@ -13,7 +13,6 @@ export default defineConfig({
   resolve: resolveConfig,
   test: {
     setupFiles: ['fake-indexeddb/auto'],
-    passWithNoTests: true,
     globals: true,
     projects: [
       {

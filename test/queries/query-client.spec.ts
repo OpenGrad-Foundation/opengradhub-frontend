@@ -7,10 +7,13 @@ describe('makeQueryClient', () => {
     expect(makeQueryClient()).toBeInstanceOf(QueryClient);
   });
 
-  it('sets a sane default staleTime and disables refetchOnWindowFocus', () => {
+  it('sets a sane default staleTime and refetches stale data on window focus', () => {
     const opts = makeQueryClient().getDefaultOptions();
     expect(opts.queries?.staleTime).toBeGreaterThan(0);
-    expect(opts.queries?.refetchOnWindowFocus).toBe(false);
+    // Focus-refetch is gated on staleness by TanStack: fresh data (within
+    // staleTime) is still served from cache; only stale data refetches on
+    // tab refocus. See the rationale in lib/queries/query-client.ts.
+    expect(opts.queries?.refetchOnWindowFocus).toBe(true);
   });
 
   it('limits query retries so a down backend fails fast', () => {
