@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Check, Clock, Loader2, Save, UserCog, X } from "lucide-react";
+import { Check, Clock, Download, FileUp, Loader2, Save, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
@@ -12,6 +12,7 @@ import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, Track
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
 import { StudentDetailsForm } from "./student-details-form";
+import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
 
@@ -47,6 +48,7 @@ export function TrackerEditableGrid({
   const requiresProof = template.require_photo || template.require_location;
   const [schoolFilter, setSchoolFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const editableKeys = useMemo(
     () => new Set(grid.columns.filter((c) => c.source !== "profile").map((c) => c.field_key)),
@@ -90,6 +92,16 @@ export function TrackerEditableGrid({
       setDrafts({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
+    }
+  }
+
+  async function onDownloadTemplate(format: "csv" | "xlsx") {
+    setError(null);
+    try {
+      const { downloadGridTemplate } = await import("@/lib/tracker-bulk-file");
+      await downloadGridTemplate(template.name, grid.columns, visibleRows, format);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not build the file.");
     }
   }
 
@@ -279,17 +291,61 @@ export function TrackerEditableGrid({
           )}
         </div>
         {canFill && (
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={save.isPending || dirtyCount === 0}
-            className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-            Save{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Downloads exactly the rows on screen, so the filters above decide what goes in
+                the file. Unsaved edits are excluded, so it is disabled until they are saved. */}
+            <div className="flex items-center rounded-md border border-gray-300">
+              <button
+                type="button"
+                onClick={() => void onDownloadTemplate("csv")}
+                disabled={dirtyCount > 0 || visibleRows.length === 0}
+                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as CSV`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV
+              </button>
+              <span className="h-4 w-px bg-gray-300" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => void onDownloadTemplate("xlsx")}
+                disabled={dirtyCount > 0 || visibleRows.length === 0}
+                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as Excel`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Excel
+              </button>
+            </div>
+            {/* Also blocked while there are unsaved edits: those drafts stay in the form, and
+                saving them afterwards would write over whatever the upload just brought in. */}
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              disabled={dirtyCount > 0}
+              title={dirtyCount > 0 ? "Save your changes first" : "Upload a filled-in spreadsheet"}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FileUp className="h-3.5 w-3.5" aria-hidden="true" /> Bulk upload
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={save.isPending || dirtyCount === 0}
+              className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              Save{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
+            </button>
+          </div>
         )}
       </div>
+      {bulkOpen && (
+        <TrackerBulkUploadPanel
+          template={template}
+          columns={grid.columns}
+          rows={visibleRows}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">
