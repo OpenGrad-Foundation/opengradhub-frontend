@@ -80,14 +80,17 @@ export const qk = {
 
   attendanceLinks: (classId: string) =>
     ['og', 'attendance', 'links', classId] as const,
-  attendanceRegisters: (filters: Record<string, unknown>) =>
-    ['og', 'attendance', 'registers', filters] as const,
   attendanceRegister: (id: string) =>
     ['og', 'attendance', 'register', id] as const,
   attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
   attendanceMe: () => ['og', 'attendance', 'me'] as const,
   attendanceSheet: (schoolId: string, month: string) =>
     ['og', 'attendance', 'sheet', schoolId, month] as const,
+  attendanceSchoolRegister: (schoolId: string, month: string) =>
+    ['og', 'attendance', 'school-register', schoolId, month] as const,
+  // Under the 'attendance' prefix on purpose: committing a register must refresh
+  // the dashboard gap widget, and invalidation busts that whole family.
+  attendanceGaps: () => ['og', 'attendance', 'gaps'] as const,
 
   dashboard: (role: string, tab: 'overview' | 'activity') =>
     ['og', 'dashboard', role, tab] as const,
