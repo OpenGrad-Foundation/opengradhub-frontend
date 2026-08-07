@@ -398,12 +398,16 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
         </div>
       </div>
       <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto">
-        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
-          Edit →
-        </Link>
-        <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
-          Delete
-        </button>
+        {quiz.can_manage !== false && (
+          <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
+            Edit →
+          </Link>
+        )}
+        {quiz.can_delete !== false && (
+          <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
+            Delete
+          </button>
+        )}
       </div>
     </div>
   );

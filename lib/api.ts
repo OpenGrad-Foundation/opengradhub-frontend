@@ -1699,6 +1699,9 @@ export type Quiz = {
   negative_marking: boolean;
   correct_marks: number;
   wrong_marks: number;
+  /** List affordances (GET /quizzes only): mirror backend collab-authz. */
+  can_manage?: boolean;
+  can_delete?: boolean;
 };
 
 export type CreateQuizPayload = {

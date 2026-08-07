@@ -31,6 +31,8 @@ import {
   type SchoolOption,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import ResourceCollaboratorsPanel from "@/app/dashboard/_components/ResourceCollaboratorsPanel";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
@@ -44,6 +46,7 @@ export default function BatchDetailPage() {
   const router = useRouter();
   const invalidate = useInvalidate();
   const { has } = usePermissions();
+  const { data: userData } = useCurrentUser();
   const currentUrl = useCurrentUrl();
 
   const { data: batch, isLoading, error, refetch } = useBatch(batchId);
@@ -242,6 +245,18 @@ export default function BatchDetailPage() {
           setGlobalError={setGlobalError}
         />
       </Section>
+
+      {/* ── Collaborators ────────────────────────────────────── */}
+      {has(PERM.batches.edit) && (
+        <ResourceCollaboratorsPanel
+          resource="batches"
+          resourceId={batchId}
+          createdBy={batch.created_by}
+          callerId={userData?.user?.id ?? ""}
+          callerRole={userData?.role?.code ?? ""}
+          description="Collaborators can manage this batch's quizzes and assignments — attach or remove quizzes, set windows, edit and grade batch-targeted work. Batch details, students, and deletion stay with the creator (or a Super Admin)."
+        />
+      )}
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addMembersOpen && (
