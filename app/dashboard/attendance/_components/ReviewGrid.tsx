@@ -238,6 +238,13 @@ function ReviewGridInner({
         </div>
       )}
 
+      {upload.extraction_error && (
+        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <p className="font-semibold">Nothing could be read from this file</p>
+          <p className="mt-1 text-xs">{upload.extraction_error}</p>
+        </div>
+      )}
+
       {(upload.dropped_invalid > 0 || upload.tie_broken || upload.dropped_days > 0) && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           {upload.dropped_invalid > 0 && (

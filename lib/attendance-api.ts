@@ -74,6 +74,8 @@ export type UploadDetail = UploadSummary & {
   dropped_other_month: number;
   other_months: string[];
   tie_broken: boolean;
+  /** Set when the draft is empty because extraction failed, not because the sheet was blank. */
+  extraction_error: string | null;
 };
 
 export type CommitEntry = { student_id: string; date: string; present: boolean };
