@@ -63,7 +63,7 @@ export default function ProgrammeInsights() {
         style={{
           background: "#ffffff", borderRadius: "24px",
           boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-          padding: "28px 36px", marginBottom: "24px",
+          padding: "clamp(20px, 4vw, 28px) clamp(20px, 5vw, 36px)", marginBottom: "24px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           gap: "16px", flexWrap: "wrap",
         }}
@@ -77,7 +77,7 @@ export default function ProgrammeInsights() {
           </h1>
         </div>
 
-        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <ScopeChip scope={data.scope} />
           {showFilter && (
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

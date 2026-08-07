@@ -626,7 +626,10 @@ export default function LoginPage() {
     setSuccessMessage(null);
 
     try {
-      const response = await signIn({ identifier, password });
+      const response = await signIn({ 
+        identifier: identifier.trim(), 
+        password 
+      });
       persistAuthToken(response.accessToken);
       router.replace("/dashboard");
     } catch (caughtError) {

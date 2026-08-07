@@ -154,13 +154,13 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
   const currentUrl = useCurrentUrl();
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
-  // is_module_complete from backend (lessons + quiz)
   const allDone = module.is_module_complete;
   const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
-  // Module tests sit at the END of the sequential flow: every lesson in this
-  // module must be complete before a test is attemptable (backend enforces too).
-  const quizLockedByLessons =
-    isSequential && roleCode === "STUDENT" && !module.lessons.every((l) => l.is_complete);
+  
+  const items = [
+    ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
+    ...module.module_quizzes.filter(q => q.published).map(q => ({ ...q, itemType: 'QUIZ' as const }))
+  ].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
   return (
     <div style={{ ...glassCard, opacity: isModuleLocked ? 0.7 : 1 }}>
@@ -173,12 +173,12 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {isPreview ? (
             <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>
-              {total} lesson{total !== 1 ? "s" : ""}
+              {items.length} item{items.length !== 1 ? "s" : ""}
             </span>
           ) : (
             <>
               <span style={{ fontSize: "12px", color: allDone ? "#0abe62" : "rgba(3,72,82,0.5)", fontWeight: 600 }}>
-                {done} / {total} complete
+                {done} / {total} lessons complete
               </span>
               {allDone && <span style={{ fontSize: "14px" }}>✓</span>}
             </>
@@ -196,98 +196,67 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
         </div>
       )}
 
-      {/* Lessons */}
-      {module.lessons.length === 0 ? (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", margin: 0 }}>No lessons in this module.</p>
+      {/* Items */}
+      {items.length === 0 ? (
+        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", margin: 0 }}>No content in this module.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-          {module.lessons.map((lesson, idx) => (
-            <LessonRow
-              key={lesson.id}
-              lesson={lesson}
-              index={idx}
-              module={module}
-              courseId={courseId}
-              isSequential={isSequential}
-              isLast={idx === module.lessons.length - 1 && module.module_quizzes.every((q) => !q.published)}
-              roleCode={roleCode}
-              isModuleLocked={isModuleLocked}
-              prevModuleTitle={prevModuleTitle}
-            />
-          ))}
+          {items.map((item, idx) => {
+            const isStudent = roleCode === "STUDENT";
+            const isItemLocked = isStudent && isSequential && (isModuleLocked || (idx > 0 && !items[idx - 1].is_complete));
+            const lockTooltip = isModuleLocked
+              ? `Complete "${prevModuleTitle}" module to unlock`
+              : idx > 0 && !items[idx - 1].is_complete
+                ? `Complete "${items[idx - 1].title}" to unlock`
+                : null;
+            
+            if (item.itemType === 'LESSON') {
+              return (
+                <LessonRow
+                  key={item.itemType + item.id}
+                  lesson={item as any}
+                  index={idx}
+                  courseId={courseId}
+                  isLast={idx === items.length - 1}
+                  isLocked={isItemLocked}
+                  lockTooltip={lockTooltip}
+                  currentUrl={currentUrl}
+                />
+              );
+            } else {
+              return (
+                <QuizRow
+                  key={item.itemType + item.id}
+                  quiz={item as any}
+                  index={idx}
+                  courseId={courseId}
+                  isLast={idx === items.length - 1}
+                  isPreview={isPreview}
+                  isLocked={isItemLocked}
+                  lockTooltip={lockTooltip}
+                  currentUrl={currentUrl}
+                />
+              );
+            }
+          })}
         </div>
       )}
-
-      {/* Module quiz rows — a module can have several published tests.
-          In staff preview they are listed read-only (no attempt link). */}
-      {!isModuleLocked && module.module_quizzes.filter((q) => q.published).map((quiz) => {
-        const locked = quizLockedByLessons && !isPreview;
-        const row = (
-          <div style={{
-            display: "flex", alignItems: "center", gap: "12px",
-            padding: "12px 4px",
-            borderTop: "1px solid rgba(3,72,82,0.08)",
-            opacity: locked ? 0.5 : 1,
-            cursor: isPreview ? "default" : locked ? "not-allowed" : "pointer",
-          }}>
-            <div style={{
-              width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: locked ? "rgba(3,72,82,0.06)" : "rgba(10,190,98,0.1)",
-              border: `1.5px solid ${locked ? "rgba(3,72,82,0.15)" : "#0abe62"}`,
-              fontSize: "11px", color: locked ? "rgba(3,72,82,0.3)" : "#0abe62", fontWeight: 700,
-            }}>✎</div>
-            <div style={{ flex: 1 }}>
-              <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
-                {quiz.title}
-              </p>
-              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
-                {locked ? "Complete all lessons in this module to unlock" : "Module quiz"}
-              </p>
-            </div>
-            {!isPreview && (
-              <span style={{ fontSize: "14px", color: locked ? "rgba(3,72,82,0.3)" : "#209379", flexShrink: 0 }}>
-                {locked ? "🔒" : "▶"}
-              </span>
-            )}
-          </div>
-        );
-        return isPreview || locked ? (
-          <div key={quiz.id}>{row}</div>
-        ) : (
-          <Link key={quiz.id} href={withFrom(`/dashboard/quiz/${quiz.id}`, currentUrl)} style={{ textDecoration: "none" }}>
-            {row}
-          </Link>
-        );
-      })}
     </div>
   );
 }
 
 // ── Lesson Row ─────────────────────────────────────────────────
 
-function LessonRow({ lesson, index, module, courseId, isSequential, isLast, roleCode, isModuleLocked, prevModuleTitle }: {
+function LessonRow({ lesson, index, courseId, isLast, isLocked, lockTooltip, currentUrl }: {
   lesson: LessonWithProgress;
   index: number;
-  module: ModuleWithProgress;
   courseId: string;
-  isSequential: boolean;
   isLast: boolean;
-  roleCode: RoleCode;
-  isModuleLocked: boolean;
-  prevModuleTitle: string;
+  isLocked: boolean | null;
+  lockTooltip: string | null;
+  currentUrl: string;
 }) {
   const [tooltip, setTooltip] = useState(false);
-  const currentUrl = useCurrentUrl();
-
-  const isStudent = roleCode === "STUDENT";
-  // Locked if the whole module is blocked by previous module, OR if prior lesson within module is incomplete
-  const isLocked = isStudent && isSequential && (isModuleLocked || (index > 0 && !module.lessons[index - 1].is_complete));
-  const lockTooltip = isModuleLocked
-    ? `Complete "${prevModuleTitle}" module to unlock`
-    : index > 0 && !module.lessons[index - 1].is_complete
-      ? `Complete "${module.lessons[index - 1].title}" to unlock`
-      : null;
 
   const content = (
     <div
@@ -355,6 +324,81 @@ function LessonRow({ lesson, index, module, courseId, isSequential, isLast, role
 
   return (
     <Link href={withFrom(`/dashboard/courses/${courseId}/lessons/${lesson.id}`, currentUrl)} style={{ textDecoration: "none" }}>
+      {content}
+    </Link>
+  );
+}
+
+// ── Quiz Row ─────────────────────────────────────────────────
+
+function QuizRow({ quiz, index, courseId, isLast, isPreview, isLocked, lockTooltip, currentUrl }: {
+  quiz: { id: string; title: string; published: boolean; is_complete?: boolean };
+  index: number;
+  courseId: string;
+  isLast: boolean;
+  isPreview: boolean;
+  isLocked: boolean | null;
+  lockTooltip: string | null;
+  currentUrl: string;
+}) {
+  const [tooltip, setTooltip] = useState(false);
+
+  const content = (
+    <div
+      style={{
+        display: "flex", alignItems: "center", gap: "12px",
+        padding: "12px 4px",
+        borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)",
+        opacity: isLocked ? 0.5 : 1,
+        cursor: isPreview ? "default" : isLocked ? "not-allowed" : "pointer",
+        transition: "background 150ms ease",
+        borderRadius: isLast ? "0 0 12px 12px" : "0",
+        position: "relative",
+      }}
+      onMouseEnter={() => isLocked && setTooltip(true)}
+      onMouseLeave={() => setTooltip(false)}
+    >
+      <div style={{
+        width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: quiz.is_complete ? "rgba(10,190,98,0.12)" : isLocked ? "rgba(3,72,82,0.06)" : "rgba(10,190,98,0.1)",
+        border: `1.5px solid ${quiz.is_complete ? "#0abe62" : isLocked ? "rgba(3,72,82,0.15)" : "#0abe62"}`,
+        fontSize: "11px", color: quiz.is_complete ? "#0abe62" : isLocked ? "rgba(3,72,82,0.3)" : "#0abe62", fontWeight: 700,
+      }}>
+        {quiz.is_complete ? "✓" : "✎"}
+      </div>
+      <div style={{ flex: 1 }}>
+        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
+          {quiz.title}
+        </p>
+        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
+          Module quiz
+        </p>
+      </div>
+      {!isPreview && (
+        <span style={{ fontSize: "14px", color: isLocked ? "rgba(3,72,82,0.3)" : "#209379", flexShrink: 0 }}>
+          {isLocked ? "🔒" : "▶"}
+        </span>
+      )}
+      {tooltip && lockTooltip && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+          transform: "translateX(-50%)",
+          background: "#034852", color: "#fff", borderRadius: "8px",
+          padding: "6px 12px", fontSize: "12px", whiteSpace: "nowrap",
+          pointerEvents: "none", zIndex: 10,
+          boxShadow: "0 4px 12px rgba(3,72,82,0.3)",
+        }}>
+          {lockTooltip}
+        </div>
+      )}
+    </div>
+  );
+
+  if (isPreview || isLocked) return content;
+
+  return (
+    <Link href={withFrom(`/dashboard/quiz/${quiz.id}`, currentUrl)} style={{ textDecoration: "none" }}>
       {content}
     </Link>
   );

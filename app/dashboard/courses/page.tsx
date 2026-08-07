@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Search,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -53,6 +54,8 @@ export default function CoursesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("ALL");
   const [lockingFilter, setLockingFilter] = useState<LockingFilter>("ALL");
+  const [tagsFilter, setTagsFilter] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
 
   const deferredSearch = useDeferredValue(searchInput);
 
@@ -118,6 +121,7 @@ export default function CoursesPage() {
         search: deferredSearch.trim() || undefined,
         accessType: accessFilter === "ALL" ? undefined : accessFilter,
         lockingMode: lockingFilter === "ALL" ? undefined : lockingFilter,
+        tags: tagsFilter.length > 0 ? tagsFilter : undefined,
         page,
         pageSize,
       };
@@ -142,6 +146,7 @@ export default function CoursesPage() {
     deferredSearch,
     isStudent,
     lockingFilter,
+    tagsFilter,
     page,
     pageSize,
     programmeFilter,
@@ -180,12 +185,14 @@ export default function CoursesPage() {
       supportsFullStatusFilter && statusFilter !== "ALL",
       accessFilter !== "ALL",
       lockingFilter !== "ALL",
+      tagsFilter.length > 0,
       deferredSearch.trim().length > 0,
     ].filter(Boolean).length;
   }, [
     accessFilter,
     deferredSearch,
     lockingFilter,
+    tagsFilter,
     programmeFilter,
     statusFilter,
     supportsFullStatusFilter,
@@ -197,6 +204,8 @@ export default function CoursesPage() {
     setStatusFilter("ALL");
     setAccessFilter("ALL");
     setLockingFilter("ALL");
+    setTagsFilter([]);
+    setTagInput("");
     setPage(1);
   };
 
@@ -338,6 +347,48 @@ export default function CoursesPage() {
                   { value: "SEQUENTIAL", label: "Sequential" },
                 ]}
               />
+              <div className="flex items-center flex-wrap gap-1.5 rounded-lg border border-[rgba(3,72,82,0.15)] bg-white px-2.5 py-1.5 shadow-sm focus-within:border-[rgba(10,190,98,0.4)] min-h-[34px]">
+                <span className="text-[11px] font-semibold tracking-wide text-[rgba(3,72,82,0.6)] uppercase">Tags</span>
+                {tagsFilter.map(tag => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1 rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTagsFilter(tagsFilter.filter(t => t !== tag));
+                        setPage(1);
+                      }}
+                      className="flex items-center justify-center text-[var(--teal)] hover:text-[var(--dark-teal)]"
+                    >
+                      <X size={10} strokeWidth={3} />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  placeholder={tagsFilter.length === 0 ? "e.g. Maths, Science" : ""}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === ",") {
+                      e.preventDefault();
+                      const val = tagInput.trim().toUpperCase();
+                      if (val && !tagsFilter.includes(val)) {
+                        setTagsFilter([...tagsFilter, val]);
+                        setPage(1);
+                      }
+                      setTagInput("");
+                    } else if (e.key === "Backspace" && !tagInput && tagsFilter.length > 0) {
+                      setTagsFilter(tagsFilter.slice(0, -1));
+                      setPage(1);
+                    }
+                  }}
+                  className="w-[120px] flex-1 border-0 bg-transparent text-xs text-[var(--dark-teal)] outline-none placeholder:text-[rgba(3,72,82,0.4)]"
+                />
+              </div>
               <button
                 type="button"
                 onClick={resetFilters}
@@ -389,11 +440,20 @@ export default function CoursesPage() {
           {viewMode === "grid" ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {managementCourses.map((course) => (
-                <ManagerCourseCard key={course.id} course={course} canManage={canManage} />
+                <ManagerCourseCard
+                  key={course.id}
+                  course={course}
+                  canManage={canManage}
+                  callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+                />
               ))}
             </div>
           ) : (
-            <CourseTable courses={managementCourses} canManage={canManage} />
+            <CourseTable
+              courses={managementCourses}
+              canManage={canManage}
+              callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+            />
           )}
         </section>
       )}
@@ -433,8 +493,20 @@ function StudentCoursesSection({
   );
 }
 
-function ManagerCourseCard({ course, canManage }: { course: Course; canManage: boolean }) {
+function ManagerCourseCard({
+  course,
+  canManage,
+  callerId,
+}: {
+  course: Course;
+  canManage: boolean;
+  callerId: string | null;
+}) {
   const currentUrl = useCurrentUrl();
+  // Per-course authority: can_manage is only present in the management list
+  // view (creator/collaborator/SA). Absent flag keeps legacy behavior.
+  const manageable = canManage && course.can_manage !== false;
+  const isShared = Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId;
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
       <div className="border-b border-[rgba(3,72,82,0.08)] bg-(--dark-teal) px-4 py-4 text-white">
@@ -443,6 +515,8 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
             <div className="flex flex-wrap gap-1.5">
               <Badge tone="dark">{course.programme_type}</Badge>
               <Badge tone={course.access_type === "PAID" ? "sun" : "mint"}>{course.access_type}</Badge>
+              {isShared && <Badge tone="mint">Shared</Badge>}
+              {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
             </div>
             <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-snug">{course.title}</h2>
           </div>
@@ -455,23 +529,33 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
           {course.description ?? "No description added yet."}
         </p>
 
+        {course.tags && course.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {course.tags.map(tag => (
+              <span key={tag} className="inline-flex items-center rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]">
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
         <dl className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[rgba(248,250,251,0.95)] p-3">
           <Metric label="Lessons" value={`${course.lesson_count}`} />
+          <Metric label="Quizzes" value={`${course.quiz_count ?? 0}`} />
           <Metric label="Structure" value={course.locking_mode} />
-          <Metric label="Status" value={course.status} />
           <Metric label="Created" value={formatCompactDate(course.created_at)} />
         </dl>
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           <Link
-            href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+            href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
             className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-              canManage
+              manageable
                 ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(10,190,98,0.22)]"
                 : "border border-[rgba(3,72,82,0.16)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.3)] hover:bg-[rgba(3,72,82,0.03)]"
             }`}
           >
-            {canManage ? "Manage" : "Open"}
+            {manageable ? "Manage" : "Open"}
           </Link>
         </div>
       </div>
@@ -479,7 +563,15 @@ function ManagerCourseCard({ course, canManage }: { course: Course; canManage: b
   );
 }
 
-function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boolean }) {
+function CourseTable({
+  courses,
+  canManage,
+  callerId,
+}: {
+  courses: Course[];
+  canManage: boolean;
+  callerId: string | null;
+}) {
   const currentUrl = useCurrentUrl();
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_18px_40px_rgba(3,72,82,0.06)]">
@@ -498,7 +590,9 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
             </tr>
           </thead>
           <tbody>
-            {courses.map((course) => (
+            {courses.map((course) => {
+              const manageable = canManage && course.can_manage !== false;
+              return (
               <tr key={course.id} className="border-t border-[rgba(3,72,82,0.08)] align-top text-sm text-[var(--dark-teal)]">
                 <td className="px-5 py-4">
                   <div className="max-w-[18rem]">
@@ -506,13 +600,28 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-[rgba(3,72,82,0.58)]">
                       {course.description ?? "No description added yet."}
                     </p>
+                    {course.tags && course.tags.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {course.tags.map(tag => (
+                          <span key={tag} className="inline-flex items-center rounded-full bg-[rgba(10,190,98,0.1)] px-2 py-0.5 text-[10px] font-semibold text-[var(--dark-teal)]">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </td>
                 <td className="px-5 py-4">
                   <Badge tone="teal">{course.programme_type}</Badge>
                 </td>
                 <td className="px-5 py-4">
-                  <Badge tone={statusTone(course.status)}>{course.status}</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone={statusTone(course.status)}>{course.status}</Badge>
+                    {Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId && (
+                      <Badge tone="mint">Shared</Badge>
+                    )}
+                    {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
+                  </div>
                 </td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.access_type}</td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.locking_mode}</td>
@@ -521,19 +630,20 @@ function CourseTable({ courses, canManage }: { courses: Course[]; canManage: boo
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={withFrom(canManage ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+                      href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-                        canManage
+                        manageable
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
                           : "border border-[rgba(3,72,82,0.14)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.28)] hover:bg-[rgba(3,72,82,0.03)]"
                       }`}
                     >
-                      {canManage ? "Manage" : "Open"}
+                      {manageable ? "Manage" : "Open"}
                     </Link>
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -792,16 +902,17 @@ function Badge({
   tone,
   children,
 }: {
-  tone: "dark" | "mint" | "sun" | "teal" | "green" | "gray";
+  tone: "dark" | "mint" | "sun" | "teal" | "green" | "gray" | "red";
   children: ReactNode;
 }) {
   const toneClasses: Record<string, string> = {
     dark: "bg-[rgba(255,255,255,0.16)] text-white border border-[rgba(255,255,255,0.16)]",
     mint: "bg-[rgba(10,190,98,0.12)] text-[var(--green)] border border-[rgba(10,190,98,0.16)]",
-    sun: "bg-[rgba(255,222,0,0.18)] text-[var(--dark-teal)] border border-[rgba(255,222,0,0.2)]",
+    sun: "bg-[rgba(255,222,0,0.18)] text-amber-500 border border-[rgba(255,222,0,0.2)]",
     teal: "bg-[rgba(0,109,108,0.08)] text-[var(--teal)] border border-[rgba(0,109,108,0.12)]",
-    green: "bg-[rgba(10,190,98,0.14)] text-[var(--teal)] border border-[rgba(10,190,98,0.18)]",
+    green: "bg-[rgba(10,190,98,0.14)] text-[var(--green)] border border-[rgba(10,190,98,0.18)]",
     gray: "bg-[rgba(3,72,82,0.08)] text-[rgba(3,72,82,0.76)] border border-[rgba(3,72,82,0.08)]",
+    red: "bg-[rgba(239,68,68,0.15)] text-red-500 border border-[rgba(239,68,68,0.2)]",
   };
 
   return (
@@ -813,9 +924,10 @@ function Badge({
   );
 }
 
-function statusTone(status: string): "green" | "sun" | "gray" {
+function statusTone(status: string): "green" | "sun" | "gray" | "red" {
   if (status === "ACTIVE") return "green";
   if (status === "DRAFT") return "sun";
+  if (status === "ARCHIVED") return "red";
   return "gray";
 }
 

@@ -45,6 +45,8 @@ const DOMAIN_KEYS = {
   // lesson progress tick — affects course overview, student dashboards, analytics
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   tracker: [['og', 'tracker'], ['og', 'dashboard']],
+  // attendance writes (link marks/overrides, register commits) — also feeds dashboards
+  attendance: [['og', 'attendance'], ['og', 'dashboard']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;

@@ -20,7 +20,8 @@ import {
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
 import { useBatches } from "@/lib/queries/batches";
-import { useQuestionStats } from "@/lib/queries/quizzes";
+import { useQuestionStats, useAllQuizAttempts, useDeleteQuizAttempt } from "@/lib/queries/quizzes";
+import type { QuizAttemptWithStudent } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -239,7 +240,7 @@ function QuizRow({
   // null here so `exhausted` and the attempts pill below treat it as unlimited.
   const maxAttempts  = quiz.max_attempts != null && quiz.max_attempts > 0 ? quiz.max_attempts : null;
   const attemptsUsed = attempts.length;
-  const exhausted    = maxAttempts != null && attemptsUsed >= maxAttempts;
+  const exhausted    = maxAttempts != null && maxAttempts > 0 && attemptsUsed >= maxAttempts;
   const isLocked     = locked === true;
   const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
@@ -264,69 +265,74 @@ function QuizRow({
       overflow: "hidden",
     }}>
       {/* Row */}
-      <div style={{ display: "flex", alignItems: "center", gap: "14px", padding: "16px 20px" }}>
-        <button
-          onClick={() => setExpanded((v) => !v)}
-          disabled={attemptsUsed === 0}
-          aria-label={expanded ? "Collapse attempts" : "Show attempts"}
-          style={{
-            width: "24px", height: "24px", flexShrink: 0,
-            border: "none", borderRadius: "6px",
-            background: attemptsUsed === 0 ? "transparent" : "rgba(3,72,82,0.06)",
-            color: attemptsUsed === 0 ? "rgba(3,72,82,0.2)" : "#209379",
-            cursor: attemptsUsed === 0 ? "default" : "pointer",
-            fontSize: "12px", fontWeight: 700,
-            transform: expanded ? "rotate(90deg)" : "none",
-            transition: "transform 0.15s",
-          }}
-        >
-          ▶
-        </button>
-
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
-            {label}
-          </p>
-          <h3 style={{ margin: "3px 0 0", fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {quiz.title}
-          </h3>
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 lg:px-5 lg:py-4">
+        <div className="flex items-center gap-[14px] flex-1 min-w-0">
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            disabled={attemptsUsed === 0}
+            aria-label={expanded ? "Collapse attempts" : "Show attempts"}
+            style={{
+              width: "24px", height: "24px", flexShrink: 0,
+              border: "none", borderRadius: "6px",
+              background: attemptsUsed === 0 ? "transparent" : "rgba(3,72,82,0.06)",
+              color: attemptsUsed === 0 ? "rgba(3,72,82,0.2)" : "#209379",
+              cursor: attemptsUsed === 0 ? "default" : "pointer",
+              fontSize: "12px", fontWeight: 700,
+              transform: expanded ? "rotate(90deg)" : "none",
+              transition: "transform 0.15s",
+            }}
+          >
+            ▶
+          </button>
+  
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
+              {label}
+            </p>
+            <h3 style={{ margin: "3px 0 0", fontFamily: "var(--font-heading)", fontSize: "16px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {quiz.title}
+            </h3>
+          </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end", flexShrink: 0 }}>
-          {windowInfo && (
-            <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
-          )}
-          {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
-          {maxAttempts != null ? (
-            <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
-              {attemptsUsed}/{maxAttempts} attempt{maxAttempts !== 1 ? "s" : ""}
-            </Pill>
-          ) : (
-            <Pill>{attemptsUsed} attempt{attemptsUsed !== 1 ? "s" : ""}</Pill>
-          )}
-          {bestPct !== null && (
-            <Pill style={{ background: "rgba(10,190,98,0.1)", color: "#0abe62" }}>Best {bestPct}%</Pill>
-          )}
-        </div>
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3 shrink-0 w-full lg:w-auto pl-[38px] lg:pl-0">
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 }}>
+            {windowInfo && (
+              <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
+            )}
+            {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
+            {maxAttempts != null && maxAttempts > 0 ? (
+              <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
+                {attemptsUsed}/{maxAttempts} attempt{maxAttempts !== 1 ? "s" : ""}
+              </Pill>
+            ) : (
+              <Pill>{attemptsUsed} attempt{attemptsUsed !== 1 ? "s" : ""}</Pill>
+            )}
+            {bestPct !== null && (
+              <Pill style={{ background: "rgba(10,190,98,0.1)", color: "#0abe62" }}>Best {bestPct}%</Pill>
+            )}
+          </div>
 
-        <button
-          onClick={onStart}
-          disabled={exhausted || isLocked}
-          title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
-          style={{
-            flexShrink: 0,
-            padding: "9px 18px", border: "none", borderRadius: "10px",
-            background: exhausted || isLocked
-              ? "rgba(3,72,82,0.08)"
-              : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-            color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
-            fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-            cursor: exhausted || isLocked ? "default" : "pointer",
-            boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
-          }}
-        >
-          {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
-        </button>
+          <button
+            onClick={onStart}
+            disabled={exhausted || isLocked}
+            title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
+            className="w-full lg:w-auto mt-1 lg:mt-0"
+            style={{
+              flexShrink: 0,
+              padding: "9px 18px", border: "none", borderRadius: "10px",
+              background: exhausted || isLocked
+                ? "rgba(3,72,82,0.08)"
+                : "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+              color: exhausted || isLocked ? "rgba(3,72,82,0.35)" : "#fff",
+              fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+              cursor: exhausted || isLocked ? "default" : "pointer",
+              boxShadow: exhausted || isLocked ? "none" : "0 4px 12px rgba(10,190,98,0.2)",
+            }}
+          >
+            {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
+          </button>
+        </div>
       </div>
 
       {/* Expanded attempts */}
@@ -781,7 +787,7 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 }
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
-  const [tab, setTab] = useState<'leaderboard' | 'questions' | 'manage'>('leaderboard');
+  const [tab, setTab] = useState<'leaderboard' | 'questions' | 'manage' | 'attempts'>('leaderboard');
   const { has } = usePermissions();
   const canManage = has(PERM.assessments.reset_attempt);
   const router = useRouter();
@@ -800,7 +806,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }}
       />
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 520,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 520,
         background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)',
         zIndex: 51, display: 'flex', flexDirection: 'column',
       }}>
@@ -828,14 +834,14 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
           <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
           <DrawerTab label="Question Stats" active={tab === 'questions'}   onClick={() => setTab('questions')} />
           {canManage && <DrawerTab label="Manage" active={tab === 'manage'} onClick={() => setTab('manage')} />}
+          <DrawerTab label="Attempts"       active={tab === 'attempts'}    onClick={() => setTab('attempts')} />
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
-          {tab === 'leaderboard'
-            ? <DrawerLeaderboard quizId={quizId} />
-            : tab === 'questions'
-              ? <DrawerQuestionStats quizId={quizId} />
-              : <DrawerManageAttempts quizId={quizId} />}
+          {tab === 'leaderboard' && <DrawerLeaderboard quizId={quizId} />}
+          {tab === 'questions'   && <DrawerQuestionStats quizId={quizId} />}
+          {tab === 'manage'      && <DrawerManageAttempts quizId={quizId} />}
+          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
         </div>
       </div>
     </>
@@ -1066,6 +1072,145 @@ function DrawerQuestionStats({ quizId }: { quizId: string }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+type StudentAttemptGroup = {
+  student_id: string;
+  student_name: string;
+  roll_number: string | null;
+  attempts: QuizAttemptWithStudent[];
+};
+
+function DrawerAttempts({ quizId }: { quizId: string }) {
+  const { data: attempts, isPending, isError, error: queryError } = useAllQuizAttempts(quizId);
+  const { has } = usePermissions();
+  const deleteAttempt = useDeleteQuizAttempt();
+
+  if (isError) return <p style={{ color: '#c53030', fontSize: '13px' }}>{queryError instanceof Error ? queryError.message : 'Failed to load.'}</p>;
+  if (isPending || attempts === undefined) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
+  if (attempts.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempts yet.</p>;
+
+  const groups = Object.values(attempts.reduce((acc, a) => {
+    if (!acc[a.student_id]) {
+      acc[a.student_id] = {
+        student_id: a.student_id,
+        student_name: a.student_name,
+        roll_number: a.roll_number,
+        attempts: [],
+      };
+    }
+    acc[a.student_id].attempts.push(a);
+    return acc;
+  }, {} as Record<string, StudentAttemptGroup>));
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {groups.map((group) => (
+        <DrawerAttemptsGroup
+          key={group.student_id}
+          group={group}
+          quizId={quizId}
+          canDelete={has(PERM.assessments.edit)}
+          onDelete={(attemptId) => deleteAttempt.mutate(attemptId)}
+          deletingId={deleteAttempt.isPending ? (deleteAttempt.variables as string | undefined) : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DrawerAttemptsGroup({ group, quizId, canDelete, onDelete, deletingId }: {
+  group: StudentAttemptGroup;
+  quizId: string;
+  canDelete: boolean;
+  onDelete: (attemptId: string) => void;
+  deletingId: string | undefined;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
+
+  return (
+    <div style={{ border: '1px solid rgba(3,72,82,0.08)', borderRadius: '12px', overflow: 'hidden' }}>
+      <div
+        onClick={() => setExpanded((e) => !e)}
+        style={{
+          padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          cursor: 'pointer', background: expanded ? 'rgba(3,72,82,0.03)' : 'transparent',
+        }}
+      >
+        <div>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: '13px', color: '#034852' }}>{group.student_name}</p>
+          {group.roll_number && <p style={{ margin: '2px 0 0', fontSize: '11px', color: 'rgba(3,72,82,0.5)' }}>{group.roll_number}</p>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: 'rgba(3,72,82,0.5)' }}>
+            {group.attempts.length} {group.attempts.length === 1 ? 'attempt' : 'attempts'}
+          </span>
+          <button style={{ padding: '4px 10px', background: 'rgba(32,147,121,0.08)', borderRadius: '6px', border: 'none', fontSize: '11px', fontWeight: 700, color: '#209379', cursor: 'pointer' }}>
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div style={{ borderTop: '1px solid rgba(3,72,82,0.08)' }}>
+          {group.attempts.map((a) => (
+            <div
+              key={a.id}
+              style={{
+                padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                borderBottom: '1px solid rgba(3,72,82,0.04)', fontSize: '12px',
+              }}
+            >
+              <div>
+                <span style={{ fontWeight: 700, color: '#034852' }}>Attempt {a.attempt_number}</span>
+                <span style={{ marginLeft: 8, color: 'rgba(3,72,82,0.5)' }}>
+                  {a.is_complete
+                    ? `${a.score ?? '—'}/${a.max_score ?? '—'}`
+                    : 'In progress'}
+                </span>
+                {a.submitted_at && (
+                  <span style={{ marginLeft: 8, color: 'rgba(3,72,82,0.4)' }}>
+                    {new Date(a.submitted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                {a.is_complete && (
+                  <button
+                    onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
+                    style={{
+                      padding: '4px 10px', border: 'none', borderRadius: '6px',
+                      background: 'rgba(32,147,121,0.1)', color: '#209379', fontSize: '11px', fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    View
+                  </button>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={() => {
+                      if (!confirm(`Delete attempt ${a.attempt_number} for ${group.student_name}? This lets them retry and cannot be undone.`)) return;
+                      onDelete(a.id);
+                    }}
+                    disabled={deletingId === a.id}
+                    style={{
+                      padding: '4px 10px', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '6px',
+                      background: 'transparent', color: '#dc2626', fontSize: '11px', fontWeight: 700,
+                      cursor: deletingId === a.id ? 'not-allowed' : 'pointer', opacity: deletingId === a.id ? 0.5 : 1,
+                    }}
+                  >
+                    {deletingId === a.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

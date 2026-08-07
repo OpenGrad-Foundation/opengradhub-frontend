@@ -48,6 +48,8 @@ export const qk = {
     ['og', 'quiz', quizId, 'attempts', studentId ?? 'self'] as const,
   myQuizAttempts: (studentId?: string) =>
     ['og', 'quiz-attempts', 'mine', studentId ?? 'self'] as const,
+  allQuizAttempts: (quizId: string) =>
+    ['og', 'quiz', quizId, 'all-attempts'] as const,
   availableQuizzes: () => ['og', 'quizzes', 'available'] as const,
   bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
   batches: (status?: string) => ['og', 'batches', status ?? 'ACTIVE'] as const,
@@ -66,6 +68,17 @@ export const qk = {
     ['og', 'calendar', from ?? '', to ?? ''] as const,
   studentEnrolments: (studentId: string) =>
     ['og', 'student', studentId, 'enrolments'] as const,
+
+  attendanceLinks: (classId: string) =>
+    ['og', 'attendance', 'links', classId] as const,
+  attendanceRegisters: (filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'registers', filters] as const,
+  attendanceRegister: (id: string) =>
+    ['og', 'attendance', 'register', id] as const,
+  attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
+  attendanceMe: () => ['og', 'attendance', 'me'] as const,
+  attendanceSheet: (schoolId: string, month: string) =>
+    ['og', 'attendance', 'sheet', schoolId, month] as const,
 
   dashboard: (role: string, tab: 'overview' | 'activity') =>
     ['og', 'dashboard', role, tab] as const,

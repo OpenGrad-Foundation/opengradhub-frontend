@@ -269,7 +269,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ background: "#fff", borderRadius: "20px", padding: "clamp(20px, 5vw, 32px)", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
           <h2 style={{ ...S.heading, fontSize: "20px", margin: 0 }}>Add Calendar Event</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "rgba(3,72,82,0.4)" }}>✕</button>
@@ -292,7 +292,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
             <textarea value={form.description} onChange={(e) => set("description", e.target.value)} style={{ ...inputStyle, minHeight: "72px", resize: "vertical" }} placeholder="Optional details" />
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Start *">
               <input type="datetime-local" value={form.starts_at} onChange={(e) => set("starts_at", e.target.value)} style={inputStyle} />
             </Field>
@@ -308,7 +308,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
 
           <p style={{ ...S.label, marginTop: "8px" }}>Audience (leave blank = everyone)</p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Programme">
               <select value={form.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={inputStyle}>
                 <option value="">All programmes</option>
@@ -338,11 +338,11 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-          <button onClick={submit} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "24px" }}>
+          <button onClick={submit} disabled={saving} style={{ ...primaryBtn, flex: "2 1 140px", opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Create Event"}
           </button>
-          <button onClick={onClose} style={secondaryBtn}>Cancel</button>
+          <button onClick={onClose} style={{ ...secondaryBtn, flex: "1 1 100px" }}>Cancel</button>
         </div>
       </div>
     </div>
@@ -407,7 +407,7 @@ function EditEventModal({ event, onClose, onSaved }: {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ background: "#fff", borderRadius: "20px", padding: "clamp(20px, 5vw, 32px)", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
           <h2 style={{ ...S.heading, fontSize: "20px", margin: 0 }}>Edit Calendar Event</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "rgba(3,72,82,0.4)" }}>✕</button>
@@ -430,7 +430,7 @@ function EditEventModal({ event, onClose, onSaved }: {
             <textarea value={form.description} onChange={(e) => set("description", e.target.value)} style={{ ...inputStyle, minHeight: "72px", resize: "vertical" }} placeholder="Optional details" />
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Start *">
               <input type="datetime-local" value={form.starts_at} onChange={(e) => set("starts_at", e.target.value)} style={inputStyle} />
             </Field>
@@ -446,7 +446,7 @@ function EditEventModal({ event, onClose, onSaved }: {
 
           <p style={{ ...S.label, marginTop: "8px" }}>Audience (leave blank = everyone)</p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Programme">
               <select value={form.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={inputStyle}>
                 <option value="">All programmes</option>
@@ -476,11 +476,11 @@ function EditEventModal({ event, onClose, onSaved }: {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-          <button onClick={submit} disabled={saving} style={{ ...primaryBtn, opacity: saving ? 0.6 : 1 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "24px" }}>
+          <button onClick={submit} disabled={saving} style={{ ...primaryBtn, flex: "2 1 140px", opacity: saving ? 0.6 : 1 }}>
             {saving ? "Saving…" : "Save Changes"}
           </button>
-          <button onClick={onClose} style={secondaryBtn}>Cancel</button>
+          <button onClick={onClose} style={{ ...secondaryBtn, flex: "1 1 100px" }}>Cancel</button>
         </div>
       </div>
     </div>

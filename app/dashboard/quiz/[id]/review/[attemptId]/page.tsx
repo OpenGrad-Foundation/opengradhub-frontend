@@ -6,228 +6,14 @@ import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MathContent } from "@/app/dashboard/_components/MathContent";
+import { PassageCard, QuestionReviewCard, label } from "@/components/question-review-card";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const page: React.CSSProperties = { maxWidth: "960px", margin: "0 auto", padding: "32px 16px", color: "#034852" };
 const card: React.CSSProperties = { background: "rgba(255,255,255,0.85)", borderRadius: "16px", padding: "28px 32px", boxShadow: "0 2px 24px rgba(3,72,82,0.08)", marginBottom: "20px" };
-const label: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" };
 
-function getYouTubeEmbedUrl(url: string): string | null {
-  try {
-    const u = new URL(url);
-    const isYouTube = u.hostname === "www.youtube.com" || u.hostname === "youtube.com" || u.hostname === "youtu.be";
-    if (!isYouTube) return null;
-    const v = u.hostname === "youtu.be"
-      ? u.pathname.slice(1)
-      : u.searchParams.get("v");
-    if (!v || !/^[a-zA-Z0-9_-]{11}$/.test(v)) return null;
-    return `https://www.youtube.com/embed/${v}`;
-  } catch {
-    return null;
-  }
-}
 
-// ── Single question card ──────────────────────────────────────────────────────
-
-function formatSeconds(s: number): string {
-  if (s < 60) return `${s}s`;
-  return `${Math.floor(s / 60)}m ${s % 60}s`;
-}
-
-function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
-  const isManualGrading = q.question_type === "FILL" || q.question_type === "ESSAY";
-  const correctPct = !isManualGrading && q.batch_total_count > 0
-    ? Math.round((q.batch_correct_count / q.batch_total_count) * 100)
-    : null;
-
-  return (
-    <div style={{
-      width: "200px",
-      flexShrink: 0,
-      background: "rgba(3,72,82,0.03)",
-      border: "1.5px solid rgba(3,72,82,0.09)",
-      borderRadius: "12px",
-      padding: "16px",
-      display: "flex",
-      flexDirection: "column",
-      gap: "14px",
-    }}>
-      <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>Analytics</p>
-
-      {/* My time */}
-      <div>
-        <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>My Time</p>
-        <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
-          {q.time_taken_seconds != null ? formatSeconds(q.time_taken_seconds) : "—"}
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div style={{ height: "1px", background: "rgba(3,72,82,0.08)" }} />
-
-      {/* Avg time */}
-      <div>
-        <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Avg Time (Batch)</p>
-        <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
-          {q.avg_time_seconds != null ? formatSeconds(q.avg_time_seconds) : "—"}
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div style={{ height: "1px", background: "rgba(3,72,82,0.08)" }} />
-
-      {/* Batch correct — hidden for FILL (manual grading, is_correct never set) */}
-      {isManualGrading ? (
-        <div>
-          <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Correct in Batch</p>
-          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.35)", fontStyle: "italic" }}>Manual grading</p>
-        </div>
-      ) : (
-        <div>
-          <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Correct in Batch</p>
-          <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0abe62" }}>
-            {q.batch_total_count > 0 ? `${q.batch_correct_count}/${q.batch_total_count}` : "—"}
-          </p>
-          {correctPct !== null && (
-            <p style={{ margin: "2px 0 0", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.4)" }}>{correctPct}% got it right</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function QuestionReviewCard({ q, idx, revealed }: { q: AttemptReviewQuestion; idx: number; revealed: boolean }) {
-  const borderColor =
-    q.is_correct === true  ? "#0abe62" :
-    q.is_correct === false ? "#e53e3e" :
-    "rgba(3,72,82,0.12)";
-
-  const statusLabel =
-    q.student_answer == null         ? "Skipped" :
-    q.is_correct === true            ? "Correct" :
-    q.is_correct === false           ? "Wrong"   :
-    "Pending";
-
-  const statusColor =
-    q.is_correct === true  ? "#0abe62" :
-    q.is_correct === false ? "#e53e3e" :
-    "rgba(3,72,82,0.4)";
-
-  const statusBg =
-    q.is_correct === true  ? "rgba(10,190,98,0.09)" :
-    q.is_correct === false ? "rgba(229,62,62,0.09)" :
-    "rgba(3,72,82,0.07)";
-
-  const embedUrl = q.explanation_video_url ? getYouTubeEmbedUrl(q.explanation_video_url) : null;
-
-  return (
-    <div style={{ ...card, border: `2px solid ${borderColor}`, marginBottom: "16px", padding: "0" }}>
-      <div style={{ display: "flex", gap: "0", alignItems: "stretch" }}>
-        {/* Left: question content */}
-        <div style={{ flex: 1, padding: "24px 28px", minWidth: 0 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", gap: "8px" }}>
-            <p style={{ ...label, margin: 0 }}>Q{idx + 1}</p>
-            <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg, flexShrink: 0 }}>
-              {statusLabel}
-            </span>
-          </div>
-
-          <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: "14px" }} />
-
-          {/* MCQ options */}
-          {q.question_type === "MCQ" && q.options.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
-              {q.options.map((opt) => {
-                const isStudentAnswer = q.student_answer === opt.id;
-                const isCorrect = opt.is_correct;
-                // Correct answer only shows once revealed.
-                const showCorrect      = revealed && isCorrect;
-                const showStudentWrong = revealed && isStudentAnswer && !isCorrect;
-
-                const bg =
-                  showCorrect      ? "rgba(10,190,98,0.12)" :
-                  showStudentWrong ? "rgba(229,62,62,0.08)" :
-                  isStudentAnswer  ? "rgba(3,72,82,0.06)" :
-                  "rgba(3,72,82,0.03)";
-                const border =
-                  showCorrect      ? "#0abe62" :
-                  showStudentWrong ? "#e53e3e" :
-                  isStudentAnswer  ? "rgba(3,72,82,0.2)" :
-                  "rgba(3,72,82,0.08)";
-                const dot =
-                  showCorrect      ? "#0abe62" :
-                  showStudentWrong ? "#e53e3e" :
-                  isStudentAnswer  ? "#209379" :
-                  "rgba(3,72,82,0.25)";
-                const fillRadio = isStudentAnswer || showCorrect;
-
-                return (
-                  <div key={opt.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 14px", borderRadius: "8px", background: bg, border: `1.5px solid ${border}` }}>
-                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${dot}`, background: "#fff", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {fillRadio && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot }} />}
-                    </span>
-                    <MathContent inline html={opt.option_text} style={{ fontSize: "14px", color: "#034852" }} />
-                    <span style={{ marginLeft: "auto", display: "flex", gap: "8px", flexShrink: 0 }}>
-                      {isStudentAnswer && (
-                        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>Your answer</span>
-                      )}
-                      {showCorrect && (
-                        <span style={{ fontSize: "11px", color: "#0abe62" }}>Correct</span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* FILL / NUMERICAL / ESSAY */}
-          {(q.question_type === "FILL" || q.question_type === "NUMERICAL" || q.question_type === "ESSAY") && (
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "12px" }}>
-              <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.1)", flex: 1, minWidth: "250px" }}>
-                <p style={{ margin: 0, fontSize: "11px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>Your answer</p>
-                <p style={{ margin: "4px 0 0", fontSize: "14px", fontWeight: 700, color: q.is_correct === false ? "#e53e3e" : "#034852", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {q.student_answer ?? "—"}
-                </p>
-              </div>
-              {revealed && (
-                <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.2)" }}>
-                  <p style={{ margin: 0, fontSize: "11px", color: "#0abe62", fontWeight: 600 }}>Correct answer</p>
-                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>
-                    {q.correct_answer ? <MathContent inline html={q.correct_answer} /> : "—"}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Explanation video */}
-          {embedUrl && (
-            <div style={{ marginTop: "16px" }}>
-              <p style={{ ...label, color: "#034852", marginBottom: "8px" }}>Explanation</p>
-              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: "10px", overflow: "hidden" }}>
-                <iframe
-                  src={embedUrl}
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: analytics panel */}
-        <div style={{ borderLeft: `1.5px solid ${borderColor}30`, padding: "24px 20px", display: "flex", alignItems: "flex-start" }}>
-          <QuestionAnalyticsPanel q={q} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Section header ────────────────────────────────────────────────────────────
 
@@ -326,9 +112,46 @@ export default function AttemptReviewPage() {
       }))
     : null;
 
-  const renderQuestionCard = (q: AttemptReviewQuestion, idx: number) => (
-    <QuestionReviewCard key={q.snapshot_id} q={q} idx={idx} revealed={revealed} />
-  );
+  // Build a flat render list that inserts a PassageCard before the first child of each GROUP.
+  function buildRenderItems(questions: AttemptReviewQuestion[]) {
+    const items: React.ReactNode[] = [];
+    const seenParents = new Set<string>();
+    const partCounters = new Map<string, number>();
+    let questionNumber = 0;
+    for (const q of questions) {
+      if (q.parent_snapshot_id) {
+        if (!seenParents.has(q.parent_snapshot_id)) {
+          seenParents.add(q.parent_snapshot_id);
+          partCounters.set(q.parent_snapshot_id, 0);
+          questionNumber++;
+          items.push(
+            <PassageCard
+              key={`passage-${q.parent_snapshot_id}`}
+              html={q.parent_content_html ?? ""}
+              imageUrl={q.parent_image_url ?? null}
+            />
+          );
+        }
+        const partNum = (partCounters.get(q.parent_snapshot_id) ?? 0) + 1;
+        partCounters.set(q.parent_snapshot_id, partNum);
+        items.push(
+          <QuestionReviewCard
+            key={q.snapshot_id}
+            q={q}
+            idx={questionNumber - 1}
+            revealed={revealed}
+            questionLabel={`Part ${partNum}`}
+          />
+        );
+      } else {
+        questionNumber++;
+        items.push(
+          <QuestionReviewCard key={q.snapshot_id} q={q} idx={questionNumber - 1} revealed={revealed} />
+        );
+      }
+    }
+    return items;
+  }
 
   return (
     <div style={page}>
@@ -375,12 +198,12 @@ export default function AttemptReviewPage() {
           {groupedBySection.map(({ section, questions }) => (
             <div key={section.section_id} style={{ marginBottom: "32px" }}>
               <SectionHeader section={section} />
-              {questions.map((q, i) => renderQuestionCard(q, i))}
+              {buildRenderItems(questions)}
             </div>
           ))}
         </>
       ) : (
-        review.questions.map((q, i) => renderQuestionCard(q, i))
+        buildRenderItems(review.questions)
       )}
 
       <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>

@@ -94,7 +94,7 @@ export default function NewLiveClassPage() {
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} style={{ ...S.input, resize: "vertical" }} placeholder="Optional notes for students…" />
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
             <Field label="Date & Time *">
               <input type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} style={S.input} required />
             </Field>
@@ -110,9 +110,10 @@ export default function NewLiveClassPage() {
           {/* Target radio */}
           <div>
             <p style={fieldLabel}>Target Audience *</p>
-            <div style={{ display: "flex", gap: "10px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
               {(["course", "programme", "batch"] as Target[]).map(t => (
                 <button key={t} type="button" onClick={() => setTarget(t)} style={{
+                  flex: "1 1 auto",
                   padding: "8px 18px", borderRadius: "10px", cursor: "pointer",
                   border: target === t ? "1.5px solid #034852" : "1.5px solid rgba(3,72,82,0.18)",
                   background: target === t ? "rgba(3,72,82,0.07)" : "transparent",
@@ -150,9 +151,9 @@ export default function NewLiveClassPage() {
 
           {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
 
-          <div style={{ display: "flex", gap: "10px" }}>
-            <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Cancel</Link>
-            <button type="submit" disabled={submitting} style={{ ...S.primaryBtn, flex: 1, opacity: submitting ? 0.6 : 1 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+            <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", flex: "1 1 120px" }}>Cancel</Link>
+            <button type="submit" disabled={submitting} style={{ ...S.primaryBtn, flex: "2 1 180px", opacity: submitting ? 0.6 : 1 }}>
               {submitting ? "Scheduling…" : "Schedule Class"}
             </button>
           </div>
@@ -172,7 +173,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" };
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" };
+const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "clamp(20px, 5vw, 32px)", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" };
 const S = {
   label:      { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
   heading:    { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,

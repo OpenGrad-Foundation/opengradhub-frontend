@@ -32,7 +32,7 @@ export function TrendDistribution({
   ) => void;
 }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "16px", marginBottom: "20px" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", marginBottom: "20px" }}>
       <div style={card}>
         <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px" }}>
           12-month trend
