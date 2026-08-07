@@ -72,7 +72,7 @@ const boxStyle = (b: { x: number; y: number; w: number; h: number }): React.CSSP
   boxSizing: "border-box",
 });
 
-const DATE_COLS = 10;
+// Column count comes from the server descriptor — no hard-coded mirror.
 
 function Sheet({ d, page, pageCount, schoolName }: {
   d: RegisterDescriptor; page: SheetPage; pageCount: number; schoolName: string;
@@ -142,13 +142,13 @@ function Sheet({ d, page, pageCount, schoolName }: {
       <div style={boxStyle({ x: d.table.x + d.table.codeW, y: d.table.y, w: d.table.nameW, h: d.table.headerH })}>
         <span style={{ fontSize: "2.8mm", fontWeight: 700, paddingLeft: "1mm" }}>Student name</span>
       </div>
-      {Array.from({ length: DATE_COLS }, (_, c) => (
+      {Array.from({ length: d.table.dateCols }, (_, c) => (
         <div key={c} style={boxStyle({ x: dateColX(d, c), y: d.table.y, w: d.table.dateColW, h: d.table.headerH })}>
           <span style={{ position: "absolute", left: "0.3mm", top: "0.3mm", fontSize: "1.7mm", color: "#666" }}>D</span>
           <span style={{ position: "absolute", left: "0.3mm", bottom: "0.4mm", fontSize: "1.7mm", color: "#666" }}>M</span>
         </div>
       ))}
-      {Array.from({ length: DATE_COLS }, (_, c) =>
+      {Array.from({ length: d.table.dateCols }, (_, c) =>
         dateCombBoxes(d, c).map((b, i) => <div key={`${c}-${i}`} style={boxStyle(b)} />),
       )}
 
@@ -173,7 +173,7 @@ function Sheet({ d, page, pageCount, schoolName }: {
                 {s.name}
               </span>
             </div>
-            {Array.from({ length: DATE_COLS }, (_, c) => {
+            {Array.from({ length: d.table.dateCols }, (_, c) => {
               const { p, a } = markBoxPair(d, r, c);
               return (
                 <div key={c}>
