@@ -27,17 +27,19 @@ function dateColX(d: RegisterDescriptor, col: number): number {
   return d.table.x + d.table.codeW + d.table.nameW + col * d.table.dateColW;
 }
 
+/** Order mirrors the backend: [D, D, M, M] — DD row above the MM row. */
 function dateCombBoxes(d: RegisterDescriptor, col: number) {
   const c = d.table.comb;
-  const totalW = 4 * c.boxW + 2 * c.gap + c.slashGap;
-  let x = dateColX(d, col) + (d.table.dateColW - totalW) / 2;
-  const y = d.table.y + c.yOffset;
-  const out: { x: number; y: number; w: number; h: number }[] = [];
-  for (let i = 0; i < 4; i++) {
-    out.push({ x, y, w: c.boxW, h: c.boxH });
-    x += c.boxW + (i === 1 ? c.slashGap : c.gap);
-  }
-  return out;
+  const rowW = 2 * c.boxW + c.gap;
+  const x0 = dateColX(d, col) + (d.table.dateColW - rowW) / 2;
+  const yD = d.table.y + c.yOffset;
+  const yM = yD + c.boxH + c.rowGap;
+  return [
+    { x: x0, y: yD, w: c.boxW, h: c.boxH },
+    { x: x0 + c.boxW + c.gap, y: yD, w: c.boxW, h: c.boxH },
+    { x: x0, y: yM, w: c.boxW, h: c.boxH },
+    { x: x0 + c.boxW + c.gap, y: yM, w: c.boxW, h: c.boxH },
+  ];
 }
 
 function monthCombBoxes(d: RegisterDescriptor) {
@@ -142,7 +144,8 @@ function Sheet({ d, page, pageCount, schoolName }: {
       </div>
       {Array.from({ length: DATE_COLS }, (_, c) => (
         <div key={c} style={boxStyle({ x: dateColX(d, c), y: d.table.y, w: d.table.dateColW, h: d.table.headerH })}>
-          <span style={{ fontSize: "2.2mm", color: "#444", paddingLeft: "0.8mm" }}>DD/MM</span>
+          <span style={{ position: "absolute", left: "0.3mm", top: "0.3mm", fontSize: "1.7mm", color: "#666" }}>D</span>
+          <span style={{ position: "absolute", left: "0.3mm", bottom: "0.4mm", fontSize: "1.7mm", color: "#666" }}>M</span>
         </div>
       ))}
       {Array.from({ length: DATE_COLS }, (_, c) =>

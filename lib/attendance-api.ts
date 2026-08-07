@@ -94,7 +94,7 @@ export type RegisterDescriptor = {
   table: {
     x: number; y: number; rowH: number; headerH: number;
     codeW: number; nameW: number; dateColW: number;
-    comb: { boxW: number; boxH: number; gap: number; slashGap: number; yOffset: number };
+    comb: { boxW: number; boxH: number; gap: number; rowGap: number; yOffset: number };
     mark: { box: number; gap: number };
   };
 };
