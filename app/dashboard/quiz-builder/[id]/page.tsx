@@ -21,6 +21,7 @@ import {
   type Question,
 } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
+import ResourceCollaboratorsPanel from "@/app/dashboard/_components/ResourceCollaboratorsPanel";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
@@ -439,6 +440,18 @@ export default function QuizBuilderPage() {
           target={csvTarget}
           onClose={() => setCsvOpen(false)}
           onDone={() => { void reload(); }}
+        />
+      )}
+
+      {/* ── Collaborators ─────────────────────────────────── */}
+      {quiz && has(PERM.test_bank.edit) && (
+        <ResourceCollaboratorsPanel
+          resource="quizzes"
+          resourceId={quizId}
+          createdBy={quiz.created_by}
+          callerId={userId}
+          callerRole={userData?.role?.code ?? ""}
+          description="Collaborators can edit this quiz, manage its questions and sections, publish it, and view results. Only the creator (or a Super Admin) can delete it or change this list."
         />
       )}
 
