@@ -986,6 +986,54 @@ export async function removeCourseCollaborator(courseId: string, userId: string)
   return (await r.json()) as { removed: boolean };
 }
 
+// ── Generic collaborators API (batches / quizzes / assignments) ──
+// Same row shapes as the course collaborator endpoints; the resource segment
+// selects which backend controller handles it.
+
+export type CollabResource = "batches" | "quizzes" | "assignments";
+
+export async function getCollaborators(resource: CollabResource, id: string): Promise<CourseCollaborator[]> {
+  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators`);
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch collaborators.", r.status);
+  }
+  return (await r.json()) as CourseCollaborator[];
+}
+
+export async function getEligibleCollaboratorsFor(resource: CollabResource, id: string): Promise<EligibleCollaborator[]> {
+  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators/eligible`);
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to fetch eligible collaborators.", r.status);
+  }
+  return (await r.json()) as EligibleCollaborator[];
+}
+
+export async function addCollaboratorFor(resource: CollabResource, id: string, userId: string): Promise<{ added: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to add collaborator.", r.status);
+  }
+  return (await r.json()) as { added: boolean };
+}
+
+export async function removeCollaboratorFor(resource: CollabResource, id: string, userId: string): Promise<{ removed: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators/${userId}`, {
+    method: "DELETE",
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to remove collaborator.", r.status);
+  }
+  return (await r.json()) as { removed: boolean };
+}
+
 // ── Questions / Test Bank API ──────────────────────────────────
 
 export type EvaluationCriterion = { criteria: string; percentage: number };
