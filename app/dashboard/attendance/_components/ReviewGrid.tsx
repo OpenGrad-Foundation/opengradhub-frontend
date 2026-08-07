@@ -245,6 +245,17 @@ function ReviewGridInner({
         </div>
       )}
 
+      {upload.omr_warnings.length > 0 && (
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          {upload.omr_warnings.map((w, i) => (
+            <p key={i} className={i > 0 ? "mt-1" : undefined}>
+              {w.count ? `${w.count} × ` : ""}
+              {w.detail}
+            </p>
+          ))}
+        </div>
+      )}
+
       {(upload.dropped_invalid > 0 || upload.tie_broken || upload.dropped_days > 0) && (
         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           {upload.dropped_invalid > 0 && (

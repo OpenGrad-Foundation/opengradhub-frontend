@@ -76,6 +76,20 @@ export type UploadDetail = UploadSummary & {
   tie_broken: boolean;
   /** Set when the draft is empty because extraction failed, not because the sheet was blank. */
   extraction_error: string | null;
+  /** Soft extraction problems: ambiguous cells, abstained dates, month conflicts, page gaps. */
+  omr_warnings: OmrWarning[];
+};
+
+export type OmrWarning = {
+  code:
+    | "AMBIGUOUS_CELL"
+    | "ABSTAINED_DATE"
+    | "MONTH_CONFLICT"
+    | "QR_MISMATCH"
+    | "STALE_TEMPLATE"
+    | "PAGE_GAP";
+  detail: string;
+  count?: number;
 };
 
 export type CommitEntry = { student_id: string; date: string; present: boolean };
