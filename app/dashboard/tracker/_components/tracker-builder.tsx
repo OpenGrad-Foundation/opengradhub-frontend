@@ -17,6 +17,7 @@ import {
 } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
+import { useBatches } from "@/lib/queries/batches";
 import { AudiencePicker } from "./audience-picker";
 
 // Fallback mirror of the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts),
@@ -74,6 +75,10 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Batch audience (student tasks only): assign to the members of a batch so ownership routes to
+  // each member's batch-fellow. Empty = ordinary student audience.
+  const [batchId, setBatchId] = useState<string>("");
+  const batches = useBatches("ACTIVE").data ?? [];
 
   const submittingRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -115,6 +120,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
     setSelectedIds(new Set());
+    if (next !== "student") setBatchId("");
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
     setColumns((cols) =>
@@ -195,7 +201,8 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
       const targetIds = Array.from(selectedIds);
       let assigned = 0;
-      if (targetIds.length > 0) assigned = (await assignTrackerTargets(id, targetIds)).created;
+      if (targetIds.length > 0)
+        assigned = (await assignTrackerTargets(id, targetIds, batchId || undefined)).created;
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
@@ -231,11 +238,20 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Who does this task?
           <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-            <option value="fellow">Each staff member</option>
+            <option value="fellow">Each fellow</option>
             <option value="school">Each school</option>
             <option value="student">Each student</option>
           </select>
         </label>
+        {targetType === "student" && (
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Assign to a batch (optional)
+            <select value={batchId} onChange={(e) => { setBatchId(e.target.value); setSelectedIds(new Set()); }} className={inputClass}>
+              <option value="">All my students</option>
+              {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Due date
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
@@ -344,7 +360,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-950">Assign to {targetWord}</h3>
-        <AudiencePicker key={targetType} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} />
+        <AudiencePicker key={`${targetType}:${batchId}`} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} batchId={batchId || undefined} />
         <p className="mt-2 text-xs text-gray-500">Leave empty to assign later.</p>
       </section>
 

@@ -37,6 +37,11 @@ export default function NewQuizPage() {
 
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
+  // Carries this page's module/course context, so an uploaded quiz lands in the
+  // same place a manually created one would.
+  const bulkUploadHref = moduleId
+    ? `/dashboard/quiz-builder/bulk-import?module_id=${moduleId}&course_id=${courseId}`
+    : "/dashboard/quiz-builder/bulk-import";
 
   if (userLoading || permLoading) return null;
 
@@ -95,6 +100,23 @@ export default function NewQuizPage() {
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
           Set up the quiz — you can add questions after saving.
         </p>
+
+        {/* The other way in: skip the form and let a markdown/PDF file define
+            the whole quiz, questions included. */}
+        <div style={uploadCallout}>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+              Already have the quiz in a file?
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+              Upload a markdown or PDF and we&apos;ll build the whole quiz — settings and questions —
+              for you to review.
+            </p>
+          </div>
+          <a href={bulkUploadHref} style={uploadCalloutBtn}>
+            ⬆ Upload Entire Quiz
+          </a>
+        </div>
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>
@@ -195,6 +217,16 @@ const label: React.CSSProperties = {
 };
 const heading: React.CSSProperties = {
   fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+};
+const uploadCallout: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
+  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
+  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
+};
+const uploadCalloutBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
+  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
+  fontSize: "13px", fontWeight: 700, textDecoration: "none",
 };
 const primaryBtn: React.CSSProperties = {
   padding: "12px 24px", border: "none", borderRadius: "12px",

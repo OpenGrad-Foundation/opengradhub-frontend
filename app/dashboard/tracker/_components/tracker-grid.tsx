@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Check, Clock, Loader2, Save, UserCog, X } from "lucide-react";
+import { Check, Clock, Download, FileUp, Loader2, Save, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
@@ -9,8 +9,10 @@ import {
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
+import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
 import { StudentDetailsForm } from "./student-details-form";
+import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
 
@@ -19,11 +21,16 @@ export function TrackerEditableGrid({
   grid,
   canFill,
   canClear,
+  statusFilter = "",
+  onStatusFilterChange,
 }: {
   template: TrackerTemplate;
   grid: TrackerGrid;
   canFill: boolean;
   canClear: boolean;
+  /** 4-state status filter shared with the card strip above the grid. */
+  statusFilter?: TaskState | "";
+  onStatusFilterChange?: (state: TaskState | "") => void;
 }) {
   const save = useSaveTrackerBatch();
   const raise = useRaiseTrackerBlocker();
@@ -40,8 +47,8 @@ export function TrackerEditableGrid({
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
   const [schoolFilter, setSchoolFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   const editableKeys = useMemo(
     () => new Set(grid.columns.filter((c) => c.source !== "profile").map((c) => c.field_key)),
@@ -55,12 +62,12 @@ export function TrackerEditableGrid({
   const hasSchool = schools.length > 0;
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
-  const nameHeader = template.target_type === "fellow" ? "Staff member" : "Student";
+  const nameHeader = template.target_type === "fellow" ? "Fellow" : "Student";
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return grid.rows.filter((r) =>
       (!schoolFilter || r.school_name === schoolFilter) &&
-      (!statusFilter || r.lifecycle === statusFilter) &&
+      (!statusFilter || taskStateFromLifecycle(r.lifecycle) === statusFilter) &&
       (!q || (r.target_name ?? "").toLowerCase().includes(q) || (r.school_name ?? "").toLowerCase().includes(q)
         || r.cells.some((c) => String(c.value ?? "").toLowerCase().includes(q))));
   }, [grid.rows, schoolFilter, statusFilter, search]);
@@ -85,6 +92,16 @@ export function TrackerEditableGrid({
       setDrafts({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed.");
+    }
+  }
+
+  async function onDownloadTemplate(format: "csv" | "xlsx") {
+    setError(null);
+    try {
+      const { downloadGridTemplate } = await import("@/lib/tracker-bulk-file");
+      await downloadGridTemplate(template.name, grid.columns, visibleRows, format);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not build the file.");
     }
   }
 
@@ -262,13 +279,9 @@ export function TrackerEditableGrid({
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rows…" className="h-8 w-40 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
+          <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
             <option value="">All statuses</option>
-            <option value="not_started">To do</option>
-            <option value="in_progress">In progress</option>
-            <option value="blocked">Stuck</option>
-            <option value="overdue">Overdue</option>
-            <option value="done">Done</option>
+            {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
           {schools.length > 1 && (
             <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
@@ -278,17 +291,61 @@ export function TrackerEditableGrid({
           )}
         </div>
         {canFill && (
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={save.isPending || dirtyCount === 0}
-            className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-            Save{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Downloads exactly the rows on screen, so the filters above decide what goes in
+                the file. Unsaved edits are excluded, so it is disabled until they are saved. */}
+            <div className="flex items-center rounded-md border border-gray-300">
+              <button
+                type="button"
+                onClick={() => void onDownloadTemplate("csv")}
+                disabled={dirtyCount > 0 || visibleRows.length === 0}
+                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as CSV`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV
+              </button>
+              <span className="h-4 w-px bg-gray-300" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => void onDownloadTemplate("xlsx")}
+                disabled={dirtyCount > 0 || visibleRows.length === 0}
+                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as Excel`}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Excel
+              </button>
+            </div>
+            {/* Also blocked while there are unsaved edits: those drafts stay in the form, and
+                saving them afterwards would write over whatever the upload just brought in. */}
+            <button
+              type="button"
+              onClick={() => setBulkOpen(true)}
+              disabled={dirtyCount > 0}
+              title={dirtyCount > 0 ? "Save your changes first" : "Upload a filled-in spreadsheet"}
+              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FileUp className="h-3.5 w-3.5" aria-hidden="true" /> Bulk upload
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={save.isPending || dirtyCount === 0}
+              className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              Save{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
+            </button>
+          </div>
         )}
       </div>
+      {bulkOpen && (
+        <TrackerBulkUploadPanel
+          template={template}
+          columns={grid.columns}
+          rows={visibleRows}
+          onClose={() => setBulkOpen(false)}
+        />
+      )}
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">

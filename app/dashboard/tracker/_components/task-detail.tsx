@@ -9,7 +9,7 @@ import { AudiencePicker } from "./audience-picker";
 
 const TARGET_LABEL: Record<string, string> = {
   student: "One row per student",
-  fellow: "One task per staff member",
+  fellow: "One task per fellow",
   school: "One task per school",
 };
 
@@ -251,7 +251,7 @@ function TaskSummary({ templateId, targetType }: { templateId: string; targetTyp
   const { data: rows = [], isLoading } = useTrackerSummary(templateId);
   // For a user-doer (fellow) task the row IS the assignee (a fellow or a delegated manager);
   // for student/school tasks the row is the fellow who owns that school.
-  const ownerHeader = targetType === "fellow" ? "Staff member" : "Fellow";
+  const ownerHeader = targetType === "fellow" ? "Fellow" : "Fellow";
   const totals = rows.reduce(
     (a, r) => ({ done: a.done + r.done, pending: a.pending + r.pending, blocked: a.blocked + r.blocked, overdue: a.overdue + r.overdue }),
     { done: 0, pending: 0, blocked: 0, overdue: 0 },

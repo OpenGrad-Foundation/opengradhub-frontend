@@ -26,13 +26,15 @@ export function AudiencePicker({
   canAuthor,
   selected,
   onChange,
+  batchId,
 }: {
   targetType: TrackerTargetType;
   canAuthor: boolean;
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
+  batchId?: string;
 }) {
-  const assignable = useTrackerAssignable(targetType, canAuthor);
+  const assignable = useTrackerAssignable(targetType, canAuthor, batchId);
   const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "staff";
 
   const [stateFilter, setStateFilter] = useState("");

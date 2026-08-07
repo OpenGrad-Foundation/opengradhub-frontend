@@ -1,6 +1,7 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
 
 type StatCardProps = {
   label: string;
@@ -10,6 +11,8 @@ type StatCardProps = {
   isLoading?: boolean;
   error?: string | null;
   onRetry?: () => void;
+  href?: string;
+  tone?: 'danger';
 };
 
 export default function StatCard({
@@ -20,11 +23,14 @@ export default function StatCard({
   isLoading,
   error,
   onRetry,
+  href,
+  tone,
 }: StatCardProps) {
   const display = value === null || value === undefined ? '—' : String(value);
+  const danger = tone === 'danger' && !isLoading && !error;
 
-  return (
-    <div className="relative rounded-[24px] bg-white px-6 py-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
+  const body = (
+    <>
       {isLoading ? (
         <div data-testid="stat-skeleton" className="h-12 animate-pulse rounded bg-slate-100" />
       ) : error ? (
@@ -43,7 +49,7 @@ export default function StatCard({
       ) : (
         <>
           <div
-            className="text-[32px] font-semibold text-[var(--dark-teal)]"
+            className={`text-[32px] font-semibold ${danger ? 'text-rose-600' : 'text-[var(--dark-teal)]'}`}
             style={{ fontFamily: 'var(--font-heading)' }}
           >
             {display}
@@ -69,6 +75,20 @@ export default function StatCard({
           )}
         </>
       )}
-    </div>
+    </>
   );
+
+  const baseClass = `relative block rounded-[24px] px-6 py-5 shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
+    danger ? 'bg-rose-50 ring-1 ring-rose-200' : 'bg-white'
+  }`;
+
+  if (href && !isLoading && !error) {
+    return (
+      <Link href={href} className={`${baseClass} transition-shadow hover:shadow-[0_16px_40px_rgba(0,0,0,0.14)]`}>
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={baseClass}>{body}</div>;
 }

@@ -10,6 +10,8 @@ import { joinLiveClass, deleteLiveClass, type LiveClass } from "@/lib/api";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { LiveClassAttendeesModal } from "./_components/LiveClassAttendeesModal";
+import { AttendanceSheet } from "./_components/AttendanceSheet";
+import { AttendanceGrid } from "./_components/AttendanceGrid";
 
 export default function LiveClassesPage() {
   const router = useRouter();
@@ -22,11 +24,16 @@ export default function LiveClassesPage() {
   const canEdit   = has(PERM.live_classes.edit);
   const canDelete = has(PERM.live_classes.delete);
   const isManager = canCreate;
+  const roleCode      = data?.role?.code ?? "";
+  const canAttendance = has(PERM.live_classes.attendance);
+  const canMark       = canAttendance && (roleCode === "FELLOW" || roleCode === "SUPER_ADMIN");
 
   const [joining,      setJoining]      = useState<string | null>(null);
   const [deleting,     setDeleting]     = useState<string | null>(null);
   const [now,          setNow]          = useState(() => Date.now());
   const [selectedClass, setSelectedClass] = useState<{ id: string; title: string } | null>(null);
+  const [attendanceClass, setAttendanceClass] = useState<{ id: string; title: string } | null>(null);
+  const [tab, setTab] = useState<"classes" | "students">("classes");
   const invalidate = useInvalidate();
 
   const { data: classes = [], isPending: loading, error: queryError } = useLiveClasses();
@@ -87,7 +94,39 @@ export default function LiveClassesPage() {
         )}
       </div>
 
-      {loading ? <LoadingState /> : error ? (
+      {canAttendance && (
+        <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+          {(["classes", "students"] as const).map((t) => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ padding: "8px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)",
+                border: tab === t ? "none" : "1.5px solid rgba(3,72,82,0.15)",
+                background: tab === t ? "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" : "transparent",
+                color: tab === t ? "#fff" : "#034852" }}>
+              {t === "classes" ? "Classes" : "Students"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!isManager && !canAttendance && past.length > 0 && (() => {
+        const attendedCount = past.filter((c) => c.attended).length;
+        const pct = Math.round((attendedCount / past.length) * 100);
+        return (
+          <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "16px", padding: "16px 24px", marginBottom: "20px" }}>
+            <span style={{ fontSize: "22px" }}>🗓️</span>
+            <div>
+              <p style={{ ...S.label, marginBottom: "2px" }}>My Attendance</p>
+              <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#034852" }}>
+                {attendedCount}/{past.length} classes attended ({pct}%)
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {tab === "students" && canAttendance ? (
+        <AttendanceGrid />
+      ) : loading ? <LoadingState /> : error ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
         </div>
@@ -125,6 +164,7 @@ export default function LiveClassesPage() {
                   onViewAttendees={isManager ? () => setSelectedClass({ id: cls.id, title: cls.title }) : undefined}
                   onEdit={canEdit ? () => router.push(`/dashboard/live-classes/${cls.id}/edit`) : undefined}
                   onDelete={canDelete ? () => void handleDelete(cls) : undefined}
+                  onAttendance={canAttendance ? () => setAttendanceClass({ id: cls.id, title: cls.title }) : undefined}
                   deleting={deleting === cls.id} />
               ))}
             </Section>
@@ -137,6 +177,15 @@ export default function LiveClassesPage() {
           liveClassId={selectedClass.id}
           title={selectedClass.title}
           onClose={() => setSelectedClass(null)}
+        />
+      )}
+
+      {attendanceClass && (
+        <AttendanceSheet
+          liveClassId={attendanceClass.id}
+          title={attendanceClass.title}
+          canMark={canMark}
+          onClose={() => setAttendanceClass(null)}
         />
       )}
     </div>
@@ -152,12 +201,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onViewAttendees, onEdit, onDelete, deleting }: {
+function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onViewAttendees, onEdit, onDelete, onAttendance, deleting }: {
   cls: LiveClass; isManager: boolean; mayJoin: boolean; now: number;
   onJoin: () => void; joining: boolean; past?: boolean;
   onViewAttendees?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  onAttendance?: () => void;
   deleting?: boolean;
 }) {
   const scheduledMs  = new Date(cls.scheduled_at).getTime();
@@ -217,8 +267,16 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onView
             </button>
           )}
         </div>
-        {isManager && (onEdit || onDelete) && (
+        {(onAttendance || (isManager && (onEdit || onDelete))) && (
           <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            {onAttendance && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onAttendance(); }}
+                style={{ padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(32,147,121,0.35)", borderRadius: "8px", background: "transparent", color: "#209379", cursor: "pointer", fontFamily: "var(--font-body)" }}
+              >
+                Attendance
+              </button>
+            )}
             {onEdit && (
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
@@ -273,7 +331,7 @@ function ClassCard({ cls, isManager, mayJoin, now, onJoin, joining, past, onView
               ? { background: "rgba(10,190,98,0.12)", color: "#0abe62" }
               : { background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.4)" }),
           }}>
-            {cls.attended ? "Joined" : "Missed"}
+            {cls.attended ? "Present" : "Absent"}
           </span>
         </div>
       )}

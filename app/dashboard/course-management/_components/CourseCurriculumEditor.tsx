@@ -17,6 +17,7 @@ import {
   type CourseModule,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 
 export default function CourseCurriculumEditor({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -38,6 +39,13 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
     void reload().finally(() => setLoading(false));
   }, [reload]);
 
+  // A bulk-uploaded module quiz is saved by a background worker, so it is not
+  // in the curriculum yet when the user lands back here. Poll it in.
+  const { jobId: uploadJobId, status: uploadStatus, expired: uploadExpired } = useBulkSaveJob({
+    cleanupUrl: `/dashboard/course-management/${courseId}`,
+    onCompleted: reload,
+  });
+
   if (loading) {
     return (
       <div style={{ ...glassCard, textAlign: "center" }}>
@@ -50,6 +58,22 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
   return (
     <div>
       {globalError && <div style={{ ...errorBox, marginBottom: "16px" }}>{globalError}</div>}
+
+      {uploadJobId && (
+        <div style={uploadBanner}>
+          <span>⏳ Bulk uploaded quiz — {uploadStatus}</span>
+          <span style={{ opacity: 0.7 }}>It will appear in its module when saving finishes.</span>
+        </div>
+      )}
+
+      {uploadExpired && (
+        <div style={uploadBanner}>
+          <span>This upload’s progress is no longer being tracked.</span>
+          <span style={{ opacity: 0.7 }}>
+            It may still have saved — reload the page to see the current curriculum.
+          </span>
+        </div>
+      )}
 
       <div style={{ marginBottom: "18px" }}>
         <p style={labelSt}>Curriculum</p>
@@ -830,6 +854,20 @@ const inputSt: React.CSSProperties = {
   color: "#034852",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const uploadBanner: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "2px",
+  padding: "10px 14px",
+  borderRadius: "12px",
+  marginBottom: "16px",
+  background: "rgba(147,32,121,0.06)",
+  border: "1px solid rgba(147,32,121,0.16)",
+  color: "#932079",
+  fontSize: "13px",
+  fontWeight: 600,
 };
 
 const errorBox: React.CSSProperties = {

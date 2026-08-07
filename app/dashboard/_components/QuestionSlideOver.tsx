@@ -18,6 +18,7 @@ import { MathTextEditor } from "./MathTextEditor";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { PassageCard, QuestionReviewCard } from "@/components/question-review-card";
+import { QuestionReportsPanel } from "./QuestionReportsPanel";
 
 // ── Shared constants ───────────────────────────────────────────
 
@@ -769,6 +770,9 @@ export function QuestionSlideOver({
               {isEdit && <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", marginTop: "6px" }}>Sub-questions are read-only when editing a GROUP question.</p>}
             </div>
           )}
+
+          {/* Reports only exist for a saved question. */}
+          {initial && <QuestionReportsPanel questionId={initial.id} />}
 
           {formError && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{formError}</p>}
 

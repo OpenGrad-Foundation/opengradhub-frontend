@@ -2,9 +2,14 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
+import { usePermission } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { useQuery } from "@tanstack/react-query";
+import { qk } from "@/lib/queries/keys";
+import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
 import {
@@ -17,6 +22,10 @@ import {
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
+
+// Stable empty fallback — a fresh Map() per render would change identity every
+// pass and retrigger anything keyed on it.
+const EMPTY_REPORT_COUNTS = new Map<string, number>();
 
 // ── Page ───────────────────────────────────────────────────────
 // Access (`test_bank.view`) is enforced by the backend and the dashboard
@@ -35,14 +44,10 @@ function TestBankPageContent() {
   const userId = data?.user?.id ?? "";
   const invalidate = useInvalidate();
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const [uploadJobId, setUploadJobId] = useState<string | null>(searchParams.get("uploadJobId"));
-  const [uploadStatus, setUploadStatus] = useState<string>("Uploading and queuing...");
 
   const [filterType, setFilterType]       = useState("");
   const [filterProg, setFilterProg]       = useState("");
@@ -62,6 +67,90 @@ function TestBankPageContent() {
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+  const [showArchived, setShowArchived] = useState(false);
+  const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
+
+  const handleArchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
+    setArchiveBusy(quiz.id);
+    try {
+      // The in-flight count is the point of this dialog: archiving voids those attempts
+      // and un-archiving will not bring them back, so say so before it happens.
+      const inFlight = await getInFlightCount(quiz.id);
+      const warning = inFlight > 0
+        ? `\n\n${inFlight} student${inFlight === 1 ? " is" : "s are"} taking this quiz right now. `
+          + `Archiving voids ${inFlight === 1 ? "that attempt" : "those attempts"} — `
+          + `${inFlight === 1 ? "it" : "they"} will NOT be graded, and restoring the quiz will not bring `
+          + `${inFlight === 1 ? "it" : "them"} back.`
+        : "";
+      if (!confirm(`Archive "${quiz.title}"?\n\nIt disappears for students and cannot be assigned.${warning}`)) {
+        return;
+      }
+      await archiveQuiz(quiz.id);
+      invalidate("quizzes");
+      await fetchGlobalTests();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to archive quiz.");
+    } finally {
+      setArchiveBusy(null);
+    }
+  };
+
+  const handleUnarchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
+    setArchiveBusy(quiz.id);
+    try {
+      await unarchiveQuiz(quiz.id);
+      invalidate("quizzes");
+      await fetchGlobalTests();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to restore quiz.");
+    } finally {
+      setArchiveBusy(null);
+    }
+  };
+
+  // Open student reports per bank question, for the ⚠ badges.
+  // Held in react-query (not local state) so resolving a report from the slide-over
+  // can invalidate it and the badges/filter update without a page refresh.
+  const canTriage = usePermission(PERM.test_bank.manage_questions);
+  const { data: reportCounts = EMPTY_REPORT_COUNTS } = useQuery({
+    queryKey: qk.questionReportCounts(),
+    enabled: canTriage,
+    // No quiz_id: this page lists the whole bank, not one quiz.
+    queryFn: async () => {
+      const rows = await getQuestionReportCounts();
+      return new Map(rows.map((r) => [r.bank_question_id, r.open_count]));
+    },
+  });
+
+  // Deep-link from the dashboard "Reported Questions" card: show only questions
+  // that currently have open reports. The reportCounts map is already loaded for
+  // triagers, so this is a pure client-side narrowing — no extra fetch.
+  const reportsOnly = searchParams.get("reports") === "open";
+  const visibleQuestions = reportsOnly
+    ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
+    : questions;
+  // How many bank questions currently have open reports — drives the filter button badge.
+  const reportedQuestionCount = [...reportCounts.values()].filter((n) => n > 0).length;
+
+  // Deep link from a QUESTION_REPORTED notification: /dashboard/test-bank?question=<id>.
+  // Fetch by id rather than searching the loaded page — the active filters may exclude it,
+  // and the list is paginated in memory, so a lookup would silently no-op.
+  const deepLinkQuestionId = searchParams.get("question");
+  useEffect(() => {
+    if (!deepLinkQuestionId) return;
+    let cancelled = false;
+    // Clear filters so the row is visible behind the panel once the user closes it.
+    setFilterType(""); setFilterProg(""); setFilterSubject("");
+    setFilterTopic(""); setFilterDiff(""); setFilterTag("");
+    getQuestionById(deepLinkQuestionId)
+      .then((q) => {
+        if (cancelled) return;
+        setEditTarget(q);
+        setPanelOpen(true);
+      })
+      .catch(() => undefined); // deleted/inaccessible question: fall through to the plain list
+    return () => { cancelled = true; };
+  }, [deepLinkQuestionId]);
 
   const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
     try {
@@ -104,51 +193,22 @@ function TestBankPageContent() {
 
   const fetchGlobalTests = useCallback(async () => {
     try {
-      setGlobalTests(await getQuizzes({ quiz_type: "GLOBAL_TEST" }));
+      setGlobalTests(await getQuizzes({ quiz_type: "GLOBAL_TEST", archived: showArchived }));
     } catch {
       setGlobalTests([]);
     }
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
     if (!userLoading) void fetchGlobalTests();
   }, [userLoading, fetchGlobalTests]);
 
-  useEffect(() => {
-    if (!uploadJobId) return;
-    let cancelled = false;
-    const poll = async () => {
-      while (!cancelled) {
-        try {
-          const status = await getBulkParseJobStatus(uploadJobId);
-          if (status.status === "completed") {
-            if (!cancelled) {
-              setUploadJobId(null);
-              fetchGlobalTests();
-              router.replace("/dashboard/test-bank");
-            }
-            break;
-          } else if (status.status === "failed") {
-            if (!cancelled) {
-              setUploadJobId(null);
-              alert("Quiz upload failed: " + (status.error || "Unknown error"));
-              router.replace("/dashboard/test-bank");
-            }
-            break;
-          } else {
-            if (!cancelled) {
-              setUploadStatus(status.status === "active" ? "Processing quiz..." : "Queued...");
-            }
-          }
-        } catch (err) {
-          // Ignore transient errors
-        }
-        await new Promise(r => setTimeout(r, 1500));
-      }
-    };
-    poll();
-    return () => { cancelled = true; };
-  }, [uploadJobId, fetchGlobalTests, router]);
+  // A bulk-imported global quiz is saved by a background worker — poll it in
+  // and refresh the list once it lands.
+  const { jobId: uploadJobId, status: uploadStatus, expired: uploadExpired } = useBulkSaveJob({
+    cleanupUrl: "/dashboard/test-bank",
+    onCompleted: fetchGlobalTests,
+  });
 
   if (userLoading) return <LoadingState />;
 
@@ -203,7 +263,7 @@ function TestBankPageContent() {
             ⬆ Upload CSV
           </button>
           <Link href="/dashboard/quiz-builder/bulk-import" style={{ ...primaryBtn, background: "linear-gradient(135deg, #932079 0%, #4a0f3d 100%)", textDecoration: "none" }}>
-            ⬆ Bulk Import Quiz
+            ⬆ Upload Entire Quiz
           </Link>
         </div>
       </div>
@@ -217,7 +277,9 @@ function TestBankPageContent() {
       )}
 
       {/* ── Program / Global tests ────────────────────────── */}
-      {(globalTests.length > 0 || uploadJobId) && (
+      {/* showArchived keeps the card mounted when the archive is empty — otherwise the
+          toggle unmounts with it and there is no way back to the live list. */}
+      {(globalTests.length > 0 || uploadJobId || uploadExpired || showArchived) && (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
           <div 
             onClick={() => setGlobalTestsExpanded(e => !e)}
@@ -226,8 +288,30 @@ function TestBankPageContent() {
             <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
               <p style={{ ...labelStyle, margin: 0 }}>Program Quizzes</p>
               <p style={{ ...mutedStyle, fontSize: "13px", margin: 0 }}>
-                {globalTests.length} created · click Edit to manage questions &amp; settings
+                {showArchived
+                  ? `${globalTests.length} archived · restore to make assignable again`
+                  : `${globalTests.length} created · click Edit to manage questions & settings`}
               </p>
+            </div>
+            {/* stopPropagation: the header row itself toggles expand/collapse. */}
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{ display: "flex", flexShrink: 0, borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(3,72,82,0.12)", marginTop: "2px" }}
+            >
+              {([false, true] as const).map(archived => (
+                <button
+                  key={String(archived)}
+                  type="button"
+                  onClick={() => { setShowArchived(archived); setGlobalTestsExpanded(true); }}
+                  style={{
+                    padding: "6px 12px", border: "none", fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                    background: showArchived === archived ? "#209379" : "transparent",
+                    color: showArchived === archived ? "#fff" : "#6b7280",
+                  }}
+                >
+                  {archived ? "Archived" : "Active"}
+                </button>
+              ))}
             </div>
             <button
                 type="button"
@@ -254,9 +338,30 @@ function TestBankPageContent() {
               <style>{`@keyframes og-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } } @keyframes og-spin { to { transform: rotate(360deg); } }`}</style>
             </div>
           )}
+          {globalTestsExpanded && uploadExpired && (
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+              This upload’s progress is no longer being tracked. It may still have saved — reload the
+              page to see the current quizzes.
+            </div>
+          )}
           {globalTestsExpanded && globalTests.map((t, i) => (
-            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => handleDeleteQuiz(t)} />
+            <GlobalTestRow
+              key={t.id}
+              quiz={t}
+              isLast={i === globalTests.length - 1}
+              onDelete={() => handleDeleteQuiz(t)}
+              onArchive={() => handleArchiveQuiz(t)}
+              onUnarchive={() => handleUnarchiveQuiz(t)}
+              busy={archiveBusy === t.id}
+            />
           ))}
+          {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
+            <p style={{ ...mutedStyle, fontSize: "13px", margin: 0, padding: "18px 24px" }}>
+              {showArchived
+                ? "No archived quizzes. Archiving a quiz hides it from students and stops it being assigned."
+                : "No program quizzes yet."}
+            </p>
+          )}
         </div>
       )}
 
@@ -284,6 +389,23 @@ function TestBankPageContent() {
 
       {/* ── Filter bar ────────────────────────────────────── */}
       <div style={{ ...glassCard, padding: "18px 24px", marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+        {canTriage && (
+          <Link
+            href={reportsOnly ? "/dashboard/test-bank" : "/dashboard/test-bank?reports=open"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px",
+              fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, textDecoration: "none",
+              background: reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.06)",
+              border: `1px solid ${reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.3)"}`,
+              color: reportsOnly ? "#fff" : "#e53e3e",
+            }}
+            title={reportsOnly ? "Show all questions" : "Show only questions with open reports"}
+          >
+            <span aria-hidden>⚠</span> Reported
+            {reportedQuestionCount > 0 && ` (${reportedQuestionCount})`}
+            {reportsOnly && <span aria-hidden>✕</span>}
+          </Link>
+        )}
         <Sel value={filterType} onChange={setFilterType} placeholder="All Types">
           {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </Sel>
@@ -322,7 +444,7 @@ function TestBankPageContent() {
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
         </div>
-      ) : questions.length === 0 ? (
+      ) : visibleQuestions.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
           <p style={labelStyle}>Empty Bank</p>
           <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions yet</p>
@@ -331,22 +453,23 @@ function TestBankPageContent() {
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
           <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", gap: "12px", alignItems: "center", background: "rgba(3,72,82,0.01)" }}>
-            <input 
-              type="checkbox" 
-              checked={questions.length > 0 && selectedIds.size === questions.length}
+            <input
+              type="checkbox"
+              checked={visibleQuestions.length > 0 && selectedIds.size === visibleQuestions.length}
               onChange={(e) => {
-                if (e.target.checked) setSelectedIds(new Set(questions.map(q => q.id)));
+                if (e.target.checked) setSelectedIds(new Set(visibleQuestions.map(q => q.id)));
                 else setSelectedIds(new Set());
               }}
               style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
             />
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({questions.length} questions)</span>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({visibleQuestions.length} questions)</span>
           </div>
-          {questions.map((q, i) => (
+          {visibleQuestions.map((q, i) => (
             <QuestionRow
               key={q.id}
               question={q}
-              isLast={i === questions.length - 1}
+              isLast={i === visibleQuestions.length - 1}
+              openReports={reportCounts.get(q.id) ?? 0}
               selected={selectedIds.has(q.id)}
               onToggleSelect={() => {
                 const next = new Set(selectedIds);
@@ -376,24 +499,43 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions">; isLast: boolean; onDelete: () => void }) {
-  const created = new Date(quiz.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }: {
+  quiz: Omit<Quiz, "questions">;
+  isLast: boolean;
+  onDelete: () => void;
+  onArchive: () => void;
+  onUnarchive: () => void;
+  busy: boolean;
+}) {
+  const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const created = fmt(quiz.created_at);
+  const isArchived = quiz.archived_at != null;
   return (
     <div
       className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3.5 px-6 py-4"
-      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)" }}
+      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)", opacity: isArchived ? 0.75 : 1 }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>{quiz.title}</p>
         <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{
-            fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-            background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
-            color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
-          }}>
-            {quiz.published ? "Published" : "Draft"}
-          </span>
+          {isArchived ? (
+            <span style={{
+              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
+              background: "rgba(229,62,62,0.1)", color: "#e53e3e",
+            }}>
+              Archived
+            </span>
+          ) : (
+            <span style={{
+              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
+              background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
+              color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
+            }}>
+              {quiz.published ? "Published" : "Draft"}
+            </span>
+          )}
           {quiz.duration_minutes != null && <Tag>{quiz.duration_minutes} min</Tag>}
+          {quiz.due_at != null && <Tag>Due {fmt(quiz.due_at)}</Tag>}
           <Tag>Created {created}</Tag>
         </div>
       </div>
@@ -401,6 +543,15 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
         <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
           Edit →
         </Link>
+        {isArchived ? (
+          <button onClick={onUnarchive} disabled={busy} style={{ ...outlineBtn, color: "#209379", borderColor: "rgba(32,147,121,0.3)", opacity: busy ? 0.5 : 1 }}>
+            {busy ? "…" : "Restore"}
+          </button>
+        ) : (
+          <button onClick={onArchive} disabled={busy} style={{ ...outlineBtn, opacity: busy ? 0.5 : 1 }}>
+            {busy ? "…" : "Archive"}
+          </button>
+        )}
         <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
           Delete
         </button>
@@ -411,7 +562,7 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
 
 // ── Question Row ───────────────────────────────────────────────
 
-function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void }) {
+function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete, openReports = 0 }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void; openReports?: number }) {
   const [expanded, setExpanded] = useState(false);
   const hasChildren = question.question_type === "GROUP" && question.children.length > 0;
 
@@ -431,6 +582,17 @@ function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDel
           />
         </div>
         <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
+        {openReports > 0 && (
+          <span
+            title={`${openReports} open student ${openReports === 1 ? "report" : "reports"}`}
+            style={{
+              flexShrink: 0, marginTop: "2px", padding: "2px 8px", borderRadius: "999px",
+              background: "rgba(229,62,62,0.1)", color: "#e53e3e", fontSize: "11px", fontWeight: 700,
+            }}
+          >
+            ⚠ {openReports}
+          </span>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
           <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>

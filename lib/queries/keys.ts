@@ -59,6 +59,15 @@ export const qk = {
     ['og', 'live-classes', 'next', studentId] as const,
   liveClassAttendees: (id: string) =>
     ['og', 'live-classes', id, 'attendees'] as const,
+  liveClassRoster: (id: string) =>
+    ['og', 'live-classes', id, 'roster'] as const,
+  // Live-class attendance summary. Distinct from `attendanceSummary` below,
+  // which is the register/attendance-module summary — different feature, and
+  // the two collided on this name when the branches merged.
+  liveClassAttendanceSummary: (filters: Record<string, unknown>) =>
+    ['og', 'live-classes', 'attendance-summary', filters] as const,
+  studentAttendance: (studentId: string) =>
+    ['og', 'live-classes', 'student-attendance', studentId] as const,
   assignments: () => ['og', 'assignments'] as const,
   submissionQueue: (filters: Record<string, unknown>) =>
     ['og', 'assignments', 'submission-queue', filters] as const,
@@ -71,19 +80,26 @@ export const qk = {
 
   attendanceLinks: (classId: string) =>
     ['og', 'attendance', 'links', classId] as const,
-  attendanceRegisters: (filters: Record<string, unknown>) =>
-    ['og', 'attendance', 'registers', filters] as const,
   attendanceRegister: (id: string) =>
     ['og', 'attendance', 'register', id] as const,
   attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
   attendanceMe: () => ['og', 'attendance', 'me'] as const,
   attendanceSheet: (schoolId: string, month: string) =>
     ['og', 'attendance', 'sheet', schoolId, month] as const,
+  attendanceSchoolRegister: (schoolId: string, month: string) =>
+    ['og', 'attendance', 'school-register', schoolId, month] as const,
+  // Under the 'attendance' prefix on purpose: committing a register must refresh
+  // the dashboard gap widget, and invalidation busts that whole family.
+  attendanceGaps: () => ['og', 'attendance', 'gaps'] as const,
 
   dashboard: (role: string, tab: 'overview' | 'activity') =>
     ['og', 'dashboard', role, tab] as const,
   dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
+  /** Open-report count behind the dashboard "Reported Questions" card. */
+  openReportedCount: () => ['og', 'dashboard', 'reported-count'] as const,
+  /** Per-bank-question open-report counts behind the Test Bank badges + filter. */
+  questionReportCounts: () => ['og', 'question-reports', 'counts'] as const,
 
   trackerTemplates: (status?: string) => ['og', 'tracker', 'templates', 'list', status ?? 'default'] as const,
   trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,

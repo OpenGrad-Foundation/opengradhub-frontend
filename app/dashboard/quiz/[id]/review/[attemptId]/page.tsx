@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
-import { getAttemptReview, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
+import { getAttemptReview, getMyQuestionReports, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { PassageCard, QuestionReviewCard, label } from "@/components/question-review-card";
+import { ReportQuestionButton } from "@/components/report-question-modal";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
@@ -74,12 +75,27 @@ export default function AttemptReviewPage() {
   // Correct answers hidden until the student reveals them — lets them re-think
   // each question (no time limit) before checking.
   const [revealed, setRevealed] = useState(false);
+  const [reportedSnapshots, setReportedSnapshots] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     getAttemptReview(attemptId)
       .then(setReview)
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load review."))
       .finally(() => setLoading(false));
+  }, [attemptId]);
+
+  // Which questions this student already reported — so the button shows "Reported" after a reload.
+  useEffect(() => {
+    let cancelled = false;
+    getMyQuestionReports(attemptId)
+      .then((rows) => {
+        if (cancelled) return;
+        setReportedSnapshots(
+          new Set(rows.map((r) => r.question_snapshot_id).filter((s): s is string => !!s)),
+        );
+      })
+      .catch(() => undefined); // non-blocking: never break the review screen over this
+    return () => { cancelled = true; };
   }, [attemptId]);
 
   if (loading) return (
@@ -112,6 +128,16 @@ export default function AttemptReviewPage() {
       }))
     : null;
 
+  // Every card in the review list is an answerable leaf (GROUP children get their own card,
+  // with the passage rendered separately), so each one gets its own report control.
+  const reportButtonFor = (snapshotId: string) => (
+    <ReportQuestionButton
+      snapshotId={snapshotId}
+      alreadyReported={reportedSnapshots.has(snapshotId)}
+      onReported={() => setReportedSnapshots((prev) => new Set(prev).add(snapshotId))}
+    />
+  );
+
   // Build a flat render list that inserts a PassageCard before the first child of each GROUP.
   function buildRenderItems(questions: AttemptReviewQuestion[]) {
     const items: React.ReactNode[] = [];
@@ -141,12 +167,19 @@ export default function AttemptReviewPage() {
             idx={questionNumber - 1}
             revealed={revealed}
             questionLabel={`Part ${partNum}`}
+            reportButton={reportButtonFor(q.snapshot_id)}
           />
         );
       } else {
         questionNumber++;
         items.push(
-          <QuestionReviewCard key={q.snapshot_id} q={q} idx={questionNumber - 1} revealed={revealed} />
+          <QuestionReviewCard
+            key={q.snapshot_id}
+            q={q}
+            idx={questionNumber - 1}
+            revealed={revealed}
+            reportButton={reportButtonFor(q.snapshot_id)}
+          />
         );
       }
     }

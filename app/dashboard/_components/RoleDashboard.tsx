@@ -4,6 +4,9 @@ import React from 'react';
 import DashboardTabs from './DashboardTabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
 import UnreadAnnouncements from '@/components/dashboard/UnreadAnnouncements';
+import RegisterGaps from '@/components/dashboard/RegisterGaps';
+import { usePermission } from '@/hooks/use-permission';
+import { PERM } from '@/lib/permissions';
 
 import StudentOverview from '@/components/dashboard/roles/student/Overview';
 import StudentActivity from '@/components/dashboard/roles/student/Activity';
@@ -26,6 +29,9 @@ import GovernmentActivity from '@/components/dashboard/roles/government/Activity
 import FundingPartnerOverview from '@/components/dashboard/roles/funding-partner/Overview';
 import FundingPartnerActivity from '@/components/dashboard/roles/funding-partner/Activity';
 
+/** Roles the register-gap widget is for. Mirrored server-side in AttendanceStatsService. */
+const GAP_ROLES = new Set(['FELLOW', 'ZONAL_MANAGER', 'PROGRAM_MANAGER', 'SUPER_ADMIN']);
+
 type Role =
   | 'STUDENT'
   | 'FELLOW'
@@ -46,10 +52,24 @@ export default function RoleDashboard({
 }) {
   const id = userId ?? '';
 
+  /**
+   * Gated on the permission to *fix* a gap, not merely to see one: every row in
+   * the widget links to the upload flow, so a viewer without `attendance.manage`
+   * would be handed a to-do list ending at a wall. The role set carries the
+   * product exclusion of GOVERNMENT and FUNDING_PARTNER; the backend enforces
+   * the same list, so a PBAC override cannot open it up here.
+   *
+   * Injected here rather than inside GenericOverview, which those two excluded
+   * roles also render.
+   */
+  const canFixRegisters = usePermission(PERM.attendance.manage);
+  const showRegisterGaps = canFixRegisters && GAP_ROLES.has(role);
+
   // Prepend the unread-announcements widget to every role's Overview tab.
   const overview = (node: React.ReactNode) => (
     <div className="space-y-6">
       <UnreadAnnouncements role={role} />
+      {showRegisterGaps && <RegisterGaps />}
       {node}
     </div>
   );

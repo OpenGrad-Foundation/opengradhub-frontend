@@ -219,10 +219,10 @@ export function deleteTrackerField(templateId: string, fieldId: string) {
   );
 }
 
-export function assignTrackerTargets(templateId: string, targetIds: string[]) {
+export function assignTrackerTargets(templateId: string, targetIds: string[], batchId?: string) {
   return trackerJson<{ created: number; skipped: number }>(
     `/tracker/templates/${encodeURIComponent(templateId)}/assign`,
-    jsonInit("POST", { targetIds }),
+    jsonInit("POST", batchId ? { targetIds, batchId } : { targetIds }),
   );
 }
 
@@ -314,8 +314,9 @@ export type TrackerAssignable = {
   school_name?: string | null;
 };
 
-export function getTrackerAssignable(targetType: TrackerTargetType) {
-  return trackerJson<TrackerAssignable[]>(`/tracker/assignable?targetType=${encodeURIComponent(targetType)}`);
+export function getTrackerAssignable(targetType: TrackerTargetType, batchId?: string) {
+  const q = `targetType=${encodeURIComponent(targetType)}${batchId ? `&batchId=${encodeURIComponent(batchId)}` : ""}`;
+  return trackerJson<TrackerAssignable[]>(`/tracker/assignable?${q}`);
 }
 
 export type TrackerMyTask = {

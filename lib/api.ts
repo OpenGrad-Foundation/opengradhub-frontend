@@ -1170,11 +1170,23 @@ export type BulkQuestionResult = {
   skippedRows: Array<Record<string, string>>;
 };
 
-/** CSV bulk upload to the question bank. `createdBy` = current user's DB id. */
-export async function bulkUploadQuestions(file: File, createdBy?: string): Promise<BulkQuestionResult> {
+/**
+ * CSV bulk upload. `createdBy` = current user's DB id. Without `target` the
+ * questions land in the shared bank; with one they are also attached to that
+ * quiz (`sectionId` required when the quiz is sectioned).
+ */
+export async function bulkUploadQuestions(
+  file: File,
+  createdBy?: string,
+  target?: { quizId: string; sectionId?: string },
+): Promise<BulkQuestionResult> {
   const formData = new FormData();
   formData.append("file", file);
   if (createdBy) formData.append("created_by", createdBy);
+  if (target) {
+    formData.append("quiz_id", target.quizId);
+    if (target.sectionId) formData.append("section_id", target.sectionId);
+  }
   const response = await apiFetch(`${API_BASE_URL}/questions/bulk`, {
     method: "POST",
     body: formData,
@@ -1681,6 +1693,10 @@ export type Quiz = {
   negative_marking: boolean;
   correct_marks: number;
   wrong_marks: number;
+  // ── Due date + archive ──
+  // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
+  due_at: string | null;
+  archived_at: string | null;
 };
 
 export type CreateQuizPayload = {
@@ -1702,13 +1718,38 @@ export type CreateQuizPayload = {
   wrong_marks?: number;
 };
 
-export async function getQuizzes(params: { module_id?: string; quiz_type?: string } = {}): Promise<Omit<Quiz, "questions">[]> {
+export async function getQuizzes(
+  params: { module_id?: string; quiz_type?: string; archived?: boolean } = {},
+): Promise<Omit<Quiz, "questions">[]> {
   const url = new URL(`${API_BASE_URL}/quizzes`);
   if (params.module_id) url.searchParams.set("module_id", params.module_id);
   if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
+  // Default (omitted) lists live quizzes only; archived=true shows the archive.
+  if (params.archived) url.searchParams.set("archived", "true");
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
+}
+
+/** Hard-close a quiz: hidden from students, unassignable, in-flight attempts voided. */
+export async function archiveQuiz(id: string): Promise<{ archived: true; voided_attempts: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/archive`, { method: "POST" });
+  if (!r.ok) throw new ApiError("Failed to archive quiz.", r.status);
+  return (await r.json()) as { archived: true; voided_attempts: number };
+}
+
+/** Restore an archived quiz. Attempts voided by the archive stay voided. */
+export async function unarchiveQuiz(id: string): Promise<{ archived: false }> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/unarchive`, { method: "POST" });
+  if (!r.ok) throw new ApiError("Failed to restore quiz.", r.status);
+  return (await r.json()) as { archived: false };
+}
+
+/** Live attempt count — powers the archive confirm dialog's warning. */
+export async function getInFlightCount(id: string): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/in-flight-count`);
+  if (!r.ok) throw new ApiError("Failed to check in-flight attempts.", r.status);
+  return ((await r.json()) as { count: number }).count;
 }
 
 export type ModuleQuiz = Omit<Quiz, "questions"> & {
@@ -2052,11 +2093,15 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
   }
 }
 
-export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz): Promise<{ jobId: string }> {
+/**
+ * Queues a parsed quiz for saving. With `moduleId` it is saved as that
+ * module's course quiz; without one it becomes a global quiz.
+ */
+export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz, moduleId?: string): Promise<{ jobId: string }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(parsedData),
+    body: JSON.stringify(moduleId ? { ...parsedData, module_id: moduleId } : parsedData),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -2083,6 +2128,8 @@ export async function updateQuiz(
     negative_marking?: boolean;
     correct_marks?: number;
     wrong_marks?: number;
+    // Omit to leave unchanged; null clears the deadline.
+    due_at?: string | null;
   },
 ): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`, {
@@ -2542,56 +2589,6 @@ export async function getQuizLeaderboard(quizId: string): Promise<QuizLeaderboar
     throw new ApiError(err?.message ?? "Failed to load leaderboard.", r.status);
   }
   return (await r.json()) as QuizLeaderboard;
-}
-
-// ── Admin attempt management (void / unvoid) ────────────────────────────────
-
-export type AttemptAdminRow = {
-  attempt_id: string;
-  student_id: string;
-  student_name: string;
-  attempt_number: number;
-  is_complete: boolean;
-  score_pct: number | null;
-  voided_at: string | null;
-  void_reason: string | null;
-  reopen_until: string | null;
-  started_at: string | null;
-  submitted_at: string | null;
-};
-
-export type QuizAttemptsAdmin = { quiz_id: string; attempts: AttemptAdminRow[] };
-
-export async function getQuizAttemptsAdmin(quizId: string): Promise<QuizAttemptsAdmin> {
-  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/admin?quiz_id=${quizId}`, { cache: "no-store" });
-  if (!r.ok) {
-    const e = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to load attempts.", r.status);
-  }
-  return (await r.json()) as QuizAttemptsAdmin;
-}
-
-export async function voidQuizAttempt(
-  attemptId: string,
-  body: { reason: string; grace_hours?: number },
-): Promise<void> {
-  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/void`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const e = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to reset attempt.", r.status);
-  }
-}
-
-export async function unvoidQuizAttempt(attemptId: string): Promise<void> {
-  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/unvoid`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-  });
-  if (!r.ok) {
-    const e = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to restore attempt.", r.status);
-  }
 }
 
 export type TopicStrengthRow = {
@@ -3630,6 +3627,12 @@ export async function removeTestFromBundle(
 export type AvailableQuiz = Omit<Quiz, "questions"> & {
   /** false when the quiz is batch-granted and outside its availability window. */
   attemptable?: boolean;
+  /**
+   * Past due with nothing to show for it — no completed attempt, no grace window.
+   * Server-derived: never recompute it from due_at on the client, or the badge
+   * stops matching what the backend actually enforced.
+   */
+  missed?: boolean;
   available_from?: string | null;
   due_at?: string | null;
 };
@@ -4024,6 +4027,8 @@ export type BatchMember = {
   email: string;
   roll_number: string | null;
   enrolled_at: string;
+  fellow_id: string | null;
+  fellow_name: string | null;
 };
 
 export type BatchCourseEntry = {
@@ -4150,6 +4155,25 @@ export async function removeBatchMember(
     throw new ApiError(err?.message ?? "Failed to remove student from batch.", r.status);
   }
   return (await r.json()) as { removed: boolean };
+}
+
+export async function setBatchMembersFellow(
+  batchId: string,
+  userIds: string[],
+  fellowId: string | null,
+  reassignOpen = false,
+): Promise<{ updated: number; reassigned: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/members/fellow`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_ids: userIds, fellow_id: fellowId, reassign_open: reassignOpen }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to set batch fellow.", r.status);
+  }
+  return (await r.json()) as { updated: number; reassigned: number };
 }
 
 export async function addCourseToBatch(
@@ -4331,4 +4355,117 @@ export async function rejectPasswordResetRequest(id: string): Promise<void> {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
   }
+}
+
+// ── Question reports ───────────────────────────────────────────────────────
+
+export const REPORT_CATEGORIES = [
+  "WRONG_ANSWER", "UNCLEAR_OR_TYPO", "IMAGE_BROKEN", "OPTIONS_WRONG", "OTHER",
+] as const;
+export type ReportCategory = typeof REPORT_CATEGORIES[number];
+
+/** Student-facing labels. Keep in sync with REPORT_CATEGORIES. */
+export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
+  WRONG_ANSWER:    "Wrong or missing answer",
+  UNCLEAR_OR_TYPO: "Typo or unclear wording",
+  IMAGE_BROKEN:    "Image or diagram broken",
+  OPTIONS_WRONG:   "Options are wrong",
+  OTHER:           "Something else",
+};
+
+export type QuestionReport = {
+  id: string;
+  question_id: string;
+  parent_question_id: string | null;
+  quiz_id: string;
+  attempt_id: string | null;
+  question_snapshot_id: string | null;
+  student_id: string;
+  category: ReportCategory;
+  note: string | null;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  resolution_note: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
+export type QuestionReportRow = QuestionReport & {
+  student_name: string;
+  quiz_title: string;
+  used_in_quizzes: number;
+};
+
+export type MyQuestionReport = {
+  question_snapshot_id: string | null;
+  question_id: string;
+  category: ReportCategory;
+  status: string;
+};
+
+export async function reportQuestion(
+  snapshotId: string,
+  category: ReportCategory,
+  note?: string | null,
+): Promise<QuestionReport> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ snapshot_id: snapshotId, category, note: note ?? null }),
+  });
+  if (!r.ok) throw new ApiError("Failed to submit report.", r.status);
+  return r.json();
+}
+
+export async function getMyQuestionReports(attemptId: string): Promise<MyQuestionReport[]> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/mine?attempt_id=${attemptId}`);
+  if (!r.ok) throw new ApiError("Failed to load your reports.", r.status);
+  return r.json();
+}
+
+export async function getQuestionReports(
+  params: { quiz_id?: string; status?: string; question_id?: string } = {},
+): Promise<QuestionReportRow[]> {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v) as [string, string][],
+  ).toString();
+  const r = await apiFetch(`${API_BASE_URL}/question-reports${qs ? `?${qs}` : ""}`);
+  if (!r.ok) throw new ApiError("Failed to load reports.", r.status);
+  return r.json();
+}
+
+export async function getQuestionReportCounts(
+  quizId?: string,
+): Promise<{ bank_question_id: string; open_count: number }[]> {
+  const r = await apiFetch(
+    `${API_BASE_URL}/question-reports/counts${quizId ? `?quiz_id=${quizId}` : ""}`,
+  );
+  if (!r.ok) throw new ApiError("Failed to load report counts.", r.status);
+  return r.json();
+}
+
+export async function getOpenReportedCount(): Promise<number> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/open-count`);
+  if (!r.ok) throw new ApiError("Failed to load reported-question count.", r.status);
+  const body = (await r.json()) as { count: number };
+  return body.count;
+}
+
+export async function resolveQuestionReport(
+  id: string,
+  status: "RESOLVED" | "DISMISSED",
+  resolutionNote?: string | null,
+): Promise<QuestionReport> {
+  const r = await apiFetch(`${API_BASE_URL}/question-reports/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, resolution_note: resolutionNote ?? null }),
+  });
+  if (!r.ok) throw new ApiError("Failed to update report.", r.status);
+  return r.json();
+}
+
+export async function getQuestionById(id: string): Promise<Question> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/${id}`);
+  if (!r.ok) throw new ApiError("Failed to load question.", r.status);
+  return r.json();
 }

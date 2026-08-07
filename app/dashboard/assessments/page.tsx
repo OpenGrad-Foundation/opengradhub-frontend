@@ -12,10 +12,6 @@ import {
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
   type QuizLeaderboard,
-  getQuizAttemptsAdmin,
-  voidQuizAttempt,
-  unvoidQuizAttempt,
-  type AttemptAdminRow,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
@@ -170,6 +166,7 @@ export default function AssessmentsPage() {
                     label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
                     locked={q.attemptable === false}
+                    missed={q.missed === true}
                     lockedTitle={
                       q.available_from && new Date(q.available_from) > new Date()
                         ? `Opens ${new Date(q.available_from).toLocaleString()}`
@@ -219,7 +216,7 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, locked, lockedTitle, windowInfo, onStart, onReview, onPractice,
+  quiz, label, attempts, locked, lockedTitle, windowInfo, missed, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
@@ -230,6 +227,8 @@ function QuizRow({
   lockedTitle?: string;
   /** Optional “Opens …” / “Due …” badge for batch-windowed tests. */
   windowInfo?: string;
+  /** Past due and never completed — takes the window badge's place. */
+  missed?: boolean;
   onStart: () => void;
   onReview: (attemptId: string) => void;
   onPractice: () => void;
@@ -297,9 +296,13 @@ function QuizRow({
 
         <div className="flex flex-col lg:flex-row lg:items-center gap-3 shrink-0 w-full lg:w-auto pl-[38px] lg:pl-0">
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", flexShrink: 0 }}>
-            {windowInfo && (
+            {/* A missed quiz is past due with nothing to show for it — the neutral
+                "Past due" window badge would read the same as one they actually sat. */}
+            {missed ? (
+              <Pill style={{ background: "rgba(229,62,62,0.1)", color: "#c53030" }}>⚠ Missed</Pill>
+            ) : windowInfo ? (
               <Pill style={{ background: "rgba(255,222,0,0.18)", color: "#956f00" }}>🗓 {windowInfo}</Pill>
-            )}
+            ) : null}
             {quiz.duration_minutes != null && <Pill>⏱ {quiz.duration_minutes} min</Pill>}
             {maxAttempts != null && maxAttempts > 0 ? (
               <Pill style={{ background: exhausted ? "rgba(229,62,62,0.08)" : undefined, color: exhausted ? "#c53030" : undefined }}>
@@ -787,9 +790,8 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
 }
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
-  const [tab, setTab] = useState<'leaderboard' | 'questions' | 'manage' | 'attempts'>('leaderboard');
+  const [tab, setTab] = useState<'leaderboard' | 'questions' | 'attempts'>('leaderboard');
   const { has } = usePermissions();
-  const canManage = has(PERM.assessments.reset_attempt);
   const router = useRouter();
   const currentUrl = useCurrentUrl();
 
@@ -833,14 +835,12 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
           <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
           <DrawerTab label="Question Stats" active={tab === 'questions'}   onClick={() => setTab('questions')} />
-          {canManage && <DrawerTab label="Manage" active={tab === 'manage'} onClick={() => setTab('manage')} />}
           <DrawerTab label="Attempts"       active={tab === 'attempts'}    onClick={() => setTab('attempts')} />
         </div>
 
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {tab === 'leaderboard' && <DrawerLeaderboard quizId={quizId} />}
           {tab === 'questions'   && <DrawerQuestionStats quizId={quizId} />}
-          {tab === 'manage'      && <DrawerManageAttempts quizId={quizId} />}
           {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
         </div>
       </div>
@@ -905,132 +905,6 @@ function DrawerLeaderboard({ quizId }: { quizId: string }) {
         ))}
       </tbody>
     </table>
-  );
-}
-
-function DrawerManageAttempts({ quizId }: { quizId: string }) {
-  const [rows, setRows] = useState<AttemptAdminRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [modalFor, setModalFor] = useState<AttemptAdminRow | null>(null);
-  const [reason, setReason] = useState('');
-  const [graceHours, setGraceHours] = useState('');
-  const invalidate = useInvalidate();
-
-  async function load() {
-    setRows(null); setError(null);
-    try { setRows((await getQuizAttemptsAdmin(quizId)).attempts); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Failed to load.'); }
-  }
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [quizId]);
-
-  async function confirmVoid() {
-    if (!modalFor || !reason.trim()) return;
-    setBusy(modalFor.attempt_id);
-    try {
-      await voidQuizAttempt(modalFor.attempt_id, {
-        reason: reason.trim(),
-        ...(graceHours.trim() ? { grace_hours: Number(graceHours) } : {}),
-      });
-      setModalFor(null); setReason(''); setGraceHours('');
-      invalidate('quizAttempt');
-      await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to reset.'); }
-    finally { setBusy(null); }
-  }
-
-  async function doUnvoid(r: AttemptAdminRow) {
-    setBusy(r.attempt_id);
-    try { await unvoidQuizAttempt(r.attempt_id); invalidate('quizAttempt'); await load(); }
-    catch (e) { setError(e instanceof Error ? e.message : 'Failed to restore.'); }
-    finally { setBusy(null); }
-  }
-
-  if (error) return <p style={{ color: '#c53030', fontSize: '13px' }}>{error}</p>;
-  if (rows === null) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>Loading…</p>;
-  if (rows.length === 0) return <p style={{ color: 'rgba(3,72,82,0.4)', fontSize: '13px' }}>No attempts yet.</p>;
-
-  return (
-    <>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-        <thead>
-          <tr style={{ borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
-            <th style={{ textAlign: 'left', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Student</th>
-            <th style={{ textAlign: 'left', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Att.</th>
-            <th style={{ textAlign: 'right', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}>Score</th>
-            <th style={{ textAlign: 'right', padding: '8px 4px', color: 'rgba(3,72,82,0.6)', fontWeight: 700 }}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.attempt_id} style={{ borderBottom: '1px solid rgba(3,72,82,0.04)' }}>
-              <td style={{ padding: '8px 4px', color: '#034852' }}>
-                {r.student_name}
-                {r.voided_at && (
-                  <span style={{ marginLeft: 6, fontSize: 11, color: '#c53030', fontWeight: 700 }}>VOIDED</span>
-                )}
-                {r.voided_at && r.void_reason && (
-                  <div style={{ fontSize: 11, color: 'rgba(3,72,82,0.5)' }}>{r.void_reason}</div>
-                )}
-                {r.reopen_until && (
-                  <div style={{ fontSize: 11, color: 'rgba(3,72,82,0.5)' }}>
-                    Reopened until {new Date(r.reopen_until).toLocaleString('en-IN')}
-                  </div>
-                )}
-              </td>
-              <td style={{ padding: '8px 4px', color: '#034852' }}>
-                #{r.attempt_number}{!r.is_complete && <span style={{ color: 'rgba(3,72,82,0.45)' }}> (in progress)</span>}
-              </td>
-              <td style={{ padding: '8px 4px', color: '#034852', textAlign: 'right', fontWeight: 700 }}>
-                {r.score_pct != null ? `${r.score_pct}%` : '—'}
-              </td>
-              <td style={{ padding: '8px 4px', textAlign: 'right' }}>
-                {r.voided_at ? (
-                  <button disabled={busy === r.attempt_id} onClick={() => doUnvoid(r)}
-                    style={{ padding: '5px 10px', border: '1px solid rgba(3,72,82,0.2)', borderRadius: 6, background: '#fff', color: '#034852', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                    Unvoid
-                  </button>
-                ) : (
-                  <button disabled={busy === r.attempt_id} onClick={() => { setModalFor(r); setReason(''); setGraceHours(''); }}
-                    style={{ padding: '5px 10px', border: 'none', borderRadius: 6, background: '#c53030', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                    Void
-                  </button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {modalFor && (
-        <div onClick={() => setModalFor(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 12, padding: 24, width: 400, boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
-            <h3 style={{ margin: '0 0 12px', color: '#034852', fontSize: 16, fontWeight: 700 }}>
-              Reset attempt — {modalFor.student_name}
-            </h3>
-            <label style={{ display: 'block', fontSize: 12, color: 'rgba(3,72,82,0.7)', marginBottom: 4 }}>Reason (required)</label>
-            <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3}
-              style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(3,72,82,0.2)', fontSize: 13, marginBottom: 12 }} />
-            <label style={{ display: 'block', fontSize: 12, color: 'rgba(3,72,82,0.7)', marginBottom: 4 }}>Grace window (hours, optional)</label>
-            <input value={graceHours} onChange={(e) => setGraceHours(e.target.value.replace(/[^0-9]/g, ''))} inputMode="numeric"
-              placeholder="e.g. 48"
-              style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid rgba(3,72,82,0.2)', fontSize: 13, marginBottom: 16 }} />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button onClick={() => setModalFor(null)}
-                style={{ padding: '7px 14px', border: '1px solid rgba(3,72,82,0.2)', borderRadius: 6, background: '#fff', color: '#034852', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button disabled={!reason.trim() || busy === modalFor.attempt_id} onClick={confirmVoid}
-                style={{ padding: '7px 14px', border: 'none', borderRadius: 6, background: reason.trim() ? '#c53030' : 'rgba(197,48,48,0.4)', color: '#fff', fontWeight: 700, fontSize: 12, cursor: reason.trim() ? 'pointer' : 'not-allowed' }}>
-                Reset attempt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
   );
 }
 
