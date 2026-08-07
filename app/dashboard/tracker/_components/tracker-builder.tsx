@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import {
   addTrackerFields,
@@ -16,9 +16,12 @@ import {
   profilePathLabel,
 } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { useProfilePaths } from "@/lib/queries/tracker";
 import { AudiencePicker } from "./audience-picker";
 
-// Mirrors the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts), per target type.
+// Fallback mirror of the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts),
+// used only when GET /tracker/profile-paths fails. The API is the source of truth and
+// additionally returns dynamic `student.custom.*` paths for PM-defined student fields.
 const FELLOW_PATHS = ["fellow.name", "fellow.email"] as const;
 const STUDENT_PATHS = ["student.name", "student.category", "student.district", "student.contact", "school.name", "school.code"] as const;
 const SCHOOL_PATHS: readonly string[] = []; // school projection not wired yet
@@ -68,16 +71,23 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [requireLocation, setRequireLocation] = useState(false);
+  const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const submittingRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
-  const profilePaths = pathsFor(targetType);
-  const sources = sourcesFor(targetType);
-  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "fellows";
+  // Source of truth for auto-fill paths: GET /tracker/profile-paths (static allow-list +
+  // dynamic student.custom.* fields). Falls back to the hardcoded mirror if the request fails.
+  const profilePathsQuery = useProfilePaths(targetType, canAuthor);
+  const apiPaths = profilePathsQuery.data?.paths ?? [];
+  const profilePaths: string[] = apiPaths.length ? apiPaths.map((p) => p.path) : [...pathsFor(targetType)];
+  const pathLabel = (p: string): string => apiPaths.find((x) => x.path === p)?.label ?? profilePathLabel(p);
+  const sources: TrackerFieldSource[] = profilePaths.length ? ["input", "profile"] : ["input"];
+  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "staff";
 
   if (!canAuthor) {
     return (
@@ -90,6 +100,18 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const setColumn = (i: number, patch: Partial<DraftColumn>) =>
     setColumns((cols) => cols.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
 
+  // Flipping a field to "Auto-filled" must land on a path valid for the current target —
+  // otherwise the select shows the first option but state keeps a stale path (e.g. fellow.name
+  // on a student task), which the backend rejects via the allow-list on submit.
+  function onSourceChange(i: number, source: TrackerFieldSource) {
+    setColumn(i, {
+      source,
+      ...(source === "profile" && !profilePaths.includes(columns[i]?.source_path ?? "")
+        ? { source_path: profilePaths[0] ?? "" }
+        : {}),
+    });
+  }
+
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
     setSelectedIds(new Set());
@@ -98,7 +120,8 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
     setColumns((cols) =>
       cols.map((c) => {
         const source = validSources.includes(c.source) ? c.source : "input";
-        const source_path = source === "profile" && !validPaths.includes(c.source_path) ? validPaths[0] : c.source_path;
+        // Always re-anchor to a valid path so a stale path can't survive a target switch.
+        const source_path = validPaths.length && !validPaths.includes(c.source_path) ? validPaths[0] : c.source_path;
         return { ...c, source, source_path };
       }),
     );
@@ -106,6 +129,8 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return; // guard: async setBusy can't stop a fast double-click
+    submittingRef.current = true;
     setError(null);
     setResult(null);
     setBusy(true);
@@ -133,7 +158,12 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
                 ? c.optionsText.split(",").map((o) => o.trim()).filter(Boolean)
                 : null,
             source: c.source,
-            source_path: c.source === "profile" ? c.source_path : null,
+            // Coerce to a target-valid path (matches what the dropdown displays) so a stale
+            // path never reaches the backend allow-list.
+            source_path:
+              c.source === "profile"
+                ? profilePaths.includes(c.source_path) ? c.source_path : profilePaths[0] ?? null
+                : null,
             required: c.required,
             visible_if: null,
             sort_order: idx,
@@ -159,6 +189,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         recurrence_frequency: recurrence || undefined,
         require_photo: requirePhoto,
         require_location: requireLocation,
+        status: saveAsDraft ? "draft" : "active",
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
 
@@ -167,14 +198,16 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       if (targetIds.length > 0) assigned = (await assignTrackerTargets(id, targetIds)).created;
 
       await invalidate("tracker");
-      setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : "."));
+      const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
+      setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility);
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
-      setRequirePhoto(false); setRequireLocation(false);
+      setRequirePhoto(false); setRequireLocation(false); setSaveAsDraft(false);
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the task.");
     } finally {
+      submittingRef.current = false;
       setBusy(false);
     }
   }
@@ -198,7 +231,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Who does this task?
           <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-            <option value="fellow">Each fellow</option>
+            <option value="fellow">Each staff member</option>
             <option value="school">Each school</option>
             <option value="student">Each student</option>
           </select>
@@ -271,12 +304,25 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
               <select value={col.field_type} onChange={(e) => setColumn(i, { field_type: e.target.value as TrackerFieldType })} className={inputClass}>
                 {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
-              <select value={col.source} onChange={(e) => setColumn(i, { source: e.target.value as TrackerFieldSource })} className={inputClass}>
+              <select value={col.source} onChange={(e) => onSourceChange(i, e.target.value as TrackerFieldSource)} className={inputClass}>
                 {sources.map((s) => <option key={s} value={s}>{s === "profile" ? "Auto-filled" : "You enter"}</option>)}
               </select>
               {col.source === "profile" ? (
                 <select value={col.source_path} onChange={(e) => setColumn(i, { source_path: e.target.value })} className={inputClass}>
-                  {profilePaths.map((p) => <option key={p} value={p}>{profilePathLabel(p)}</option>)}
+                  {apiPaths.length > 0 ? (
+                    <>
+                      <optgroup label="Standard Details">
+                        {apiPaths.filter(p => !p.custom).map((p) => <option key={p.path} value={p.path}>{p.label}</option>)}
+                      </optgroup>
+                      {apiPaths.some(p => p.custom) && (
+                        <optgroup label="Additional Details">
+                          {apiPaths.filter(p => p.custom).map((p) => <option key={p.path} value={p.path}>{p.label}</option>)}
+                        </optgroup>
+                      )}
+                    </>
+                  ) : (
+                    profilePaths.map((p) => <option key={p} value={p}>{pathLabel(p)}</option>)
+                  )}
                 </select>
               ) : (col.field_type === "select" || col.field_type === "multiselect") ? (
                 <input value={col.optionsText} onChange={(e) => setColumn(i, { optionsText: e.target.value })} placeholder="choices: a, b" className={inputClass} />
@@ -305,11 +351,15 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {result && <p className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
 
-      <div>
+      <div className="flex flex-wrap items-center gap-4">
         <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-60">
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-          Create task
+          {saveAsDraft ? "Save draft" : "Create & publish"}
         </button>
+        <label className="flex items-center gap-2 text-sm text-gray-600">
+          <input type="checkbox" checked={saveAsDraft} onChange={(e) => setSaveAsDraft(e.target.checked)} />
+          Save as draft (hidden from fellows until published)
+        </label>
       </div>
     </form>
   );

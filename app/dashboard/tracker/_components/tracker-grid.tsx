@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { Check, Clock, Loader2, Save, X } from "lucide-react";
+import { Check, Clock, Loader2, Save, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
@@ -10,6 +10,7 @@ import {
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { RecordProofs } from "./record-proofs";
+import { StudentDetailsForm } from "./student-details-form";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
 
@@ -31,6 +32,11 @@ export function TrackerEditableGrid({
   const [blockerText, setBlockerText] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null);
+  // Open the "Additional Student Details" form for a student-target row.
+  const [detailsStudent, setDetailsStudent] = useState<{ id: string; name: string } | null>(null);
+  const isStudentTarget = template.target_type === "student";
+  const canOpenDetails = (row: TrackerGridRow): row is TrackerGridRow & { target_id: string } =>
+    canFill && isStudentTarget && Boolean(row.target_id);
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
   const [schoolFilter, setSchoolFilter] = useState("");
@@ -49,7 +55,7 @@ export function TrackerEditableGrid({
   const hasSchool = schools.length > 0;
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
-  const nameHeader = template.target_type === "fellow" ? "Fellow" : "Student";
+  const nameHeader = template.target_type === "fellow" ? "Staff member" : "Student";
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return grid.rows.filter((r) =>
@@ -166,7 +172,26 @@ export function TrackerEditableGrid({
     const editable = canFill && editableKeys.has(col.field_key);
     const draftVal = draft?.values[col.field_key];
     const value = draftVal !== undefined ? draftVal : cell?.value;
-    if (!editable) return cell?.notSet ? <span className="text-gray-400">Not set</span> : <span>{display(value)}</span>;
+    if (!editable) {
+      if (cell?.notSet) {
+        // A locked, auto-filled cell with no value on a student row is a dead end today —
+        // let a fellow who can fill open the student's details form to supply it.
+        if (cell.locked && canOpenDetails(row)) {
+          return (
+            <button
+              type="button"
+              onClick={() => setDetailsStudent({ id: row.target_id, name: row.target_name ?? "this student" })}
+              title="Fill student details"
+              className="text-gray-500 underline decoration-dashed underline-offset-2 hover:text-teal-700"
+            >
+              Not set
+            </button>
+          );
+        }
+        return <span className="text-gray-400">Not set</span>;
+      }
+      return <span>{display(value)}</span>;
+    }
     return <EditableCell col={col} value={value} onChange={(v) => setCell(row.record_id, col.field_key, v)} inputClass={inputClass} />;
   };
 
@@ -219,6 +244,17 @@ export function TrackerEditableGrid({
       <Clock className="h-3.5 w-3.5" aria-hidden="true" /> History
     </button>
   );
+
+  const detailsButton = (row: TrackerGridRow) =>
+    canOpenDetails(row) ? (
+      <button
+        type="button"
+        onClick={() => setDetailsStudent({ id: row.target_id, name: row.target_name ?? "this student" })}
+        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+      >
+        <UserCog className="h-3.5 w-3.5" aria-hidden="true" /> Details
+      </button>
+    ) : null;
 
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -279,7 +315,12 @@ export function TrackerEditableGrid({
                     <td key={col.field_key} className="px-3 py-3 text-gray-700">{fieldControl(row, col)}</td>
                   ))}
                   <td className="px-3 py-3">{blockerControl(row)}</td>
-                  <td className="px-3 py-3">{historyButton(row)}</td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {historyButton(row)}
+                      {detailsButton(row)}
+                    </div>
+                  </td>
                 </tr>
                 {canFill && requiresProof && (
                   <tr className="border-t border-gray-50">
@@ -301,7 +342,10 @@ export function TrackerEditableGrid({
                 <p className="truncate text-sm font-semibold text-gray-950">{row.target_name ?? "—"}</p>
                 {row.school_name && <p className="truncate text-xs text-gray-500">{row.school_name}</p>}
               </div>
-              {historyButton(row)}
+              <div className="flex shrink-0 items-center gap-1.5">
+                {detailsButton(row)}
+                {historyButton(row)}
+              </div>
             </div>
             <div className="flex flex-col gap-3">
               {grid.columns.map((col) => (
@@ -324,6 +368,14 @@ export function TrackerEditableGrid({
           requirePhoto={template.require_photo}
           requireLocation={template.require_location}
           onClose={() => setHistoryRecordId(null)}
+        />
+      )}
+
+      {detailsStudent && (
+        <StudentDetailsForm
+          studentId={detailsStudent.id}
+          studentName={detailsStudent.name}
+          onClose={() => setDetailsStudent(null)}
         />
       )}
     </section>

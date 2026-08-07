@@ -10,6 +10,14 @@ function prettyState(s: string | null): string {
   return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  FELLOW: "Fellow",
+  ZONAL_MANAGER: "Zonal Manager",
+  PROGRAM_MANAGER: "Program Manager",
+  SUPER_ADMIN: "Super Admin",
+};
+const prettyRole = (r?: string | null) => (r ? ROLE_LABEL[r] ?? prettyState(r) : "");
+
 /** Cascading audience filters (State → District → School → Programme) over the caller's
  *  assignable targets, plus a checkbox list + Select-all. Reused by the scratch builder
  *  and the "use a template" flow. Parent owns the selected set. */
@@ -25,12 +33,13 @@ export function AudiencePicker({
   onChange: (next: Set<string>) => void;
 }) {
   const assignable = useTrackerAssignable(targetType, canAuthor);
-  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "fellows";
+  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "staff";
 
   const [stateFilter, setStateFilter] = useState("");
   const [districtFilter, setDistrictFilter] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
   const all = useMemo(() => assignable.data ?? [], [assignable.data]);
@@ -38,9 +47,13 @@ export function AudiencePicker({
   const byDistrict = (t: TrackerAssignable) => !districtFilter || t.district === districtFilter;
   const bySchool = (t: TrackerAssignable) => !schoolFilter || t.school_id === schoolFilter;
   const byProgramme = (t: TrackerAssignable) => !programmeFilter || t.programme === programmeFilter;
+  const byRole = (t: TrackerAssignable) => !roleFilter || t.role === roleFilter;
 
   const stateOpts = useMemo(() => uniq(all.map((t) => t.state)), [all]);
   const districtOpts = useMemo(() => uniq(all.filter(byState).map((t) => t.district)), [all, stateFilter]);
+  // Role filter only appears for a staff (user-doer) target that actually mixes roles — i.e. a
+  // PM/Admin seeing ZMs alongside fellows. A ZM's list is fellows-only, so it stays hidden.
+  const roleOpts = useMemo(() => uniq(all.map((t) => t.role)), [all]);
   const schoolOpts = useMemo(() => {
     const m = new Map<string, string>();
     for (const t of all.filter((t) => byState(t) && byDistrict(t))) if (t.school_id) m.set(t.school_id, t.school_name ?? t.school_id);
@@ -51,8 +64,8 @@ export function AudiencePicker({
     [all, stateFilter, districtFilter, schoolFilter],
   );
   const visibleTargets = useMemo(
-    () => all.filter((t) => byState(t) && byDistrict(t) && bySchool(t) && byProgramme(t)),
-    [all, stateFilter, districtFilter, schoolFilter, programmeFilter],
+    () => all.filter((t) => byState(t) && byDistrict(t) && bySchool(t) && byProgramme(t) && byRole(t)),
+    [all, stateFilter, districtFilter, schoolFilter, programmeFilter, roleFilter],
   );
 
   const onState = (v: string) => { setStateFilter(v); setDistrictFilter(""); setSchoolFilter(""); };
@@ -69,6 +82,14 @@ export function AudiencePicker({
     <div>
       <p className="mb-3 text-xs text-gray-500">Narrow by area, then pick all matching {targetWord} at once.</p>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {roleOpts.length > 1 && (
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Role
+            <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={filterClass}>
+              <option value="">All roles</option>
+              {roleOpts.map((r) => <option key={r} value={r}>{prettyRole(r)}</option>)}
+            </select>
+          </label>
+        )}
         {stateOpts.length > 0 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">State
             <select value={stateFilter} onChange={(e) => onState(e.target.value)} className={filterClass}>
@@ -122,6 +143,9 @@ export function AudiencePicker({
               <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
                 <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
                 <span className="text-gray-900">{t.name}</span>
+                {roleOpts.length > 1 && t.role && (
+                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">{prettyRole(t.role)}</span>
+                )}
                 {t.school_name && <span className="text-xs text-gray-400">{t.school_name}</span>}
                 {!t.school_name && t.state && <span className="text-xs text-gray-400">{prettyState(t.state)}</span>}
               </label>

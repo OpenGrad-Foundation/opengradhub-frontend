@@ -85,9 +85,9 @@ export const qk = {
   dashboardWidget: (role: string, tab: 'overview' | 'activity', widgetId: string) =>
     ['og', 'dashboard', role, tab, widgetId] as const,
 
-  trackerTemplates: () => ['og', 'tracker', 'templates'] as const,
+  trackerTemplates: (status?: string) => ['og', 'tracker', 'templates', 'list', status ?? 'default'] as const,
   trackerTemplate: (id: string) => ['og', 'tracker', 'templates', id] as const,
-  trackerGrid: (templateId: string) => ['og', 'tracker', 'grid', templateId] as const,
+  trackerGrid: (templateId: string, fellowId = '') => ['og', 'tracker', 'grid', templateId, fellowId] as const,
   trackerSummary: (templateId: string) => ['og', 'tracker', 'summary', templateId] as const,
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
@@ -100,4 +100,17 @@ export const qk = {
   trackerOverview: () => ['og', 'tracker', 'overview'] as const,
   trackerFellows: () => ['og', 'tracker', 'fellows'] as const,
   trackerFellowTasks: (fellowId: string) => ['og', 'tracker', 'fellow-tasks', fellowId] as const,
+  trackerAllTasks: (f: Record<string, unknown>) => ['og', 'tracker', 'all-tasks', f] as const,
+  trackerTaskSummary: (f: Record<string, unknown>) => ['og', 'tracker', 'task-summary', f] as const,
+  trackerTaskBreakdown: (templateId: string, level: string, parentId: string, q: string, page: number) =>
+    ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, page] as const,
+  trackerZms: () => ['og', 'tracker', 'zms'] as const,
+  trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
+  trackerFellowSchools: (fellowId: string) => ['og', 'tracker', 'fellow-schools', fellowId] as const,
+  trackerSchoolStudents: (schoolId: string) => ['og', 'tracker', 'school-students', schoolId] as const,
+  trackerPms: () => ['og', 'tracker', 'pms'] as const,
+  trackerPmZms: (pmId: string) => ['og', 'tracker', 'pm-zms', pmId] as const,
+  trackerStudentFields: (status?: string) => ['og', 'tracker', 'student-fields', status ?? 'all'] as const,
+  trackerStudentDetails: (studentId: string) => ['og', 'tracker', 'student-details', studentId] as const,
+  trackerProfilePaths: (target: string) => ['og', 'tracker', 'profile-paths', target] as const,
 };

@@ -12,8 +12,8 @@ export const PROFILE_PATH_LABELS: Record<string, string> = {
   "student.contact": "Student contact",
   "school.name": "School name",
   "school.code": "School code",
-  "fellow.name": "Fellow name",
-  "fellow.email": "Fellow email",
+  "fellow.name": "Staff name",
+  "fellow.email": "Staff email",
 };
 export const profilePathLabel = (path: string): string => PROFILE_PATH_LABELS[path] ?? path;
 export type TrackerCompletionStyle = "checklist" | "workflow";
@@ -80,6 +80,10 @@ export type TrackerGridRow = {
   blocker: { id: string; text: string } | null;
   school_name: string | null;
   target_name: string | null;
+  /** The row's target entity id (student/school/fellow user id). Present for student-target
+   *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
+   *  Optional for backward-compatibility while the grid projection is updated to emit it. */
+  target_id?: string | null;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -129,6 +133,7 @@ export type CreateTrackerTemplateInput = {
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  status?: "draft" | "active" | "archived";
 };
 
 export type TrackerTemplatePatch = {
@@ -167,7 +172,7 @@ async function trackerJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-function jsonInit(method: "POST" | "PATCH", body: unknown): RequestInit {
+function jsonInit(method: "POST" | "PATCH" | "PUT", body: unknown): RequestInit {
   return {
     method,
     headers: { "Content-Type": "application/json" },
@@ -175,8 +180,9 @@ function jsonInit(method: "POST" | "PATCH", body: unknown): RequestInit {
   };
 }
 
-export function getTrackerTemplates() {
-  return trackerJson<TrackerTemplate[]>("/tracker/templates");
+export function getTrackerTemplates(status?: string) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return trackerJson<TrackerTemplate[]>(`/tracker/templates${qs}`);
 }
 
 export function getTrackerTemplate(id: string) {
@@ -185,6 +191,10 @@ export function getTrackerTemplate(id: string) {
 
 export function createTrackerTemplate(input: CreateTrackerTemplateInput) {
   return trackerJson<{ id: string }>("/tracker/templates", jsonInit("POST", input));
+}
+
+export function deleteTrackerTemplate(id: string) {
+  return trackerJson<void>(`/tracker/templates/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function addTrackerFields(templateId: string, input: AddTrackerFieldsInput) {
@@ -216,8 +226,9 @@ export function assignTrackerTargets(templateId: string, targetIds: string[]) {
   );
 }
 
-export function getTrackerGrid(templateId: string) {
-  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid`);
+export function getTrackerGrid(templateId: string, fellowId?: string) {
+  const q = fellowId ? `?fellowId=${encodeURIComponent(fellowId)}` : "";
+  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${q}`);
 }
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
@@ -294,6 +305,9 @@ export type TrackerAssignable = {
   id: string;
   name: string;
   state: string | null;
+  /** For a user (staff) target: the member's role code, e.g. FELLOW / ZONAL_MANAGER — lets the
+   *  picker group and label ZMs vs fellows. Absent for school / student targets. */
+  role?: string | null;
   district?: string | null;
   programme?: string | null;
   school_id?: string | null;
@@ -323,7 +337,7 @@ export function getTrackerMyTasks() {
   return trackerJson<TrackerMyTask[]>("/tracker/my-tasks");
 }
 
-export type TrackerFellowSummary = TrackerAssignable & { total: number; done: number; pending: number };
+export type TrackerFellowSummary = TrackerAssignable & { total: number; done: number; pending: number; last_nudged_all_at: string | null; };
 
 export function getTrackerFellows() {
   return trackerJson<TrackerFellowSummary[]>("/tracker/fellows");
@@ -331,6 +345,132 @@ export function getTrackerFellows() {
 
 export function getTrackerFellowTasks(fellowId: string) {
   return trackerJson<TrackerMyTask[]>(`/tracker/fellows/${encodeURIComponent(fellowId)}/tasks`);
+}
+
+// --- PM/Admin: All Tasks + ZM roster ---------------------------------------
+
+export type TrackerAllTasksFilters = {
+  doerType?: "zm" | "fellow"; zmId?: string; fellowId?: string;
+  state?: string; district?: string; priority?: TrackerPriority;
+  status?: "done" | "pending" | "overdue" | "blocked";
+  q?: string; groupBy?: "zm" | "fellow"; page?: number; limit?: number;
+};
+
+export type TrackerAllTaskRow = {
+  template_id: string; task_name: string;
+  doer_id: string | null; doer_name: string | null;
+  doer_role: "FELLOW" | "ZONAL_MANAGER" | null;
+  zm_id: string | null; zm_name: string | null;
+  state: string | null; district: string | null;
+  priority: TrackerPriority; deadline: string | null;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: "done" | "pending" | "overdue" | "blocked";
+  last_nudged_at: string | null;
+};
+
+export type TrackerAllTasksPage = {
+  rows: TrackerAllTaskRow[]; total: number; page: number; limit: number;
+  stateCounts: { done: number; pending: number; blocked: number; overdue: number };
+  groupCounts?: Array<{ key: string; label: string; count: number }>;
+};
+
+export type TrackerZmRosterRow = {
+  id: string; name: string; state: string | null;
+  own_total: number; own_done: number; own_pending: number; fellow_count: number;
+};
+
+export function getTrackerAllTasks(f: TrackerAllTasksFilters) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "") p.set(k, String(v));
+  const qs = p.toString();
+  return trackerJson<TrackerAllTasksPage>(`/tracker/all-tasks${qs ? `?${qs}` : ""}`);
+}
+
+export function getTrackerZms() {
+  return trackerJson<TrackerZmRosterRow[]>("/tracker/zms");
+}
+
+export function getTrackerZmFellows(zmId: string) {
+  return trackerJson<TrackerFellowSummary[]>(`/tracker/zms/${encodeURIComponent(zmId)}/fellows`);
+}
+
+export type TrackerFellowSchoolRow = {
+  id: string; name: string; state: string | null; district: string | null;
+};
+
+export function getTrackerFellowSchools(fellowId: string) {
+  return trackerJson<TrackerFellowSchoolRow[]>(`/tracker/fellows/${encodeURIComponent(fellowId)}/schools`);
+}
+
+export type TrackerSchoolStudentRow = {
+  id: string; name: string; programme: string | null;
+};
+
+export function getTrackerSchoolStudents(schoolId: string) {
+  return trackerJson<TrackerSchoolStudentRow[]>(`/tracker/schools/${encodeURIComponent(schoolId)}/students`);
+}
+
+export type TrackerPmRosterRow = {
+  id: string; name: string; zm_count: number;
+};
+
+export function getTrackerPms() {
+  return trackerJson<TrackerPmRosterRow[]>("/tracker/pms");
+}
+
+export function getTrackerPmZms(pmId: string) {
+  return trackerJson<TrackerZmRosterRow[]>(`/tracker/pms/${encodeURIComponent(pmId)}/zms`);
+}
+
+// --- Task-first list + task-scoped org drill (redesigned All Tasks tab) --------
+
+export type TrackerTaskState = "done" | "pending" | "overdue" | "blocked";
+
+export type TrackerTaskSummaryFilters = {
+  q?: string; priority?: TrackerPriority; status?: TrackerTaskState;
+  page?: number; limit?: number;
+};
+
+export type TrackerTaskSummaryRow = {
+  template_id: string; name: string; target_type: TrackerTargetType;
+  priority: TrackerPriority; deadline: string | null;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: TrackerTaskState;
+};
+
+export type TrackerTaskSummaryPage = {
+  rows: TrackerTaskSummaryRow[]; total: number; page: number; limit: number;
+  stateCounts: { done: number; pending: number; blocked: number; overdue: number };
+};
+
+export function getTrackerTaskSummary(f: TrackerTaskSummaryFilters) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(f)) if (v !== undefined && v !== "") p.set(k, String(v));
+  const qs = p.toString();
+  return trackerJson<TrackerTaskSummaryPage>(`/tracker/all-tasks/summary${qs ? `?${qs}` : ""}`);
+}
+
+export type TrackerDrillLevel = "zm" | "fellow" | "school" | "student";
+
+export type TrackerBreakdownRow = {
+  id: string; name: string; child_count: number;
+  total: number; done: number; blocked: number; overdue: number; pending: number;
+  rolled_state: TrackerTaskState; record_id: string | null;
+};
+
+export type TrackerBreakdownPage = {
+  rows: TrackerBreakdownRow[]; total: number; page: number; limit: number;
+};
+
+export function getTrackerTaskBreakdown(
+  templateId: string,
+  params: { level: TrackerDrillLevel; parentId?: string; q?: string; page?: number; limit?: number },
+) {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") p.set(k, String(v));
+  return trackerJson<TrackerBreakdownPage>(
+    `/tracker/all-tasks/${encodeURIComponent(templateId)}/breakdown?${p.toString()}`,
+  );
 }
 
 export type TrackerEventType =
@@ -389,4 +529,135 @@ export function getBlockerThread(blockerId: string) {
 
 export function addBlockerComment(blockerId: string, text: string) {
   return trackerJson<{ ok: true }>(`/tracker/blockers/${encodeURIComponent(blockerId)}/comment`, jsonInit("POST", { text }));
+}
+
+export function nudgeTracker(body: { doerId: string; templateId?: string }) {
+  return trackerJson<{ sent: boolean; nextAllowedAt: string }>("/tracker/nudges", jsonInit("POST", body));
+}
+
+// --- Additional Student Details (Fellow Tracker) ---------------------------
+// PM-defined dynamic student attributes (e.g. Date of Birth, Aadhaar URL) that
+// Fellows fill per student and templates auto-fill via `student.custom.<field_key>`.
+
+export type TrackerStudentFieldStatus = "active" | "archived";
+
+export type TrackerStudentFieldDef = {
+  id: string;
+  field_key: string;
+  label: string;
+  field_type: TrackerFieldType;
+  options: string[] | null;
+  required: boolean;
+  sort_order: number;
+  status: TrackerStudentFieldStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TrackerStudentDetail = {
+  field: TrackerStudentFieldDef;
+  value: unknown | null;
+  updated_at: string | null;
+};
+
+export type TrackerStudentDetailsResponse = {
+  student_id: string;
+  details: TrackerStudentDetail[];
+};
+
+export type TrackerProfilePath = {
+  path: string;
+  label: string;
+  custom: boolean;
+};
+
+export type CreateStudentFieldInput = {
+  label: string;
+  field_type: TrackerFieldType;
+  options?: string[] | null;
+  required?: boolean;
+  sort_order?: number;
+};
+
+export type StudentFieldPatch = {
+  label?: string;
+  options?: string[] | null;
+  required?: boolean;
+  sort_order?: number;
+  status?: TrackerStudentFieldStatus;
+};
+
+export type SaveStudentDetailsResult = { student_id: string; saved: string[] };
+
+/**
+ * Thrown when the save-details endpoint returns a 400 with per-field validation
+ * errors. `fieldErrors` maps `field_key` → human message so the form can render
+ * each error next to its input.
+ */
+export class StudentDetailsValidationError extends ApiError {
+  readonly fieldErrors: Record<string, string>;
+  constructor(message: string, status: number, fieldErrors: Record<string, string>) {
+    super(message, status);
+    this.name = "StudentDetailsValidationError";
+    this.fieldErrors = fieldErrors;
+  }
+}
+
+export function listStudentFields(status?: TrackerStudentFieldStatus) {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  return trackerJson<{ fields: TrackerStudentFieldDef[] }>(`/tracker/student-fields${qs}`);
+}
+
+export function createStudentField(input: CreateStudentFieldInput) {
+  return trackerJson<{ field: TrackerStudentFieldDef }>("/tracker/student-fields", jsonInit("POST", input));
+}
+
+export function updateStudentField(id: string, patch: StudentFieldPatch) {
+  return trackerJson<{ field: TrackerStudentFieldDef }>(
+    `/tracker/student-fields/${encodeURIComponent(id)}`,
+    jsonInit("PATCH", patch),
+  );
+}
+
+export function deleteStudentField(id: string) {
+  return trackerJson<void>(
+    `/tracker/student-fields/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function getStudentDetails(
+studentId: string) {
+  return trackerJson<TrackerStudentDetailsResponse>(
+    `/tracker/students/${encodeURIComponent(studentId)}/details`,
+  );
+}
+
+export async function saveStudentDetails(
+  studentId: string,
+  values: Record<string, unknown>,
+): Promise<SaveStudentDetailsResult> {
+  const res = await apiFetch(
+    `${API_BASE_URL}/tracker/students/${encodeURIComponent(studentId)}/details`,
+    jsonInit("PUT", { values }),
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { message?: string | string[]; errors?: Record<string, string> }
+      | null;
+    const message = Array.isArray(body?.message)
+      ? body.message[0]
+      : body?.message ?? "Could not save student details.";
+    if (res.status === 400 && body?.errors && typeof body.errors === "object") {
+      throw new StudentDetailsValidationError(message, res.status, body.errors);
+    }
+    throw new ApiError(message, res.status);
+  }
+  return (await res.json()) as SaveStudentDetailsResult;
+}
+
+export function listProfilePaths(target: TrackerTargetType) {
+  return trackerJson<{ paths: TrackerProfilePath[] }>(
+    `/tracker/profile-paths?target=${encodeURIComponent(target)}`,
+  );
 }

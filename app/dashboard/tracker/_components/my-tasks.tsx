@@ -4,14 +4,60 @@ import { useState } from "react";
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { useTrackerMyTasks } from "@/lib/queries/tracker";
 import type { TrackerMyTask } from "@/lib/tracker-api";
+import { rollupFromLifecycles, TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } from "@/lib/tracker-status";
+import { StatusCards } from "./status-cards";
 
-const LIFECYCLE: Record<TrackerMyTask["lifecycle"], { label: string; tone: "green" | "gray" | "red" | "amber" }> = {
-  done: { label: "Done", tone: "green" },
-  blocked: { label: "Stuck", tone: "red" },
-  overdue: { label: "Overdue", tone: "amber" },
-  in_progress: { label: "In progress", tone: "gray" },
-  not_started: { label: "To do", tone: "gray" },
+const TARGET_NOUN: Record<TrackerMyTask["target_type"], string> = {
+  student: "students",
+  fellow: "staff",
+  school: "schools",
 };
+
+/** One row per task. A task targeting many students/schools produces one record per
+ *  target on the server; we collapse those into a single task row (drill in to see the
+ *  individual targets in the grid) and surface a rolled-up task state + progress count. */
+type GroupedTask = {
+  template_id: string;
+  name: string;
+  target_type: TrackerMyTask["target_type"];
+  priority: TrackerMyTask["priority"];
+  deadline: string | null;
+  issued_at: string;
+  count: number;
+  doneCount: number;
+  state: TaskState; // rolled-up 4-state task status (the record grid keeps the 5-state lifecycle)
+  target_name: string | null; // shown only when the task has a single target
+  schools: string[]; // distinct school names across the task's records (for filtering)
+};
+
+function groupTasksByTemplate(tasks: TrackerMyTask[]): GroupedTask[] {
+  const byTemplate = new Map<string, TrackerMyTask[]>();
+  for (const t of tasks) {
+    const arr = byTemplate.get(t.template_id);
+    if (arr) arr.push(t);
+    else byTemplate.set(t.template_id, [t]);
+  }
+  const out: GroupedTask[] = [];
+  for (const recs of byTemplate.values()) {
+    const first = recs[0];
+    const count = recs.length;
+    const doneCount = recs.filter((r) => r.lifecycle === "done").length;
+    out.push({
+      template_id: first.template_id,
+      name: first.name,
+      target_type: first.target_type,
+      priority: first.priority,
+      deadline: first.deadline, // deadline comes from the template, uniform across records
+      issued_at: recs.map((r) => r.issued_at).filter(Boolean).sort()[0] ?? first.issued_at,
+      count,
+      doneCount,
+      state: rollupFromLifecycles(recs.map((r) => r.lifecycle)),
+      target_name: count === 1 ? first.target_name : null,
+      schools: Array.from(new Set(recs.map((r) => r.school_name).filter(Boolean) as string[])),
+    });
+  }
+  return out;
+}
 
 export function MyTasksList({ onOpen }: { onOpen: (templateId: string) => void }) {
   const { data = [], isLoading, error } = useTrackerMyTasks();
@@ -54,10 +100,13 @@ export function TaskListView({
     );
   }
 
+  const groups = groupTasksByTemplate(tasks);
+  const counts: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
+  for (const g of groups) counts[g.state] += 1;
   const schools = Array.from(new Set(tasks.map((t) => t.school_name).filter(Boolean) as string[])).sort();
   const prank = { high: 0, medium: 1, low: 2 } as const;
-  const filtered = tasks
-    .filter((t) => (!priorityF || t.priority === priorityF) && (!statusF || t.lifecycle === statusF) && (!schoolF || t.school_name === schoolF))
+  const filtered = groups
+    .filter((g) => (!priorityF || g.priority === priorityF) && (!statusF || g.state === statusF) && (!schoolF || g.schools.includes(schoolF)))
     .sort((a, b) => {
       if (sort === "priority") return prank[a.priority] - prank[b.priority] || (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
       if (sort === "deadline") return (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
@@ -69,6 +118,11 @@ export function TaskListView({
 
   return (
     <div className="flex flex-col gap-3">
+      <StatusCards
+        counts={counts}
+        activeState={(statusF || null) as TaskState | null}
+        onSelect={(s) => setStatusF((prev) => (prev === s ? "" : s))}
+      />
       <div className="flex flex-wrap gap-2">
         <select value={priorityF} onChange={(e) => setPriorityF(e.target.value)} className={selCls}>
           <option value="">All priorities</option>
@@ -78,11 +132,7 @@ export function TaskListView({
         </select>
         <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selCls}>
           <option value="">All statuses</option>
-          <option value="not_started">To do</option>
-          <option value="in_progress">In progress</option>
-          <option value="blocked">Stuck</option>
-          <option value="overdue">Overdue</option>
-          <option value="done">Done</option>
+          {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
         </select>
         {schools.length > 1 && (
           <select value={schoolF} onChange={(e) => setSchoolF(e.target.value)} className={selCls}>
@@ -102,9 +152,9 @@ export function TaskListView({
       ) : (
       <ul className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       {filtered.map((task) => {
-        const lc = LIFECYCLE[task.lifecycle];
+        const meta = TASK_STATE_META[task.state];
         return (
-          <li key={task.record_id}>
+          <li key={task.template_id}>
             <button
               type="button"
               onClick={() => onOpen(task.template_id)}
@@ -113,13 +163,17 @@ export function TaskListView({
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-gray-950">
                   {task.name}
-                  {task.target_name ? <span className="text-gray-500"> — {task.target_name}</span> : null}
+                  {task.count === 1 && task.target_name ? <span className="text-gray-500"> — {task.target_name}</span> : null}
+                  {task.count > 1 ? <span className="text-gray-500"> · {task.count} {TARGET_NOUN[task.target_type]}</span> : null}
                 </p>
-                <p className="mt-0.5 text-xs text-gray-500">{task.deadline ? `Due ${formatDate(task.deadline)}` : "No deadline"}</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {task.count > 1 ? `${task.doneCount}/${task.count} done · ` : ""}
+                  {task.deadline ? `Due ${formatDate(task.deadline)}` : "No deadline"}
+                </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <PriorityChip priority={task.priority} />
-                <Pill label={lc.label} tone={lc.tone} />
+                <Pill label={meta.label} tone={meta.tone} />
                 <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
               </div>
             </button>

@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
-import { useAddTrackerFields, useDeleteTrackerField, useTrackerSummary, useTrackerTemplate, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
+import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
+import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, useTrackerSummary, useTrackerTemplate, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
 import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
 
 const TARGET_LABEL: Record<string, string> = {
   student: "One row per student",
-  fellow: "One task per fellow",
+  fellow: "One task per staff member",
   school: "One task per school",
 };
 
@@ -42,6 +42,20 @@ export function TaskDetail({
   const { data, isLoading, error } = useTrackerTemplate(template.id);
   const fields = data?.fields ?? [];
   const [editing, setEditing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const del = useDeleteTrackerTemplate();
+  const archive = useUpdateTrackerTemplate(template.id);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const isArchived = template.status === "archived";
+
+  async function onDelete() {
+    try {
+      await del.mutateAsync(template.id);
+      onBack();
+    } catch {
+      /* mutation error surfaced below via del.isError */
+    }
+  }
 
   return (
     <section className="flex flex-col gap-5">
@@ -51,9 +65,23 @@ export function TaskDetail({
         </button>
         <div className="flex items-center gap-2">
           {canAuthor && !editing && (
-            <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
-            </button>
+            <>
+              {isArchived ? (
+                <button type="button" onClick={async () => { try { await archive.mutateAsync({ status: "active" }); onBack(); } catch { /* surfaced via archive.isError */ } }} disabled={archive.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-teal-300 px-3 py-1.5 text-sm font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-60">
+                  {archive.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArchiveRestore className="h-4 w-4" aria-hidden="true" />} Restore
+                </button>
+              ) : (
+                <button type="button" onClick={() => setConfirmArchive(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Archive className="h-4 w-4" aria-hidden="true" /> Mark done &amp; archive
+                </button>
+              )}
+              <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
+              </button>
+              <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50">
+                <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
+              </button>
+            </>
           )}
           {onOpenGrid && (
             <button type="button" onClick={onOpenGrid} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700">
@@ -62,6 +90,38 @@ export function TaskDetail({
           )}
         </div>
       </div>
+
+      {confirmDelete && (
+        <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-red-900">Delete “{template.name}”?</p>
+            <p className="mt-1 text-sm text-red-800">This permanently removes the task and every assigned row, filled value, blocker, and history entry. This can’t be undone.</p>
+          </div>
+          {del.isError && <p className="text-sm text-red-700">{del.error instanceof Error ? del.error.message : "Could not delete."}</p>}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onDelete} disabled={del.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+              {del.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Delete permanently
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} disabled={del.isPending} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {confirmArchive && (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">Archive “{template.name}”?</p>
+            <p className="mt-1 text-sm text-amber-800">It leaves the active task list and stops generating new recurring rows. All existing data and history are kept, and you can restore it anytime.</p>
+          </div>
+          {archive.isError && <p className="text-sm text-red-700">{archive.error instanceof Error ? archive.error.message : "Could not archive."}</p>}
+          <div className="flex items-center gap-2">
+            <button type="button" disabled={archive.isPending} onClick={async () => { try { await archive.mutateAsync({ status: "archived" }); setConfirmArchive(false); onBack(); } catch { /* surfaced above */ } }} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
+              {archive.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Archive
+            </button>
+            <button type="button" onClick={() => setConfirmArchive(false)} disabled={archive.isPending} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {editing ? (
         <EditTemplate template={template} onDone={() => setEditing(false)} />
@@ -88,14 +148,14 @@ export function TaskDetail({
         </div>
       )}
 
-      {canAuthor && !editing && <TaskSummary templateId={template.id} />}
+      {canAuthor && !editing && <TaskSummary templateId={template.id} targetType={template.target_type} />}
 
       {canAuthor && !editing && <AssignSection template={template} canAuthor={canAuthor} />}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">
           <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
-          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. Fellows fill these in on the task itself; “Auto-filled” ones come from the record.</p>
+          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. The assignee fills these in on the task itself; “Auto-filled” ones come from the record.</p>
         </div>
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -146,7 +206,7 @@ function FieldRow({ templateId, field: f, editing }: { templateId: string; field
   );
 }
 
-const TARGET_PLURAL: Record<string, string> = { student: "students", school: "schools", fellow: "fellows" };
+const TARGET_PLURAL: Record<string, string> = { student: "students", school: "schools", fellow: "staff" };
 
 function AssignSection({ template, canAuthor }: { template: TrackerTemplate; canAuthor: boolean }) {
   const invalidate = useInvalidate();
@@ -187,8 +247,11 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
   );
 }
 
-function TaskSummary({ templateId }: { templateId: string }) {
+function TaskSummary({ templateId, targetType }: { templateId: string; targetType: TrackerTargetType }) {
   const { data: rows = [], isLoading } = useTrackerSummary(templateId);
+  // For a user-doer (fellow) task the row IS the assignee (a fellow or a delegated manager);
+  // for student/school tasks the row is the fellow who owns that school.
+  const ownerHeader = targetType === "fellow" ? "Staff member" : "Fellow";
   const totals = rows.reduce(
     (a, r) => ({ done: a.done + r.done, pending: a.pending + r.pending, blocked: a.blocked + r.blocked, overdue: a.overdue + r.overdue }),
     { done: 0, pending: 0, blocked: 0, overdue: 0 },
@@ -197,7 +260,7 @@ function TaskSummary({ templateId }: { templateId: string }) {
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h3 className="text-base font-semibold text-gray-950">Progress</h3>
-        <p className="mt-0.5 text-xs text-gray-500">How your fellows are doing on this task.</p>
+        <p className="mt-0.5 text-xs text-gray-500">How your team is doing on this task.</p>
       </div>
       {isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -216,7 +279,7 @@ function TaskSummary({ templateId }: { templateId: string }) {
               <table className="w-full border-collapse text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-3 py-2 font-semibold">Fellow</th>
+                    <th className="px-3 py-2 font-semibold">{ownerHeader}</th>
                     <th className="px-3 py-2 font-semibold">Done</th>
                     <th className="px-3 py-2 font-semibold">Pending</th>
                     <th className="px-3 py-2 font-semibold">Blocked</th>

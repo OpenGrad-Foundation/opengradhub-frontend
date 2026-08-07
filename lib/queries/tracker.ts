@@ -13,6 +13,18 @@ import {
   getBlockerThread,
   getTrackerFellows,
   getTrackerFellowTasks,
+  getTrackerAllTasks,
+  getTrackerTaskSummary,
+  getTrackerTaskBreakdown,
+  type TrackerTaskSummaryFilters,
+  type TrackerDrillLevel,
+  getTrackerZms,
+  getTrackerZmFellows,
+  getTrackerFellowSchools,
+  getTrackerSchoolStudents,
+  getTrackerPms,
+  getTrackerPmZms,
+  type TrackerAllTasksFilters,
   getTrackerMyTasks,
   getTrackerOverview,
   getTrackerRecordHistory,
@@ -24,13 +36,25 @@ import {
   updateTrackerTemplate,
   updateTrackerField,
   deleteTrackerField,
+  deleteTrackerTemplate,
   getTrackerProofs,
   uploadProofPhoto,
   captureProofLocation,
   deleteProofPhoto,
+  nudgeTracker,
+  listStudentFields,
+  createStudentField,
+  updateStudentField,
+  deleteStudentField,
+  getStudentDetails,
+  saveStudentDetails,
+  listProfilePaths,
   type AddTrackerFieldsInput,
   type CreateTrackerTemplateInput,
+  type CreateStudentFieldInput,
+  type StudentFieldPatch,
   type TrackerBatchEdit,
+  type TrackerStudentFieldStatus,
   type TrackerTargetType,
   type TrackerTemplatePatch,
   type TrackerFieldPatch,
@@ -39,10 +63,10 @@ import {
 import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 
-export function useTrackerTemplates() {
+export function useTrackerTemplates(status?: string) {
   return useQuery({
-    queryKey: qk.trackerTemplates(),
-    queryFn: getTrackerTemplates,
+    queryKey: qk.trackerTemplates(status),
+    queryFn: () => getTrackerTemplates(status),
     staleTime: 2 * 60_000,
   });
 }
@@ -56,10 +80,10 @@ export function useTrackerTemplate(id: string | undefined) {
   });
 }
 
-export function useTrackerGrid(templateId: string | undefined) {
+export function useTrackerGrid(templateId: string | undefined, fellowId?: string) {
   return useQuery({
-    queryKey: qk.trackerGrid(templateId ?? ''),
-    queryFn: () => getTrackerGrid(templateId as string),
+    queryKey: qk.trackerGrid(templateId ?? '', fellowId ?? ''),
+    queryFn: () => getTrackerGrid(templateId as string, fellowId),
     enabled: Boolean(templateId),
     staleTime: 30_000,
   });
@@ -97,6 +121,83 @@ export function useTrackerFellowTasks(fellowId: string | undefined) {
     queryKey: qk.trackerFellowTasks(fellowId ?? ''),
     queryFn: () => getTrackerFellowTasks(fellowId as string),
     enabled: Boolean(fellowId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerAllTasks(filters: TrackerAllTasksFilters, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerAllTasks(filters as Record<string, unknown>),
+    queryFn: () => getTrackerAllTasks(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerTaskSummary(filters: TrackerTaskSummaryFilters, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerTaskSummary(filters as Record<string, unknown>),
+    queryFn: () => getTrackerTaskSummary(filters),
+    enabled,
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerTaskBreakdown(
+  templateId: string | undefined,
+  level: TrackerDrillLevel,
+  parentId: string | undefined,
+  q: string,
+  page: number,
+) {
+  return useQuery({
+    queryKey: qk.trackerTaskBreakdown(templateId ?? '', level, parentId ?? '', q, page),
+    queryFn: () => getTrackerTaskBreakdown(templateId as string, { level, parentId, q: q || undefined, page }),
+    enabled: Boolean(templateId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerZms(enabled = true) {
+  return useQuery({ queryKey: qk.trackerZms(), queryFn: getTrackerZms, enabled, staleTime: 60_000 });
+}
+
+export function useTrackerZmFellows(zmId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerZmFellows(zmId ?? ''),
+    queryFn: () => getTrackerZmFellows(zmId as string),
+    enabled: Boolean(zmId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerFellowSchools(fellowId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerFellowSchools(fellowId ?? ''),
+    queryFn: () => getTrackerFellowSchools(fellowId as string),
+    enabled: Boolean(fellowId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerSchoolStudents(schoolId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerSchoolStudents(schoolId ?? ''),
+    queryFn: () => getTrackerSchoolStudents(schoolId as string),
+    enabled: Boolean(schoolId),
+    staleTime: 30_000,
+  });
+}
+
+export function useTrackerPms(enabled = true) {
+  return useQuery({ queryKey: qk.trackerPms(), queryFn: getTrackerPms, enabled, staleTime: 60_000 });
+}
+
+export function useTrackerPmZms(pmId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerPmZms(pmId ?? ''),
+    queryFn: () => getTrackerPmZms(pmId as string),
+    enabled: Boolean(pmId),
     staleTime: 30_000,
   });
 }
@@ -233,6 +334,14 @@ export function useDeleteTrackerField(templateId: string) {
   });
 }
 
+export function useDeleteTrackerTemplate() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => deleteTrackerTemplate(id),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
 export function useTrackerProofs(recordId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: qk.trackerProofs(recordId ?? ''),
@@ -263,5 +372,74 @@ export function useDeleteProofPhoto(recordId: string) {
   return useMutation({
     mutationFn: (proofId: string) => deleteProofPhoto(recordId, proofId),
     onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useNudge() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (v: { doerId: string; templateId?: string }) => nudgeTracker(v),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+// --- Additional Student Details --------------------------------------------
+
+export function useStudentFields(status?: TrackerStudentFieldStatus, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerStudentFields(status),
+    queryFn: () => listStudentFields(status),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
+export function useCreateStudentField() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (input: CreateStudentFieldInput) => createStudentField(input),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useUpdateStudentField() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: StudentFieldPatch }) => updateStudentField(id, patch),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useDeleteStudentField() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => deleteStudentField(id),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useStudentDetails(studentId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerStudentDetails(studentId ?? ''),
+    queryFn: () => getStudentDetails(studentId as string),
+    enabled: Boolean(studentId),
+    staleTime: 30_000,
+  });
+}
+
+export function useSaveStudentDetails(studentId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (values: Record<string, unknown>) => saveStudentDetails(studentId, values),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useProfilePaths(target: TrackerTargetType, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerProfilePaths(target),
+    queryFn: () => listProfilePaths(target),
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }

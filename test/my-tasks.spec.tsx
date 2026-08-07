@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import type { TrackerMyTask } from "@/lib/tracker-api";
 
 let mockResult: { data: TrackerMyTask[]; isLoading: boolean; error: unknown };
@@ -27,27 +27,72 @@ function task(over: Partial<TrackerMyTask>): TrackerMyTask {
   };
 }
 
+// The task list (the <ul>), scoped so we don't match the filter <option> labels.
+function list() {
+  const ul = document.querySelector("ul");
+  if (!ul) throw new Error("task list not rendered");
+  return within(ul as HTMLElement);
+}
+
 beforeEach(() => {
   mockResult = { data: [], isLoading: false, error: null };
 });
 
-describe("MyTasksList", () => {
-  it("shows the target name so same-template rows are distinguishable", () => {
+describe("MyTasksList — one row per task", () => {
+  it("collapses same-template records into a single task row with a target count", () => {
     mockResult.data = [
       task({ record_id: "r1", target_name: "Ravi K", lifecycle: "done" }),
-      task({ record_id: "r2", target_name: "Meena S", lifecycle: "blocked" }),
+      task({ record_id: "r2", target_name: "Meena S", lifecycle: "not_started" }),
     ];
     render(<MyTasksList onOpen={() => {}} />);
-    expect(screen.getByText(/Ravi K/)).toBeTruthy();
-    expect(screen.getByText(/Meena S/)).toBeTruthy();
-    // Distinct lifecycle pills render too (also present as filter options, hence getAllByText).
-    expect(screen.getAllByText("Done").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Stuck").length).toBeGreaterThan(0);
+    // One row, not two.
+    expect(list().getAllByRole("listitem")).toHaveLength(1);
+    // Count shown instead of per-student names.
+    expect(list().getByText(/2 students/)).toBeTruthy();
+    expect(screen.queryByText(/Ravi K/)).toBeNull();
+    expect(screen.queryByText(/Meena S/)).toBeNull();
   });
 
-  it("renders without a target name (falls back to template name only)", () => {
+  it("rolls a mixed not_started + in_progress task up to a single Pending badge", () => {
+    mockResult.data = [
+      task({ record_id: "r1", lifecycle: "not_started" }),
+      task({ record_id: "r2", lifecycle: "in_progress" }),
+    ];
+    render(<MyTasksList onOpen={() => {}} />);
+    expect(list().getByText("Pending")).toBeTruthy();
+    expect(list().queryByText("Done")).toBeNull();
+  });
+
+  it("shows Done only when every target is done", () => {
+    mockResult.data = [
+      task({ record_id: "r1", lifecycle: "done" }),
+      task({ record_id: "r2", lifecycle: "done" }),
+    ];
+    render(<MyTasksList onOpen={() => {}} />);
+    expect(list().getByText("Done")).toBeTruthy();
+    expect(list().queryByText("Pending")).toBeNull();
+  });
+
+  it("blocked beats overdue in the rolled-up badge", () => {
+    mockResult.data = [
+      task({ record_id: "r1", lifecycle: "overdue" }),
+      task({ record_id: "r2", lifecycle: "blocked" }),
+    ];
+    render(<MyTasksList onOpen={() => {}} />);
+    expect(list().getByText("Blocked")).toBeTruthy();
+    expect(list().queryByText("Overdue")).toBeNull();
+  });
+
+  it("shows the target name for a single-target task (no count)", () => {
+    mockResult.data = [task({ target_name: "Ravi K", lifecycle: "in_progress" })];
+    render(<MyTasksList onOpen={() => {}} />);
+    expect(list().getByText(/Ravi K/)).toBeTruthy();
+    expect(list().queryByText(/students/)).toBeNull();
+  });
+
+  it("falls back to the template name when a single-target task has no target name", () => {
     mockResult.data = [task({ target_name: null })];
     render(<MyTasksList onOpen={() => {}} />);
-    expect(screen.getByText(/NEET Application \(demo\)/)).toBeTruthy();
+    expect(list().getByText(/NEET Application \(demo\)/)).toBeTruthy();
   });
 });
