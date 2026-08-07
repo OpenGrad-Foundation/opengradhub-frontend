@@ -80,11 +80,40 @@ export type UploadDetail = UploadSummary & {
 
 export type CommitEntry = { student_id: string; date: string; present: boolean };
 
+/** Mirror of the backend REGISTER_TEMPLATE_V2 shape — values always come from the server. */
+export type RegisterDescriptor = {
+  version: number;
+  page: { w: number; h: number };
+  margin: number;
+  fiducial: { tl: number; other: number };
+  qr: { x: number; y: number; size: number };
+  header: {
+    titleY: number;
+    monthComb: { x: number; y: number; boxW: number; boxH: number; gap: number; yySkip: number };
+  };
+  table: {
+    x: number; y: number; rowH: number; headerH: number;
+    codeW: number; nameW: number; dateColW: number;
+    comb: { boxW: number; boxH: number; gap: number; slashGap: number; yOffset: number };
+    mark: { box: number; gap: number };
+  };
+};
+
+export type SheetPage = {
+  page: number;
+  row_range: [number, number];
+  qr_content: string;
+  students: { short_code: string; name: string }[];
+};
+
 export type SheetData = {
   school_name: string;
   /** Null when the sheet leaves the month blank for the school to write in. */
   month: string | null;
   students: { short_code: string; name: string }[];
+  descriptor: RegisterDescriptor;
+  template_version: number;
+  pages: SheetPage[];
 };
 
 export type RegisterGapRow = {
