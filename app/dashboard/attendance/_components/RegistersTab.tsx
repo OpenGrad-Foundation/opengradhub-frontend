@@ -25,25 +25,8 @@ const PRIMARY_BTN =
   "rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 " +
   "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
 
-/** Current month + the two before it — the months a register realistically covers. */
-function monthOptions(): { value: string; label: string }[] {
-  const out: { value: string; label: string }[] = [];
-  const now = new Date();
-  for (let back = 0; back < 3; back++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
-    out.push({
-      value: d.toISOString().slice(0, 7),
-      label: d.toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" }),
-    });
-  }
-  return out;
-}
-
 export function RegistersTab({ canManage }: { canManage: boolean }) {
   const [schoolId, setSchoolId] = useState("");
-  // Default to the current month: a month-specific sheet carries its month
-  // printed + signed in the QR, so the school handwrites nothing but days.
-  const [sheetMonth, setSheetMonth] = useState<string>(() => monthOptions()[0].value);
   const [image, setImage] = useState<File | null>(null);
   const [draft, setDraft] = useState<UploadDetail | null>(null);
 
@@ -109,77 +92,64 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
     );
   }
 
+  const needsSchool = !schoolId;
+  const dimmed = needsSchool ? "opacity-50 pointer-events-none select-none" : "";
+
   return (
     <div className="space-y-4">
+      {/* The school is the working context for EVERYTHING below — printing and
+          uploading both act on it, so it lives above the sections, not inside one. */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3
-          className="font-semibold text-[var(--dark-teal)]"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Printable sheet
-        </h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Pick the school and month, then print. A month-specific sheet has its month printed on
-          it — the school only writes day numbers and marks ✓ present / ✗ absent.
-        </p>
+        <label className="block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+          School
+        </label>
         {schoolsFailed ? (
           <p className="mt-2 text-sm text-red-600">
             Can&apos;t load the school list — your role may not have permission to view schools.
             Ask an admin.
           </p>
         ) : (
-          <div className="mt-3 flex flex-wrap items-end gap-3">
-            <div className="min-w-[260px] flex-1">
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                1 · School
-              </label>
-              <SchoolSearchPicker
-                schools={schools ?? []}
-                value={schoolId}
-                onChange={setSchoolId}
-                disabled={schoolsLoading}
-                placeholder={schoolsLoading ? "Loading schools…" : "Search school by name, code or district…"}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                2 · Month
-              </label>
-              <select
-                value={sheetMonth}
-                onChange={(e) => setSheetMonth(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
-              >
-                {monthOptions().map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-                <option value="">Blank — school writes the month</option>
-              </select>
-            </div>
-            <Link
-              href={
-                schoolId
-                  ? `/dashboard/attendance/sheet?school_id=${encodeURIComponent(schoolId)}${
-                      sheetMonth ? `&month=${sheetMonth}` : ""
-                    }`
-                  : "#"
-              }
-              target="_blank"
-              rel="noopener"
-              aria-disabled={!schoolId}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
-                schoolId
-                  ? "text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]"
-                  : "bg-slate-200 text-slate-400 pointer-events-none"
-              }`}
-            >
-              Print / download ↗
-            </Link>
+          <div className="mt-1.5">
+            <SchoolSearchPicker
+              schools={schools ?? []}
+              value={schoolId}
+              onChange={setSchoolId}
+              disabled={schoolsLoading}
+              placeholder={schoolsLoading ? "Loading schools…" : "Search school by name, code or district…"}
+            />
           </div>
+        )}
+        {needsSchool && !schoolsFailed && (
+          <p className="mt-1.5 text-xs text-slate-400">
+            Select a school to print its register or upload a filled one.
+          </p>
         )}
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className={`rounded-xl border border-slate-200 bg-white p-4 ${dimmed}`} aria-disabled={needsSchool}>
+        <h3
+          className="font-semibold text-[var(--dark-teal)]"
+          style={{ fontFamily: "var(--font-heading)" }}
+        >
+          Print register
+        </h3>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="max-w-xl text-xs text-slate-500">
+            Opens the pre-filled sheet in a new tab. The school writes the month and day numbers
+            and marks each student ✓ present / ✗ absent.
+          </p>
+          <Link
+            href={schoolId ? `/dashboard/attendance/sheet?school_id=${encodeURIComponent(schoolId)}` : "#"}
+            target="_blank"
+            rel="noopener"
+            className={PRIMARY_BTN}
+          >
+            Print / download ↗
+          </Link>
+        </div>
+      </div>
+
+      <div className={`rounded-xl border border-slate-200 bg-white p-4 ${dimmed}`} aria-disabled={needsSchool}>
         <h3
           className="font-semibold text-[var(--dark-teal)]"
           style={{ fontFamily: "var(--font-heading)" }}
@@ -198,10 +168,10 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Uses the school selected above. Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max
-          10 MB. Photos and PDFs of the printed sheet are extracted automatically (ticks, crosses
-          and day numbers); spreadsheets are read directly and need full dates in their headers.
-          Either way you review and correct before anything is saved.
+          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 10 MB. Photos and PDFs of the printed
+          sheet are extracted automatically (ticks, crosses and day numbers); spreadsheets are read
+          directly and need full dates in their headers. Either way you review and correct before
+          anything is saved.
         </p>
       </div>
 
