@@ -85,6 +85,7 @@ export type OmrWarning = {
     | "AMBIGUOUS_CELL"
     | "ABSTAINED_DATE"
     | "MONTH_CONFLICT"
+    | "MONTH_UNREADABLE"
     | "QR_MISMATCH"
     | "STALE_TEMPLATE"
     | "PAGE_GAP";
@@ -108,8 +109,8 @@ export type RegisterDescriptor = {
   table: {
     x: number; y: number; rowH: number; headerH: number;
     codeW: number; nameW: number; dateCols: number; dateColW: number;
-    comb: { boxW: number; boxH: number; gap: number; rowGap: number; yOffset: number };
-    mark: { box: number; gap: number };
+    comb: { boxW: number; boxH: number; gap: number; yOffset: number };
+    mark: { w: number; h: number };
   };
 };
 

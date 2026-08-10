@@ -22,23 +22,25 @@ import type { RegisterDescriptor, SheetPage } from "@/lib/attendance-api";
 
 const mm = (n: number) => `${n}mm`;
 
+const monthLabelText = (m: string) => {
+  const [y, mo] = m.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, 1)).toLocaleString("en", { month: "long", timeZone: "UTC" }) + ` ${y}`;
+};
+
 /** Same arithmetic as the backend descriptor helpers — constants come from the server. */
 function dateColX(d: RegisterDescriptor, col: number): number {
   return d.table.x + d.table.codeW + d.table.nameW + col * d.table.dateColW;
 }
 
-/** Order mirrors the backend: [D, D, M, M] — DD row above the MM row. */
+/** Mirrors the backend: two day-digit boxes [D][D]. */
 function dateCombBoxes(d: RegisterDescriptor, col: number) {
   const c = d.table.comb;
   const rowW = 2 * c.boxW + c.gap;
   const x0 = dateColX(d, col) + (d.table.dateColW - rowW) / 2;
-  const yD = d.table.y + c.yOffset;
-  const yM = yD + c.boxH + c.rowGap;
+  const y = d.table.y + c.yOffset;
   return [
-    { x: x0, y: yD, w: c.boxW, h: c.boxH },
-    { x: x0 + c.boxW + c.gap, y: yD, w: c.boxW, h: c.boxH },
-    { x: x0, y: yM, w: c.boxW, h: c.boxH },
-    { x: x0 + c.boxW + c.gap, y: yM, w: c.boxW, h: c.boxH },
+    { x: x0, y, w: c.boxW, h: c.boxH },
+    { x: x0 + c.boxW + c.gap, y, w: c.boxW, h: c.boxH },
   ];
 }
 
@@ -52,16 +54,14 @@ function monthCombBoxes(d: RegisterDescriptor) {
   return out;
 }
 
-function markBoxPair(d: RegisterDescriptor, row: number, col: number) {
+/** One big mark box per cell — tick = present, cross = absent. */
+function cellMarkBox(d: RegisterDescriptor, row: number, col: number) {
   const t = d.table;
-  const cellX = dateColX(d, col);
-  const cellY = t.y + t.headerH + row * t.rowH;
-  const pairW = 2 * t.mark.box + t.mark.gap;
-  const x0 = cellX + (t.dateColW - pairW) / 2;
-  const y0 = cellY + (t.rowH - t.mark.box) / 2;
   return {
-    p: { x: x0, y: y0, w: t.mark.box, h: t.mark.box },
-    a: { x: x0 + t.mark.box + t.mark.gap, y: y0, w: t.mark.box, h: t.mark.box },
+    x: dateColX(d, col) + (t.dateColW - t.mark.w) / 2,
+    y: t.y + t.headerH + row * t.rowH + (t.rowH - t.mark.h) / 2,
+    w: t.mark.w,
+    h: t.mark.h,
   };
 }
 
@@ -74,8 +74,9 @@ const boxStyle = (b: { x: number; y: number; w: number; h: number }): React.CSSP
 
 // Column count comes from the server descriptor — no hard-coded mirror.
 
-function Sheet({ d, page, pageCount, schoolName }: {
+function Sheet({ d, page, pageCount, schoolName, printedMonth }: {
   d: RegisterDescriptor; page: SheetPage; pageCount: number; schoolName: string;
+  printedMonth: string | null;
 }) {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -118,23 +119,34 @@ function Sheet({ d, page, pageCount, schoolName }: {
         School: <b>{schoolName}</b> — page {page.page}/{pageCount}
       </div>
 
-      <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.monthComb.y + 1.5), fontSize: "3.2mm" }}>
-        Month &amp; Year:
-      </div>
-      {monthCombBoxes(d).map((b, i) => <div key={i} style={boxStyle(b)} />)}
-      <div
-        style={{
-          position: "absolute",
-          left: mm(d.header.monthComb.x + 2 * (d.header.monthComb.boxW + d.header.monthComb.gap) + 1.5),
-          top: mm(d.header.monthComb.y + 1.5),
-          fontSize: "3.2mm",
-        }}
-      >
-        / 20
-      </div>
+      {printedMonth ? (
+        // Month-specific print: the month is set at print time and signed into
+        // the QR — nothing to handwrite, nothing to machine-read.
+        <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.monthComb.y + 1.5), fontSize: "3.6mm", fontWeight: 700 }}>
+          Month &amp; Year: {monthLabelText(printedMonth)}
+        </div>
+      ) : (
+        <>
+          <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.monthComb.y + 1.5), fontSize: "3.2mm" }}>
+            Month &amp; Year:
+          </div>
+          {monthCombBoxes(d).map((b, i) => <div key={i} style={boxStyle(b)} />)}
+          <div
+            style={{
+              position: "absolute",
+              left: mm(d.header.monthComb.x + 2 * (d.header.monthComb.boxW + d.header.monthComb.gap) + 1.5),
+              top: mm(d.header.monthComb.y + 1.5),
+              fontSize: "3.2mm",
+            }}
+          >
+            / 20
+          </div>
+        </>
+      )}
       <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.monthComb.y + 10), fontSize: "2.6mm" }}>
-        Tick ONE box per student per day: P = present, A = absent. Write one digit per small box in
-        the date headers (DD/MM) and in Month &amp; Year. Do not change printed names or codes.
+        One big mark per box: ✓ = present, ✗ = absent, leave blank if unknown. Write the day
+        (one digit per small box) in each column header{printedMonth ? "" : ", and the month & year above"}.
+        Do not change printed names or codes.
       </div>
 
       {/* table outline + header labels */}
@@ -146,8 +158,7 @@ function Sheet({ d, page, pageCount, schoolName }: {
       </div>
       {Array.from({ length: d.table.dateCols }, (_, c) => (
         <div key={c} style={boxStyle({ x: dateColX(d, c), y: d.table.y, w: d.table.dateColW, h: d.table.headerH })}>
-          <span style={{ position: "absolute", left: "0.3mm", top: "0.3mm", fontSize: "1.7mm", color: "#666" }}>D</span>
-          <span style={{ position: "absolute", left: "0.3mm", bottom: "0.4mm", fontSize: "1.7mm", color: "#666" }}>M</span>
+          <span style={{ position: "absolute", left: "0.4mm", top: "0.4mm", fontSize: "1.8mm", color: "#666" }}>Day</span>
         </div>
       ))}
       {Array.from({ length: d.table.dateCols }, (_, c) =>
@@ -175,20 +186,12 @@ function Sheet({ d, page, pageCount, schoolName }: {
                 {s.name}
               </span>
             </div>
-            {Array.from({ length: d.table.dateCols }, (_, c) => {
-              const { p, a } = markBoxPair(d, r, c);
-              return (
-                <div key={c}>
-                  <div style={boxStyle({ x: dateColX(d, c), y, w: d.table.dateColW, h: d.table.rowH })} />
-                  <div style={boxStyle(p)}>
-                    <span style={{ position: "absolute", top: "-0.2mm", left: "0.4mm", fontSize: "1.9mm", color: "#888" }}>P</span>
-                  </div>
-                  <div style={boxStyle(a)}>
-                    <span style={{ position: "absolute", top: "-0.2mm", left: "0.4mm", fontSize: "1.9mm", color: "#888" }}>A</span>
-                  </div>
-                </div>
-              );
-            })}
+            {Array.from({ length: d.table.dateCols }, (_, c) => (
+              <div key={c}>
+                <div style={boxStyle({ x: dateColX(d, c), y, w: d.table.dateColW, h: d.table.rowH })} />
+                <div style={boxStyle(cellMarkBox(d, r, c))} />
+              </div>
+            ))}
           </div>
         );
       })}
@@ -211,9 +214,9 @@ function SheetInner() {
     <div className="mx-auto bg-white p-6 print:p-0" style={{ maxWidth: "230mm" }}>
       <div className="flex items-start justify-between print:hidden">
         <p className="text-sm text-slate-500">
-          Print at <b>100% scale on A4</b> and hand to the school. Teacher writes one digit per box
-          for <b>Month &amp; Year</b> and each column&apos;s <b>DD/MM</b>, and ticks <b>P</b> or{" "}
-          <b>A</b> per student per day.
+          Print at <b>100% scale on A4</b> and hand to the school. Teacher writes the <b>day</b>
+          {data.month ? "" : " and the month & year"} (one digit per box) and marks each student:{" "}
+          <b>✓ present</b>, <b>✗ absent</b>, blank if unknown.
         </p>
         <button
           onClick={() => window.print()}
@@ -231,6 +234,7 @@ function SheetInner() {
             page={pg}
             pageCount={data.pages.length}
             schoolName={data.school_name}
+            printedMonth={data.month}
           />
         ))}
       </div>
