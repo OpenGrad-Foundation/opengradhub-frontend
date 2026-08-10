@@ -324,7 +324,10 @@ function ReviewGridInner({
               <th className="px-2 py-1.5 font-medium">Code</th>
               <th className="px-2 py-1.5 font-medium">Student</th>
               {dates.map((d) => (
-                <th key={d} className="px-2 py-1.5 font-medium whitespace-nowrap">{d.slice(5)}</th>
+                // DD/MM — the order the sheet (and everyone filling it) uses
+                <th key={d} className="px-2 py-1.5 font-medium whitespace-nowrap">
+                  {`${d.slice(8)}/${d.slice(5, 7)}`}
+                </th>
               ))}
             </tr>
           </thead>
