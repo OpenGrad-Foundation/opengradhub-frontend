@@ -109,10 +109,12 @@ function Sheet({ d, page, pageCount, schoolName }: {
         />
       )}
 
-      <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.titleY - 5), fontSize: "5mm", fontWeight: 700 }}>
+      {/* Header text starts right of the TL fiducial (which spans 4–13mm) —
+          at table.x it would sit underneath the black square. */}
+      <div style={{ position: "absolute", left: mm(16), top: mm(d.header.titleY - 5), fontSize: "5mm", fontWeight: 700 }}>
         OpenGrad Attendance Register
       </div>
-      <div style={{ position: "absolute", left: mm(d.table.x), top: mm(d.header.titleY + 3), fontSize: "3.2mm" }}>
+      <div style={{ position: "absolute", left: mm(16), top: mm(d.header.titleY + 3), fontSize: "3.2mm" }}>
         School: <b>{schoolName}</b> — page {page.page}/{pageCount}
       </div>
 
