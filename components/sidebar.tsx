@@ -13,6 +13,7 @@ import {
   FileText,
   Video,
   Calendar,
+  CalendarCheck,
   FolderOpen,
   HelpCircle,
   Bell,
@@ -62,6 +63,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   schools:         School,
   batches:         Layers,
   tracker:         ListChecks,
+  attendance:      CalendarCheck,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────
