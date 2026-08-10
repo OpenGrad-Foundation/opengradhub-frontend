@@ -25,8 +25,25 @@ const PRIMARY_BTN =
   "rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 " +
   "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
 
+/** Current month + the two before it — the months a register realistically covers. */
+function monthOptions(): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  const now = new Date();
+  for (let back = 0; back < 3; back++) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1));
+    out.push({
+      value: d.toISOString().slice(0, 7),
+      label: d.toLocaleString("en", { month: "long", year: "numeric", timeZone: "UTC" }),
+    });
+  }
+  return out;
+}
+
 export function RegistersTab({ canManage }: { canManage: boolean }) {
   const [schoolId, setSchoolId] = useState("");
+  // Default to the current month: a month-specific sheet carries its month
+  // printed + signed in the QR, so the school handwrites nothing but days.
+  const [sheetMonth, setSheetMonth] = useState<string>(() => monthOptions()[0].value);
   const [image, setImage] = useState<File | null>(null);
   const [draft, setDraft] = useState<UploadDetail | null>(null);
 
@@ -102,8 +119,8 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
           Printable sheet
         </h3>
         <p className="mt-1 text-xs text-slate-500">
-          Print a pre-filled register for the school. The month and the day numbers are both left
-          blank for the school to write in — they are read back off the sheet when you upload it.
+          Pick the school and month, then print. A month-specific sheet has its month printed on
+          it — the school only writes day numbers and marks ✓ present / ✗ absent.
         </p>
         {schoolsFailed ? (
           <p className="mt-2 text-sm text-red-600">
@@ -111,8 +128,11 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             Ask an admin.
           </p>
         ) : (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-end gap-3">
             <div className="min-w-[260px] flex-1">
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                1 · School
+              </label>
               <SchoolSearchPicker
                 schools={schools ?? []}
                 value={schoolId}
@@ -121,16 +141,39 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
                 placeholder={schoolsLoading ? "Loading schools…" : "Search school by name, code or district…"}
               />
             </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                2 · Month
+              </label>
+              <select
+                value={sheetMonth}
+                onChange={(e) => setSheetMonth(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+              >
+                {monthOptions().map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+                <option value="">Blank — school writes the month</option>
+              </select>
+            </div>
             <Link
-              href={schoolId ? `/dashboard/attendance/sheet?school_id=${encodeURIComponent(schoolId)}` : "#"}
+              href={
+                schoolId
+                  ? `/dashboard/attendance/sheet?school_id=${encodeURIComponent(schoolId)}${
+                      sheetMonth ? `&month=${sheetMonth}` : ""
+                    }`
+                  : "#"
+              }
+              target="_blank"
+              rel="noopener"
               aria-disabled={!schoolId}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+              className={`rounded-lg px-4 py-2 text-sm font-semibold ${
                 schoolId
                   ? "text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]"
                   : "bg-slate-200 text-slate-400 pointer-events-none"
               }`}
             >
-              Open printable sheet
+              Print / download ↗
             </Link>
           </div>
         )}
@@ -156,9 +199,9 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
         </div>
         <p className="mt-2 text-xs text-slate-400">
           Uses the school selected above. Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max
-          10 MB. Spreadsheets are read directly and still need full dates in their headers; photos
-          and PDFs go through extraction, which reads the handwritten month. Either way you review
-          and correct before anything is saved.
+          10 MB. Photos and PDFs of the printed sheet are extracted automatically (ticks, crosses
+          and day numbers); spreadsheets are read directly and need full dates in their headers.
+          Either way you review and correct before anything is saved.
         </p>
       </div>
 
