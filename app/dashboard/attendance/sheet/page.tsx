@@ -101,6 +101,17 @@ function Sheet({ d, page, pageCount, schoolName, printedMonth }: {
       {fid(d.page.w - 4 - d.fiducial.other, d.page.h - 4 - d.fiducial.other, d.fiducial.other)}
       {fid(4, d.page.h - 4 - d.fiducial.other, d.fiducial.other)}
 
+      {/* crop-prevention hint: short rosters leave the bottom squares in empty
+          space and people crop them away — which makes the photo unreadable */}
+      <div
+        style={{
+          position: "absolute", left: 0, right: 0, top: mm(d.page.h - 8),
+          textAlign: "center", fontSize: "2.6mm", color: "#555",
+        }}
+      >
+        Photograph the WHOLE page — all 4 black corner squares must be in the picture.
+      </div>
+
       {qrUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -243,10 +254,18 @@ function SheetInner() {
         @media print {
           @page { size: A4 portrait; margin: 0; }
           .sheet-page {
+            /* A full 297mm element overflows the printable page in most
+               engines (rounding), pushing the bottom fiducials onto a second
+               page. Clamping the DIV's height is safe: every element inside is
+               absolutely positioned from the top, so nothing moves — only the
+               page break behaves. */
+            height: 296mm !important;
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
             page-break-after: always;
+            page-break-inside: avoid;
           }
+          .sheet-page:last-child { page-break-after: auto; }
         }
       `}</style>
     </div>
