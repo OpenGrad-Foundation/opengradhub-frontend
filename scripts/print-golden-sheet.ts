@@ -25,7 +25,7 @@ if (process.env.GOLDEN_COOKIE) {
   const [name, ...rest] = process.env.GOLDEN_COOKIE.split('=');
   await page.context().addCookies([{ name, value: rest.join('='), url: 'http://localhost:3000' }]);
 }
-await page.goto(`http://localhost:3000/dashboard/attendance/sheet?school_id=${schoolId}`);
+await page.goto(`http://localhost:3000/print/register?school_id=${schoolId}`);
 await page.waitForSelector('.sheet-page img[alt=""]'); // QR rendered = data loaded
 await page.pdf({
   path: out,

@@ -139,7 +139,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             and marks each student ✓ present / ✗ absent.
           </p>
           <Link
-            href={schoolId ? `/dashboard/attendance/sheet?school_id=${encodeURIComponent(schoolId)}` : "#"}
+            href={schoolId ? `/print/register?school_id=${encodeURIComponent(schoolId)}` : "#"}
             target="_blank"
             rel="noopener"
             className={PRIMARY_BTN}
@@ -168,7 +168,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 10 MB. Photos and PDFs of the printed
+          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 25 MB. Photos and PDFs of the printed
           sheet are extracted automatically (ticks, crosses and day numbers); spreadsheets are read
           directly and need full dates in their headers. Either way you review and correct before
           anything is saved.
