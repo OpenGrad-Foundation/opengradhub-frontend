@@ -26,6 +26,10 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: "announcements", label: "Announcements" },
 ];
 
+// Rendering the whole feed at once froze the page for users with a large
+// backlog — rows mount in pages instead.
+const PAGE_SIZE = 50;
+
 export default function InboxPage() {
   const router = useRouter();
   const { data, isLoading: userLoading } = useCurrentUser();
@@ -33,6 +37,7 @@ export default function InboxPage() {
 
   const [filter,       setFilter]       = useState<Filter>("all");
   const [composeOpen,  setComposeOpen]  = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const canCompose = usePermission(PERM.notifications.send);
   const canCreateAnn = usePermission(PERM.announcements.create);
@@ -72,6 +77,7 @@ export default function InboxPage() {
     if (filter === "notifications") return i.source === "notification";
     return i.source === "announcement";
   });
+  const visible = filtered.slice(0, visibleCount);
 
   if (userLoading) return <LoadingState message="Loading your inbox…" />;
 
@@ -125,7 +131,10 @@ export default function InboxPage() {
           return (
             <button
               key={value}
-              onClick={() => setFilter(value)}
+              onClick={() => {
+                setFilter(value);
+                setVisibleCount(PAGE_SIZE);
+              }}
               style={{
                 padding: "8px 18px",
                 border: "1px solid",
@@ -162,7 +171,7 @@ export default function InboxPage() {
         </div>
       ) : (
         <div style={{ ...S.glassCard, padding: 0, overflow: "hidden" }}>
-          {filtered.map((item, idx) => {
+          {visible.map((item, idx) => {
             const isAnn   = item.source === "announcement";
             const isUnread = !item.is_read;
             const hasRoute = item.source === "notification" && !!notificationRoute(item.type, item.link);
@@ -182,7 +191,7 @@ export default function InboxPage() {
                   display: "flex",
                   gap: "14px",
                   padding: "16px 24px",
-                  borderBottom: idx < filtered.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none",
+                  borderBottom: idx < visible.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none",
                   background: isUnread ? "rgba(10,190,98,0.03)" : "transparent",
                   cursor: isClickable ? "pointer" : "default",
                   transition: "background 150ms",
@@ -299,6 +308,16 @@ export default function InboxPage() {
               </div>
             );
           })}
+          {filtered.length > visibleCount && (
+            <div style={{ padding: "14px", textAlign: "center", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+              <button
+                style={S.textButton}
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              >
+                Load more ({filtered.length - visibleCount} remaining)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

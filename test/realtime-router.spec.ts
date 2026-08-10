@@ -65,6 +65,32 @@ describe('createRealtimeRouter', () => {
     expect(invalidateAnnouncements).toHaveBeenCalledOnce();
   });
 
+  it('absorbs a notifications-changed burst: one leading + one trailing invalidate', () => {
+    // A bulk send (cron escalation, scoped campaign) emits one SSE event per
+    // inserted row. Without a cooldown every event refetched the list + count.
+    const { router, timers, invalidateNotifications } = makeRouter();
+    for (let i = 0; i < 10; i++) router.handle('notifications-changed');
+    expect(invalidateNotifications).toHaveBeenCalledOnce(); // leading edge only
+    timers.flush(); // cooldown expires → single trailing catch-up
+    expect(invalidateNotifications).toHaveBeenCalledTimes(2);
+  });
+
+  it('single notifications-changed schedules no trailing invalidate', () => {
+    const { router, timers, invalidateNotifications } = makeRouter();
+    router.handle('notifications-changed');
+    timers.flush();
+    expect(invalidateNotifications).toHaveBeenCalledOnce();
+  });
+
+  it('dispose cancels a pending notifications trailing invalidate', () => {
+    const { router, timers, invalidateNotifications } = makeRouter();
+    router.handle('notifications-changed');
+    router.handle('notifications-changed'); // marks trailing work pending
+    router.dispose();
+    timers.flush();
+    expect(invalidateNotifications).toHaveBeenCalledOnce();
+  });
+
   it('ignores ping and unknown events', () => {
     const { router, timers, invalidateNotifications, invalidateAnnouncements } = makeRouter();
     router.handle('ping');

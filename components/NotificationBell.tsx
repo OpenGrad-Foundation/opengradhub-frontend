@@ -14,6 +14,7 @@ import { useInboxFeed, useInboxUnreadCount, type InboxItem } from "@/lib/queries
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
 import { useMarkNotificationRead } from "@/lib/queries/notifications";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { computeInboxToasts, DROPDOWN_CAP } from "@/lib/inbox-toast";
 import { notificationRoute } from "@/lib/notification-routes";
 import { usePush } from "@/lib/push/use-push";
 
@@ -87,19 +88,21 @@ export default function NotificationBell() {
 
     if (items.length > 0 && latestItemId !== previousLatestItemId.current) {
       if (previousLatestItemId.current !== undefined) {
-        const previousLatestItem = items.find(i => i.id === previousLatestItemId.current);
-        const newItems = previousLatestItem 
-          ? items.filter(item => item.created_at > previousLatestItem.created_at)
-          : [items[0]];
-        
-        newItems.forEach(item => {
-          if (!item.is_read) {
-            toast(item.title, {
-              description: item.body,
-              icon: itemIcon(item),
-            });
-          }
+        // Capped: one toast per item melts the browser when a refetch lands
+        // with a large backlog of unread (see lib/inbox-toast.ts).
+        const { toasts, overflow } = computeInboxToasts(items, previousLatestItemId.current);
+        toasts.forEach(item => {
+          toast(item.title, {
+            description: item.body,
+            icon: itemIcon(item),
+          });
         });
+        if (overflow > 0) {
+          toast(`${overflow} more new notification${overflow === 1 ? "" : "s"}`, {
+            description: "Open your inbox to see all of them.",
+            icon: "🔔",
+          });
+        }
       }
       previousLatestItemId.current = latestItemId;
     }
@@ -203,7 +206,7 @@ export default function NotificationBell() {
             ) : items.length === 0 ? (
               <p style={{ textAlign: "center", padding: "24px", fontSize: "13px", color: "rgba(3,72,82,0.4)" }}>No notifications yet</p>
             ) : (
-              items.map(item => {
+              items.slice(0, DROPDOWN_CAP).map(item => {
                 const route = item.source === "notification"
                   ? notificationRoute(item.type, item.link)
                   : undefined;
