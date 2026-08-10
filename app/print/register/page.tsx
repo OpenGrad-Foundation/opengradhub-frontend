@@ -17,6 +17,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
+import { useCurrentUser } from "@/lib/queries/current-user";
 import { useSheetData } from "@/lib/queries/attendance";
 import type { RegisterDescriptor, SheetPage } from "@/lib/attendance-api";
 
@@ -215,10 +216,14 @@ function SheetInner() {
   const schoolId = params.get("school_id");
   // Still honoured when present so previously printed links keep working.
   const month = params.get("month");
+  // Outside the dashboard layout NOTHING else registers the API token getter —
+  // useCurrentUser does that as a render side-effect. Without it every fetch
+  // from this page goes out unauthenticated.
+  const { isLoading: authLoading } = useCurrentUser();
   const { data, isLoading, error } = useSheetData(schoolId, month);
 
   if (!schoolId) return <p className="p-6 text-slate-600">Missing school.</p>;
-  if (isLoading) return <p className="p-6 text-slate-500">Loading…</p>;
+  if (authLoading || isLoading) return <p className="p-6 text-slate-500">Loading…</p>;
   if (error || !data) return <p className="p-6 text-red-600">Could not load sheet data.</p>;
 
   return (
