@@ -2459,7 +2459,12 @@ export type QuizAttemptWithStudent = QuizAttempt & {
 /** Every student's attempts for one quiz, for the Quiz Details "Attempts" tab. */
 export async function getAllQuizAttempts(quizId: string): Promise<QuizAttemptWithStudent[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/all-attempts`);
-  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  if (!r.ok) {
+    // This route 403s with a specific reason ("You do not have access to manage this
+    // quiz"). Discarding it turned a permission boundary into an apparently broken page.
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch quiz attempts.", r.status);
+  }
   return (await r.json()) as QuizAttemptWithStudent[];
 }
 

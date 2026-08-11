@@ -257,7 +257,8 @@ export default function BatchDetailPage() {
           createdBy={batch.created_by}
           callerId={userData?.user?.id ?? ""}
           callerRole={userData?.role?.code ?? ""}
-          description="Collaborators can manage this batch's quizzes and assignments — attach or remove quizzes, set windows, edit and grade batch-targeted work. Batch details, students, and deletion stay with the creator (or a Super Admin)."
+          description="Collaborators can manage this batch's quizzes and assignments — attach or remove quizzes, set windows, edit and grade batch-targeted work. Batch details and deletion stay with the creator (or a Super Admin). A collaborator who does not already oversee this batch's schools sees the student list without emails or roll numbers."
+          note="Editing a quiz's content also needs every batch that quiz is attached to be one you manage, and the quiz to be in no bundle. Otherwise collaborators here can still set its window for this batch, but must be invited on the quiz itself to change its questions."
         />
       )}
 
@@ -867,7 +868,9 @@ function AddCourseModal({
   useEffect(() => {
     getCourses(undefined, undefined, undefined, true)
       .then((data) => setCourses(data.filter((c) => c.status === "ACTIVE" && !existingCourseIds.includes(c.id))))
-      .catch(() => setCourses([]))
+      // Swallowing this rendered a permission or server failure as "no courses available",
+      // which reads as an empty catalogue rather than a broken request.
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load courses."))
       .finally(() => setLoading(false));
   }, [existingCourseIds]);
 
@@ -897,7 +900,7 @@ function AddCourseModal({
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search active courses…"
-        emptyText="No active courses available."
+        emptyText={error ? "Could not load courses." : "No active courses available."}
       />
       {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <ModalActions onClose={onClose} onConfirm={() => void handleAdd()} disabled={!selected || submitting} label={submitting ? "Adding…" : "Add Course"} />
@@ -926,7 +929,7 @@ function AddBundleModal({
   useEffect(() => {
     getBundles()
       .then((data) => setBundles(data.filter((b) => !existingBundleIds.includes(b.id))))
-      .catch(() => setBundles([]))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load bundles."))
       .finally(() => setLoading(false));
   }, [existingBundleIds]);
 
@@ -956,7 +959,7 @@ function AddBundleModal({
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search bundles…"
-        emptyText="No bundles available."
+        emptyText={error ? "Could not load bundles." : "No bundles available."}
       />
       {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <ModalActions onClose={onClose} onConfirm={() => void handleAdd()} disabled={!selected || submitting} label={submitting ? "Adding…" : "Add Bundle"} />
@@ -986,7 +989,7 @@ function AddTestModal({
   useEffect(() => {
     getQuizzes({ quiz_type: "GLOBAL_TEST" })
       .then((data) => setQuizzes(data.filter((q) => q.published && !existingTestIds.includes(q.id))))
-      .catch(() => setQuizzes([]))
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quizzes."))
       .finally(() => setLoading(false));
   }, [existingTestIds]);
 
@@ -1023,7 +1026,7 @@ function AddTestModal({
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search published global quizzes…"
-        emptyText="No published global quizzes available."
+        emptyText={error ? "Could not load quizzes." : "No published global quizzes available."}
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
         <div style={{ minWidth: 0 }}>

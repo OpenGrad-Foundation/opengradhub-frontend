@@ -452,6 +452,7 @@ export default function QuizBuilderPage() {
           callerId={userId}
           callerRole={userData?.role?.code ?? ""}
           description="Collaborators can edit this quiz, manage its questions and sections, publish it, and view results. Only the creator (or a Super Admin) can delete it or change this list."
+          note="Managers of this quiz's batches get the same rights automatically, but only while every batch it is attached to is theirs and it belongs to no bundle. Invite them here to give access that survives the quiz being shared more widely."
         />
       )}
 

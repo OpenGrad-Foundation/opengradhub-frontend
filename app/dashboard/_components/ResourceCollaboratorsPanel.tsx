@@ -26,6 +26,7 @@ export default function ResourceCollaboratorsPanel({
   callerId,
   callerRole,
   description,
+  note,
 }: {
   resource: CollabResource;
   resourceId: string;
@@ -33,6 +34,8 @@ export default function ResourceCollaboratorsPanel({
   callerId: string;
   callerRole: string;
   description: string;
+  /** Caveat shown under the description — the limits of what sharing actually grants. */
+  note?: string;
 }) {
   const canShare = callerRole === "SUPER_ADMIN" || (!!createdBy && callerId === createdBy);
 
@@ -125,6 +128,11 @@ export default function ResourceCollaboratorsPanel({
         <p style={eyebrow}>Sharing</p>
         <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Collaborators</h3>
         <p style={subtitle}>{description}</p>
+        {note && (
+          <p style={{ ...subtitle, marginTop: "6px", fontSize: "12px", opacity: 0.85 }}>
+            {note}
+          </p>
+        )}
       </div>
 
       {error && (
