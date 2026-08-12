@@ -7,7 +7,6 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { getAssignmentById, getCourses, getBatches, type Course, type Batch, type SubmissionType } from "@/lib/api";
-import ResourceCollaboratorsPanel from "@/app/dashboard/_components/ResourceCollaboratorsPanel";
 import { useUpdateAssignment } from "@/lib/queries/assignments";
 
 /** Converts an ISO timestamp into the `YYYY-MM-DDTHH:mm` shape a
@@ -22,7 +21,7 @@ export default function EditAssignmentPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const { data: userData, isLoading } = useCurrentUser();
+  const { isLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
   const update = useUpdateAssignment();
 
@@ -36,7 +35,6 @@ export default function EditAssignmentPage() {
   const [batchId, setBatchId]     = useState("");
   const [courses, setCourses]     = useState<Course[]>([]);
   const [batches, setBatches]     = useState<Batch[]>([]);
-  const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
 
@@ -63,7 +61,6 @@ export default function EditAssignmentPage() {
         setDueAt(toLocalInput(a.due_at));
         setCourseId(a.course_id ?? "");
         setBatchId(a.batch_id ?? "");
-        setCreatedBy(a.created_by ?? null);
       })
       .catch(err => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load assignment.");
@@ -204,17 +201,6 @@ export default function EditAssignmentPage() {
             </div>
           </div>
         </form>
-      )}
-
-      {!loading && (
-        <ResourceCollaboratorsPanel
-          resource="assignments"
-          resourceId={id}
-          createdBy={createdBy}
-          callerId={userData?.user?.id ?? ""}
-          callerRole={userData?.role?.code ?? ""}
-          description="Collaborators can edit this assignment, view submissions, and grade. Only the creator (or a Super Admin) can delete it or change this list."
-        />
       )}
     </div>
   );

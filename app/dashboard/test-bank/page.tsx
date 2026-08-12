@@ -540,11 +540,9 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }:
         </div>
       </div>
       <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto">
-        {quiz.can_manage !== false && (
-          <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
-            Edit →
-          </Link>
-        )}
+        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
+          Edit →
+        </Link>
         {isArchived ? (
           <button onClick={onUnarchive} disabled={busy} style={{ ...outlineBtn, color: "#209379", borderColor: "rgba(32,147,121,0.3)", opacity: busy ? 0.5 : 1 }}>
             {busy ? "…" : "Restore"}
@@ -554,11 +552,9 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }:
             {busy ? "…" : "Archive"}
           </button>
         )}
-        {quiz.can_delete !== false && (
-          <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
-            Delete
-          </button>
-        )}
+        <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
+          Delete
+        </button>
       </div>
     </div>
   );

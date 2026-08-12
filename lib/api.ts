@@ -986,54 +986,6 @@ export async function removeCourseCollaborator(courseId: string, userId: string)
   return (await r.json()) as { removed: boolean };
 }
 
-// ── Generic collaborators API (batches / quizzes / assignments) ──
-// Same row shapes as the course collaborator endpoints; the resource segment
-// selects which backend controller handles it.
-
-export type CollabResource = "batches" | "quizzes" | "assignments";
-
-export async function getCollaborators(resource: CollabResource, id: string): Promise<CourseCollaborator[]> {
-  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators`);
-  if (!r.ok) {
-    const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch collaborators.", r.status);
-  }
-  return (await r.json()) as CourseCollaborator[];
-}
-
-export async function getEligibleCollaboratorsFor(resource: CollabResource, id: string): Promise<EligibleCollaborator[]> {
-  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators/eligible`);
-  if (!r.ok) {
-    const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch eligible collaborators.", r.status);
-  }
-  return (await r.json()) as EligibleCollaborator[];
-}
-
-export async function addCollaboratorFor(resource: CollabResource, id: string, userId: string): Promise<{ added: boolean }> {
-  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId }),
-  });
-  if (!r.ok) {
-    const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to add collaborator.", r.status);
-  }
-  return (await r.json()) as { added: boolean };
-}
-
-export async function removeCollaboratorFor(resource: CollabResource, id: string, userId: string): Promise<{ removed: boolean }> {
-  const r = await apiFetch(`${API_BASE_URL}/${resource}/${id}/collaborators/${userId}`, {
-    method: "DELETE",
-  });
-  if (!r.ok) {
-    const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to remove collaborator.", r.status);
-  }
-  return (await r.json()) as { removed: boolean };
-}
-
 // ── Questions / Test Bank API ──────────────────────────────────
 
 export type EvaluationCriterion = { criteria: string; percentage: number };
@@ -1745,9 +1697,6 @@ export type Quiz = {
   // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
   due_at: string | null;
   archived_at: string | null;
-  /** List affordances (GET /quizzes only): mirror backend collab-authz. */
-  can_manage?: boolean;
-  can_delete?: boolean;
 };
 
 export type CreateQuizPayload = {
@@ -2459,12 +2408,7 @@ export type QuizAttemptWithStudent = QuizAttempt & {
 /** Every student's attempts for one quiz, for the Quiz Details "Attempts" tab. */
 export async function getAllQuizAttempts(quizId: string): Promise<QuizAttemptWithStudent[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/all-attempts`);
-  if (!r.ok) {
-    // This route 403s with a specific reason ("You do not have access to manage this
-    // quiz"). Discarding it turned a permission boundary into an apparently broken page.
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch quiz attempts.", r.status);
-  }
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
   return (await r.json()) as QuizAttemptWithStudent[];
 }
 
