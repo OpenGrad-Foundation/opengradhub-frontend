@@ -4469,3 +4469,135 @@ export async function getQuestionById(id: string): Promise<Question> {
   if (!r.ok) throw new ApiError("Failed to load question.", r.status);
   return r.json();
 }
+
+// ── programmes ───────────────────────────────────────────────────────────────
+// The programme container: track x geography ("UG Kerala"), the scope holder
+// that replaces per-resource collaborators.
+//
+// Every error here surfaces the SERVER's message rather than a generic string.
+// These endpoints deliberately distinguish 403 (not an OWNER of this programme)
+// from 409 (last OWNER / school still has batches) from 400 (student, bad
+// level), and flattening them into "Failed to..." would throw away the one
+// piece of information the user needs to act.
+
+export type ProgrammeLevel = "OWNER" | "EDITOR" | "VIEWER";
+
+export interface Programme {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  state: string | null;
+  cohort_label: string | null;
+  status: "ACTIVE" | "ARCHIVED";
+  created_by: string | null;
+  created_at: string;
+  my_level?: ProgrammeLevel | null;
+}
+
+export interface ProgrammeMember {
+  user_id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  level: ProgrammeLevel;
+  added_at: string;
+}
+
+export interface ProgrammeSchool {
+  school_id: string;
+  name: string;
+  district: string | null;
+  state: string | null;
+}
+
+async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? fallback, r.status);
+  }
+  return (await r.json()) as T;
+}
+
+export async function getProgrammes(includeArchived = false): Promise<Programme[]> {
+  const url = new URL(`${API_BASE_URL}/programmes`);
+  if (includeArchived) url.searchParams.set("include_archived", "true");
+  return programmeJson(await apiFetch(url.toString()), "Failed to load programmes.");
+}
+
+export async function getProgramme(id: string): Promise<Programme> {
+  return programmeJson(await apiFetch(`${API_BASE_URL}/programmes/${id}`), "Failed to load programme.");
+}
+
+export async function createProgramme(payload: {
+  code: string;
+  name: string;
+  kind: string;
+  state?: string;
+  cohort_label?: string;
+}): Promise<Programme> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return programmeJson(r, "Failed to create programme.");
+}
+
+export async function updateProgramme(
+  id: string,
+  payload: { name?: string; state?: string; cohort_label?: string; status?: "ACTIVE" | "ARCHIVED" },
+): Promise<Programme> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return programmeJson(r, "Failed to update programme.");
+}
+
+export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/members`),
+    "Failed to load members.",
+  );
+}
+
+export async function setProgrammeMember(
+  id: string,
+  userId: string,
+  level: ProgrammeLevel,
+): Promise<{ level: ProgrammeLevel }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level }),
+  });
+  return programmeJson(r, "Failed to set member level.");
+}
+
+export async function removeProgrammeMember(id: string, userId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to remove member.");
+}
+
+export async function getProgrammeSchools(id: string): Promise<ProgrammeSchool[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/schools`),
+    "Failed to load schools.",
+  );
+}
+
+export async function attachProgrammeSchool(id: string, schoolId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/schools/${schoolId}`, { method: "PUT" });
+  await programmeJson(r, "Failed to attach school.");
+}
+
+export async function detachProgrammeSchool(id: string, schoolId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/schools/${schoolId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to detach school.");
+}

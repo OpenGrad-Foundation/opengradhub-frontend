@@ -105,6 +105,11 @@ export const PERM = {
     view: "bulk_assign.view",
     run: "bulk_assign.run",
   },
+  programmes: {
+    view: "programmes.view",
+    edit: "programmes.edit",
+    manage_members: "programmes.manage_members",
+  },
   schools: {
     view: "schools.view",
     create: "schools.create",
@@ -186,6 +191,7 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   "student-export": PERM.student_export.view,
   "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
+  programmes: PERM.programmes.view,
   schools: PERM.schools.view,
   batches: PERM.batches.view,
   "role-management": PERM.role_management.view,
