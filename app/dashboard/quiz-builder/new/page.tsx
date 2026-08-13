@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -14,10 +14,8 @@ export default function NewQuizPage() {
   const moduleId  = params.get("module_id")  ?? "";
   const courseId  = params.get("course_id")  ?? "";
 
-  const { data, isLoading: userLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
   const invalidate = useInvalidate();
-  const userId   = data?.user?.id ?? "";
 
   const [title, setTitle]                   = useState("");
   const [duration, setDuration]             = useState("");
@@ -38,7 +36,16 @@ export default function NewQuizPage() {
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
 
-  if (userLoading || permLoading) return null;
+  // Bulk import builds the whole quiz from a file, so it belongs beside this
+  // form rather than inside the question builder. Carrying module_id/course_id
+  // through is what keeps the import scoped to this module instead of the
+  // global test bank.
+  const bulkImportQuery = new URLSearchParams(
+    Object.entries({ course_id: courseId, module_id: moduleId }).filter(([, v]) => v),
+  ).toString();
+  const bulkImportHref = `/dashboard/quiz-builder/bulk-import${bulkImportQuery ? `?${bulkImportQuery}` : ""}`;
+
+  if (permLoading) return null;
 
   if (!has(PERM.test_bank.create)) {
     return (
@@ -64,7 +71,6 @@ export default function NewQuizPage() {
         pass_threshold_percent: passThreshold ? Number(passThreshold) : undefined,
         shuffle_questions:      shuffle,
         show_answers_after:     showAnswers,
-        created_by:             userId || undefined,
         is_sectioned:           isSectioned,
         sequential_sections:    isSectioned ? sequentialSections : false,
         first_attempt_counts:   firstAttemptCounts,
@@ -91,10 +97,15 @@ export default function NewQuizPage() {
           ← Back
         </a>
         <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
-        <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
-        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-          Set up the quiz — you can add questions after saving.
-        </p>
+        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+          <div>
+            <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
+            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+              Set up the quiz — you can add questions after saving.
+            </p>
+          </div>
+          <Link href={bulkImportHref} style={bulkBtn}>⬆ Bulk Import from File</Link>
+        </div>
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>
@@ -201,6 +212,12 @@ const primaryBtn: React.CSSProperties = {
   background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
   color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px",
   cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", transition: "all 240ms ease",
+};
+const bulkBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "12px", whiteSpace: "nowrap",
+  border: "1.5px solid rgba(32,147,121,0.3)", background: "rgba(32,147,121,0.06)",
+  color: "#209379", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+  textDecoration: "none",
 };
 const input: React.CSSProperties = {
   width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)",

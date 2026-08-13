@@ -1,17 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   bulkParseCancel,
   bulkParseQuiz,
   bulkParseQuizFromPdf,
   bulkSaveQuiz,
   getBulkParseJobStatus,
+  getCourseModules,
   type BulkParseJobStatus,
   type ParsedBulkQuiz,
+  type QuizDestination,
 } from "@/lib/api";
 import { QuizPreviewEditor } from "@/components/quiz-preview-editor";
+import { withFrom } from "@/lib/nav";
 
 // PDF parsing runs as a background job on the server; the page polls its
 // status until completion instead of holding one long HTTP request open.
@@ -63,6 +66,19 @@ const S = {
     color: "#034852",
     margin: "0 0 8px 0",
   } as React.CSSProperties,
+  banner: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "10px 14px",
+    marginBottom: "20px",
+    borderRadius: "10px",
+    background: "rgba(32,147,121,0.08)",
+    border: "1px solid rgba(32,147,121,0.2)",
+    color: "#0f6b58",
+    fontSize: "13px",
+    fontWeight: 600,
+  } as React.CSSProperties,
   primaryBtn: {
     padding: "12px 28px",
     border: "none",
@@ -80,6 +96,23 @@ const S = {
 
 export default function BulkImportQuizPage() {
   const router = useRouter();
+  const params = useSearchParams();
+
+  // Where the quiz will be saved. Held in page state, never inside previewData:
+  // that payload is round-tripped through an editable preview, so a destination
+  // carried alongside its content would be editable too.
+  const moduleId = params.get("module_id");
+  const courseIdParam = params.get("course_id");
+  const destination: QuizDestination = moduleId
+    ? { kind: "MODULE", moduleId }
+    : { kind: "GLOBAL" };
+
+  // course_id is a redirect hint only. It is confirmed against the module's
+  // real course before it is used as a redirect target; an unverified value
+  // would let a crafted link bounce the author into an unrelated course.
+  const [moduleTitle, setModuleTitle] = useState<string | null>(null);
+  const [verifiedCourseId, setVerifiedCourseId] = useState<string | null>(null);
+
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null);
@@ -100,6 +133,22 @@ export default function BulkImportQuizPage() {
   }, []);
 
   useEffect(() => {
+    if (!moduleId || !courseIdParam) return;
+    let stale = false;
+    // Failures leave the banner generic and the redirect on its global
+    // fallback — the destination itself is authorized server-side regardless.
+    void getCourseModules(courseIdParam)
+      .then((modules) => {
+        const found = modules.find((m) => m.id === moduleId);
+        if (stale || !found) return;
+        setModuleTitle(found.title);
+        setVerifiedCourseId(courseIdParam);
+      })
+      .catch(() => undefined);
+    return () => { stale = true; };
+  }, [moduleId, courseIdParam]);
+
+  useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(null), 4000);
     return () => clearTimeout(timer);
@@ -108,23 +157,25 @@ export default function BulkImportQuizPage() {
   // ── Step 1: parse the file ────────────────────────────────────────────────
 
   /**
-   * PDFs are parsed by a background worker: enqueue the job, then poll its
-   * status until it completes (or fails / times out).
+   * Polls a background job until it settles. Resolves with the completed job,
+   * or null if the page was unmounted mid-poll; throws on job failure, poll
+   * timeout, or repeated poll errors. `label` names the job in those errors.
    */
-  async function parsePdfInBackground(pdfFile: File): Promise<void> {
-    setProcessingStatus("Uploading and queuing…");
-    const { jobId } = await bulkParseQuizFromPdf(pdfFile);
-
+  async function pollJobUntilDone(
+    jobId: string,
+    label: string,
+    onProgress: (status: BulkParseJobStatus) => void,
+  ): Promise<BulkParseJobStatus | null> {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
     let consecutivePollErrors = 0;
 
     for (;;) {
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) return null;
       if (Date.now() > deadline) {
-        throw new Error("PDF processing timed out. Please try again.");
+        throw new Error(`${label} timed out. Please try again.`);
       }
       await sleep(POLL_INTERVAL_MS);
-      if (cancelledRef.current) return;
+      if (cancelledRef.current) return null;
 
       let status: BulkParseJobStatus;
       try {
@@ -137,19 +188,32 @@ export default function BulkImportQuizPage() {
         continue;
       }
 
-      if (status.status === "completed") {
-        const { image_keys, ...parsed } =
-          (status.result ?? {}) as ParsedBulkQuiz & { image_keys?: string[] };
-        setPreviewData(parsed as ParsedBulkQuiz);
-        setImageKeys(image_keys ?? []);
-        setToast("PDF parsed successfully!");
-        return;
-      }
+      if (status.status === "completed") return status;
       if (status.status === "failed") {
-        throw new Error(status.error || "Failed to parse PDF.");
+        throw new Error(status.error || `${label} failed.`);
       }
-      setProcessingStatus(jobStatusLabel(status));
+      onProgress(status);
     }
+  }
+
+  /**
+   * PDFs are parsed by a background worker: enqueue the job, then poll its
+   * status until it completes (or fails / times out).
+   */
+  async function parsePdfInBackground(pdfFile: File): Promise<void> {
+    setProcessingStatus("Uploading and queuing…");
+    const { jobId } = await bulkParseQuizFromPdf(pdfFile);
+
+    const done = await pollJobUntilDone(jobId, "PDF processing", (status) =>
+      setProcessingStatus(jobStatusLabel(status)),
+    );
+    if (!done) return;
+
+    const { image_keys, ...parsed } =
+      (done.result ?? {}) as ParsedBulkQuiz & { image_keys?: string[] };
+    setPreviewData(parsed as ParsedBulkQuiz);
+    setImageKeys(image_keys ?? []);
+    setToast("PDF parsed successfully!");
   }
 
   async function handleParse(e: React.FormEvent) {
@@ -183,13 +247,31 @@ export default function BulkImportQuizPage() {
     setError(null);
 
     try {
-      const result = await bulkSaveQuiz(previewData);
+      const result = await bulkSaveQuiz(previewData, destination);
       // The saved quiz now references the images — they must not be cleaned up.
       setImageKeys([]);
-      setToast("Quiz saving started in the background. You will be notified when it completes.");
-      setTimeout(() => {
-        router.push(`/dashboard/test-bank?uploadJobId=${result.jobId}`);
-      }, 2500);
+      setToast("Saving quiz in the background…");
+      // Wait for the job to finish rather than a fixed delay: a large import
+      // outlives any guess, and the destination page would then render before
+      // the quiz rows exist, leaving it invisible until a manual refresh.
+      const done = await pollJobUntilDone(result.jobId, "Quiz saving", () => undefined);
+      if (!done) return;
+
+      // The finished job reports the quiz it wrote, so land the author in the
+      // builder for it — the next thing they want after an import. `from`
+      // points Back at where the quiz lives.
+      const quizId = (done.result as { quiz_id?: string } | undefined)?.quiz_id;
+      const listHref = verifiedCourseId
+        ? `/dashboard/course-management/${verifiedCourseId}?tab=curriculum`
+        : `/dashboard/test-bank?uploadJobId=${result.jobId}`;
+      router.push(
+        quizId
+          ? withFrom(
+              `/dashboard/quiz-builder/${quizId}${verifiedCourseId ? `?course_id=${verifiedCourseId}` : ""}`,
+              listHref,
+            )
+          : listHref,
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to queue quiz for saving");
       setSaving(false);
@@ -215,6 +297,20 @@ export default function BulkImportQuizPage() {
     <div style={S.pageOuter}>
       <div style={S.pageInner}>
         <div style={S.glassCard}>
+          <div style={S.banner} role="status">
+            <span aria-hidden>{destination.kind === "MODULE" ? "📘" : "🌐"}</span>
+            <span>
+              Saving to:{" "}
+              <strong>
+                {destination.kind === "GLOBAL"
+                  ? "Global Test Bank"
+                  : moduleTitle
+                    ? `Module “${moduleTitle}”`
+                    : "Course module"}
+              </strong>
+            </span>
+          </div>
+
           {previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
