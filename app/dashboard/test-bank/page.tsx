@@ -7,6 +7,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, getBulkParseJobStatus, type Question, type Quiz, getUniqueQuestionsForQuiz } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
+import { MoveQuizModal } from "@/app/dashboard/_components/MoveQuizModal";
 import {
   QuestionSlideOver,
   QUESTION_TYPES,
@@ -61,6 +62,7 @@ function TestBankPageContent() {
   const [globalTestsExpanded, setGlobalTestsExpanded] = useState<boolean>(!!searchParams.get("uploadJobId"));
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [quizToMove, setQuizToMove]     = useState<{ id: string; title: string } | null>(null);
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
 
   const handleDeleteQuiz = async (quiz: Omit<Quiz, "questions">) => {
@@ -255,13 +257,32 @@ function TestBankPageContent() {
             </div>
           )}
           {globalTestsExpanded && globalTests.map((t, i) => (
-            <GlobalTestRow key={t.id} quiz={t} isLast={i === globalTests.length - 1} onDelete={() => handleDeleteQuiz(t)} />
+            <GlobalTestRow
+              key={t.id}
+              quiz={t}
+              isLast={i === globalTests.length - 1}
+              onDelete={() => handleDeleteQuiz(t)}
+              onMove={() => setQuizToMove({ id: t.id, title: t.title })}
+            />
           ))}
         </div>
       )}
 
+      {quizToMove && (
+        <MoveQuizModal
+          quizId={quizToMove.id}
+          quizTitle={quizToMove.title}
+          onClose={() => setQuizToMove(null)}
+          onMoved={() => {
+            setQuizToMove(null);
+            // It left the global list — refetch rather than patch state.
+            fetchGlobalTests();
+          }}
+        />
+      )}
+
       {quizToDelete && (
-        <QuizDeleteModal 
+        <QuizDeleteModal
           quizTitle={quizToDelete.title}
           uniqueQuestions={uniqueQuestionsForDelete}
           onClose={() => setQuizToDelete(null)}
@@ -376,7 +397,7 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions">; isLast: boolean; onDelete: () => void }) {
+function GlobalTestRow({ quiz, isLast, onDelete, onMove }: { quiz: Omit<Quiz, "questions">; isLast: boolean; onDelete: () => void; onMove: () => void }) {
   const created = new Date(quiz.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   return (
     <div
@@ -401,6 +422,9 @@ function GlobalTestRow({ quiz, isLast, onDelete }: { quiz: Omit<Quiz, "questions
         <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
           Edit →
         </Link>
+        <button onClick={onMove} style={outlineBtn}>
+          Move to Module
+        </button>
         <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
           Delete
         </button>

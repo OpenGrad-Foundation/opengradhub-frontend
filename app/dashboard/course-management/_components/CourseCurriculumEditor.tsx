@@ -17,6 +17,9 @@ import {
   type CourseModule,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { MoveQuizModal } from "@/app/dashboard/_components/MoveQuizModal";
 
 export default function CourseCurriculumEditor({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -63,6 +66,7 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
         setModules={setModules}
         onOpenSlideOver={(moduleId, lesson) => setSlideOver({ moduleId, lesson })}
         setGlobalError={setGlobalError}
+        onReload={reload}
       />
 
       {slideOver && (
@@ -86,12 +90,14 @@ function ModuleList({
   setModules,
   onOpenSlideOver,
   setGlobalError,
+  onReload,
 }: {
   courseId: string;
   modules: CourseModule[];
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
+  onReload: () => Promise<void>;
 }) {
   const invalidate = useInvalidate();
   const [addingModule, setAddingModule] = useState(false);
@@ -181,6 +187,7 @@ function ModuleList({
             setModules={setModules}
             onOpenSlideOver={onOpenSlideOver}
             setGlobalError={setGlobalError}
+            onReload={onReload}
             dragItemRef={dragItemRef}
             dragOverItemInfo={dragOverItemInfo}
             setDragOverItemInfo={setDragOverItemInfo}
@@ -240,6 +247,7 @@ function ModuleItem({
   setModules,
   onOpenSlideOver,
   setGlobalError,
+  onReload,
   dragItemRef,
   dragOverItemInfo,
   setDragOverItemInfo,
@@ -250,15 +258,19 @@ function ModuleItem({
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
+  onReload: () => Promise<void>;
   dragItemRef: React.MutableRefObject<{ moduleId: string; idx: number } | null>;
   dragOverItemInfo: { moduleId: string; idx: number } | null;
   setDragOverItemInfo: React.Dispatch<React.SetStateAction<{ moduleId: string; idx: number } | null>>;
 }) {
   const invalidate = useInvalidate();
+  const { has } = usePermissions();
+  const canCreateQuiz = has(PERM.test_bank.create);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(module.title);
   const [saving, setSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [quizToMove, setQuizToMove] = useState<{ id: string; title: string } | null>(null);
 
   const items = [
     ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
@@ -488,10 +500,11 @@ function ModuleItem({
               onDelete={() => void handleDeleteLesson(item.id)}
             />
           ) : (
-            <QuizRow 
-              quiz={item} 
-              courseId={courseId} 
-              onDelete={() => void handleDeleteQuiz(item.id)} 
+            <QuizRow
+              quiz={item}
+              courseId={courseId}
+              onDelete={() => void handleDeleteQuiz(item.id)}
+              onMove={() => setQuizToMove({ id: item.id, title: item.title })}
             />
           )}
         </div>
@@ -504,24 +517,43 @@ function ModuleItem({
         >
           + Add Lesson
         </button>
-        <Link
-          href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
-          style={{
-            ...ghostBtn,
-            flex: 1,
-            justifyContent: "center",
-            padding: "10px",
-            fontSize: "13px",
-            textDecoration: "none",
-            display: "flex",
-            alignItems: "center",
-            color: "#209379",
-            borderColor: "rgba(32,147,121,0.3)",
-          }}
-        >
-          + Add Module Quiz
-        </Link>
+        {/* The destination page is gated on test_bank.create and the server
+            re-checks course authority — this only avoids offering a dead end. */}
+        {canCreateQuiz && (
+          <Link
+            href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
+            style={{
+              ...ghostBtn,
+              flex: 1,
+              justifyContent: "center",
+              padding: "10px",
+              fontSize: "13px",
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              color: "#209379",
+              borderColor: "rgba(32,147,121,0.3)",
+            }}
+          >
+            + Add Module Quiz
+          </Link>
+        )}
       </div>
+
+      {quizToMove && (
+        <MoveQuizModal
+          quizId={quizToMove.id}
+          quizTitle={quizToMove.title}
+          onClose={() => setQuizToMove(null)}
+          onMoved={() => {
+            setQuizToMove(null);
+            invalidate('courses');
+            // The quiz may have landed in another module of this course, so
+            // reload the whole curriculum rather than patching this one.
+            void onReload();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -567,10 +599,12 @@ function QuizRow({
   quiz,
   courseId,
   onDelete,
+  onMove,
 }: {
   quiz: { id: string; title: string; published: boolean };
   courseId: string;
   onDelete: () => void;
+  onMove: () => void;
 }) {
   return (
     <div
@@ -607,6 +641,9 @@ function QuizRow({
       >
         Edit
       </Link>
+      <button onClick={onMove} style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+        Move
+      </button>
       <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
         Delete
       </button>
