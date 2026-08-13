@@ -6,17 +6,18 @@ import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
-  ApiError, fetchSchools, getUsers,
-  type ProgrammeContentKind, type ProgrammeLevel, type SafeUser, type SchoolOption,
+  ApiError, fetchSchools, getBatchImpact, getUsers,
+  type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel, type SafeUser,
+  type SchoolOption,
 } from "@/lib/api";
 import {
-  useAssignableContent, useProgramme, useProgrammeContent, useProgrammeMembers,
-  useProgrammeSchools,
+  useAssignableBatches, useAssignableContent, useProgramme, useProgrammeBatches,
+  useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
 } from "@/lib/queries/programmes";
 import {
-  useAssignProgrammeContent, useAttachProgrammeSchool, useDetachProgrammeSchool,
-  useReleaseProgrammeContent, useRemoveProgrammeMember, useSetProgrammeMember,
-  useUpdateProgramme,
+  useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
+  useDetachProgrammeBatch, useDetachProgrammeSchool, useReleaseProgrammeContent,
+  useRemoveProgrammeMember, useSetProgrammeMember, useUpdateProgramme,
 } from "@/lib/mutations/programmes";
 import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
@@ -100,6 +101,7 @@ export default function ProgrammeDetailPage() {
       />
       <ContentSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
       <SchoolsSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
+      <BatchesSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
       {mayAdminister && <DangerSection programmeId={id} status={programme.status} onError={setBanner} />}
     </div>
   );
@@ -504,6 +506,166 @@ function SchoolsSection({
           members — detaching is refused while batches here still belong to this programme.
         </div>
       )}
+    </section>
+  );
+}
+
+// ── batches ──────────────────────────────────────────────────────────────────
+
+/**
+ * programme > school > batch, the middle level.
+ *
+ * Unlike content, attaching a batch grants nobody anything — nothing reads
+ * batches.programme_id for authority. It makes the batch a CONSUMER, and the
+ * closure check treats a batch in this programme as foreign to a course another
+ * programme owns. So attaching can REVOKE that programme's editors' rights on
+ * their own course. The impact preview runs before the click, not after.
+ *
+ * Only batches at a school this programme already hosts can be offered: the 088
+ * composite FK rejects anything else, so listing them would only produce errors.
+ */
+function BatchesSection({
+  programmeId, canManage, onError,
+}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+  const { data: attached = [], isLoading } = useProgrammeBatches(programmeId);
+  const { data: assignable = [], isLoading: loadingPick } =
+    useAssignableBatches(programmeId, canManage);
+  const attach = useAttachProgrammeBatch();
+  const detach = useDetachProgrammeBatch();
+
+  const [pick, setPick] = useState("");
+  const [impact, setImpact] = useState<BatchImpact[] | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  // Look up the consequence as soon as a batch is chosen, so the warning is on
+  // screen before Attach is pressed rather than after.
+  useEffect(() => {
+    setImpact(null);
+    if (!pick) return;
+    let cancelled = false;
+    setChecking(true);
+    getBatchImpact(programmeId, pick)
+      .then((r) => { if (!cancelled) setImpact(r); })
+      .catch(() => { if (!cancelled) setImpact(null); })
+      .finally(() => { if (!cancelled) setChecking(false); });
+    return () => { cancelled = true; };
+  }, [programmeId, pick]);
+
+  async function run(fn: () => Promise<unknown>) {
+    onError(null);
+    try { await fn(); } catch (e) {
+      onError(e instanceof ApiError ? e.message : "Something went wrong.");
+    }
+  }
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <h2 style={{ ...titleStyle, fontSize: 17 }}>Batches</h2>
+      <div style={{ fontSize: 13, color: "rgba(3,72,82,0.6)", marginTop: -6 }}>
+        Batches belonging to this programme. Only batches at a school this programme hosts
+        can be added — attach the school first.
+      </div>
+
+      {canManage && (
+        <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 320px" }}>
+              <label style={formLabelStyle}>Add a batch</label>
+              <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
+                <option value="">
+                  {loadingPick
+                    ? "Loading…"
+                    : assignable.length === 0
+                      ? "No unassigned batches at this programme's schools"
+                      : "Select…"}
+                </option>
+                {assignable.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}{b.school_name ? ` — ${b.school_name}` : ""}
+                    {b.course_count ? ` (${b.course_count} course${b.course_count === 1 ? "" : "s"})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              style={{ ...primaryButton, opacity: !pick || attach.isPending ? 0.6 : 1 }}
+              disabled={!pick || attach.isPending}
+              onClick={() => run(async () => {
+                await attach.mutateAsync({ id: programmeId, batchId: pick });
+                setPick("");
+              })}
+            >
+              Add
+            </button>
+          </div>
+
+          {checking && (
+            <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>Checking impact…</div>
+          )}
+          {impact !== null && impact.length > 0 && (
+            <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
+              <strong>This removes edit rights from another programme.</strong> This batch
+              teaches {impact.length} course{impact.length === 1 ? "" : "s"} owned elsewhere.
+              Once the batch belongs here those courses are shared across programmes, so
+              their owners keep ownership and lose editing:
+              <ul style={{ margin: "8px 0 0 18px" }}>
+                {impact.map((c) => (
+                  <li key={c.course_id}>
+                    {c.title} <span style={{ opacity: 0.7 }}>— {c.owner_programme}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {impact !== null && impact.length === 0 && pick && !checking && (
+            <div style={{ fontSize: 12, color: "#067a45" }}>
+              No side effects — this batch teaches nothing another programme owns.
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={cardStyle}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+            <tr>
+              <th style={thStyle}>Batch</th>
+              <th style={thStyle}>School</th>
+              <th style={thStyle}>Courses</th>
+              <th style={thStyle}>Status</th>
+              {canManage && <th style={thStyle} />}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && <tr><td style={tdStyle} colSpan={5}>Loading…</td></tr>}
+            {!isLoading && attached.length === 0 && (
+              <tr>
+                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={5}>
+                  No batches in this programme yet.
+                </td>
+              </tr>
+            )}
+            {attached.map((b) => (
+              <tr key={b.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                <td style={tdStyle}>{b.name}</td>
+                <td style={tdStyle}>{b.school_name ?? "—"}</td>
+                <td style={tdStyle}>{b.course_count}</td>
+                <td style={tdStyle}>{b.status ?? "—"}</td>
+                {canManage && (
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    <button
+                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                      onClick={() => run(() => detach.mutateAsync({ id: programmeId, batchId: b.id }))}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

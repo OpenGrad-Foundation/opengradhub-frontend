@@ -4602,6 +4602,61 @@ export async function detachProgrammeSchool(id: string, schoolId: string): Promi
   await programmeJson(r, "Failed to detach school.");
 }
 
+// ── programme batches ───────────────────────────────────────────────────────
+//
+// Attaching a batch does not grant anyone anything — no resolver reads
+// batches.programme_id for authority. It makes the batch a CONSUMER, which can
+// revoke another programme's editors' rights on a course they own. Hence the
+// impact preview.
+
+export interface ProgrammeBatch {
+  id: string;
+  name: string;
+  status: string | null;
+  school_name: string | null;
+  course_count: number;
+}
+
+export interface BatchImpact {
+  course_id: string;
+  title: string;
+  owner_programme: string;
+}
+
+export async function getProgrammeBatches(id: string): Promise<ProgrammeBatch[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches`),
+    "Failed to load batches.",
+  );
+}
+
+export async function getAssignableBatches(id: string): Promise<ProgrammeBatch[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/assignable`),
+    "Failed to load assignable batches.",
+  );
+}
+
+export async function getBatchImpact(id: string, batchId: string): Promise<BatchImpact[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}/impact`),
+    "Failed to check batch impact.",
+  );
+}
+
+export async function attachProgrammeBatch(
+  id: string,
+  batchId: string,
+): Promise<{ attached: boolean; revokes_edit_on: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}`, { method: "PUT" });
+  return programmeJson(r, "Failed to attach batch.");
+}
+
+export async function detachProgrammeBatch(id: string, batchId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}`, { method: "DELETE" });
+  await programmeJson(r, "Failed to remove batch.");
+}
+
 // ── programme content ───────────────────────────────────────────────────────
 //
 // Only courses and assignments. Migration 089 also put owner_programme_id on

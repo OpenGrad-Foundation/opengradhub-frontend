@@ -3,8 +3,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   assignProgrammeContent,
+  attachProgrammeBatch,
   attachProgrammeSchool,
   createProgramme,
+  detachProgrammeBatch,
   detachProgrammeSchool,
   releaseProgrammeContent,
   removeProgrammeMember,
@@ -119,6 +121,30 @@ export function useReleaseProgrammeContent() {
   return useMutation({
     mutationFn: (args: { id: string; kind: ProgrammeContentKind; resourceId: string }) =>
       releaseProgrammeContent(args.id, args.kind, args.resourceId),
+    onSuccess: (_d, args) => invalidate(args.id),
+  });
+}
+
+/**
+ * Batch attachment reaches the course families for the same reason content
+ * does — but in the opposite direction. Attaching a batch can REVOKE another
+ * programme's editors' rights via the consumer closure, so a stale can_manage
+ * would show an edit button the server now refuses.
+ */
+export function useAttachProgrammeBatch() {
+  const invalidate = useProgrammeContentInvalidation();
+  return useMutation({
+    mutationFn: (args: { id: string; batchId: string }) =>
+      attachProgrammeBatch(args.id, args.batchId),
+    onSuccess: (_d, args) => invalidate(args.id),
+  });
+}
+
+export function useDetachProgrammeBatch() {
+  const invalidate = useProgrammeContentInvalidation();
+  return useMutation({
+    mutationFn: (args: { id: string; batchId: string }) =>
+      detachProgrammeBatch(args.id, args.batchId),
     onSuccess: (_d, args) => invalidate(args.id),
   });
 }

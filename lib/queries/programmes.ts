@@ -2,8 +2,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
+  getAssignableBatches,
   getAssignableContent,
   getProgramme,
+  getProgrammeBatches,
   getProgrammeContent,
   getProgrammeMembers,
   getProgrammeSchools,
@@ -83,6 +85,25 @@ export function useAssignableContent(
   return useQuery({
     queryKey: qk.programmeAssignable(id ?? '', kind, q),
     queryFn: () => getAssignableContent(id as string, kind, q),
+    enabled: Boolean(id) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useProgrammeBatches(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.programmeBatches(id ?? ''),
+    queryFn: () => getProgrammeBatches(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+/** Owner-only route — `enabled` keeps a VIEWER from firing a guaranteed 403. */
+export function useAssignableBatches(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.programmeAssignableBatches(id ?? ''),
+    queryFn: () => getAssignableBatches(id as string),
     enabled: Boolean(id) && enabled,
     staleTime: 15_000,
   });
