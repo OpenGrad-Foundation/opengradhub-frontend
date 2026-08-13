@@ -26,6 +26,7 @@ import {
   School,
   Layers,
   ListChecks,
+  GraduationCap,
   X,
   ChevronUp,
   ChevronDown,
@@ -63,6 +64,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   schools:         School,
   batches:         Layers,
   tracker:         ListChecks,
+  programmes:      GraduationCap,
   attendance:      CalendarCheck,
 };
 

@@ -7,14 +7,16 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getUsers,
-  type ProgrammeLevel, type SafeUser, type SchoolOption,
+  type ProgrammeContentKind, type ProgrammeLevel, type SafeUser, type SchoolOption,
 } from "@/lib/api";
 import {
-  useProgramme, useProgrammeMembers, useProgrammeSchools,
+  useAssignableContent, useProgramme, useProgrammeContent, useProgrammeMembers,
+  useProgrammeSchools,
 } from "@/lib/queries/programmes";
 import {
-  useAttachProgrammeSchool, useDetachProgrammeSchool, useRemoveProgrammeMember,
-  useSetProgrammeMember, useUpdateProgramme,
+  useAssignProgrammeContent, useAttachProgrammeSchool, useDetachProgrammeSchool,
+  useReleaseProgrammeContent, useRemoveProgrammeMember, useSetProgrammeMember,
+  useUpdateProgramme,
 } from "@/lib/mutations/programmes";
 import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
@@ -96,6 +98,7 @@ export default function ProgrammeDetailPage() {
         canManage={canManageMembers && (isOwner || has("*"))}
         onError={setBanner}
       />
+      <ContentSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
       <SchoolsSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
       {mayAdminister && <DangerSection programmeId={id} status={programme.status} onError={setBanner} />}
     </div>
@@ -233,6 +236,171 @@ function MembersSection({
         <div style={{ fontSize: 12, color: "rgba(3,72,82,0.55)" }}>
           A programme always keeps at least one OWNER — removing the last one is refused.
           Students cannot be members; they belong to a programme through their profile.
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── content ──────────────────────────────────────────────────────────────────
+
+const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string }> = [
+  { key: "courses", label: "Courses", one: "course" },
+  { key: "assignments", label: "Assignments", one: "assignment" },
+];
+
+/**
+ * What the programme owns, and what owning it grants.
+ *
+ * Two things are deliberately explicit rather than implied:
+ *
+ *  - `editable: false` is shown, not hidden. A course a foreign programme also
+ *    teaches is owned here but the resolver fails closed on it, so members get
+ *    no edit rights. A row that looks granted and is not is worse than a
+ *    warning.
+ *  - Only courses and assignments appear. Quizzes and bundles carry the same
+ *    ownership column but nothing reads it, so offering them would report a
+ *    grant that does not exist.
+ */
+function ContentSection({
+  programmeId, canManage, onError,
+}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+  const { data: owned = [], isLoading } = useProgrammeContent(programmeId);
+  const assign = useAssignProgrammeContent();
+  const release = useReleaseProgrammeContent();
+
+  const [kind, setKind] = useState<ProgrammeContentKind>("courses");
+  const [search, setSearch] = useState("");
+  const [pick, setPick] = useState("");
+  const { data: assignable = [], isLoading: loadingPick } =
+    useAssignableContent(programmeId, kind, search, canManage);
+
+  async function run(fn: () => Promise<unknown>) {
+    onError(null);
+    try { await fn(); } catch (e) {
+      onError(e instanceof ApiError ? e.message : "Something went wrong.");
+    }
+  }
+
+  const notEditable = owned.filter((c) => !c.editable).length;
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <h2 style={{ ...titleStyle, fontSize: 17 }}>Content</h2>
+      <div style={{ fontSize: 13, color: "rgba(3,72,82,0.6)", marginTop: -6 }}>
+        Courses and assignments this programme owns. OWNERs and EDITORs can edit them;
+        student data is never included.
+      </div>
+
+      {canManage && (
+        <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div style={{ flex: "0 0 150px" }}>
+            <label style={formLabelStyle}>Type</label>
+            <select
+              style={inputStyle}
+              value={kind}
+              onChange={(e) => { setKind(e.target.value as ProgrammeContentKind); setPick(""); }}
+            >
+              {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: "0 1 220px" }}>
+            <label style={formLabelStyle}>Search</label>
+            <input
+              style={inputStyle}
+              value={search}
+              placeholder="Filter by title…"
+              onChange={(e) => { setSearch(e.target.value); setPick(""); }}
+            />
+          </div>
+          <div style={{ flex: "1 1 300px" }}>
+            <label style={formLabelStyle}>Add to programme</label>
+            <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
+              <option value="">{loadingPick ? "Loading…" : "Select…"}</option>
+              {assignable.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </div>
+          <button
+            style={{ ...primaryButton, opacity: !pick || assign.isPending ? 0.6 : 1 }}
+            disabled={!pick || assign.isPending}
+            onClick={() => run(async () => {
+              const r = await assign.mutateAsync({ id: programmeId, kind, resourceId: pick });
+              setPick("");
+              // Assigned but not editable is a real outcome, not a failure —
+              // say so at the moment it happens rather than leaving the admin
+              // to notice a grey badge later.
+              if (!r.editable) {
+                onError(
+                  "Added, but another programme also uses it — members get ownership, not edit rights.",
+                );
+              }
+            })}
+          >
+            Add
+          </button>
+        </div>
+      )}
+
+      {canManage && assignable.length === 0 && !loadingPick && !search && (
+        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>
+          Nothing available to add. The picker lists only unassigned {kind} you created
+          or were invited to manage.
+        </div>
+      )}
+
+      <div style={cardStyle}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+            <tr>
+              <th style={thStyle}>Title</th>
+              <th style={thStyle}>Type</th>
+              <th style={thStyle}>Created by</th>
+              <th style={thStyle}>Members can edit</th>
+              {canManage && <th style={thStyle} />}
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && <tr><td style={tdStyle} colSpan={5}>Loading…</td></tr>}
+            {!isLoading && owned.length === 0 && (
+              <tr>
+                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={5}>
+                  This programme owns nothing yet, so membership grants no edit rights.
+                </td>
+              </tr>
+            )}
+            {owned.map((c) => (
+              <tr key={`${c.kind}:${c.id}`} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                <td style={tdStyle}>{c.title}</td>
+                <td style={tdStyle}>{c.kind === "courses" ? "Course" : "Assignment"}</td>
+                <td style={tdStyle}>{c.created_by_name ?? "—"}</td>
+                <td style={tdStyle}>
+                  {c.editable
+                    ? <span style={{ color: "#047857", fontWeight: 600 }}>Yes</span>
+                    : <span style={{ color: "#b45309" }} title="Another programme also uses this, so editing stays with its creator.">
+                        No — shared
+                      </span>}
+                </td>
+                {canManage && (
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    <button
+                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                      onClick={() => run(() => release.mutateAsync({ id: programmeId, kind: c.kind, resourceId: c.id }))}
+                    >
+                      Remove
+                    </button>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {notEditable > 0 && (
+        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>
+          {notEditable} item(s) are owned but shared with another programme. Editing those
+          stays with their creator — that is deliberate, so one programme cannot change
+          material another programme&apos;s students are sitting.
         </div>
       )}
     </section>

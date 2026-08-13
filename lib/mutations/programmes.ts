@@ -2,12 +2,15 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  assignProgrammeContent,
   attachProgrammeSchool,
   createProgramme,
   detachProgrammeSchool,
+  releaseProgrammeContent,
   removeProgrammeMember,
   setProgrammeMember,
   updateProgramme,
+  type ProgrammeContentKind,
   type ProgrammeLevel,
 } from '../api';
 import { qk } from '../queries/keys';
@@ -15,11 +18,15 @@ import { qk } from '../queries/keys';
 /**
  * Programme container writes.
  *
- * Invalidation stays inside the programme key family on purpose. The container
- * ships inert — no other view reads programme rows yet — so a write here cannot
- * make courses, batches or analytics stale. When the scope resolver lands and
- * programmes start deciding what people can see, this is the first place that
- * has to widen, or those views will serve pre-membership data.
+ * Membership and school writes stay inside the programme key family: they
+ * change who administers a programme, which no other view renders.
+ *
+ * CONTENT writes do not, and this is the case the original note predicted.
+ * Moving a course into a programme changes `can_manage` on the courses list for
+ * every member of that programme, so the content mutations invalidate the
+ * course and assignment families too. Without that, an EDITOR who was just
+ * granted a course keeps seeing it read-only until their cache happens to
+ * expire.
  */
 
 function useProgrammeInvalidation() {
@@ -79,6 +86,39 @@ export function useDetachProgrammeSchool() {
   return useMutation({
     mutationFn: (args: { id: string; schoolId: string }) =>
       detachProgrammeSchool(args.id, args.schoolId),
+    onSuccess: (_d, args) => invalidate(args.id),
+  });
+}
+
+/**
+ * Content assignment reaches outside the programme family — see the note above.
+ * `qk.courses` is parameterised by filters, so invalidate the whole prefix
+ * rather than guessing which filter combination is mounted.
+ */
+function useProgrammeContentInvalidation() {
+  const qc = useQueryClient();
+  return (id: string) => {
+    void qc.invalidateQueries({ queryKey: qk.programme(id) });
+    void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
+    void qc.invalidateQueries({ queryKey: ['og', 'course'] });
+    void qc.invalidateQueries({ queryKey: qk.assignments() });
+  };
+}
+
+export function useAssignProgrammeContent() {
+  const invalidate = useProgrammeContentInvalidation();
+  return useMutation({
+    mutationFn: (args: { id: string; kind: ProgrammeContentKind; resourceId: string }) =>
+      assignProgrammeContent(args.id, args.kind, args.resourceId),
+    onSuccess: (_d, args) => invalidate(args.id),
+  });
+}
+
+export function useReleaseProgrammeContent() {
+  const invalidate = useProgrammeContentInvalidation();
+  return useMutation({
+    mutationFn: (args: { id: string; kind: ProgrammeContentKind; resourceId: string }) =>
+      releaseProgrammeContent(args.id, args.kind, args.resourceId),
     onSuccess: (_d, args) => invalidate(args.id),
   });
 }

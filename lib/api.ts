@@ -4601,3 +4601,60 @@ export async function detachProgrammeSchool(id: string, schoolId: string): Promi
   });
   await programmeJson(r, "Failed to detach school.");
 }
+
+// ── programme content ───────────────────────────────────────────────────────
+//
+// Only courses and assignments. Migration 089 also put owner_programme_id on
+// quizzes and bundles, but nothing reads it there, so offering to assign them
+// would report a grant that does not exist.
+
+export type ProgrammeContentKind = "courses" | "assignments";
+
+export interface ProgrammeContentItem {
+  kind: ProgrammeContentKind;
+  id: string;
+  title: string;
+  created_by_name: string | null;
+  /** False when a foreign programme also consumes it: owned, but not editable. */
+  editable: boolean;
+}
+
+export async function getProgrammeContent(id: string): Promise<ProgrammeContentItem[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/content`),
+    "Failed to load programme content.",
+  );
+}
+
+export async function getAssignableContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  q?: string,
+): Promise<Array<{ id: string; title: string }>> {
+  const url = new URL(`${API_BASE_URL}/programmes/${id}/content/assignable`);
+  url.searchParams.set("kind", kind);
+  if (q?.trim()) url.searchParams.set("q", q.trim());
+  return programmeJson(await apiFetch(url.toString()), "Failed to load assignable content.");
+}
+
+export async function assignProgrammeContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  resourceId: string,
+): Promise<{ assigned: boolean; editable: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/content/${kind}/${resourceId}`, {
+    method: "PUT",
+  });
+  return programmeJson(r, "Failed to assign content.");
+}
+
+export async function releaseProgrammeContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  resourceId: string,
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/content/${kind}/${resourceId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to release content.");
+}

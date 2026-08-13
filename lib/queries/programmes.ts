@@ -2,10 +2,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import {
+  getAssignableContent,
   getProgramme,
+  getProgrammeContent,
   getProgrammeMembers,
   getProgrammeSchools,
   getProgrammes,
+  type ProgrammeContentKind,
 } from '../api';
 import { qk } from './keys';
 
@@ -54,5 +57,33 @@ export function useProgrammeSchools(id: string | undefined) {
     queryFn: () => getProgrammeSchools(id as string),
     enabled: Boolean(id),
     staleTime: 30_000,
+  });
+}
+
+export function useProgrammeContent(id: string | undefined) {
+  return useQuery({
+    queryKey: qk.programmeContent(id ?? ''),
+    queryFn: () => getProgrammeContent(id as string),
+    enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * The assignable picker. `enabled` is caller-controlled because this route
+ * requires programmes.edit AND ownership — mounting it for a VIEWER would fire
+ * a guaranteed 403 on every render of the page.
+ */
+export function useAssignableContent(
+  id: string | undefined,
+  kind: ProgrammeContentKind,
+  q: string,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: qk.programmeAssignable(id ?? '', kind, q),
+    queryFn: () => getAssignableContent(id as string, kind, q),
+    enabled: Boolean(id) && enabled,
+    staleTime: 15_000,
   });
 }

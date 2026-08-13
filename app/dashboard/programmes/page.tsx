@@ -56,15 +56,18 @@ export default function ProgrammesPage() {
       </div>
 
       {/*
-        Said plainly rather than discovered later: creating a programme and
-        adding people to it changes nobody's access yet. The container ships
-        before the scope resolver that reads it.
+        This notice used to say membership granted nothing. That stopped being
+        true when the content-edit resolver shipped, and a banner that
+        understates a grant is worse than none: someone adds a fellow to
+        "UG Kerala" believing it is bookkeeping. State exactly what it does and
+        does not hand over. (programmes-wiring.spec.ts fails if the old wording
+        comes back.)
       */}
       <div style={noticeStyle}>
-        <strong>Not wired to access yet.</strong> A programme groups schools, batches and
-        content, and its members are recorded here — but membership does not currently grant
-        anyone visibility or edit rights. Set programmes up now; access follows in a later
-        release.
+        <strong>What membership grants.</strong> OWNERs and EDITORs can edit the courses and
+        assignments a programme owns; VIEWERs cannot. Membership never grants student data —
+        rosters, progress, attempts and scores stay with the school and batch hierarchy. It
+        also never grants a permission the member&apos;s role lacks.
       </div>
 
       {error && (
