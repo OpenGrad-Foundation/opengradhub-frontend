@@ -109,7 +109,14 @@ export function PassageCard({ html, imageUrl }: { html: string; imageUrl: string
   );
 }
 
-export function QuestionReviewCard({ q, idx, revealed, questionLabel }: { q: AttemptReviewQuestion; idx: number; revealed: boolean; questionLabel?: string }) {
+export function QuestionReviewCard({ q, idx, revealed, questionLabel, reportButton }: {
+  q: AttemptReviewQuestion;
+  idx: number;
+  revealed: boolean;
+  questionLabel?: string;
+  /** Optional "report this question" control. Omitted where there is no real attempt behind the card. */
+  reportButton?: React.ReactNode;
+}) {
   const borderColor =
     q.is_correct === true  ? "#0abe62" :
     q.is_correct === false ? "#e53e3e" :
@@ -140,9 +147,12 @@ export function QuestionReviewCard({ q, idx, revealed, questionLabel }: { q: Att
         <div className="flex-1 min-w-0 p-5 sm:p-6 lg:p-7">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", gap: "8px" }}>
             <p style={{ ...label, margin: 0 }}>{questionLabel ?? `Q${idx + 1}`}</p>
-            <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg, flexShrink: 0 }}>
-              {statusLabel}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+              {reportButton}
+              <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg }}>
+                {statusLabel}
+              </span>
+            </div>
           </div>
 
           <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: q.image_url ? "10px" : "14px" }} />

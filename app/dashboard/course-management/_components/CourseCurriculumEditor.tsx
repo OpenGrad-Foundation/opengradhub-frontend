@@ -17,6 +17,10 @@ import {
   type CourseModule,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { MoveQuizModal } from "@/app/dashboard/_components/MoveQuizModal";
 
 export default function CourseCurriculumEditor({ courseId }: { courseId: string }) {
   const [modules, setModules] = useState<CourseModule[]>([]);
@@ -38,6 +42,13 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
     void reload().finally(() => setLoading(false));
   }, [reload]);
 
+  // A bulk-uploaded module quiz is saved by a background worker, so it is not
+  // in the curriculum yet when the user lands back here. Poll it in.
+  const { jobId: uploadJobId, status: uploadStatus, expired: uploadExpired } = useBulkSaveJob({
+    cleanupUrl: `/dashboard/course-management/${courseId}`,
+    onCompleted: reload,
+  });
+
   if (loading) {
     return (
       <div style={{ ...glassCard, textAlign: "center" }}>
@@ -51,6 +62,22 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
     <div>
       {globalError && <div style={{ ...errorBox, marginBottom: "16px" }}>{globalError}</div>}
 
+      {uploadJobId && (
+        <div style={uploadBanner}>
+          <span>⏳ Bulk uploaded quiz — {uploadStatus}</span>
+          <span style={{ opacity: 0.7 }}>It will appear in its module when saving finishes.</span>
+        </div>
+      )}
+
+      {uploadExpired && (
+        <div style={uploadBanner}>
+          <span>This upload’s progress is no longer being tracked.</span>
+          <span style={{ opacity: 0.7 }}>
+            It may still have saved — reload the page to see the current curriculum.
+          </span>
+        </div>
+      )}
+
       <div style={{ marginBottom: "18px" }}>
         <p style={labelSt}>Curriculum</p>
         <h3 style={{ ...headingSt, fontSize: "20px", marginTop: "4px" }}>Modules and lessons</h3>
@@ -63,6 +90,7 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
         setModules={setModules}
         onOpenSlideOver={(moduleId, lesson) => setSlideOver({ moduleId, lesson })}
         setGlobalError={setGlobalError}
+        onReload={reload}
       />
 
       {slideOver && (
@@ -86,12 +114,14 @@ function ModuleList({
   setModules,
   onOpenSlideOver,
   setGlobalError,
+  onReload,
 }: {
   courseId: string;
   modules: CourseModule[];
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
+  onReload: () => Promise<void>;
 }) {
   const invalidate = useInvalidate();
   const [addingModule, setAddingModule] = useState(false);
@@ -181,6 +211,7 @@ function ModuleList({
             setModules={setModules}
             onOpenSlideOver={onOpenSlideOver}
             setGlobalError={setGlobalError}
+            onReload={onReload}
             dragItemRef={dragItemRef}
             dragOverItemInfo={dragOverItemInfo}
             setDragOverItemInfo={setDragOverItemInfo}
@@ -240,6 +271,7 @@ function ModuleItem({
   setModules,
   onOpenSlideOver,
   setGlobalError,
+  onReload,
   dragItemRef,
   dragOverItemInfo,
   setDragOverItemInfo,
@@ -250,15 +282,19 @@ function ModuleItem({
   setModules: React.Dispatch<React.SetStateAction<CourseModule[]>>;
   onOpenSlideOver: (moduleId: string, lesson?: CourseLesson) => void;
   setGlobalError: (value: string | null) => void;
+  onReload: () => Promise<void>;
   dragItemRef: React.MutableRefObject<{ moduleId: string; idx: number } | null>;
   dragOverItemInfo: { moduleId: string; idx: number } | null;
   setDragOverItemInfo: React.Dispatch<React.SetStateAction<{ moduleId: string; idx: number } | null>>;
 }) {
   const invalidate = useInvalidate();
+  const { has } = usePermissions();
+  const canCreateQuiz = has(PERM.test_bank.create);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(module.title);
   const [saving, setSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [quizToMove, setQuizToMove] = useState<{ id: string; title: string } | null>(null);
 
   const items = [
     ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
@@ -488,10 +524,11 @@ function ModuleItem({
               onDelete={() => void handleDeleteLesson(item.id)}
             />
           ) : (
-            <QuizRow 
-              quiz={item} 
-              courseId={courseId} 
-              onDelete={() => void handleDeleteQuiz(item.id)} 
+            <QuizRow
+              quiz={item}
+              courseId={courseId}
+              onDelete={() => void handleDeleteQuiz(item.id)}
+              onMove={() => setQuizToMove({ id: item.id, title: item.title })}
             />
           )}
         </div>
@@ -504,24 +541,43 @@ function ModuleItem({
         >
           + Add Lesson
         </button>
-        <Link
-          href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
-          style={{
-            ...ghostBtn,
-            flex: 1,
-            justifyContent: "center",
-            padding: "10px",
-            fontSize: "13px",
-            textDecoration: "none",
-            display: "flex",
-            alignItems: "center",
-            color: "#209379",
-            borderColor: "rgba(32,147,121,0.3)",
-          }}
-        >
-          + Add Module Quiz
-        </Link>
+        {/* The destination page is gated on test_bank.create and the server
+            re-checks course authority — this only avoids offering a dead end. */}
+        {canCreateQuiz && (
+          <Link
+            href={`/dashboard/quiz-builder/new?module_id=${module.id}&course_id=${courseId}`}
+            style={{
+              ...ghostBtn,
+              flex: 1,
+              justifyContent: "center",
+              padding: "10px",
+              fontSize: "13px",
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              color: "#209379",
+              borderColor: "rgba(32,147,121,0.3)",
+            }}
+          >
+            + Add Module Quiz
+          </Link>
+        )}
       </div>
+
+      {quizToMove && (
+        <MoveQuizModal
+          quizId={quizToMove.id}
+          quizTitle={quizToMove.title}
+          onClose={() => setQuizToMove(null)}
+          onMoved={() => {
+            setQuizToMove(null);
+            invalidate('courses');
+            // The quiz may have landed in another module of this course, so
+            // reload the whole curriculum rather than patching this one.
+            void onReload();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -567,10 +623,12 @@ function QuizRow({
   quiz,
   courseId,
   onDelete,
+  onMove,
 }: {
   quiz: { id: string; title: string; published: boolean };
   courseId: string;
   onDelete: () => void;
+  onMove: () => void;
 }) {
   return (
     <div
@@ -607,6 +665,9 @@ function QuizRow({
       >
         Edit
       </Link>
+      <button onClick={onMove} style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
+        Move
+      </button>
       <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
         Delete
       </button>
@@ -830,6 +891,20 @@ const inputSt: React.CSSProperties = {
   color: "#034852",
   outline: "none",
   boxSizing: "border-box",
+};
+
+const uploadBanner: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "2px",
+  padding: "10px 14px",
+  borderRadius: "12px",
+  marginBottom: "16px",
+  background: "rgba(147,32,121,0.06)",
+  border: "1px solid rgba(147,32,121,0.16)",
+  color: "#932079",
+  fontSize: "13px",
+  fontWeight: 600,
 };
 
 const errorBox: React.CSSProperties = {

@@ -6,6 +6,9 @@ import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 import { makeIdbPersister } from './persister';
 
+// Freshness comes from the SSE stream (useRealtime) invalidating these keys on a
+// server signal. The old 5-min refetchInterval was a redundant safety net that
+// polled on every page for every user (topbar-mounted) alongside SSE — removed.
 /** Layer 4 — Tier 1 announcements hook, keyed by role. */
 export function useAnnouncements(role: string) {
   return useQuery({
@@ -18,13 +21,12 @@ export function useAnnouncements(role: string) {
   });
 }
 
-/** Layer 4 — Tier 2 unread-count hook for announcements. 30s poll matches notification cadence. */
+/** Layer 4 — Tier 2 unread-count hook for announcements. SSE-driven; no polling. */
 export function useAnnouncementUnreadCount() {
   return useQuery({
     queryKey: qk.announcementUnreadCount(),
     queryFn: getAnnouncementUnreadCount,
     staleTime: 30_000,
-    refetchInterval: 30_000,
   });
 }
 

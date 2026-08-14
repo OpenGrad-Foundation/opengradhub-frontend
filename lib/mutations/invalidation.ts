@@ -17,6 +17,12 @@ import { useCallback } from 'react';
  * Over-invalidation only triggers a cheap background refetch; under-invalidation
  * leaves stale data on screen — the bug we're fixing. When in doubt, list more.
  */
+// NOTE: `analytics` and `dashboard` are the two broadest, most-mounted key
+// families. They were previously listed on nearly every domain, so ANY write
+// refetched every analytics query + every dashboard widget (5-12 refetches per
+// write). They now appear ONLY on domains whose writes actually change those
+// views — writes that don't touch aggregates/dashboard cards no longer trigger
+// that fan-out. Under-invalidation risk is covered per-domain below.
 const DOMAIN_KEYS = {
   // course content: lists, detail, overview, lessons, plus anything derived
   courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
@@ -24,26 +30,37 @@ const DOMAIN_KEYS = {
   users: [['og', 'user'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard']],
   // school CRUD / fellow assignment
   schools: [['og', 'schools'], ['og', 'managers'], ['og', 'analytics']],
-  announcements: [['og', 'announcements'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'inbox']],
+  // announcement writes update the inbox + dashboard announcements card, not analytics aggregates
+  announcements: [['og', 'announcements'], ['og', 'dashboard'], ['og', 'inbox']],
   // quiz authoring (create/update/publish/sections/questions)
   quizzes: [['og', 'quizzes'], ['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'analytics'], ['og', 'dashboard']],
   // a student submitting an attempt
   quizAttempt: [['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
-  bundles: [['og', 'bundles'], ['og', 'student'], ['og', 'dashboard']],
+  // bundle enrol changes a student's item list, not analytics/dashboard aggregates
+  bundles: [['og', 'bundles'], ['og', 'student']],
   // batch CRUD / membership / content assignment — cascades write
   // course/bundle enrolments, so student views + rosters + analytics go stale
   batches: [['og', 'batches'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
+  // calendar/live-class changes affect the calendar + dashboard "upcoming" card, not analytics
   calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
+  // manual attendance marking — rosters, grids, list attendee counts, dashboards + attendancePct
+  liveClassAttendance: [['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
   resources: [['og', 'resources']],
+  // doubts have their own dashboard card; keep dashboard, drop analytics
   doubts: [['og', 'doubts'], ['og', 'dashboard']],
   // notifications sent (send-notification write) — bust the recipient lists and counts
-  notifications: [['og', 'notifications'], ['og', 'inbox'], ['og', 'dashboard']],
+  notifications: [['og', 'notifications'], ['og', 'inbox']],
   // enrolment changes (assign course, bulk enrol/remove) — affect both the
   // student's view and roster/analytics
   enrolment: [['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
   // lesson progress tick — affects course overview, student dashboards, analytics
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
+  // tracker has its own surfaces + a dashboard tasks card; not analytics
+  tracker: [['og', 'tracker'], ['og', 'dashboard']],
+  // resolving/dismissing a student question report — busts the Test Bank badge
+  // counts and the dashboard "Reported Questions" card
+  questionReports: [['og', 'question-reports'], ['og', 'dashboard']],
   // attendance writes (link marks/overrides, register commits) — also feeds dashboards
   attendance: [['og', 'attendance'], ['og', 'dashboard']],
 } as const;
