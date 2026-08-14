@@ -44,8 +44,9 @@ export type UploadSummary = {
   id: string;
   school_id: string;
   school_name: string;
-  period_start: string;
-  period_end: string;
+  /** Observed span of the extracted marks — null until anything readable exists. */
+  period_start: string | null;
+  period_end: string | null;
   status: "PENDING_REVIEW" | "COMMITTED" | "DISCARDED";
   model: string | null;
   created_at: string;
@@ -54,14 +55,112 @@ export type UploadSummary = {
 export type UploadDetail = UploadSummary & {
   grid: GridRow[];
   unmatched: ExtractedRow[];
+  /** The month this upload resolves to: the reviewer's override, or the inferred one. */
+  month: string | null;
+  override_month: string | null;
+  /** REMAP re-dated the model's columns; SELECT scoped to a month already covered. */
+  override_mode: "REMAP" | "SELECT" | null;
+  /** Columns lost to a re-date because the day doesn't exist in the target month. */
+  dropped_days: number;
+  /**
+   * What may be committed — the whole allowed month, clamped server-side.
+   * Deliberately wider than the observed span so a missed date can be added.
+   */
+  allowed_start: string | null;
+  allowed_end: string | null;
+  min_date: string;
+  max_date: string;
+  dropped_invalid: number;
+  dropped_other_month: number;
+  other_months: string[];
+  tie_broken: boolean;
+  /** Set when the draft is empty because extraction failed, not because the sheet was blank. */
+  extraction_error: string | null;
+  /** Soft extraction problems: ambiguous cells, abstained dates, month conflicts, page gaps. */
+  omr_warnings: OmrWarning[];
+};
+
+export type OmrWarning = {
+  code:
+    | "AMBIGUOUS_CELL"
+    | "ABSTAINED_DATE"
+    | "MONTH_CONFLICT"
+    | "MONTH_UNREADABLE"
+    | "QR_MISMATCH"
+    | "STALE_TEMPLATE"
+    | "PAGE_GAP";
+  detail: string;
+  count?: number;
 };
 
 export type CommitEntry = { student_id: string; date: string; present: boolean };
 
+/** Mirror of the backend REGISTER_TEMPLATE_V2 shape — values always come from the server. */
+export type RegisterDescriptor = {
+  version: number;
+  page: { w: number; h: number };
+  margin: number;
+  fiducial: { tl: number; other: number };
+  qr: { x: number; y: number; size: number };
+  header: {
+    titleY: number;
+    monthComb: { x: number; y: number; boxW: number; boxH: number; gap: number; yySkip: number };
+  };
+  table: {
+    x: number; y: number; rowH: number; headerH: number;
+    codeW: number; nameW: number; dateCols: number; dateColW: number;
+    comb: { boxW: number; boxH: number; gap: number; yOffset: number };
+    mark: { w: number; h: number };
+  };
+};
+
+export type SheetPage = {
+  page: number;
+  row_range: [number, number];
+  qr_content: string;
+  students: { short_code: string; name: string }[];
+};
+
 export type SheetData = {
   school_name: string;
-  month: string;
+  /** Null when the sheet leaves the month blank for the school to write in. */
+  month: string | null;
   students: { short_code: string; name: string }[];
+  descriptor: RegisterDescriptor;
+  template_version: number;
+  pages: SheetPage[];
+};
+
+export type RegisterGapRow = {
+  school_id: string;
+  school_name: string;
+  /** Latest month with committed entries. Null = never submitted. */
+  last_month: string | null;
+  /** Months from last_month to due_month. Null = never. <= 0 = a later month exists. */
+  months_behind: number | null;
+};
+
+export type RegisterGapsView = {
+  due_month: string;
+  total: number;
+  submitted: number;
+  behind_total: number;
+  /** Capped server-side; behind_total carries the real count. */
+  schools: RegisterGapRow[];
+};
+
+export type SchoolRegisterView = {
+  school_name: string;
+  month: string | null;
+  available_months: string[];
+  dates: string[];
+  students: {
+    student_id: string;
+    name: string;
+    present: number;
+    total: number;
+    marks: Record<string, boolean>;
+  }[];
 };
 
 export type SchoolSummaryRow = {
@@ -137,32 +236,31 @@ export async function regenerateLink(linkId: string): Promise<LinkRow> {
 
 // ── Authed: stream 2 (registers) ─────────────────────────────────────────────
 
-export async function getSheetData(schoolId: string, month: string): Promise<SheetData> {
-  return json(await apiFetch(
-    `${API_BASE_URL}/attendance/registers/sheet?school_id=${encodeURIComponent(schoolId)}&month=${encodeURIComponent(month)}`,
-  ));
+/** `month` is optional — the printed sheet leaves it blank for the school. */
+export async function getSheetData(schoolId: string, month?: string | null): Promise<SheetData> {
+  const params = new URLSearchParams({ school_id: schoolId });
+  if (month) params.set("month", month);
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/sheet?${params}`));
 }
 
-export async function uploadRegister(args: {
-  school_id: string;
-  period_start: string;
-  period_end: string;
-  image: File;
-}): Promise<UploadDetail> {
+/**
+ * The period is inferred from the sheet, so only the school is sent. The field
+ * is still named `image` server-side; PDFs and spreadsheets use it too.
+ */
+export async function uploadRegister(args: { school_id: string; image: File }): Promise<UploadDetail> {
   const form = new FormData();
   form.append("school_id", args.school_id);
-  form.append("period_start", args.period_start);
-  form.append("period_end", args.period_end);
   form.append("image", args.image);
   return json(await apiFetch(`${API_BASE_URL}/attendance/registers`, { method: "POST", body: form }));
 }
 
-export async function listRegisterUploads(filters: { school_id?: string; status?: string }): Promise<UploadSummary[]> {
-  const params = new URLSearchParams();
-  if (filters.school_id) params.set("school_id", filters.school_id);
-  if (filters.status) params.set("status", filters.status);
-  const qs = params.toString();
-  return json(await apiFetch(`${API_BASE_URL}/attendance/registers${qs ? `?${qs}` : ""}`));
+/** Corrects the month the model read off the sheet; returns the updated draft. */
+export async function setRegisterMonth(id: string, month: string): Promise<UploadDetail> {
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/${id}/month`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ month }),
+  }));
 }
 
 export async function getRegisterUpload(id: string): Promise<UploadDetail> {
@@ -193,6 +291,24 @@ export async function getAttendanceSummary(): Promise<{ schools: SchoolSummaryRo
 
 export async function getMyAttendance(): Promise<MyAttendanceStats> {
   return json(await apiFetch(`${API_BASE_URL}/attendance/me`));
+}
+
+/** Schools owing a register for the last completed month — the dashboard widget. */
+export async function getRegisterGaps(): Promise<RegisterGapsView> {
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/gaps`));
+}
+
+/** Committed register attendance for one school — the school detail page panel. */
+export async function getSchoolRegister(
+  schoolId: string,
+  month?: string | null,
+): Promise<SchoolRegisterView> {
+  const params = new URLSearchParams();
+  if (month) params.set("month", month);
+  const qs = params.toString();
+  return json(await apiFetch(
+    `${API_BASE_URL}/attendance/schools/${encodeURIComponent(schoolId)}/register${qs ? `?${qs}` : ""}`,
+  ));
 }
 
 // ── Public (token link page — deliberately NO auth header) ──────────────────

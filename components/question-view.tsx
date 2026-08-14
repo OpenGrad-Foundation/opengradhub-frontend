@@ -21,10 +21,17 @@ export function QuestionView({
   q,
   answers,
   setAnswer,
+  renderReportButton,
 }: {
   q: QuizAttemptQuestion;
   answers: AnswerMap;
   setAnswer: (snapshotId: string, val: string | null) => void;
+  /**
+   * Opt-in per-leaf "report this question" control. GROUP parents are not answerable,
+   * so only children get one — a report must name the child that is actually broken.
+   * Surfaces without a real attempt behind them (e.g. the staff preview) omit this.
+   */
+  renderReportButton?: (snapshotId: string) => React.ReactNode;
 }) {
   const current = answers[q.snapshot_id] ?? null;
 
@@ -138,9 +145,12 @@ export function QuestionView({
         <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
           {q.children.map((child, ci) => (
             <div key={child.snapshot_id} style={{ paddingLeft: "20px", borderLeft: "3px solid rgba(3,72,82,0.1)" }}>
-              <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Part {ci + 1}
-              </p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", textTransform: "uppercase", letterSpacing: "0.06em", margin: 0 }}>
+                  Part {ci + 1}
+                </p>
+                {renderReportButton?.(child.snapshot_id)}
+              </div>
               <QuestionView
                 q={child as QuizAttemptQuestion}
                 answers={answers}

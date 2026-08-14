@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -14,10 +14,8 @@ export default function NewQuizPage() {
   const moduleId  = params.get("module_id")  ?? "";
   const courseId  = params.get("course_id")  ?? "";
 
-  const { data, isLoading: userLoading } = useCurrentUser();
   const { has, isLoading: permLoading } = usePermissions();
   const invalidate = useInvalidate();
-  const userId   = data?.user?.id ?? "";
 
   const [title, setTitle]                   = useState("");
   const [duration, setDuration]             = useState("");
@@ -37,8 +35,16 @@ export default function NewQuizPage() {
 
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
+  // Bulk import builds the whole quiz from a file, so it belongs beside this
+  // form rather than inside the question builder. Carrying module_id/course_id
+  // through is what keeps the import scoped to this module instead of the
+  // global test bank.
+  const bulkImportQuery = new URLSearchParams(
+    Object.entries({ course_id: courseId, module_id: moduleId }).filter(([, v]) => v),
+  ).toString();
+  const bulkImportHref = `/dashboard/quiz-builder/bulk-import${bulkImportQuery ? `?${bulkImportQuery}` : ""}`;
 
-  if (userLoading || permLoading) return null;
+  if (permLoading) return null;
 
   if (!has(PERM.test_bank.create)) {
     return (
@@ -64,7 +70,6 @@ export default function NewQuizPage() {
         pass_threshold_percent: passThreshold ? Number(passThreshold) : undefined,
         shuffle_questions:      shuffle,
         show_answers_after:     showAnswers,
-        created_by:             userId || undefined,
         is_sectioned:           isSectioned,
         sequential_sections:    isSectioned ? sequentialSections : false,
         first_attempt_counts:   firstAttemptCounts,
@@ -95,6 +100,25 @@ export default function NewQuizPage() {
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
           Set up the quiz — you can add questions after saving.
         </p>
+
+        {/* The other way in: skip the form and let a markdown/PDF file define
+            the whole quiz, questions included. Points at bulkImportHref — same
+            destination context, built with URLSearchParams so an absent
+            course/module drops out instead of becoming "undefined". */}
+        <div style={uploadCallout}>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+              Already have the quiz in a file?
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+              Upload a markdown or PDF and we&apos;ll build the whole quiz — settings and questions —
+              for you to review.
+            </p>
+          </div>
+          <Link href={bulkImportHref} style={uploadCalloutBtn}>
+            ⬆ Upload Entire Quiz
+          </Link>
+        </div>
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>
@@ -196,11 +220,27 @@ const label: React.CSSProperties = {
 const heading: React.CSSProperties = {
   fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
 };
+const uploadCallout: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
+  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
+  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
+};
+const uploadCalloutBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
+  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
+  fontSize: "13px", fontWeight: 700, textDecoration: "none",
+};
 const primaryBtn: React.CSSProperties = {
   padding: "12px 24px", border: "none", borderRadius: "12px",
   background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
   color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px",
   cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", transition: "all 240ms ease",
+};
+const bulkBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "12px", whiteSpace: "nowrap",
+  border: "1.5px solid rgba(32,147,121,0.3)", background: "rgba(32,147,121,0.06)",
+  color: "#209379", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
+  textDecoration: "none",
 };
 const input: React.CSSProperties = {
   width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)",

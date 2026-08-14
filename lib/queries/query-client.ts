@@ -6,13 +6,13 @@ import { QueryClient } from '@tanstack/react-query';
  * Shared defaults:
  *  - staleTime 60s: a freshly-fetched query is reused without a refetch for a
  *    minute. Per-query hooks override this from the data-tier table.
- *  - refetchOnWindowFocus true: a tab refocus refetches, BUT only queries that
- *    are already past their staleTime — TanStack gates focus-refetch on
- *    staleness. So fresh data (within its staleTime) is still served from cache
- *    on a patchy mobile network; only genuinely-stale data triggers a request.
- *    This is the cure for "I switched tabs/apps and the data was old": external
- *    changes (made by other users) now surface on return instead of waiting out
- *    the full staleTime with no trigger.
+ *  - refetchOnWindowFocus false (default): a tab refocus does NOT refetch. This
+ *    was previously true, which caused 10-18 refetches per focus on dense pages
+ *    (tracker mounts ~18 hooks) × every user all day — a dominant, user-count-
+ *    independent load. Freshness for live data comes from the SSE stream
+ *    (useRealtime), which invalidates the affected keys on a server change.
+ *    Queries that genuinely need focus-refresh (e.g. current-user identity/role)
+ *    opt back in per-hook with `refetchOnWindowFocus: true`.
  *  - retry 1: a down backend fails fast instead of hammering it 3x.
  *
  * A fresh client is created per browser session (or per server request in
@@ -23,7 +23,7 @@ export function makeQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 60_000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         retry: 1,
       },
     },

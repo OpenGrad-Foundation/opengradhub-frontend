@@ -22,4 +22,15 @@ describe('dashboard route permissions', () => {
     expect(PERM.role_management.manage_roles).toBe('role_management.manage_roles');
     expect(ROUTE_PERMISSION['role-management']).toBe(PERM.role_management.view);
   });
+
+  it('treats Tracker as a separate Hub module gated by tracker.view', () => {
+    expect(PERM.tracker).toEqual({
+      view: 'tracker.view',
+      author: 'tracker.author',
+      fill: 'tracker.fill',
+      blocker_clear: 'tracker.blocker.clear',
+      admin: 'tracker.admin',
+    });
+    expect(ROUTE_PERMISSION.tracker).toBe(PERM.tracker.view);
+  });
 });

@@ -11,13 +11,15 @@ import {
   regenerateLink,
   getSheetData,
   uploadRegister,
-  listRegisterUploads,
   getRegisterUpload,
+  setRegisterMonth,
   commitRegister,
   discardRegister,
   retryRegisterExtraction,
   getAttendanceSummary,
   getMyAttendance,
+  getSchoolRegister,
+  getRegisterGaps,
   type CommitEntry,
 } from '../attendance-api';
 import { useInvalidate } from '../mutations/invalidation';
@@ -30,14 +32,6 @@ export function useClassLinks(classId: string | null) {
     queryKey: qk.attendanceLinks(classId ?? ''),
     queryFn: () => getClassLinks(classId!),
     enabled: !!classId,
-    staleTime: 30_000,
-  });
-}
-
-export function useRegisterUploads(filters: { school_id?: string; status?: string }) {
-  return useQuery({
-    queryKey: qk.attendanceRegisters(filters),
-    queryFn: () => listRegisterUploads(filters),
     staleTime: 30_000,
   });
 }
@@ -67,12 +61,39 @@ export function useMyAttendance() {
   });
 }
 
-export function useSheetData(schoolId: string | null, month: string | null) {
+/** `month` is optional: the printed sheet leaves it blank for the school. */
+export function useSheetData(schoolId: string | null, month?: string | null) {
   return useQuery({
     queryKey: qk.attendanceSheet(schoolId ?? '', month ?? ''),
-    queryFn: () => getSheetData(schoolId!, month!),
-    enabled: !!schoolId && !!month,
+    queryFn: () => getSheetData(schoolId!, month),
+    enabled: !!schoolId,
     staleTime: 60_000,
+  });
+}
+
+/**
+ * Schools owing a register for the last completed month. Dashboard cadence:
+ * 5-minute staleness and no focus refetch, matching the other overview widgets.
+ */
+export function useRegisterGaps(enabled = true) {
+  return useQuery({
+    queryKey: qk.attendanceGaps(),
+    queryFn: getRegisterGaps,
+    enabled,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Committed register attendance for one school — the school detail page panel. */
+export function useSchoolRegister(schoolId: string | null, month: string | null, enabled = true) {
+  return useQuery({
+    queryKey: qk.attendanceSchoolRegister(schoolId ?? '', month ?? ''),
+    queryFn: () => getSchoolRegister(schoolId!, month),
+    enabled: enabled && !!schoolId,
+    staleTime: 60_000,
+    retry: false, // a role without attendance.view gets a 403 — don't hammer it
   });
 }
 
@@ -129,8 +150,15 @@ export function useRegenerateLink() {
 export function useUploadRegister() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (args: { school_id: string; period_start: string; period_end: string; image: File }) =>
-      uploadRegister(args),
+    mutationFn: (args: { school_id: string; image: File }) => uploadRegister(args),
+    onSuccess: () => invalidate('attendance'),
+  });
+}
+
+export function useSetRegisterMonth() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, month }: { id: string; month: string }) => setRegisterMonth(id, month),
     onSuccess: () => invalidate('attendance'),
   });
 }

@@ -11,7 +11,10 @@ import {
 import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
 
-/** Layer 4 — Tier 2 notification hooks. Near-live: 30s staleTime, no IDB. */
+// Freshness comes from the SSE stream (useRealtime) invalidating these keys on a
+// server signal. The old 5-min refetchInterval was a redundant safety net that
+// polled on every page for every user (topbar-mounted) alongside SSE — removed.
+/** Layer 4 — Tier 2 notification hooks. SSE-driven; no polling, no IDB. */
 export function useNotifications() {
   return useQuery({
     queryKey: qk.notifications(),

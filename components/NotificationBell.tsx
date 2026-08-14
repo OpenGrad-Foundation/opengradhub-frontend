@@ -14,7 +14,9 @@ import { useInboxFeed, useInboxUnreadCount, type InboxItem } from "@/lib/queries
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
 import { useMarkNotificationRead } from "@/lib/queries/notifications";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-import { NOTIFICATION_ROUTES } from "@/lib/notification-routes";
+import { computeInboxToasts, DROPDOWN_CAP } from "@/lib/inbox-toast";
+import { notificationRoute } from "@/lib/notification-routes";
+import { usePush } from "@/lib/push/use-push";
 
 // ── Type icon map ──────────────────────────────────────────────
 
@@ -57,6 +59,7 @@ export default function NotificationBell() {
   const markAnnRead   = useMarkAnnouncementRead();
   const markNotifRead = useMarkNotificationRead();
 
+  const push = usePush();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -85,19 +88,21 @@ export default function NotificationBell() {
 
     if (items.length > 0 && latestItemId !== previousLatestItemId.current) {
       if (previousLatestItemId.current !== undefined) {
-        const previousLatestItem = items.find(i => i.id === previousLatestItemId.current);
-        const newItems = previousLatestItem 
-          ? items.filter(item => item.created_at > previousLatestItem.created_at)
-          : [items[0]];
-        
-        newItems.forEach(item => {
-          if (!item.is_read) {
-            toast(item.title, {
-              description: item.body,
-              icon: itemIcon(item),
-            });
-          }
+        // Capped: one toast per item melts the browser when a refetch lands
+        // with a large backlog of unread (see lib/inbox-toast.ts).
+        const { toasts, overflow } = computeInboxToasts(items, previousLatestItemId.current);
+        toasts.forEach(item => {
+          toast(item.title, {
+            description: item.body,
+            icon: itemIcon(item),
+          });
         });
+        if (overflow > 0) {
+          toast(`${overflow} more new notification${overflow === 1 ? "" : "s"}`, {
+            description: "Open your inbox to see all of them.",
+            icon: "🔔",
+          });
+        }
       }
       previousLatestItemId.current = latestItemId;
     }
@@ -133,9 +138,10 @@ export default function NotificationBell() {
       if (item.source === "announcement") markAnnRead.mutate(item.id);
       else markNotifRead.mutate({ id: item.id, read: true });
     }
-    // Only notifications have deep-link routes.
+    // Only notifications have deep-link routes. Prefer the row's persisted link
+    // (set by the backend) over the static type→route fallback.
     if (item.source === "notification") {
-      const route = NOTIFICATION_ROUTES[item.type];
+      const route = notificationRoute(item.type, item.link);
       if (route) {
         setOpen(false);
         router.push(route);
@@ -200,9 +206,9 @@ export default function NotificationBell() {
             ) : items.length === 0 ? (
               <p style={{ textAlign: "center", padding: "24px", fontSize: "13px", color: "rgba(3,72,82,0.4)" }}>No notifications yet</p>
             ) : (
-              items.map(item => {
+              items.slice(0, DROPDOWN_CAP).map(item => {
                 const route = item.source === "notification"
-                  ? NOTIFICATION_ROUTES[item.type]
+                  ? notificationRoute(item.type, item.link)
                   : undefined;
                 const isClickable = !item.is_read || !!route;
                 const Tag = route ? "button" : "div";
@@ -238,6 +244,29 @@ export default function NotificationBell() {
               })
             )}
           </div>
+
+          {/* Push toggle */}
+          {push.supported && (
+            <div style={{ padding: "10px 18px", borderTop: "1px solid rgba(3,72,82,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "12px", color: "#034852", fontWeight: 600 }}>Push notifications</span>
+              {push.permission === "denied" ? (
+                <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>Blocked in browser settings</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void (push.subscribed ? push.disable() : push.enable())}
+                  style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "1px solid #209379", borderRadius: "999px", padding: "3px 10px", cursor: "pointer" }}
+                >
+                  {push.subscribed ? "On" : "Enable"}
+                </button>
+              )}
+            </div>
+          )}
+          {push.isIosNeedsInstall && (
+            <div style={{ padding: "10px 18px", borderTop: "1px solid rgba(3,72,82,0.06)", fontSize: "11px", color: "rgba(3,72,82,0.6)" }}>
+              Install to Home Screen (Share → Add to Home Screen) to get push notifications.
+            </div>
+          )}
 
           {/* Footer */}
           <div style={{ padding: "10px 18px", borderTop: "1px solid rgba(3,72,82,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
