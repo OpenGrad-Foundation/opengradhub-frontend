@@ -321,11 +321,15 @@ export default function SchoolDetailPage() {
         <RosterTable rows={unbatched} emptyMessage="No students assigned to this school yet." {...tableProps} />
       )}
 
-      {/* Committed register attendance for this school — read-only; uploading
-          still lives in the Attendance tab. */}
-      <div style={{ marginTop: "24px" }}>
-        <AttendancePanel schoolId={school.id} canView={canViewAttendance} />
-      </div>
+      {/* Committed register attendance for this school — hidden along with the
+          rest of the attendance registers / OMR feature, which is not exposed in
+          this release. Restore by deleting "attendance" from HIDDEN_MODULE_KEYS
+          (lib/moduleAccess.ts) and un-commenting this block. */}
+      {false && (
+        <div style={{ marginTop: "24px" }}>
+          <AttendancePanel schoolId={school.id} canView={canViewAttendance} />
+        </div>
+      )}
 
       {showAdd && (
         <AddStudentsPanel
