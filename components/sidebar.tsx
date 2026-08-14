@@ -35,7 +35,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MODULE_META, LMS_GROUP_KEYS, type ModuleKey } from "@/lib/moduleAccess";
+import { MODULE_META, LMS_GROUP_KEYS, HIDDEN_MODULE_KEYS, type ModuleKey } from "@/lib/moduleAccess";
 
 // Nav order = the order MODULE_META is declared in.
 const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
@@ -96,9 +96,9 @@ export default function Sidebar({
   const grantedCodes = new Set(
     (data?.modules ?? []).map((m: { code: string }) => m.code),
   );
-  const granted = MODULE_ORDER.filter((key) => grantedCodes.has(key)).map(
-    (key) => ({ key, ...MODULE_META[key] }),
-  );
+  const granted = MODULE_ORDER.filter(
+    (key) => grantedCodes.has(key) && !HIDDEN_MODULE_KEYS.has(key),
+  ).map((key) => ({ key, ...MODULE_META[key] }));
 
   // Dashboard is pinned at top; LMS keys nest into the collapsible group;
   // everything else stays flat below. All three preserve MODULE_ORDER.
