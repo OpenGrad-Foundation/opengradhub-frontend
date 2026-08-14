@@ -1708,7 +1708,7 @@ export type CreateQuizPayload = {
   shuffle_questions?: boolean;
   show_answers_after?: boolean;
   quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
-  created_by?: string;
+  // No created_by: the server takes authorship from the access token.
   is_sectioned?: boolean;
   sequential_sections?: boolean;
   first_attempt_counts?: boolean;
@@ -1936,11 +1936,65 @@ export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
   return (await r.json()) as Quiz;
 }
 
-export async function bulkImportQuiz(fileContent: string): Promise<{ quiz_id: string; sections: number; questions: number }> {
+/**
+ * Where a bulk-imported quiz lands. Mandatory on every persistence call — the
+ * server has no default and rejects a missing destination, so an omitted one
+ * cannot silently become a global test-bank import.
+ */
+export type QuizDestination =
+  | { kind: "GLOBAL" }
+  | { kind: "MODULE"; moduleId: string };
+
+export type QuizMovePreflight = {
+  quiz_id: string;
+  title: string;
+  current: {
+    kind: "GLOBAL" | "MODULE";
+    module_id: string | null;
+    module_title: string | null;
+    course_id: string | null;
+    course_title: string | null;
+  };
+  attempts: number;
+  in_progress_attempts: number;
+  bundle_assignments: number;
+  batch_assignments: number;
+  blockers: string[];
+  can_move: boolean;
+};
+
+export async function getQuizMovePreflight(id: string): Promise<QuizMovePreflight> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/move-preflight`, { cache: "no-store" });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to check whether this quiz can be moved.", r.status);
+  }
+  return (await r.json()) as QuizMovePreflight;
+}
+
+/** Global ↔ module scope conversion. Attempts stay attached to the quiz. */
+export async function moveQuiz(id: string, destination: QuizDestination): Promise<Quiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ destination }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to move quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+export async function bulkImportQuiz(
+  fileContent: string,
+  destination: QuizDestination,
+): Promise<{ quiz_id: string; sections: number; questions: number }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ file_content: fileContent }),
+    body: JSON.stringify({ file_content: fileContent, destination }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -1955,9 +2009,15 @@ export async function bulkImportQuiz(fileContent: string): Promise<{ quiz_id: st
  * BullMQ job handle; poll getBulkParseJobStatus() until it completes with a
  * { quiz_id, sections, questions } result.
  */
-export async function bulkImportQuizFromPdf(file: File): Promise<BulkPdfJobHandle> {
+export async function bulkImportQuizFromPdf(
+  file: File,
+  destination: QuizDestination,
+): Promise<BulkPdfJobHandle> {
   const formData = new FormData();
   formData.append("file", file);
+  // Serialized explicitly: append() would stringify the object to
+  // "[object Object]". The controller JSON.parses this field.
+  formData.append("destination", JSON.stringify(destination));
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-import-pdf`, {
     method: "POST",
     body: formData,
@@ -2094,14 +2154,18 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
 }
 
 /**
- * Queues a parsed quiz for saving. With `moduleId` it is saved as that
- * module's course quiz; without one it becomes a global quiz.
+ * Queues a parsed quiz for saving at `destination` — the backend requires the
+ * typed destination beside the quiz rather than a module_id mixed into the
+ * (client-editable) payload.
  */
-export async function bulkSaveQuiz(parsedData: ParsedBulkQuiz, moduleId?: string): Promise<{ jobId: string }> {
+export async function bulkSaveQuiz(
+  parsedData: ParsedBulkQuiz,
+  destination: QuizDestination,
+): Promise<{ jobId: string }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(moduleId ? { ...parsedData, module_id: moduleId } : parsedData),
+    body: JSON.stringify({ quiz: parsedData, destination }),
     cache: "no-store",
   });
   if (!r.ok) {
