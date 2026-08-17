@@ -134,3 +134,51 @@ describe('the list-page notice describes the grant that exists', () => {
     expect(page).toMatch(/never grants student data/i);
   });
 });
+
+describe('the member picker does not need a permission its users lack', () => {
+  const detail = fs.readFileSync(
+    path.join(__dirname, '..', 'app', 'dashboard', 'programmes', '[id]', 'page.tsx'),
+    'utf-8',
+  );
+
+  it('uses the ownership-gated endpoint, not GET /users', () => {
+    // GET /users requires user_management.view, held only by SUPER_ADMIN. A
+    // PROGRAM_MANAGER holds programmes.manage_members but not that, so the
+    // picker 403'd for exactly the role that staffs programmes — and the error
+    // was swallowed, leaving an empty dropdown and no explanation.
+    expect(detail).toContain('useEligibleProgrammeMembers');
+    expect(detail).not.toMatch(/\bgetUsers\b/);
+  });
+
+  it('says so when the staff list fails instead of showing an empty dropdown', () => {
+    expect(detail).toMatch(/staffError/);
+  });
+
+  it('does not promise EDITORs control over what the programme owns', () => {
+    // EDITOR edits content; deciding WHICH content the programme owns is OWNER
+    // only. "Manages the programme's content" implied both.
+    expect(detail).not.toMatch(/EDITOR:\s*"Manages the programme's content\."/);
+    expect(detail).toMatch(/EDITOR:\s*"Can edit the courses and assignments/);
+  });
+
+  it('tells an archived programme’s owner that they can undo it', () => {
+    // levelFor stops at ARCHIVED but administration does not, so the old
+    // "grants nothing" wording described a lockout that no longer happens.
+    expect(detail).not.toMatch(/Membership grants nothing while it stays archived/);
+    expect(detail).toMatch(/Owners keep administrative access/);
+  });
+});
+
+describe('the courses list routes on the right authority', () => {
+  const coursesPage = fs.readFileSync(
+    path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
+    'utf-8',
+  );
+
+  it('sends Manage to the management view only for can_manage', () => {
+    // /dashboard/course-management is gated by canManageCourse, which excludes
+    // programme editors. Routing them there on can_edit_content was a 403.
+    expect(coursesPage).toMatch(/const manageable = canManage && course\.can_manage !== false/);
+    expect(coursesPage).toMatch(/can_edit_content/);
+  });
+});

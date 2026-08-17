@@ -503,9 +503,15 @@ function ManagerCourseCard({
   callerId: string | null;
 }) {
   const currentUrl = useCurrentUrl();
-  // Per-course authority: can_manage is only present in the management list
-  // view (creator/collaborator/SA). Absent flag keeps legacy behavior.
+  // Per-course authority. Both flags are present only in the management list
+  // view; an absent flag keeps legacy behaviour.
+  //
+  // `manageable` decides where the primary button GOES, so it must track
+  // can_manage — /dashboard/course-management is gated by canManageCourse, which
+  // deliberately excludes programme editors. Routing them there on the strength
+  // of a programme grant sent them straight to a 403.
   const manageable = canManage && course.can_manage !== false;
+  const editableContent = canManage && course.can_edit_content !== false;
   const isShared = Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId;
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
@@ -516,7 +522,12 @@ function ManagerCourseCard({
               <Badge tone="dark">{course.programme_type}</Badge>
               <Badge tone={course.access_type === "PAID" ? "sun" : "mint"}>{course.access_type}</Badge>
               {isShared && <Badge tone="mint">Shared</Badge>}
-              {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
+              {canManage && !manageable && editableContent && (
+                <Badge tone="mint">Content edit</Badge>
+              )}
+              {canManage && !manageable && !editableContent && (
+                <Badge tone="gray">View only</Badge>
+              )}
             </div>
             <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-snug">{course.title}</h2>
           </div>

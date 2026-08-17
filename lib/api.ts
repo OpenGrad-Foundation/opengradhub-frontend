@@ -541,6 +541,12 @@ export type Course = {
   quiz_count?: number;
   /** Management list only: caller is creator, collaborator, or SUPER_ADMIN. */
   can_manage?: boolean;
+  /**
+   * Management list only: caller may edit metadata and curriculum. Wider than
+   * can_manage — it also covers programme editors, who are deliberately kept
+   * out of the management view because its payload carries student PII.
+   */
+  can_edit_content?: boolean;
 };
 
 export type CourseListParams = {
@@ -4560,6 +4566,23 @@ export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]
   return programmeJson(
     await apiFetch(`${API_BASE_URL}/programmes/${id}/members`),
     "Failed to load members.",
+  );
+}
+
+/**
+ * Staff this programme can still take on.
+ *
+ * Deliberately not `getUsers()`: that needs `user_management.view`, which only
+ * SUPER_ADMIN holds, so the picker used to 403 for the PROGRAM_MANAGER who owns
+ * the programme — the one person most likely to be staffing it. This endpoint
+ * is gated on programme ownership instead.
+ */
+export async function getEligibleProgrammeMembers(
+  id: string,
+): Promise<Array<{ user_id: string; name: string; email: string | null; role: string }>> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/members/eligible`),
+    "Failed to load staff.",
   );
 }
 

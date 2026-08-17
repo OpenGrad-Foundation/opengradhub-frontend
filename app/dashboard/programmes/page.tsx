@@ -97,9 +97,11 @@ export default function ProgrammesPage() {
       */}
       <div style={noticeStyle}>
         <strong>What membership grants.</strong> OWNERs and EDITORs can edit the courses and
-        assignments a programme owns; VIEWERs cannot. Membership never grants student data —
-        rosters, progress, attempts and scores stay with the school and batch hierarchy. It
-        also never grants a permission the member&apos;s role lacks.
+        assignments a programme owns; VIEWERs cannot. Owning content is not always enough to
+        edit it: if another programme&apos;s batch or students also use it, it stays read-only
+        for everyone but its creator. Membership never grants student data — rosters,
+        progress, attempts and scores stay with the school and batch hierarchy. It also never
+        grants a permission the member&apos;s role lacks.
       </div>
 
       {error && (

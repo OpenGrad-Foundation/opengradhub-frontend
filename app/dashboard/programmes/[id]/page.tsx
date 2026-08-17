@@ -2,17 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
-  ApiError, fetchSchools, getBatchImpact, getUsers,
-  type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel, type SafeUser,
+  ApiError, fetchSchools, getBatchImpact,
+  type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel,
   type SchoolOption,
 } from "@/lib/api";
 import {
-  useAssignableBatches, useAssignableContent, useProgramme, useProgrammeBatches,
-  useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
+  useAssignableBatches, useAssignableContent, useEligibleProgrammeMembers, useProgramme,
+  useProgrammeBatches, useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
 } from "@/lib/queries/programmes";
 import {
   useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
@@ -27,13 +26,26 @@ import {
 const LEVELS: ProgrammeLevel[] = ["OWNER", "EDITOR", "VIEWER"];
 
 /**
+ * Not every message worth showing is a failure. Attaching content that another
+ * programme also uses SUCCEEDS — it just grants less than the operator may
+ * expect — and rendering that in the red error box read as "this did not work".
+ */
+type BannerTone = "error" | "info";
+type Banner = { text: string; tone: BannerTone };
+type Notify = (message: string | null, tone?: BannerTone) => void;
+
+/**
  * What each level means, stated in the UI so it is not folklore.
  * Mirrors the backend: level gates writes; VIEWER is deliberately read-only and
  * carries no roster PII or grades.
  */
 const LEVEL_HELP: Record<ProgrammeLevel, string> = {
-  OWNER: "Manages members, schools and settings.",
-  EDITOR: "Manages the programme's content.",
+  // OWNER is the only level that administers the programme itself — members,
+  // schools, batches, and which content the programme owns.
+  OWNER: "Manages members, schools, batches, and which content this programme owns.",
+  // EDITOR edits content but cannot decide what the programme owns. Saying
+  // "manages the programme's content" implied the latter, which it never had.
+  EDITOR: "Can edit the courses and assignments this programme already owns.",
   VIEWER: "Read-only. No student data.",
 };
 
@@ -45,7 +57,9 @@ export default function ProgrammeDetailPage() {
   const canManageMembers = has(PERM.programmes.manage_members);
 
   const { data: programme, isLoading, error } = useProgramme(id);
-  const [banner, setBanner] = useState<string | null>(null);
+  const [banner, setBanner] = useState<Banner | null>(null);
+  const notify: Notify = (message, tone = "error") =>
+    setBanner(message === null ? null : { text: message, tone });
 
   // Only an OWNER (or a super admin, whom the API lets through) can actually
   // write. Showing the controls to anyone else just produces 403s.
@@ -89,20 +103,23 @@ export default function ProgrammeDetailPage() {
 
       {programme.status === "ARCHIVED" && (
         <div style={noticeStyle}>
-          This programme is archived. Membership grants nothing while it stays archived.
+          This programme is archived. Editors cannot edit its content while it stays
+          archived. Owners keep administrative access, so this can be undone below.
         </div>
       )}
-      {banner && <div style={errorStyle}>{banner}</div>}
+      {banner && (
+        <div style={banner.tone === "error" ? errorStyle : noticeStyle}>{banner.text}</div>
+      )}
 
       <MembersSection
         programmeId={id}
         canManage={canManageMembers && (isOwner || has("*"))}
-        onError={setBanner}
+        onError={notify}
       />
-      <ContentSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
-      <SchoolsSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
-      <BatchesSection programmeId={id} canManage={mayAdminister} onError={setBanner} />
-      {mayAdminister && <DangerSection programmeId={id} status={programme.status} onError={setBanner} />}
+      <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />
+      <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />
+      <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />
+      {mayAdminister && <DangerSection programmeId={id} status={programme.status} onError={notify} />}
     </div>
   );
 }
@@ -111,7 +128,7 @@ export default function ProgrammeDetailPage() {
 
 function MembersSection({
   programmeId, canManage, onError,
-}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+}: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: members = [], isLoading } = useProgrammeMembers(programmeId);
   const setMember = useSetProgrammeMember();
   const removeMember = useRemoveProgrammeMember();
@@ -120,19 +137,19 @@ function MembersSection({
   const [pick, setPick] = useState("");
   const [level, setLevel] = useState<ProgrammeLevel>("EDITOR");
 
-  // Staff only — the API refuses students, so offering them would be a trap.
-  const { data: staff = [] } = useQuery({
-    queryKey: ["og", "users", "staff-for-programme"],
-    queryFn: async () => {
-      const all = await getUsers();
-      return all.filter((u: SafeUser) => u.role !== "STUDENT" && u.status === "ACTIVE");
-    },
-    enabled: adding,
-    staleTime: 5 * 60_000,
-  });
-
-  const memberIds = useMemo(() => new Set(members.map((m) => m.user_id)), [members]);
-  const candidates = staff.filter((u) => !memberIds.has(u.id));
+  // Gated on programme ownership, not on user_management.view. Using GET /users
+  // here meant only a SUPER_ADMIN ever saw candidates: PROGRAM_MANAGER holds
+  // programmes.manage_members but not user_management.view, so the picker 403'd
+  // for exactly the role that staffs programmes — and the error was swallowed,
+  // leaving an empty dropdown with no explanation.
+  //
+  // The endpoint already excludes students and existing members, so the filter
+  // that used to live here is gone: one answer, on the server.
+  const {
+    data: candidates = [],
+    isLoading: loadingStaff,
+    error: staffError,
+  } = useEligibleProgrammeMembers(programmeId, adding);
 
   async function run(fn: () => Promise<unknown>) {
     onError(null);
@@ -154,14 +171,36 @@ function MembersSection({
         <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 260px" }}>
             <label style={formLabelStyle}>Staff member</label>
-            <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
-              <option value="">Select…</option>
+            <select
+              style={inputStyle}
+              value={pick}
+              onChange={(e) => setPick(e.target.value)}
+              disabled={loadingStaff || Boolean(staffError)}
+            >
+              <option value="">
+                {loadingStaff
+                  ? "Loading staff…"
+                  : staffError
+                    ? "Could not load staff"
+                    : candidates.length === 0
+                      ? "No staff left to add"
+                      : "Select…"}
+              </option>
               {candidates.map((u) => (
-                <option key={u.id} value={u.id}>
+                <option key={u.user_id} value={u.user_id}>
                   {u.name} — {u.role}{u.email ? ` (${u.email})` : ""}
                 </option>
               ))}
             </select>
+            {/* An empty dropdown is indistinguishable from a failed one unless
+                the failure is said out loud. */}
+            {staffError && (
+              <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+                {staffError instanceof ApiError
+                  ? staffError.message
+                  : "Failed to load staff."}
+              </div>
+            )}
           </div>
           <div style={{ flex: "0 1 200px" }}>
             <label style={formLabelStyle}>Level</label>
@@ -266,7 +305,7 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string }> = 
  */
 function ContentSection({
   programmeId, canManage, onError,
-}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+}: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: owned = [], isLoading } = useProgrammeContent(programmeId);
   const assign = useAssignProgrammeContent();
   const release = useReleaseProgrammeContent();
@@ -334,6 +373,7 @@ function ContentSection({
               if (!r.editable) {
                 onError(
                   "Added, but another programme also uses it — members get ownership, not edit rights.",
+                  "info",
                 );
               }
             })}
@@ -413,7 +453,7 @@ function ContentSection({
 
 function SchoolsSection({
   programmeId, canManage, onError,
-}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+}: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: attached = [], isLoading } = useProgrammeSchools(programmeId);
   const attach = useAttachProgrammeSchool();
   const detach = useDetachProgrammeSchool();
@@ -526,7 +566,7 @@ function SchoolsSection({
  */
 function BatchesSection({
   programmeId, canManage, onError,
-}: { programmeId: string; canManage: boolean; onError: (m: string | null) => void }) {
+}: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: attached = [], isLoading } = useProgrammeBatches(programmeId);
   const { data: assignable = [], isLoading: loadingPick } =
     useAssignableBatches(programmeId, canManage);
@@ -535,18 +575,24 @@ function BatchesSection({
 
   const [pick, setPick] = useState("");
   const [impact, setImpact] = useState<BatchImpact[] | null>(null);
+  // Separate from `impact === null`, which also means "not checked yet". Folding
+  // the two together made a failed check render nothing — neither the amber
+  // warning nor the green all-clear — so the user pressed Attach blind, which is
+  // the exact thing this preview exists to prevent.
+  const [impactFailed, setImpactFailed] = useState(false);
   const [checking, setChecking] = useState(false);
 
   // Look up the consequence as soon as a batch is chosen, so the warning is on
   // screen before Attach is pressed rather than after.
   useEffect(() => {
     setImpact(null);
+    setImpactFailed(false);
     if (!pick) return;
     let cancelled = false;
     setChecking(true);
     getBatchImpact(programmeId, pick)
       .then((r) => { if (!cancelled) setImpact(r); })
-      .catch(() => { if (!cancelled) setImpact(null); })
+      .catch(() => { if (!cancelled) setImpactFailed(true); })
       .finally(() => { if (!cancelled) setChecking(false); });
     return () => { cancelled = true; };
   }, [programmeId, pick]);
@@ -591,8 +637,19 @@ function BatchesSection({
               style={{ ...primaryButton, opacity: !pick || attach.isPending ? 0.6 : 1 }}
               disabled={!pick || attach.isPending}
               onClick={() => run(async () => {
-                await attach.mutateAsync({ id: programmeId, batchId: pick });
+                const r = await attach.mutateAsync({ id: programmeId, batchId: pick });
                 setPick("");
+                // The server reports what the attach actually cost. Discarding
+                // it meant a no-op and a batch that revoked five courses looked
+                // identical.
+                if (!r.attached) {
+                  onError("That batch already belongs to this programme.", "info");
+                } else if (r.revokes_edit_on > 0) {
+                  onError(
+                    `Batch added. ${r.revokes_edit_on} course${r.revokes_edit_on === 1 ? "" : "s"} owned by another programme ${r.revokes_edit_on === 1 ? "is" : "are"} now shared, so their editors lost edit rights.`,
+                    "info",
+                  );
+                }
               })}
             >
               Add
@@ -620,6 +677,12 @@ function BatchesSection({
           {impact !== null && impact.length === 0 && pick && !checking && (
             <div style={{ fontSize: 12, color: "#067a45" }}>
               No side effects — this batch teaches nothing another programme owns.
+            </div>
+          )}
+          {impactFailed && !checking && (
+            <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
+              Could not check what attaching this batch would affect. Adding it may still
+              remove edit rights from another programme.
             </div>
           )}
         </div>
@@ -674,7 +737,7 @@ function BatchesSection({
 
 function DangerSection({
   programmeId, status, onError,
-}: { programmeId: string; status: "ACTIVE" | "ARCHIVED"; onError: (m: string | null) => void }) {
+}: { programmeId: string; status: "ACTIVE" | "ARCHIVED"; onError: Notify }) {
   const update = useUpdateProgramme();
   const archived = status === "ARCHIVED";
 

@@ -23,6 +23,7 @@ export const qk = {
   programmes: (includeArchived: boolean) => ['og', 'programmes', { includeArchived }] as const,
   programme: (id: string) => ['og', 'programme', id] as const,
   programmeMembers: (id: string) => ['og', 'programme', id, 'members'] as const,
+  programmeEligibleMembers: (id: string) => ['og', 'programme', id, 'eligible-members'] as const,
   programmeSchools: (id: string) => ['og', 'programme', id, 'schools'] as const,
   programmeContent: (id: string) => ['og', 'programme', id, 'content'] as const,
   programmeBatches: (id: string) => ['og', 'programme', id, 'batches'] as const,

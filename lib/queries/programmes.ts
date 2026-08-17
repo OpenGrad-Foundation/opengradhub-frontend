@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   getAssignableBatches,
   getAssignableContent,
+  getEligibleProgrammeMembers,
   getProgramme,
   getProgrammeBatches,
   getProgrammeContent,
@@ -49,6 +50,19 @@ export function useProgrammeMembers(id: string | undefined) {
     queryKey: qk.programmeMembers(id ?? ''),
     queryFn: () => getProgrammeMembers(id as string),
     enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Only fetched when the caller may actually staff the programme — the endpoint
+ * requires ownership, so firing it for a VIEWER would be a guaranteed 403.
+ */
+export function useEligibleProgrammeMembers(id: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.programmeEligibleMembers(id ?? ''),
+    queryFn: () => getEligibleProgrammeMembers(id as string),
+    enabled: Boolean(id) && enabled,
     staleTime: 30_000,
   });
 }
