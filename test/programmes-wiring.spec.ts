@@ -181,4 +181,16 @@ describe('the courses list routes on the right authority', () => {
     expect(coursesPage).toMatch(/const manageable = canManage && course\.can_manage !== false/);
     expect(coursesPage).toMatch(/can_edit_content/);
   });
+
+  it('gives the content grant a way in — badge alone is a dead end', () => {
+    // A programme EDITOR holds can_edit_content but not can_manage. The card
+    // used to show a "Content edit" badge while the only button said "Open"
+    // and led to the student view — the grant existed but had no entry point.
+    // The management page degrades to a content-only workspace on the
+    // management-payload 403, so routing editors there is safe now.
+    expect(coursesPage).toMatch(
+      /manageable \|\| editableContent \? `\/dashboard\/course-management\/\$\{course\.id\}`/,
+    );
+    expect(coursesPage).toMatch(/"Edit content"/);
+  });
 });
