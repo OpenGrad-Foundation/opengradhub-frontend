@@ -22,6 +22,7 @@ import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
   linkBtnStyle, noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "../styles";
+import { SearchMultiPicker } from "@/components/SearchMultiPicker";
 
 const LEVELS: ProgrammeLevel[] = ["OWNER", "EDITOR", "VIEWER"];
 
@@ -134,7 +135,7 @@ function MembersSection({
   const removeMember = useRemoveProgrammeMember();
 
   const [adding, setAdding] = useState(false);
-  const [pick, setPick] = useState("");
+  const [picks, setPicks] = useState<string[]>([]);
   const [level, setLevel] = useState<ProgrammeLevel>("EDITOR");
 
   // Gated on programme ownership, not on user_management.view. Using GET /users
@@ -169,30 +170,22 @@ function MembersSection({
 
       {canManage && adding && (
         <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 260px" }}>
-            <label style={formLabelStyle}>Staff member</label>
-            <select
-              style={inputStyle}
-              value={pick}
-              onChange={(e) => setPick(e.target.value)}
-              disabled={loadingStaff || Boolean(staffError)}
-            >
-              <option value="">
-                {loadingStaff
-                  ? "Loading staff…"
-                  : staffError
-                    ? "Could not load staff"
-                    : candidates.length === 0
-                      ? "No staff left to add"
-                      : "Select…"}
-              </option>
-              {candidates.map((u) => (
-                <option key={u.user_id} value={u.user_id}>
-                  {u.name} — {u.role}{u.email ? ` (${u.email})` : ""}
-                </option>
-              ))}
-            </select>
-            {/* An empty dropdown is indistinguishable from a failed one unless
+          <div style={{ flex: "1 1 300px" }}>
+            <label style={formLabelStyle}>Staff members</label>
+            <SearchMultiPicker
+              options={candidates.map((u) => ({
+                id: u.user_id,
+                label: u.name,
+                sublabel: [u.role, u.email].filter(Boolean).join(" · "),
+              }))}
+              value={picks}
+              onChange={setPicks}
+              isLoading={loadingStaff}
+              disabled={Boolean(staffError)}
+              placeholder="Search staff by name, role or email…"
+              emptyText="No staff left to add."
+            />
+            {/* An empty picker is indistinguishable from a failed one unless
                 the failure is said out loud. */}
             {staffError && (
               <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
@@ -207,19 +200,39 @@ function MembersSection({
             <select style={inputStyle} value={level} onChange={(e) => setLevel(e.target.value as ProgrammeLevel)}>
               {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 6 }}>{LEVEL_HELP[level]}</div>
+            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 6 }}>
+              {LEVEL_HELP[level]}
+              {picks.length > 1 ? ` Applies to all ${picks.length} selected.` : ""}
+            </div>
           </div>
           <button
-            style={{ ...primaryButton, opacity: !pick || setMember.isPending ? 0.6 : 1 }}
-            disabled={!pick || setMember.isPending}
+            style={{ ...primaryButton, opacity: picks.length === 0 || setMember.isPending ? 0.6 : 1 }}
+            disabled={picks.length === 0 || setMember.isPending}
             onClick={() => run(async () => {
-              await setMember.mutateAsync({ id: programmeId, userId: pick, level });
-              setPick(""); setAdding(false);
+              // Sequential on purpose: each add is its own authority check, and
+              // a partial success must say exactly who failed.
+              const failed: string[] = [];
+              for (const userId of picks) {
+                try {
+                  await setMember.mutateAsync({ id: programmeId, userId, level });
+                } catch {
+                  const who = candidates.find((c) => c.user_id === userId);
+                  failed.push(who?.name ?? userId);
+                }
+              }
+              if (failed.length > 0) {
+                setPicks(picks.filter((p) => failed.includes(candidates.find((c) => c.user_id === p)?.name ?? p)));
+                throw new ApiError(
+                  `Added ${picks.length - failed.length} of ${picks.length} — failed: ${failed.join(", ")}.`,
+                  400,
+                );
+              }
+              setPicks([]); setAdding(false);
             })}
           >
-            Add
+            {setMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
           </button>
-          <button style={secondaryButton} onClick={() => { setAdding(false); setPick(""); }}>Cancel</button>
+          <button style={secondaryButton} onClick={() => { setAdding(false); setPicks([]); }}>Cancel</button>
         </div>
       )}
 
@@ -312,7 +325,7 @@ function ContentSection({
 
   const [kind, setKind] = useState<ProgrammeContentKind>("courses");
   const [search, setSearch] = useState("");
-  const [pick, setPick] = useState("");
+  const [picks, setPicks] = useState<string[]>([]);
   const { data: assignable = [], isLoading: loadingPick } =
     useAssignableContent(programmeId, kind, search, canManage);
 
@@ -340,53 +353,62 @@ function ContentSection({
             <select
               style={inputStyle}
               value={kind}
-              onChange={(e) => { setKind(e.target.value as ProgrammeContentKind); setPick(""); }}
+              onChange={(e) => { setKind(e.target.value as ProgrammeContentKind); setPicks([]); setSearch(""); }}
             >
               {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
             </select>
           </div>
-          <div style={{ flex: "0 1 220px" }}>
-            <label style={formLabelStyle}>Search</label>
-            <input
-              style={inputStyle}
-              value={search}
-              placeholder="Filter by title…"
-              onChange={(e) => { setSearch(e.target.value); setPick(""); }}
+          <div style={{ flex: "1 1 320px" }}>
+            <label style={formLabelStyle}>Add to programme</label>
+            {/* Server-search mode: typing re-queries the assignable list (the
+                server caps at 50), and picks made under one query survive the
+                next — the picker caches every option it has seen. */}
+            <SearchMultiPicker
+              options={assignable.map((c) => ({ id: c.id, label: c.title }))}
+              value={picks}
+              onChange={setPicks}
+              onQueryChange={setSearch}
+              isLoading={loadingPick}
+              placeholder={`Search ${kind} by title…`}
+              emptyText={`Nothing available to add. Only unassigned ${kind} you created or were invited to manage are offered.`}
             />
           </div>
-          <div style={{ flex: "1 1 300px" }}>
-            <label style={formLabelStyle}>Add to programme</label>
-            <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
-              <option value="">{loadingPick ? "Loading…" : "Select…"}</option>
-              {assignable.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
-            </select>
-          </div>
           <button
-            style={{ ...primaryButton, opacity: !pick || assign.isPending ? 0.6 : 1 }}
-            disabled={!pick || assign.isPending}
+            style={{ ...primaryButton, opacity: picks.length === 0 || assign.isPending ? 0.6 : 1 }}
+            disabled={picks.length === 0 || assign.isPending}
             onClick={() => run(async () => {
-              const r = await assign.mutateAsync({ id: programmeId, kind, resourceId: pick });
-              setPick("");
+              // Sequential on purpose: each assign is its own double gate, and
+              // a partial success must say exactly what failed.
+              const failed: string[] = [];
+              let shared = 0;
+              for (const resourceId of picks) {
+                try {
+                  const r = await assign.mutateAsync({ id: programmeId, kind, resourceId });
+                  if (!r.editable) shared += 1;
+                } catch {
+                  failed.push(resourceId);
+                }
+              }
+              setPicks(failed);
               // Assigned but not editable is a real outcome, not a failure —
               // say so at the moment it happens rather than leaving the admin
               // to notice a grey badge later.
-              if (!r.editable) {
+              if (shared > 0) {
                 onError(
-                  "Added, but another programme also uses it — members get ownership, not edit rights.",
+                  `${shared} added but another programme also uses ${shared === 1 ? "it" : "them"} — members get ownership, not edit rights.`,
                   "info",
+                );
+              }
+              if (failed.length > 0) {
+                throw new ApiError(
+                  `Added ${picks.length - failed.length} of ${picks.length} — the rest stay selected, try again.`,
+                  400,
                 );
               }
             })}
           >
-            Add
+            {assign.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
           </button>
-        </div>
-      )}
-
-      {canManage && assignable.length === 0 && !loadingPick && !search && (
-        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>
-          Nothing available to add. The picker lists only unassigned {kind} you created
-          or were invited to manage.
         </div>
       )}
 
@@ -458,7 +480,7 @@ function SchoolsSection({
   const attach = useAttachProgrammeSchool();
   const detach = useDetachProgrammeSchool();
   const [all, setAll] = useState<SchoolOption[]>([]);
-  const [pick, setPick] = useState("");
+  const [picks, setPicks] = useState<string[]>([]);
 
   useEffect(() => {
     if (!canManage) return;
@@ -482,25 +504,41 @@ function SchoolsSection({
       {canManage && (
         <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 320px" }}>
-            <label style={formLabelStyle}>Attach a school</label>
-            <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
-              <option value="">Select…</option>
-              {candidates.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}{s.district ? ` — ${s.district}` : ""}
-                </option>
-              ))}
-            </select>
+            <label style={formLabelStyle}>Attach schools</label>
+            <SearchMultiPicker
+              options={candidates.map((s) => ({
+                id: s.id,
+                label: s.name,
+                sublabel: [s.code, s.district, s.state].filter(Boolean).join(" · ") || undefined,
+              }))}
+              value={picks}
+              onChange={setPicks}
+              placeholder="Search schools by name, code or district…"
+              emptyText="No schools left to attach."
+            />
           </div>
           <button
-            style={{ ...primaryButton, opacity: !pick || attach.isPending ? 0.6 : 1 }}
-            disabled={!pick || attach.isPending}
+            style={{ ...primaryButton, opacity: picks.length === 0 || attach.isPending ? 0.6 : 1 }}
+            disabled={picks.length === 0 || attach.isPending}
             onClick={() => run(async () => {
-              await attach.mutateAsync({ id: programmeId, schoolId: pick });
-              setPick("");
+              const failed: string[] = [];
+              for (const schoolId of picks) {
+                try {
+                  await attach.mutateAsync({ id: programmeId, schoolId });
+                } catch {
+                  failed.push(candidates.find((c) => c.id === schoolId)?.name ?? schoolId);
+                }
+              }
+              setPicks([]);
+              if (failed.length > 0) {
+                throw new ApiError(
+                  `Attached ${picks.length - failed.length} of ${picks.length} — failed: ${failed.join(", ")}.`,
+                  400,
+                );
+              }
             })}
           >
-            Attach
+            {attach.isPending ? "Attaching…" : picks.length > 1 ? `Attach ${picks.length}` : "Attach"}
           </button>
         </div>
       )}
@@ -573,7 +611,7 @@ function BatchesSection({
   const attach = useAttachProgrammeBatch();
   const detach = useDetachProgrammeBatch();
 
-  const [pick, setPick] = useState("");
+  const [picks, setPicks] = useState<string[]>([]);
   const [impact, setImpact] = useState<BatchImpact[] | null>(null);
   // Separate from `impact === null`, which also means "not checked yet". Folding
   // the two together made a failed check render nothing — neither the amber
@@ -582,20 +620,34 @@ function BatchesSection({
   const [impactFailed, setImpactFailed] = useState(false);
   const [checking, setChecking] = useState(false);
 
-  // Look up the consequence as soon as a batch is chosen, so the warning is on
-  // screen before Attach is pressed rather than after.
+  // Look up the consequence as soon as batches are chosen, so the warning is on
+  // screen before Attach is pressed rather than after. The preview covers the
+  // WHOLE selection: attaching three batches at once has the union of their
+  // costs, and a warning that described only one of them would understate it.
   useEffect(() => {
     setImpact(null);
     setImpactFailed(false);
-    if (!pick) return;
+    if (picks.length === 0) return;
     let cancelled = false;
     setChecking(true);
-    getBatchImpact(programmeId, pick)
-      .then((r) => { if (!cancelled) setImpact(r); })
-      .catch(() => { if (!cancelled) setImpactFailed(true); })
+    Promise.allSettled(picks.map((b) => getBatchImpact(programmeId, b)))
+      .then((results) => {
+        if (cancelled) return;
+        // allSettled, not all: one failed lookup must not hide the impacts that
+        // did come back — it downgrades the notice, it does not erase it.
+        const byCourse = new Map<string, BatchImpact>();
+        for (const r of results) {
+          if (r.status === "fulfilled") {
+            // Two picked batches can teach the same course; name it once.
+            for (const c of r.value) byCourse.set(c.course_id, c);
+          }
+        }
+        setImpact([...byCourse.values()]);
+        setImpactFailed(results.some((r) => r.status === "rejected"));
+      })
       .finally(() => { if (!cancelled) setChecking(false); });
     return () => { cancelled = true; };
-  }, [programmeId, pick]);
+  }, [programmeId, picks]);
 
   async function run(fn: () => Promise<unknown>) {
     onError(null);
@@ -616,43 +668,63 @@ function BatchesSection({
         <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
             <div style={{ flex: "1 1 320px" }}>
-              <label style={formLabelStyle}>Add a batch</label>
-              <select style={inputStyle} value={pick} onChange={(e) => setPick(e.target.value)}>
-                <option value="">
-                  {loadingPick
-                    ? "Loading…"
-                    : assignable.length === 0
-                      ? "No unassigned batches at this programme's schools"
-                      : "Select…"}
-                </option>
-                {assignable.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}{b.school_name ? ` — ${b.school_name}` : ""}
-                    {b.course_count ? ` (${b.course_count} course${b.course_count === 1 ? "" : "s"})` : ""}
-                  </option>
-                ))}
-              </select>
+              <label style={formLabelStyle}>Add batches</label>
+              <SearchMultiPicker
+                options={assignable.map((b) => ({
+                  id: b.id,
+                  label: b.name,
+                  sublabel: [
+                    b.school_name,
+                    b.course_count ? `${b.course_count} course${b.course_count === 1 ? "" : "s"}` : null,
+                  ].filter(Boolean).join(" · ") || undefined,
+                }))}
+                value={picks}
+                onChange={setPicks}
+                isLoading={loadingPick}
+                placeholder="Search batches by name or school…"
+                emptyText="No unassigned batches at this programme's schools."
+              />
             </div>
             <button
-              style={{ ...primaryButton, opacity: !pick || attach.isPending ? 0.6 : 1 }}
-              disabled={!pick || attach.isPending}
+              style={{ ...primaryButton, opacity: picks.length === 0 || attach.isPending ? 0.6 : 1 }}
+              disabled={picks.length === 0 || attach.isPending}
               onClick={() => run(async () => {
-                const r = await attach.mutateAsync({ id: programmeId, batchId: pick });
-                setPick("");
-                // The server reports what the attach actually cost. Discarding
+                // The server reports what each attach actually cost. Discarding
                 // it meant a no-op and a batch that revoked five courses looked
                 // identical.
-                if (!r.attached) {
-                  onError("That batch already belongs to this programme.", "info");
-                } else if (r.revokes_edit_on > 0) {
+                const failed: string[] = [];
+                let noop = 0;
+                let revoked = 0;
+                for (const batchId of picks) {
+                  try {
+                    const r = await attach.mutateAsync({ id: programmeId, batchId });
+                    if (!r.attached) noop += 1;
+                    revoked += r.revokes_edit_on;
+                  } catch {
+                    failed.push(assignable.find((b) => b.id === batchId)?.name ?? batchId);
+                  }
+                }
+                setPicks([]);
+                if (revoked > 0) {
                   onError(
-                    `Batch added. ${r.revokes_edit_on} course${r.revokes_edit_on === 1 ? "" : "s"} owned by another programme ${r.revokes_edit_on === 1 ? "is" : "are"} now shared, so their editors lost edit rights.`,
+                    `Batches added. ${revoked} course${revoked === 1 ? "" : "s"} owned by another programme ${revoked === 1 ? "is" : "are"} now shared, so their editors lost edit rights.`,
                     "info",
+                  );
+                } else if (noop > 0 && failed.length === 0) {
+                  onError(
+                    `${noop === picks.length ? "Already attached" : `${noop} already attached`} to this programme.`,
+                    "info",
+                  );
+                }
+                if (failed.length > 0) {
+                  throw new ApiError(
+                    `Attached ${picks.length - failed.length} of ${picks.length} — failed: ${failed.join(", ")}.`,
+                    400,
                   );
                 }
               })}
             >
-              Add
+              {attach.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
             </button>
           </div>
 
@@ -661,8 +733,9 @@ function BatchesSection({
           )}
           {impact !== null && impact.length > 0 && (
             <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
-              <strong>This removes edit rights from another programme.</strong> This batch
-              teaches {impact.length} course{impact.length === 1 ? "" : "s"} owned elsewhere.
+              <strong>This removes edit rights from another programme.</strong>{" "}
+              {picks.length === 1 ? "This batch teaches" : "These batches teach"} {impact.length} course
+              {impact.length === 1 ? "" : "s"} owned elsewhere.
               Once the batch belongs here those courses are shared across programmes, so
               their owners keep ownership and lose editing:
               <ul style={{ margin: "8px 0 0 18px" }}>
@@ -674,15 +747,17 @@ function BatchesSection({
               </ul>
             </div>
           )}
-          {impact !== null && impact.length === 0 && pick && !checking && (
+          {impact !== null && impact.length === 0 && picks.length > 0 && !checking && !impactFailed && (
             <div style={{ fontSize: 12, color: "#067a45" }}>
-              No side effects — this batch teaches nothing another programme owns.
+              No side effects — {picks.length === 1 ? "this batch teaches" : "these batches teach"} nothing
+              another programme owns.
             </div>
           )}
           {impactFailed && !checking && (
             <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
-              Could not check what attaching this batch would affect. Adding it may still
-              remove edit rights from another programme.
+              Could not check what attaching {picks.length === 1 ? "this batch" : "every selected batch"} would
+              affect. Adding {picks.length === 1 ? "it" : "them"} may still remove edit rights from another
+              programme.
             </div>
           )}
         </div>
