@@ -69,6 +69,26 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 
+/**
+ * Modules that exist in the codebase but are deliberately NOT exposed yet.
+ *
+ * The attendance registers / OMR feature rode along with the FellowTracker
+ * release because its commits are interleaved with the tracker ones below the
+ * programme cut, not because it was ready to show. Hiding it here — rather than
+ * ripping the code out of a branch that is already deployed — keeps the change
+ * small and reversible: delete the key to turn the module back on.
+ *
+ * This is presentation only. The backend still grants the module and its routes
+ * still answer, so anyone holding a direct URL or a token can reach it. It is a
+ * "not finished, don't show it" switch, NOT an access control.
+ *
+ * Note the live-class attendance marking inside Live Classes is a different
+ * feature and is intentionally untouched.
+ */
+export const HIDDEN_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
+  "attendance",
+]);
+
 // Module keys that nest under the collapsible "LMS Tools" sidebar group.
 // Order within the group still follows MODULE_ORDER (MODULE_META declaration order).
 // Presentation-only: the *set* of granted modules still comes from the backend.

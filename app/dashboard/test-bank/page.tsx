@@ -12,6 +12,7 @@ import { qk } from "@/lib/queries/keys";
 import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuizDeleteModal } from "./_components/QuizDeleteModal";
+import { MoveQuizModal } from "@/app/dashboard/_components/MoveQuizModal";
 import {
   QuestionSlideOver,
   QUESTION_TYPES,
@@ -67,6 +68,7 @@ function TestBankPageContent() {
   const [globalTestsExpanded, setGlobalTestsExpanded] = useState<boolean>(!!searchParams.get("uploadJobId"));
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [quizToMove, setQuizToMove]     = useState<{ id: string; title: string } | null>(null);
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
@@ -354,6 +356,7 @@ function TestBankPageContent() {
               onArchive={() => handleArchiveQuiz(t)}
               onUnarchive={() => handleUnarchiveQuiz(t)}
               busy={archiveBusy === t.id}
+              onMove={() => setQuizToMove({ id: t.id, title: t.title })}
             />
           ))}
           {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
@@ -366,8 +369,21 @@ function TestBankPageContent() {
         </div>
       )}
 
+      {quizToMove && (
+        <MoveQuizModal
+          quizId={quizToMove.id}
+          quizTitle={quizToMove.title}
+          onClose={() => setQuizToMove(null)}
+          onMoved={() => {
+            setQuizToMove(null);
+            // It left the global list — refetch rather than patch state.
+            fetchGlobalTests();
+          }}
+        />
+      )}
+
       {quizToDelete && (
-        <QuizDeleteModal 
+        <QuizDeleteModal
           quizTitle={quizToDelete.title}
           uniqueQuestions={uniqueQuestionsForDelete}
           onClose={() => setQuizToDelete(null)}
@@ -501,13 +517,14 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }: {
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove }: {
   quiz: Omit<Quiz, "questions">;
   isLast: boolean;
   onDelete: () => void;
   onArchive: () => void;
   onUnarchive: () => void;
   busy: boolean;
+  onMove: () => void;
 }) {
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const created = fmt(quiz.created_at);
@@ -545,6 +562,13 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy }:
         <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
           Edit →
         </Link>
+        {/* Moving an archived quiz would resurrect it into a live curriculum,
+            so the destination action is offered only while it is active. */}
+        {!isArchived && (
+          <button onClick={onMove} style={outlineBtn}>
+            Move to Module
+          </button>
+        )}
         {isArchived ? (
           <button onClick={onUnarchive} disabled={busy} style={{ ...outlineBtn, color: "#209379", borderColor: "rgba(32,147,121,0.3)", opacity: busy ? 0.5 : 1 }}>
             {busy ? "…" : "Restore"}
