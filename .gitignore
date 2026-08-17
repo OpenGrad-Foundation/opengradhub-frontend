@@ -48,3 +48,4 @@ next-env.d.ts
 
 # Local git worktrees (isolated workspaces)
 .worktrees/
+.gstack/
