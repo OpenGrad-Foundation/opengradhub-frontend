@@ -903,6 +903,27 @@ export async function createCourse(payload: {
   return (await response.json()) as Course;
 }
 
+/**
+ * Duplicate a course: fresh LEGACY draft owned by the caller, curriculum
+ * copied, nothing student-facing. The release valve for programme-owned
+ * courses — the copy can be assigned to any programme.
+ */
+export async function duplicateCourse(id: string): Promise<Course> {
+  const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
+    method: "POST",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to duplicate course.", response.status);
+  }
+
+  return (await response.json()) as Course;
+}
+
 export async function updateCourse(
   id: string,
   payload: {
