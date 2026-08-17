@@ -23,6 +23,7 @@ import {
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuestionBulkUploadPanel } from "./QuestionBulkUploadPanel";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // Stable empty fallback — a fresh Map() per render would change identity every
 // pass and retrigger anything keyed on it.
@@ -426,8 +427,9 @@ function TestBankPageContent() {
           {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </Sel>
         <Sel value={filterProg} onChange={setFilterProg} placeholder="All Programmes">
-          <option value="UG">UG</option>
-          <option value="PG">PG</option>
+          {PROGRAMME_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>{k.label}</option>
+          ))}
         </Sel>
         <Inp value={filterSubject} onChange={setFilterSubject} placeholder="Subject…" />
         <Inp value={filterTopic}   onChange={setFilterTopic}   placeholder="Topic…" />

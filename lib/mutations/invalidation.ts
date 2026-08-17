@@ -28,6 +28,11 @@ const DOMAIN_KEYS = {
   courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // user CRUD / role / archive — busts the managers list and authz-derived views
   users: [['og', 'user'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard']],
+  // programme container CRUD / membership / school attach. Deliberately narrow:
+  // programme rows are not read by any other view yet (the container ships
+  // inert), so nothing outside its own keys can be stale. Widen this the moment
+  // the scope resolver makes programmes load-bearing elsewhere.
+  programmes: [['og', 'programmes'], ['og', 'programme']],
   // school CRUD / fellow assignment
   schools: [['og', 'schools'], ['og', 'managers'], ['og', 'analytics']],
   // announcement writes update the inbox + dashboard announcements card, not analytics aggregates

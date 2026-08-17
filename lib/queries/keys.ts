@@ -20,6 +20,17 @@ export const qk = {
 
   user: (userId: string) => ['og', 'user', userId] as const,
 
+  programmes: (includeArchived: boolean) => ['og', 'programmes', { includeArchived }] as const,
+  programme: (id: string) => ['og', 'programme', id] as const,
+  programmeMembers: (id: string) => ['og', 'programme', id, 'members'] as const,
+  programmeEligibleMembers: (id: string) => ['og', 'programme', id, 'eligible-members'] as const,
+  programmeSchools: (id: string) => ['og', 'programme', id, 'schools'] as const,
+  programmeContent: (id: string) => ['og', 'programme', id, 'content'] as const,
+  programmeBatches: (id: string) => ['og', 'programme', id, 'batches'] as const,
+  programmeAssignableBatches: (id: string) => ['og', 'programme', id, 'assignable-batches'] as const,
+  programmeAssignable: (id: string, kind: string, q: string) =>
+    ['og', 'programme', id, 'assignable', kind, q] as const,
+
   announcements: (role: string) => ['og', 'announcements', role] as const,
   announcementUnreadCount: () => ['og', 'announcements', 'unread-count'] as const,
 

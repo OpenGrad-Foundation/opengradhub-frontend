@@ -11,6 +11,7 @@ import {
   type SchoolOption,
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -352,8 +353,9 @@ export function ComposeMessageModal({ onClose }: ComposeMessageModalProps) {
                   style={inputStyle}
                 >
                   <option value="">All Programmes</option>
-                  <option value="UG">UG Only</option>
-                  <option value="PG">PG Only</option>
+                  {PROGRAMME_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>{k.label} Only</option>
+                  ))}
                 </select>
                 <p style={hintStyle}>
                   If selected, students will only see this if their programme matches.

@@ -10,6 +10,7 @@ import { updateLiveClass, getCourses, type LiveClass, type Course } from "@/lib/
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 type Target = "course" | "programme" | "batch";
 
@@ -194,8 +195,9 @@ export default function EditLiveClassPage() {
           ) : target === "programme" ? (
             <Field label="Programme Type">
               <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
+                {PROGRAMME_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>{k.label}</option>
+                ))}
               </select>
             </Field>
           ) : (
