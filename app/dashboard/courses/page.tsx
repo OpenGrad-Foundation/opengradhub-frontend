@@ -29,12 +29,13 @@ import { useStudentCourses } from "@/lib/queries/students";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 const GRID_PAGE_SIZE = 6;
 const LIST_PAGE_SIZE = 10;
 
 type ViewMode = "grid" | "list";
-type ProgrammeFilter = "ALL" | "UG" | "PG";
+type ProgrammeFilter = string; // "ALL" or any PROGRAMME_KINDS value
 type StatusFilter = "ALL" | "ACTIVE" | "DRAFT" | "ARCHIVED";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
@@ -305,11 +306,7 @@ export default function CoursesPage() {
                 label="Programme"
                 value={programmeFilter}
                 onChange={(value) => handleProgrammeChange(value as ProgrammeFilter)}
-                options={[
-                  { value: "ALL", label: "All programmes" },
-                  { value: "UG", label: "UG" },
-                  { value: "PG", label: "PG" },
-                ]}
+                options={[{ value: "ALL", label: "All programmes" }, ...PROGRAMME_KINDS]}
               />
               <FilterSelect
                 label="Status"

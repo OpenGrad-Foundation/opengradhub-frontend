@@ -8,6 +8,7 @@ import { PERM } from "@/lib/permissions";
 import { useProgrammes } from "@/lib/queries/programmes";
 import { useCreateProgramme } from "@/lib/mutations/programmes";
 import { ApiError } from "@/lib/api";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
   noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
@@ -232,7 +233,15 @@ function CreateProgrammeModal({ onClose }: { onClose: () => void }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
             <label style={formLabelStyle}>Kind</label>
-            <input style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)} placeholder="UG" />
+            {/* A dropdown, not free text: kind is immutable after create, and
+                every other form in the app validates against this same list.
+                Typing "NEET" here used to create a programme that no course,
+                batch or user could then be given. */}
+            <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
+              {PROGRAMME_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label style={formLabelStyle}>State</label>

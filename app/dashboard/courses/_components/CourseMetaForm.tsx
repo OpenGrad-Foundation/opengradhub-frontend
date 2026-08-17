@@ -3,6 +3,7 @@
 import { useState, KeyboardEvent } from "react";
 import { X } from "lucide-react";
 import type { Course } from "@/lib/api";
+import { PROGRAMME_KIND_VALUES } from "@/lib/programme-kinds";
 
 type FormFields = {
   title: string;
@@ -184,7 +185,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
         {/* ── Programme Type ────────────────────────────────── */}
         <Section label="Programme Type">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
-            {(["UG", "PG"] as const).map((p) => (
+            {PROGRAMME_KIND_VALUES.map((p) => (
               <ToggleChip
                 key={p}
                 label={p}

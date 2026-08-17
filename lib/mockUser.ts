@@ -11,5 +11,5 @@ export const mockUser = {
   // Kept for backward compatibility if USE_MOCK is turned off.
   name: "Demo Fellow",
   role: "FELLOW" as const,
-  programme_type: null as "UG" | "PG" | null,
+  programme_type: null as string | null,
 };

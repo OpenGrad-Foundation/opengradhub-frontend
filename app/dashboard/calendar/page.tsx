@@ -16,6 +16,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
+import { PROGRAMME_KIND_VALUES } from "@/lib/programme-kinds";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ function EventRow({ item, canEdit, canDelete, onEdit, onDelete }: {
 // ── Create event modal ────────────────────────────────────────────────────────
 
 const EVENT_TYPES = ["EXAM", "HOLIDAY", "WORKSHOP", "OTHER"] as const;
-const PROGRAMMES  = ["", "UG", "PG"] as const;
+const PROGRAMMES  = ["", ...PROGRAMME_KIND_VALUES];
 const STATES      = ["", "TAMIL_NADU", "KERALA", "KARNATAKA"] as const;
 
 function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {

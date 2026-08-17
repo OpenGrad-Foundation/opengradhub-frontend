@@ -14,9 +14,13 @@ import { ScopeChip } from "./ScopeChip";
 import { SearchableSelect } from "./SearchableSelect";
 import SchoolDetail from "./SchoolDetail";
 import ManagerDrill from "./ManagerDrill";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 export default function ProgrammeInsights() {
-  const [programme, setProgramme] = useState<"" | "UG" | "PG">("");
+  // "" means no filter; otherwise any PROGRAMME_KINDS value. Pinning this to
+  // the two literals is what forced the `as` cast below, and the cast is what
+  // let the domain widen without a single type error anywhere.
+  const [programme, setProgramme] = useState<string>("");
   const [state, setState] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
   const [schoolId, setSchoolId] = useState<string>("");
@@ -84,11 +88,8 @@ export default function ProgrammeInsights() {
               <SearchableSelect
                 placeholder="All programmes"
                 value={programme}
-                onChange={(v) => setProgramme(v as "" | "UG" | "PG")}
-                options={[
-                  { value: "UG", label: "UG" },
-                  { value: "PG", label: "PG" },
-                ]}
+                onChange={(v) => setProgramme(v)}
+                options={PROGRAMME_KINDS}
               />
               <SearchableSelect
                 placeholder="All states"

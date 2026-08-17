@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 /**
  * Create / edit slide-over for a batch. `defaultSchoolId` pre-fills the host
@@ -131,8 +132,9 @@ export function BatchFormModal({
               <label style={formLabelStyle}>Programme</label>
               <select value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
                 <option value="">—</option>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
+                {PROGRAMME_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>{k.label}</option>
+                ))}
               </select>
             </div>
             {mode === "edit" && (

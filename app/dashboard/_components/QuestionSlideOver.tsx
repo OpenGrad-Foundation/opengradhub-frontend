@@ -19,6 +19,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
 import { PassageCard, QuestionReviewCard } from "@/components/question-review-card";
 import { QuestionReportsPanel } from "./QuestionReportsPanel";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ── Shared constants ───────────────────────────────────────────
 
@@ -581,8 +582,9 @@ export function QuestionSlideOver({
             <FieldGroup label="Programme Type">
               <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
                 <option value="">None</option>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
+                {PROGRAMME_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>{k.label}</option>
+                ))}
               </select>
             </FieldGroup>
             <FieldGroup label="Difficulty">
