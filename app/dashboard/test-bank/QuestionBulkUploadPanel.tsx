@@ -75,8 +75,14 @@ function downloadErroredCsv(result: BulkQuestionResult) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
+/**
+ * CSV question upload. Without `target` the questions land in the shared bank
+ * (the test-bank page's use); with one they are attached to that quiz — that is
+ * how the quiz builder fills a quiz in bulk.
+ */
+export function QuestionBulkUploadPanel({ createdBy, target, onClose, onDone }: {
   createdBy?: string;
+  target?: { quizId: string; sectionId?: string };
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -136,7 +142,7 @@ export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
       ].join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "questions.csv", { type: "text/csv" });
-      const res = await bulkUploadQuestions(newFile, createdBy);
+      const res = await bulkUploadQuestions(newFile, createdBy, target);
       invalidate('quizzes');
       setResult(res);
       onDone();
@@ -158,8 +164,10 @@ export function QuestionBulkUploadPanel({ createdBy, onClose, onDone }: {
 
       <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 14px" }}>
         Supports MCQ, Fill-in-the-blank, and Numerical questions. Write questions as plain text —
-        no HTML needed (HTML is still accepted for rich formatting). Uploaded questions land in the
-        question bank — attach them to quizzes from the quiz builder.
+        no HTML needed (HTML is still accepted for rich formatting).{" "}
+        {target
+          ? "Uploaded questions are added to this quiz, in file order, after its existing questions."
+          : "Uploaded questions land in the question bank — attach them to quizzes from the quiz builder."}
       </p>
 
       <a href={getQuestionTemplateUrl()} download="opengrad_questions_template.csv"

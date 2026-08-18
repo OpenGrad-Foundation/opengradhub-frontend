@@ -332,7 +332,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                     display: "flex", alignItems: "center", gap: "6px",
                   }}
                 >
-                  ⚑ {isFlagged ? "Flagged" : "Flag"}
+                  ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
                 </button>
               </div>
 
@@ -379,7 +379,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                 {([
                   ["Answered", answered],
                   ["Unanswered", total - answered],
-                  ["Flagged", flaggedCount],
+                  ["Marked for Review", flaggedCount],
                 ] as const).map(([label, value]) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>

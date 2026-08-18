@@ -20,6 +20,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { SchoolFormModal } from "../SchoolFormModal";
 import { AddStudentsPanel } from "./AddStudentsPanel";
 import { AttachBatchPanel } from "./AttachBatchPanel";
+import { AttendancePanel } from "./AttendancePanel";
 import {
   labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle,
 } from "../styles";
@@ -31,6 +32,7 @@ export default function SchoolDetailPage() {
   const canEditSchool = has(PERM.schools.edit);
   const canEditRoster = has(PERM.user_management.edit);
   const canAttachBatch = has(PERM.batches.edit);
+  const canViewAttendance = has(PERM.attendance.view);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
@@ -317,6 +319,16 @@ export default function SchoolDetailPage() {
         </div>
       ) : (
         <RosterTable rows={unbatched} emptyMessage="No students assigned to this school yet." {...tableProps} />
+      )}
+
+      {/* Committed register attendance for this school — hidden along with the
+          rest of the attendance registers / OMR feature, which is not exposed in
+          this release. Restore by deleting "attendance" from HIDDEN_MODULE_KEYS
+          (lib/moduleAccess.ts) and un-commenting this block. */}
+      {false && (
+        <div style={{ marginTop: "24px" }}>
+          <AttendancePanel schoolId={school.id} canView={canViewAttendance} />
+        </div>
       )}
 
       {showAdd && (

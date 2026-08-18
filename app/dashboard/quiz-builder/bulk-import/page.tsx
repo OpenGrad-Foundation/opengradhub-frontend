@@ -154,6 +154,9 @@ export default function BulkImportQuizPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // (The module-title lookup lives above, in the effect that also verifies
+  // course_id before it is trusted as a redirect target.)
+
   // ── Step 1: parse the file ────────────────────────────────────────────────
 
   /**
@@ -314,7 +317,9 @@ export default function BulkImportQuizPage() {
           {previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
-              <h1 style={S.heading}>Bulk Import Quiz</h1>
+              <h1 style={S.heading}>Upload Entire Quiz</h1>
+              {/* The destination banner above (S.banner) states this on every step,
+                  so the module-only notice that used to sit here was duplicate. */}
               <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "24px" }}>
                 Upload a markdown (.md, .txt) or PDF file following the OpenGrad Quiz format.
                 After uploading you can review and edit the parsed data before saving.

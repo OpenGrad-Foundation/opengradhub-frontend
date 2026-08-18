@@ -31,6 +31,26 @@ import {
 } from "@/app/dashboard/_components/QuestionSlideOver";
 import { MathSnippet } from "@/app/dashboard/_components/MathContent";
 import { QuizStudentPreview } from "@/components/quiz-student-preview";
+import { QuestionBulkUploadPanel } from "@/app/dashboard/test-bank/QuestionBulkUploadPanel";
+
+// ── due_at ⇄ <input type="datetime-local"> ─────────────────────
+// The input speaks LOCAL wall-clock time with no zone; the API speaks UTC ISO.
+// Slicing the ISO string would render UTC in a local-time field — off by the
+// viewer's offset (5.5h in IST) — so convert through Date both ways.
+
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToIso(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -67,6 +87,7 @@ export default function QuizBuilderPage() {
   const [negativeMarking, setNegativeMarking] = useState(false);
   const [correctMarks, setCorrectMarks]       = useState("1");
   const [wrongMarks, setWrongMarks]           = useState("0");
+  const [dueAt, setDueAt]                     = useState("");
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
   const [settingsErr, setSettingsErr]     = useState<string | null>(null);
   const [settingsSaved, setSettingsSaved] = useState(false);
@@ -82,10 +103,17 @@ export default function QuizBuilderPage() {
   const [panelOpen, setPanelOpen]       = useState(false);
   const [editTarget, setEditTarget]     = useState<Question | null>(null);
   const [bankOpen, setBankOpen]         = useState(false);
+  const [csvOpen, setCsvOpen]           = useState(false);
 
   // DnD ordering
   const [questions, setQuestions]   = useState<Question[]>([]);
   const dragIdx = useRef<number | null>(null);
+
+  // Where a CSV upload's questions land. A sectioned quiz reads its questions
+  // through its sections, so it needs one picked before the panel can open.
+  const csvTarget = quiz?.is_sectioned
+    ? (activeSectionId ? { quizId, sectionId: activeSectionId } : undefined)
+    : { quizId };
 
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
 
@@ -108,6 +136,7 @@ export default function QuizBuilderPage() {
       setNegativeMarking(q.negative_marking);
       setCorrectMarks(String(q.correct_marks ?? 1));
       setWrongMarks(String(q.wrong_marks ?? 0));
+      setDueAt(isoToLocalInput(q.due_at));
       if (q.is_sectioned && q.sections.length > 0) {
         setActiveSectionId(prev => prev ?? q.sections[0].id);
       }
@@ -167,6 +196,7 @@ export default function QuizBuilderPage() {
         negative_marking:       negativeMarking,
         correct_marks:          correctMarks ? Number(correctMarks) : 1,
         wrong_marks:            negativeMarking ? (wrongMarks ? Number(wrongMarks) : 0) : 0,
+        due_at:                 localInputToIso(dueAt),
       });
       invalidate('quizzes');
       setSettingsSaved(true);
@@ -356,6 +386,18 @@ export default function QuizBuilderPage() {
                 <input type="number" min="0" max="100" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
               </Field>
             </div>
+            <Field label="Due Date (optional)">
+              <input
+                type="datetime-local"
+                value={dueAt}
+                onChange={e => setDueAt(e.target.value)}
+                style={S.input}
+              />
+              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>
+                Default deadline for this quiz. A batch that sets its own due date overrides
+                it. Leave empty for no deadline.
+              </p>
+            </Field>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
               <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
               <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />
@@ -390,6 +432,16 @@ export default function QuizBuilderPage() {
         </div>
       </form>
 
+      {/* ── Bulk CSV upload into this quiz ────────────────── */}
+      {csvOpen && csvTarget && (
+        <QuestionBulkUploadPanel
+          createdBy={userId}
+          target={csvTarget}
+          onClose={() => setCsvOpen(false)}
+          onDone={() => { void reload(); }}
+        />
+      )}
+
       {/* ── Questions card ────────────────────────────────── */}
       <div style={glassCard}>
         {quiz?.is_sectioned ? (
@@ -400,6 +452,7 @@ export default function QuizBuilderPage() {
             sequential={quiz.sequential_sections}
             onReload={reload}
             setBankOpen={setBankOpen}
+            setCsvOpen={setCsvOpen}
             setEditTarget={setEditTarget}
             setPanelOpen={setPanelOpen}
           />
@@ -409,6 +462,7 @@ export default function QuizBuilderPage() {
               <p style={S.sectionHeader}>Questions ({questions.length})</p>
               <div style={{ display: "flex", gap: "8px" }}>
                 <button onClick={() => setBankOpen(true)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add from Bank</button>
+                <button onClick={() => setCsvOpen((v) => !v)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px", color: "#932079", borderColor: "rgba(147,32,121,0.3)" }}>⬆ Upload CSV</button>
                 <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={{ ...S.primaryBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add Question</button>
               </div>
             </div>
@@ -573,6 +627,7 @@ function SectionsView({
   sequential,
   onReload,
   setBankOpen,
+  setCsvOpen,
   setEditTarget,
   setPanelOpen,
 }: {
@@ -582,6 +637,7 @@ function SectionsView({
   sequential: boolean;
   onReload: () => Promise<void>;
   setBankOpen: (open: boolean) => void;
+  setCsvOpen: (open: boolean) => void;
   setEditTarget: (q: Question | null) => void;
   setPanelOpen: (open: boolean) => void;
 }) {
@@ -712,6 +768,12 @@ function SectionsView({
                       style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #209379", background: "#209379", color: "#fff", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
                     >
                       Attach From Bank
+                    </button>
+                    <button
+                      onClick={() => { setActiveSectionId(section.id); setCsvOpen(true); }}
+                      style={{ padding: "8px 10px", borderRadius: "6px", border: "1px solid #932079", background: "#fff", color: "#932079", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", textAlign: "center", fontSize: "13px" }}
+                    >
+                      ⬆ Upload CSV
                     </button>
                   </div>
                 </div>

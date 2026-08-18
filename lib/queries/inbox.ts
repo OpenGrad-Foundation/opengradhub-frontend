@@ -21,6 +21,7 @@ export type InboxItem =
       body: string;
       created_at: string;
       is_read: boolean;
+      link: string | null;
     };
 
 /**
@@ -48,6 +49,7 @@ export function useInboxFeed(opts: { role: string }) {
       body: x.body,
       created_at: x.triggered_at,
       is_read: x.is_read,
+      link: x.link ?? null,
     }));
     return [...ann, ...not].sort((p, q) => q.created_at.localeCompare(p.created_at));
   }, [a.data, n.data]);

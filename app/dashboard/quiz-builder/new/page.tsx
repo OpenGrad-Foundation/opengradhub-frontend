@@ -35,7 +35,6 @@ export default function NewQuizPage() {
 
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
-
   // Bulk import builds the whole quiz from a file, so it belongs beside this
   // form rather than inside the question builder. Carrying module_id/course_id
   // through is what keeps the import scoped to this module instead of the
@@ -97,14 +96,28 @@ export default function NewQuizPage() {
           ← Back
         </a>
         <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+        <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
+        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+          Set up the quiz — you can add questions after saving.
+        </p>
+
+        {/* The other way in: skip the form and let a markdown/PDF file define
+            the whole quiz, questions included. Points at bulkImportHref — same
+            destination context, built with URLSearchParams so an absent
+            course/module drops out instead of becoming "undefined". */}
+        <div style={uploadCallout}>
           <div>
-            <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
-            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-              Set up the quiz — you can add questions after saving.
+            <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+              Already have the quiz in a file?
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+              Upload a markdown or PDF and we&apos;ll build the whole quiz — settings and questions —
+              for you to review.
             </p>
           </div>
-          <Link href={bulkImportHref} style={bulkBtn}>⬆ Bulk Import from File</Link>
+          <Link href={bulkImportHref} style={uploadCalloutBtn}>
+            ⬆ Upload Entire Quiz
+          </Link>
         </div>
       </div>
 
@@ -206,6 +219,16 @@ const label: React.CSSProperties = {
 };
 const heading: React.CSSProperties = {
   fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+};
+const uploadCallout: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
+  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
+  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
+};
+const uploadCalloutBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
+  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
+  fontSize: "13px", fontWeight: 700, textDecoration: "none",
 };
 const primaryBtn: React.CSSProperties = {
   padding: "12px 24px", border: "none", borderRadius: "12px",
