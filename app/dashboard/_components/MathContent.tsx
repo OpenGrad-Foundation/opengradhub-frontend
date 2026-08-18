@@ -61,7 +61,12 @@ export function MathContent({
     <Tag
       ref={ref}
       className={className}
-      style={style}
+      // Question content, instructions and solutions are stored as text with
+      // real newlines — bulk imports keep the line and paragraph breaks the
+      // author wrote, and the editor is a plain textarea. HTML collapses
+      // whitespace, so without this every multi-step solution renders as one
+      // running line. Callers may still override it.
+      style={{ whiteSpace: "pre-wrap", ...style }}
       dangerouslySetInnerHTML={{ __html: safeHtml }}
     />
   );
