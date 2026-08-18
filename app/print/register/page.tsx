@@ -15,7 +15,7 @@
  *  - one digit per small box in the date headers (DD/MM) and Month & Year
  */
 import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, notFound } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { useCurrentUser } from "@/lib/queries/current-user";
 import { useSheetData } from "@/lib/queries/attendance";
@@ -277,22 +277,10 @@ function SheetInner() {
   );
 }
 
-function SheetPage() {
+export default function SheetPage() {
   return (
     <Suspense fallback={<p className="p-6 text-slate-500">Loading…</p>}>
       <SheetInner />
     </Suspense>
   );
-}
-
-// ── Attendance registers / OMR: hidden, not removed ──────────────────────────
-// This feature rode along with the FellowTracker release (its commits interleave
-// with the tracker ones) but is not meant to be exposed yet. The route is closed
-// here rather than deleted so turning it back on is a one-line revert.
-//
-// Presentation only: the backend module and its endpoints still answer. This is
-// a "not finished, don't show it" switch, NOT access control.
-// See HIDDEN_MODULE_KEYS in lib/moduleAccess.ts.
-export default function SheetPageHidden() {
-  notFound();
 }
