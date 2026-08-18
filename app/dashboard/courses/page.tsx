@@ -29,12 +29,13 @@ import { useStudentCourses } from "@/lib/queries/students";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 const GRID_PAGE_SIZE = 6;
 const LIST_PAGE_SIZE = 10;
 
 type ViewMode = "grid" | "list";
-type ProgrammeFilter = "ALL" | "UG" | "PG";
+type ProgrammeFilter = string; // "ALL" or any PROGRAMME_KINDS value
 type StatusFilter = "ALL" | "ACTIVE" | "DRAFT" | "ARCHIVED";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
@@ -305,11 +306,7 @@ export default function CoursesPage() {
                 label="Programme"
                 value={programmeFilter}
                 onChange={(value) => handleProgrammeChange(value as ProgrammeFilter)}
-                options={[
-                  { value: "ALL", label: "All programmes" },
-                  { value: "UG", label: "UG" },
-                  { value: "PG", label: "PG" },
-                ]}
+                options={[{ value: "ALL", label: "All programmes" }, ...PROGRAMME_KINDS]}
               />
               <FilterSelect
                 label="Status"
@@ -503,9 +500,15 @@ function ManagerCourseCard({
   callerId: string | null;
 }) {
   const currentUrl = useCurrentUrl();
-  // Per-course authority: can_manage is only present in the management list
-  // view (creator/collaborator/SA). Absent flag keeps legacy behavior.
+  // Per-course authority. Both flags are present only in the management list
+  // view; an absent flag keeps legacy behaviour.
+  //
+  // Programme editors (can_edit_content without can_manage) also go to
+  // /dashboard/course-management: the page detects the management-payload 403
+  // and degrades to the content-only workspace (Curriculum + Settings). The
+  // label says "Edit content" so the narrower workspace is not a surprise.
   const manageable = canManage && course.can_manage !== false;
+  const editableContent = canManage && course.can_edit_content !== false;
   const isShared = Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId;
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
@@ -516,7 +519,12 @@ function ManagerCourseCard({
               <Badge tone="dark">{course.programme_type}</Badge>
               <Badge tone={course.access_type === "PAID" ? "sun" : "mint"}>{course.access_type}</Badge>
               {isShared && <Badge tone="mint">Shared</Badge>}
-              {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
+              {canManage && !manageable && editableContent && (
+                <Badge tone="mint">Content edit</Badge>
+              )}
+              {canManage && !manageable && !editableContent && (
+                <Badge tone="gray">View only</Badge>
+              )}
             </div>
             <h2 className="mt-3 line-clamp-2 text-base font-semibold leading-snug">{course.title}</h2>
           </div>
@@ -548,14 +556,14 @@ function ManagerCourseCard({
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           <Link
-            href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+            href={withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
             className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-              manageable
+              manageable || editableContent
                 ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(10,190,98,0.22)]"
                 : "border border-[rgba(3,72,82,0.16)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.3)] hover:bg-[rgba(3,72,82,0.03)]"
             }`}
           >
-            {manageable ? "Manage" : "Open"}
+            {manageable ? "Manage" : editableContent ? "Edit content" : "Open"}
           </Link>
         </div>
       </div>
@@ -592,6 +600,7 @@ function CourseTable({
           <tbody>
             {courses.map((course) => {
               const manageable = canManage && course.can_manage !== false;
+              const editableContent = canManage && course.can_edit_content !== false;
               return (
               <tr key={course.id} className="border-t border-[rgba(3,72,82,0.08)] align-top text-sm text-[var(--dark-teal)]">
                 <td className="px-5 py-4">
@@ -620,7 +629,8 @@ function CourseTable({
                     {Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId && (
                       <Badge tone="mint">Shared</Badge>
                     )}
-                    {canManage && course.can_manage === false && <Badge tone="gray">View only</Badge>}
+                    {canManage && !manageable && editableContent && <Badge tone="mint">Content edit</Badge>}
+                    {canManage && !manageable && !editableContent && <Badge tone="gray">View only</Badge>}
                   </div>
                 </td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.access_type}</td>
@@ -630,14 +640,14 @@ function CourseTable({
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={withFrom(manageable ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+                      href={withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-                        manageable
+                        manageable || editableContent
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
                           : "border border-[rgba(3,72,82,0.14)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.28)] hover:bg-[rgba(3,72,82,0.03)]"
                       }`}
                     >
-                      {manageable ? "Manage" : "Open"}
+                      {manageable ? "Manage" : editableContent ? "Edit content" : "Open"}
                     </Link>
                   </div>
                 </td>
