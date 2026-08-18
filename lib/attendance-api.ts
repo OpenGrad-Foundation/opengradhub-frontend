@@ -244,14 +244,39 @@ export async function getSheetData(schoolId: string, month?: string | null): Pro
 }
 
 /**
- * The period is inferred from the sheet, so only the school is sent. The field
- * is still named `image` server-side; PDFs and spreadsheets use it too.
+ * The period is inferred from the sheet, so only the school is sent. One
+ * register may be photographed as several pages — the `images` field repeats;
+ * a PDF or spreadsheet is a single file in the same field.
  */
-export async function uploadRegister(args: { school_id: string; image: File }): Promise<UploadDetail> {
+export async function uploadRegister(args: { school_id: string; images: File[] }): Promise<UploadDetail> {
   const form = new FormData();
   form.append("school_id", args.school_id);
-  form.append("image", args.image);
+  for (const image of args.images) form.append("images", image);
   return json(await apiFetch(`${API_BASE_URL}/attendance/registers`, { method: "POST", body: form }));
+}
+
+export type PeekResult = {
+  school_guess: string | null;
+  period_start_guess: string | null;
+  period_end_guess: string | null;
+};
+
+/**
+ * Best-effort prefill from page 1. Every unreadable case answers all-null
+ * rather than failing, so callers never have to handle a peek error.
+ */
+export async function peekRegister(file: File, signal?: AbortSignal): Promise<PeekResult> {
+  const form = new FormData();
+  form.append("file", file);
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/peek`, { method: "POST", body: form, signal }));
+}
+
+export async function listRegisterUploads(filters: { school_id?: string; status?: string }): Promise<UploadSummary[]> {
+  const params = new URLSearchParams();
+  if (filters.school_id) params.set("school_id", filters.school_id);
+  if (filters.status) params.set("status", filters.status);
+  const qs = params.toString();
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers${qs ? `?${qs}` : ""}`));
 }
 
 /** Corrects the month the model read off the sheet; returns the updated draft. */
@@ -277,6 +302,10 @@ export async function commitRegister(id: string, entries: CommitEntry[]): Promis
 
 export async function discardRegister(id: string): Promise<{ status: "DISCARDED" }> {
   return json(await apiFetch(`${API_BASE_URL}/attendance/registers/${id}/discard`, { method: "POST" }));
+}
+
+export async function deleteRegister(id: string): Promise<{ status: "DELETED" }> {
+  return json(await apiFetch(`${API_BASE_URL}/attendance/registers/${id}`, { method: "DELETE" }));
 }
 
 export async function retryRegisterExtraction(id: string): Promise<UploadDetail> {

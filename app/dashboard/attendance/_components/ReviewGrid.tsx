@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   useCommitRegister,
+  useDeleteRegister,
   useDiscardRegister,
   useRetryExtraction,
   useSetRegisterMonth,
@@ -81,6 +82,7 @@ function ReviewGridInner({
 }) {
   const commit = useCommitRegister();
   const discard = useDiscardRegister();
+  const remove = useDeleteRegister();
   const retry = useRetryExtraction();
   const setMonth = useSetRegisterMonth();
 
@@ -388,6 +390,22 @@ function ReviewGridInner({
             className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
           >
             Discard
+          </button>
+          {/* Discard keeps the row and the stored file as a record; delete is for
+              a genuine mistake — wrong school, wrong sheet — where neither is
+              worth keeping. Committed uploads are refused by the server. */}
+          <button
+            disabled={remove.isPending}
+            onClick={() => {
+              if (!window.confirm("Delete this upload permanently, including the stored file?")) return;
+              remove.mutate(upload.id, {
+                onSuccess: () => { toast.success("Upload deleted"); onDone(); },
+                onError: (e) => toast.error(e.message),
+              });
+            }}
+            className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+          >
+            {remove.isPending ? "Deleting…" : "Delete"}
           </button>
           <button
             disabled={commit.isPending}
