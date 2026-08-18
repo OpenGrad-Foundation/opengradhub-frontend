@@ -12,6 +12,9 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
+  ApiError,
+  duplicateCourse,
+  getCourseById,
   getCourseManagementAnalytics,
   getCourseManagementCurriculum,
   getCourseManagementStudentDetail,
@@ -19,6 +22,7 @@ import {
   getCourseManagementSummary,
   unassignCourse,
   updateCourse,
+  type Course,
   type CourseManagementAnalytics,
   type CourseManagementModuleSummary,
   type CourseManagementStudentDetail,
@@ -44,12 +48,25 @@ export default function CourseManagementPage() {
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
   const callerId = userData?.user?.id ?? "";
   const tabParam = searchParams.get("tab");
-  const activeTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
+  const requestedTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
   const canAccess = has(PERM.courses.edit);
   const canEnrol = has(PERM.courses.enrol);
+  const canCreate = has(PERM.courses.create);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
+  // Set when the caller may edit this course's content but not see its students.
+  const [contentOnly, setContentOnly] = useState(false);
+  const [courseMeta, setCourseMeta] = useState<Course | null>(null);
+
+  // Overview/Students/Analytics all render the management payload a content-only
+  // caller was refused, so they are not offered. Declared here, above the
+  // effects that depend on activeTab.
+  const visibleTabs: readonly TabKey[] = contentOnly ? (["curriculum", "settings"] as const) : TABS;
+  // A bookmarked ?tab=students must not leave a content-only caller staring at a
+  // blank page with no tab highlighted.
+  const activeTab: TabKey = visibleTabs.includes(requestedTab) ? requestedTab : "curriculum";
   const [analytics, setAnalytics] = useState<CourseManagementAnalytics | null>(null);
   const [curriculumSummary, setCurriculumSummary] = useState<CourseManagementModuleSummary[] | null>(null);
   const [students, setStudents] = useState<CourseManagementStudentsResponse | null>(null);
@@ -66,13 +83,32 @@ export default function CourseManagementPage() {
   const [sort, setSort] = useState("name");
   const [page, setPage] = useState(1);
 
+  /**
+   * The management payload (rosters, per-student progress, scores) is gated by
+   * canManageCourse. A programme EDITOR is deliberately refused it — membership
+   * never grants student data — but they DO hold content edit, and the
+   * curriculum editor below runs entirely on course-content endpoints that
+   * accept them.
+   *
+   * So a 403 here is not a dead end, it is a narrower workspace: fall back to
+   * the plain course record and show only the tabs that carry no student data.
+   * Without this, the one capability programmes actually grants had no reachable
+   * UI at all — /courses/:id/edit and /builder both redirect to this page.
+   */
   const loadSummary = useCallback(async () => {
-    const [summaryData, analyticsData] = await Promise.all([
-      getCourseManagementSummary(courseId),
-      getCourseManagementAnalytics(courseId),
-    ]);
-    setSummary(summaryData);
-    setAnalytics(analyticsData);
+    try {
+      const [summaryData, analyticsData] = await Promise.all([
+        getCourseManagementSummary(courseId),
+        getCourseManagementAnalytics(courseId),
+      ]);
+      setSummary(summaryData);
+      setAnalytics(analyticsData);
+      setContentOnly(false);
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 403) throw e;
+      setCourseMeta(await getCourseById(courseId));
+      setContentOnly(true);
+    }
   }, [courseId]);
 
   const loadStudents = useCallback(async () => {
@@ -132,6 +168,9 @@ export default function CourseManagementPage() {
 
   useEffect(() => {
     if (!callerId || !canAccess) return;
+    // Both of these are management-payload reads a content-only caller is
+    // refused; requesting them would only re-raise the 403 already handled.
+    if (contentOnly) return;
     if (activeTab === "students") {
       void loadStudents();
     }
@@ -142,7 +181,7 @@ export default function CourseManagementPage() {
           setError(curriculumError instanceof Error ? curriculumError.message : "Failed to load curriculum summary.");
         });
     }
-  }, [activeTab, callerId, canAccess, courseId, curriculumSummary, loadStudents]);
+  }, [activeTab, callerId, canAccess, contentOnly, courseId, curriculumSummary, loadStudents]);
 
   useEffect(() => {
     if (!selectedStudentId) {
@@ -164,7 +203,7 @@ export default function CourseManagementPage() {
     router.replace(`/dashboard/course-management/${courseId}?${paramsCopy.toString()}`);
   };
 
-  const currentCourse = summary?.course ?? null;
+  const currentCourse = summary?.course ?? courseMeta;
   const curriculumPreview = curriculumSummary ?? summary?.module_progress ?? [];
   const studentsRows = students?.items ?? [];
   const emptyMessage = useMemo(() => {
@@ -172,6 +211,24 @@ export default function CourseManagementPage() {
     if (studentsRows.length > 0) return null;
     return "No students matched the current filters.";
   }, [studentsLoading, studentsRows.length]);
+
+  // Duplicate → jump into the copy's workspace. The caller is the copy's
+  // creator, so they land in the FULL workspace even when the source only
+  // granted them the content-only view; the copy is a LEGACY draft assignable
+  // to any programme — the release valve for programme-owned courses.
+  async function handleDuplicate() {
+    if (!currentCourse) return;
+    setDuplicating(true);
+    setError(null);
+    try {
+      const copy = await duplicateCourse(currentCourse.id);
+      invalidate("courses");
+      router.push(`/dashboard/course-management/${copy.id}?tab=settings`);
+    } catch (duplicateError) {
+      setError(duplicateError instanceof Error ? duplicateError.message : "Failed to duplicate course.");
+      setDuplicating(false);
+    }
+  }
 
   async function handleStatusToggle() {
     if (!currentCourse) return;
@@ -217,7 +274,7 @@ export default function CourseManagementPage() {
     );
   }
 
-  if (error && !summary) {
+  if (error && !summary && !contentOnly) {
     return (
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
         <div style={{ ...card, textAlign: "center" }}>
@@ -355,6 +412,11 @@ export default function CourseManagementPage() {
               <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} style={ghostLinkBtn}>
                 Preview as student
               </Link>
+              {canCreate && (
+                <button onClick={() => void handleDuplicate()} disabled={duplicating} style={{ ...ghostLinkBtn, opacity: duplicating ? 0.7 : 1 }}>
+                  {duplicating ? "Duplicating…" : "Duplicate"}
+                </button>
+              )}
               <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
                 {actionLoading ? "Updating…" : currentCourse.status === "ACTIVE" ? "Archive course" : "Publish course"}
               </button>
@@ -403,7 +465,7 @@ export default function CourseManagementPage() {
       {error && summary && <div style={errorBox}>{error}</div>}
 
       <div className="course-mgmt-tabs-strip" style={tabStrip}>
-        {TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             onClick={() => updateTab(tab)}
@@ -562,6 +624,9 @@ export default function CourseManagementPage() {
 
       {activeTab === "curriculum" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Completion percentages are aggregated student progress, so the
+              snapshot goes with the rest of the management payload. */}
+          {!contentOnly && (
           <div className="course-mgmt-card" style={card}>
             <p style={eyebrow}>Curriculum Snapshot</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginTop: "14px" }}>
@@ -578,6 +643,15 @@ export default function CourseManagementPage() {
               ))}
             </div>
           </div>
+          )}
+          {contentOnly && (
+            <div className="course-mgmt-card" style={card}>
+              <p style={subtitle}>
+                You can edit this course because a programme you belong to owns it. Its
+                students, progress and analytics stay with the course&apos;s own managers.
+              </p>
+            </div>
+          )}
           {has(PERM.courses.manage_curriculum) ? (
             <div className="course-mgmt-card" style={card}>
               <CourseCurriculumEditor courseId={courseId} />
