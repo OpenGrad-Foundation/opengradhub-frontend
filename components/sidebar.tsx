@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  GraduationCap,
   LayoutDashboard,
   BookOpen,
   Package,
@@ -57,6 +58,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   user_management: Users,
   role_management: Shield,
   bulk_assign:     UserPlus,
+  programmes:      GraduationCap,
   schools:         School,
   batches:         Layers,
 };

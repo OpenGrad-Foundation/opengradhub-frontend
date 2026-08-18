@@ -541,6 +541,12 @@ export type Course = {
   quiz_count?: number;
   /** Management list only: caller is creator, collaborator, or SUPER_ADMIN. */
   can_manage?: boolean;
+  /**
+   * Management list view only: caller may edit this course's metadata and
+   * curriculum. Wider than can_manage — it also covers programme editors, who
+   * deliberately do NOT get the management view (student PII).
+   */
+  can_edit_content?: boolean;
 };
 
 export type CourseListParams = {
@@ -4314,4 +4320,279 @@ export async function rejectPasswordResetRequest(id: string): Promise<void> {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
   }
+}
+
+// ── programmes ─────────────────────────────────────────────────────────────
+
+
+export type ProgrammeLevel = "OWNER" | "EDITOR" | "VIEWER";
+
+export interface Programme {
+  id: string;
+  code: string;
+  name: string;
+  kind: string;
+  state: string | null;
+  cohort_label: string | null;
+  status: "ACTIVE" | "ARCHIVED";
+  created_by: string | null;
+  created_at: string;
+  my_level?: ProgrammeLevel | null;
+}
+
+export interface ProgrammeMember {
+  user_id: string;
+  name: string;
+  email: string | null;
+  role: string;
+  level: ProgrammeLevel;
+  added_at: string;
+}
+
+export interface ProgrammeSchool {
+  school_id: string;
+  name: string;
+  district: string | null;
+  state: string | null;
+}
+
+async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
+  if (!r.ok) {
+    const body = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(body?.message ?? fallback, r.status);
+  }
+  return (await r.json()) as T;
+}
+
+export async function getProgrammes(includeArchived = false): Promise<Programme[]> {
+  const url = new URL(`${API_BASE_URL}/programmes`);
+  if (includeArchived) url.searchParams.set("include_archived", "true");
+  return programmeJson(await apiFetch(url.toString()), "Failed to load programmes.");
+}
+
+export async function getProgramme(id: string): Promise<Programme> {
+  return programmeJson(await apiFetch(`${API_BASE_URL}/programmes/${id}`), "Failed to load programme.");
+}
+
+export async function createProgramme(payload: {
+  code: string;
+  name: string;
+  kind: string;
+  state?: string;
+  cohort_label?: string;
+}): Promise<Programme> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return programmeJson(r, "Failed to create programme.");
+}
+
+export async function updateProgramme(
+  id: string,
+  payload: { name?: string; state?: string; cohort_label?: string; status?: "ACTIVE" | "ARCHIVED" },
+): Promise<Programme> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return programmeJson(r, "Failed to update programme.");
+}
+
+export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/members`),
+    "Failed to load members.",
+  );
+}
+
+/**
+ * Staff this programme can still take on.
+ *
+ * Deliberately not `getUsers()`: that needs `user_management.view`, which only
+ * SUPER_ADMIN holds, so the picker used to 403 for the PROGRAM_MANAGER who owns
+ * the programme — the one person most likely to be staffing it. This endpoint
+ * is gated on programme ownership instead.
+ */
+export async function getEligibleProgrammeMembers(
+  id: string,
+): Promise<Array<{ user_id: string; name: string; email: string | null; role: string }>> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/members/eligible`),
+    "Failed to load staff.",
+  );
+}
+
+export async function setProgrammeMember(
+  id: string,
+  userId: string,
+  level: ProgrammeLevel,
+): Promise<{ level: ProgrammeLevel }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ level }),
+  });
+  return programmeJson(r, "Failed to set member level.");
+}
+
+export async function removeProgrammeMember(id: string, userId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to remove member.");
+}
+
+export async function getProgrammeSchools(id: string): Promise<ProgrammeSchool[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/schools`),
+    "Failed to load schools.",
+  );
+}
+
+export async function attachProgrammeSchool(id: string, schoolId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/schools/${schoolId}`, { method: "PUT" });
+  await programmeJson(r, "Failed to attach school.");
+}
+
+export async function detachProgrammeSchool(id: string, schoolId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/schools/${schoolId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to detach school.");
+}
+
+// ── programme batches ───────────────────────────────────────────────────────
+//
+// Attaching a batch does not grant anyone anything — no resolver reads
+// batches.programme_id for authority. It makes the batch a CONSUMER, which can
+// revoke another programme's editors' rights on a course they own. Hence the
+// impact preview.
+
+export interface ProgrammeBatch {
+  id: string;
+  name: string;
+  status: string | null;
+  school_name: string | null;
+  course_count: number;
+}
+
+export interface BatchImpact {
+  course_id: string;
+  title: string;
+  owner_programme: string;
+}
+
+export async function getProgrammeBatches(id: string): Promise<ProgrammeBatch[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches`),
+    "Failed to load batches.",
+  );
+}
+
+export async function getAssignableBatches(id: string): Promise<ProgrammeBatch[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/assignable`),
+    "Failed to load assignable batches.",
+  );
+}
+
+export async function getBatchImpact(id: string, batchId: string): Promise<BatchImpact[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}/impact`),
+    "Failed to check batch impact.",
+  );
+}
+
+export async function attachProgrammeBatch(
+  id: string,
+  batchId: string,
+): Promise<{ attached: boolean; revokes_edit_on: number }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}`, { method: "PUT" });
+  return programmeJson(r, "Failed to attach batch.");
+}
+
+export async function detachProgrammeBatch(id: string, batchId: string): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/batches/${batchId}`, { method: "DELETE" });
+  await programmeJson(r, "Failed to remove batch.");
+}
+
+// ── programme content ───────────────────────────────────────────────────────
+//
+// Only courses and assignments. Migration 089 also put owner_programme_id on
+// quizzes and bundles, but nothing reads it there, so offering to assign them
+// would report a grant that does not exist.
+
+export type ProgrammeContentKind = "courses" | "assignments";
+
+export interface ProgrammeContentItem {
+  kind: ProgrammeContentKind;
+  id: string;
+  title: string;
+  created_by_name: string | null;
+  /** False when a foreign programme also consumes it: owned, but not editable. */
+  editable: boolean;
+}
+
+export async function getProgrammeContent(id: string): Promise<ProgrammeContentItem[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/content`),
+    "Failed to load programme content.",
+  );
+}
+
+export async function getAssignableContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  q?: string,
+): Promise<Array<{ id: string; title: string }>> {
+  const url = new URL(`${API_BASE_URL}/programmes/${id}/content/assignable`);
+  url.searchParams.set("kind", kind);
+  if (q?.trim()) url.searchParams.set("q", q.trim());
+  return programmeJson(await apiFetch(url.toString()), "Failed to load assignable content.");
+}
+
+export async function assignProgrammeContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  resourceId: string,
+): Promise<{ assigned: boolean; editable: boolean }> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/content/${kind}/${resourceId}`, {
+    method: "PUT",
+  });
+  return programmeJson(r, "Failed to assign content.");
+}
+
+export async function releaseProgrammeContent(
+  id: string,
+  kind: ProgrammeContentKind,
+  resourceId: string,
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/content/${kind}/${resourceId}`, {
+    method: "DELETE",
+  });
+  await programmeJson(r, "Failed to release content.");
+}
+
+/**
+ * Duplicate a course: fresh LEGACY draft owned by the caller, curriculum
+ * copied, nothing student-facing. The release valve for programme-owned
+ * courses — the copy can be assigned to any programme.
+ */
+export async function duplicateCourse(id: string): Promise<Course> {
+  const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
+    method: "POST",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const errorBody = (await response
+      .json()
+      .catch(() => null)) as { message?: string } | null;
+    throw new ApiError(errorBody?.message ?? "Failed to duplicate course.", response.status);
+  }
+
+  return (await response.json()) as Course;
 }

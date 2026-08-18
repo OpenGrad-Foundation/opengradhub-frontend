@@ -36,6 +36,7 @@ export type ModuleKey =
   | "user_management"
   | "role_management"
   | "bulk_assign"
+  | "programmes"
   | "schools"
   | "batches";
 
@@ -59,6 +60,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
   bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
+  programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
 };
