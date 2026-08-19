@@ -20,6 +20,7 @@ import {
   type PerformanceHistoryRow,
 } from "@/lib/api";
 import { useReportHistory } from "@/lib/queries/reports";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ─── Fellow dashboard ─────────────────────────────────────────────────────────
 // Lists the students in the fellow's scope (the visible set is derived
@@ -368,8 +369,9 @@ export function StaffReportsView() {
           title="Batch (UG / PG)"
         >
           <option value="">All batches</option>
-          <option value="UG">UG</option>
-          <option value="PG">PG</option>
+          {PROGRAMME_KINDS.map((k) => (
+            <option key={k.value} value={k.value}>{k.label}</option>
+          ))}
         </select>
         <select
           value={status}

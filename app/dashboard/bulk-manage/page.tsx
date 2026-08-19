@@ -21,6 +21,7 @@ import {
 import { useCourses } from "@/lib/queries/courses";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 type Mode = "assign" | "remove";
 
@@ -361,8 +362,9 @@ export default function BulkManagePage() {
             <label style={fieldLabel}>Programme Type</label>
             <select value={filterProg} onChange={(e) => setFilterProg(e.target.value)} style={inputStyle}>
               <option value="">All</option>
-              <option value="UG">UG</option>
-              <option value="PG">PG</option>
+              {PROGRAMME_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
             </select>
           </div>
           <div>

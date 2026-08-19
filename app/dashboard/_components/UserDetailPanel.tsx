@@ -17,6 +17,7 @@ import { PERM } from "@/lib/permissions";
 import { STATES, districtsForState, districtDisabled } from "@/lib/geo";
 import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 interface UserDetailPanelProps {
   user: SafeUser;
@@ -455,8 +456,9 @@ export function UserDetailPanel({
                     <PanelField label="Programme">
                       <select value={draft.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="UG">UG</option>
-                        <option value="PG">PG</option>
+                        {PROGRAMME_KINDS.map((k) => (
+                          <option key={k.value} value={k.value}>{k.label}</option>
+                        ))}
                       </select>
                     </PanelField>
                   </div>
@@ -493,8 +495,9 @@ export function UserDetailPanel({
                     <PanelField label="Programme">
                       <select value={draft.programme_type} onChange={(e) => set("programme_type", e.target.value)} style={S.input}>
                         <option value="">Select…</option>
-                        <option value="UG">UG</option>
-                        <option value="PG">PG</option>
+                        {PROGRAMME_KINDS.map((k) => (
+                          <option key={k.value} value={k.value}>{k.label}</option>
+                        ))}
                       </select>
                     </PanelField>
                     <PanelField label="State">

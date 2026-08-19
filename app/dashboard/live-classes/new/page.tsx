@@ -9,6 +9,7 @@ import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 type Target = "course" | "programme" | "batch";
 
@@ -139,8 +140,9 @@ export default function NewLiveClassPage() {
           ) : target === "programme" ? (
             <Field label="Programme Type">
               <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
+                {PROGRAMME_KINDS.map((k) => (
+                  <option key={k.value} value={k.value}>{k.label}</option>
+                ))}
               </select>
             </Field>
           ) : (

@@ -10,6 +10,7 @@ import {
   type AnalyticsSchool,
   type AnalyticsStudent,
 } from "@/lib/api";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // Page access (`student_export.view`) is enforced by the backend and the
 // dashboard route guard. The role checks below only shape the filter UI
@@ -211,8 +212,9 @@ export default function StudentExportPage() {
               style={inputStyle}
             >
               <option value="">All</option>
-              <option value="UG">UG</option>
-              <option value="PG">PG</option>
+              {PROGRAMME_KINDS.map((k) => (
+                <option key={k.value} value={k.value}>{k.label}</option>
+              ))}
             </select>
           </FilterField>
 

@@ -436,7 +436,7 @@ export type InsightsScope = {
   kind: "global" | "programme" | "zone" | "school";
   label: string;
   school_ids?: string[];
-  programme_filter: "UG" | "PG" | null;
+  programme_filter: string | null;
 };
 
 export type InsightsResponse = {
@@ -466,7 +466,7 @@ export type InsightsResponse = {
 };
 
 export type ProgrammeInsightsFilters = {
-  programme?: "UG" | "PG";
+  programme?: string;
   state?: string;
   district?: string;
   schoolId?: string;
@@ -1747,7 +1747,7 @@ export type CreateCalendarEventPayload = {
   starts_at: string;
   ends_at?: string;
   is_all_day?: boolean;
-  programme_type?: "UG" | "PG";
+  programme_type?: string;
   state?: string;
   school_ids?: string[];
   course_ids?: string[];
@@ -1785,7 +1785,7 @@ export type UpdateCalendarEventPayload = {
   starts_at?: string;
   ends_at?: string | null;
   is_all_day?: boolean;
-  programme_type?: "UG" | "PG" | null;
+  programme_type?: string | null;
   state?: string | null;
   batch_ids?: string[] | null;
 };
