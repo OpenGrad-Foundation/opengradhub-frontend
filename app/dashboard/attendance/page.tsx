@@ -1,7 +1,5 @@
 "use client";
 
-import { notFound } from "next/navigation";
-
 /**
  * Attendance tab — permission-switched:
  *  - attendance.view (staff): Live Classes links | Registers | Overview tabs
@@ -15,9 +13,7 @@ import { RegistersTab } from "./_components/RegistersTab";
 import { OverviewTab } from "./_components/OverviewTab";
 import { StudentView } from "./_components/StudentView";
 
-// Retained (not deleted) so re-enabling the feature is a one-line revert.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function AttendancePage() {
+export default function AttendancePage() {
   const { has, isLoading } = usePermissions();
 
   if (isLoading) {
@@ -75,16 +71,4 @@ function AttendancePage() {
       </div>
     </div>
   );
-}
-
-// ── Attendance registers / OMR: hidden, not removed ──────────────────────────
-// This feature rode along with the FellowTracker release (its commits interleave
-// with the tracker ones) but is not meant to be exposed yet. The route is closed
-// here rather than deleted so turning it back on is a one-line revert.
-//
-// Presentation only: the backend module and its endpoints still answer. This is
-// a "not finished, don't show it" switch, NOT access control.
-// See HIDDEN_MODULE_KEYS in lib/moduleAccess.ts.
-export default function AttendancePageHidden() {
-  notFound();
 }

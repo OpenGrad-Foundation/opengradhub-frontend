@@ -15,6 +15,7 @@ import {
   setRegisterMonth,
   commitRegister,
   discardRegister,
+  deleteRegister,
   retryRegisterExtraction,
   getAttendanceSummary,
   getMyAttendance,
@@ -150,7 +151,7 @@ export function useRegenerateLink() {
 export function useUploadRegister() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (args: { school_id: string; image: File }) => uploadRegister(args),
+    mutationFn: (args: { school_id: string; images: File[] }) => uploadRegister(args),
     onSuccess: () => invalidate('attendance'),
   });
 }
@@ -176,6 +177,14 @@ export function useDiscardRegister() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: (id: string) => discardRegister(id),
+    onSuccess: () => invalidate('attendance'),
+  });
+}
+
+export function useDeleteRegister() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => deleteRegister(id),
     onSuccess: () => invalidate('attendance'),
   });
 }

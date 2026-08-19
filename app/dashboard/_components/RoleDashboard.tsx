@@ -63,10 +63,7 @@ export default function RoleDashboard({
    * roles also render.
    */
   const canFixRegisters = usePermission(PERM.attendance.manage);
-  // Forced off: the register-gaps widget links into /dashboard/attendance, which
-  // is closed while the attendance registers / OMR feature stays unexposed in
-  // this release. Restore alongside HIDDEN_MODULE_KEYS in lib/moduleAccess.ts.
-  const showRegisterGaps = false && canFixRegisters && GAP_ROLES.has(role);
+  const showRegisterGaps = canFixRegisters && GAP_ROLES.has(role);
 
   // Prepend the unread-announcements widget to every role's Overview tab.
   const overview = (node: React.ReactNode) => (

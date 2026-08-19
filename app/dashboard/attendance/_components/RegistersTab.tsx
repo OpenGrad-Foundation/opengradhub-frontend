@@ -25,9 +25,24 @@ const PRIMARY_BTN =
   "rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 " +
   "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
 
+/** Mirrors MAX_REGISTER_PAGES in the backend's ingest/limits.ts. */
+const MAX_REGISTER_PAGES = 3;
+
+/**
+ * A register photographed page by page is several images; a PDF, CSV or Excel
+ * file is one whole register on its own and cannot be paired with anything, so
+ * only the first is kept. The server enforces both rules — this just stops the
+ * picker from offering a selection that is going to be rejected.
+ */
+function pickFiles(fileList: FileList | null): File[] {
+  const files = fileList ? Array.from(fileList) : [];
+  if (files.length === 0) return [];
+  return files[0].type.startsWith("image/") ? files.slice(0, MAX_REGISTER_PAGES) : [files[0]];
+}
+
 export function RegistersTab({ canManage }: { canManage: boolean }) {
   const [schoolId, setSchoolId] = useState("");
-  const [image, setImage] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [draft, setDraft] = useState<UploadDetail | null>(null);
 
   // Only the manage-only controls below use this list, so don't fetch (and don't
@@ -65,17 +80,22 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
     }
   }, [requestedSchoolId, schools]);
 
+  const fileInput = useRef<HTMLInputElement | null>(null);
+
   const doUpload = () => {
-    if (!schoolId || !image) {
+    if (!schoolId || images.length === 0) {
       toast.error("Pick a school and a file first.");
       return;
     }
     upload.mutate(
-      { school_id: schoolId, image },
+      { school_id: schoolId, images },
       {
         onSuccess: (detail) => {
           toast.success("Uploaded — review the extracted grid");
-          setImage(null);
+          setImages([]);
+          // The input keeps its own value; without this the cleared selection
+          // still reads as "register.jpg" and re-uploading looks like a no-op.
+          if (fileInput.current) fileInput.current.value = "";
           setDraft(detail);
         },
         onError: (e) => toast.error(e.message),
@@ -158,20 +178,30 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
         </h3>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <input
+            ref={fileInput}
             type="file"
+            multiple
             accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+            onChange={(e) => setImages(pickFiles(e.target.files))}
             className="text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium"
           />
           <button disabled={upload.isPending} onClick={doUpload} className={PRIMARY_BTN}>
             {upload.isPending ? "Extracting…" : "Upload & extract"}
           </button>
         </div>
+        {images.length > 1 && (
+          <p className="mt-2 text-xs text-slate-500">
+            {images.length} pages selected, in this order:{" "}
+            {images.map((f) => f.name).join(" → ")}
+          </p>
+        )}
         <p className="mt-2 text-xs text-slate-400">
-          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 25 MB. Photos and PDFs of the printed
-          sheet are extracted automatically (ticks, crosses and day numbers); spreadsheets are read
-          directly and need full dates in their headers. Either way you review and correct before
-          anything is saved.
+          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 25 MB each. A register that runs to
+          several pages can be photographed page by page — select up to {MAX_REGISTER_PAGES} photos
+          at once and they are read as one register. Photos and PDFs of the printed sheet are
+          extracted automatically (ticks, crosses and day numbers); spreadsheets are read directly
+          and need full dates in their headers. Either way you review and correct before anything
+          is saved.
         </p>
       </div>
 
