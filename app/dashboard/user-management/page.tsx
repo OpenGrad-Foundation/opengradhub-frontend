@@ -36,6 +36,7 @@ import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { STATES, districtDisabled, resolveState, resolveDistrict } from "@/lib/geo";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
@@ -532,8 +533,16 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const isZM = role === "ZONAL_MANAGER";
   const roleSelected = role !== "";
 
-  // Email is optional for students/fellows until PG is chosen; required for everyone else.
-  const emailRequired = !(isStudent || isFellow) || programme === "PG";
+  // Mirrors the server rule exactly (users.service.ts `isUgStudent`): email is
+  // optional ONLY for a UG student, who signs in by roll number and date of
+  // birth instead. Everyone else must have one.
+  //
+  // The old form of this — `!(isStudent || isFellow) || programme === "PG"` —
+  // was written when the domain was two values and read as "not PG means UG".
+  // With a third kind that inverts: a CAT student looked email-optional here
+  // while the server demanded one, and the bulk-import grid (which checks
+  // `programme === "UG"` directly) already disagreed with this form.
+  const emailRequired = !(isStudent && programme === "UG");
 
   // State → District → School cascade, driven by the schools list itself.
   const normState = (s: string | null | undefined) =>
@@ -675,8 +684,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="Programme Type" id="user-programme">
                         <select id="user-programme" value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="UG">UG</option>
-                          <option value="PG">PG</option>
+                          {PROGRAMME_KINDS.map((k) => (
+                            <option key={k.value} value={k.value}>{k.label}</option>
+                          ))}
                         </select>
                       </Field>
                     </Row>
@@ -723,8 +733,9 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       <Field label="Programme Type" id="user-programme">
                         <select id="user-programme" value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
                           <option value="">Select…</option>
-                          <option value="UG">UG</option>
-                          <option value="PG">PG</option>
+                          {PROGRAMME_KINDS.map((k) => (
+                            <option key={k.value} value={k.value}>{k.label}</option>
+                          ))}
                         </select>
                       </Field>
                       <Field label="State" id="user-state">
@@ -1616,8 +1627,9 @@ function BulkAssignPanel({
           <label style={formLabelStyle}>Programme</label>
           <select value={filterProg} onChange={(e) => setFilterProg(e.target.value)} style={inputStyle}>
             <option value="">All</option>
-            <option value="UG">UG</option>
-            <option value="PG">PG</option>
+            {PROGRAMME_KINDS.map((k) => (
+              <option key={k.value} value={k.value}>{k.label}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -2258,8 +2270,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                           >
                             <option value="">Set all…</option>
                             <option value="__CLEAR__">— Clear all —</option>
-                            <option value="UG">UG</option>
-                            <option value="PG">PG</option>
+                            {PROGRAMME_KINDS.map((k) => (
+                              <option key={k.value} value={k.value}>{k.label}</option>
+                            ))}
                           </select>
                         </td>
                       );
@@ -2409,8 +2422,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 style={{ ...controlBase, cursor: "pointer", minWidth: "80px" }}
                               >
                                 <option value="">—</option>
-                                <option value="UG">UG</option>
-                                <option value="PG">PG</option>
+                                {PROGRAMME_KINDS.map((k) => (
+                                  <option key={k.value} value={k.value}>{k.label}</option>
+                                ))}
                               </select>
                             ) : isDropState ? (
                               geoRes && geoRes.status === "ambiguous" && geoRes.candidates ? (

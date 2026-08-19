@@ -10,6 +10,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import type { RoleCode } from "@/lib/moduleAccess";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ── Type → colour mapping ──────────────────────────────────────
 
@@ -720,8 +721,9 @@ function ResourceFormFields({
             style={formInputStyle}
           >
             <option value="ALL">All programmes</option>
-            <option value="UG">UG</option>
-            <option value="PG">PG</option>
+            {PROGRAMME_KINDS.map((k) => (
+              <option key={k.value} value={k.value}>{k.label}</option>
+            ))}
           </select>
         </div>
       </div>
