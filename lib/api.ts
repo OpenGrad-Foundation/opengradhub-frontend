@@ -2777,7 +2777,17 @@ export type Resource = {
   type: string | null;
   programme_type: string | null;
   batch_ids: string[] | null;
+  school_ids: string[] | null;
   created_at: string;
+  /**
+   * Row-level authority, decided by the server. AND these with the caller's
+   * PBAC permission before showing a button — the permission is the verb, this
+   * is the scope, and neither implies the other. Do not infer them from
+   * ownership fields on the client: the rule involves programme membership and
+   * target closure, and a second implementation of it would drift.
+   */
+  can_edit: boolean;
+  can_delete: boolean;
 };
 
 /**
@@ -2806,6 +2816,7 @@ export async function createResource(payload: {
   type?: string;
   programme_type?: string;
   batch_ids?: string[];
+  school_ids?: string[];
   uploaded_by: string;
   role: string;
 }): Promise<Resource> {
@@ -2842,6 +2853,7 @@ export async function updateResource(
     type?: string;
     programme_type?: string;
     batch_ids?: string[];
+    school_ids?: string[];
   },
 ): Promise<Resource> {
   const response = await apiFetch(`${API_BASE_URL}/resources/${id}`, {
@@ -2900,10 +2912,29 @@ export type SchoolOption = {
 
 /**
  * Fetch all schools (id + name) for user-creation pickers.
- * Backed by GET /schools (gated by user_management.create).
+ * Backed by GET /schools (gated by user_management.create OR schools.view).
  */
 export async function fetchSchools(): Promise<SchoolOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/schools`);
+
+  if (!response.ok) {
+    throw new ApiError("Failed to fetch schools.", response.status);
+  }
+
+  return (await response.json()) as SchoolOption[];
+}
+
+/**
+ * Schools the caller may TARGET — a strictly smaller set than `fetchSchools`.
+ *
+ * The plain listing adds every school with no fellow assigned, so a manager can
+ * pick one and assign that fellow. Broadcasting study material to a school's
+ * students is a much larger act, and the write path checks this narrower set.
+ * A picker that chooses an AUDIENCE must use this one, or it offers schools the
+ * save then refuses.
+ */
+export async function fetchTargetableSchools(): Promise<SchoolOption[]> {
+  const response = await apiFetch(`${API_BASE_URL}/schools?scope=targeting`);
 
   if (!response.ok) {
     throw new ApiError("Failed to fetch schools.", response.status);
@@ -4737,7 +4768,7 @@ export async function detachProgrammeBatch(id: string, batchId: string): Promise
 // quizzes and bundles, but nothing reads it there, so offering to assign them
 // would report a grant that does not exist.
 
-export type ProgrammeContentKind = "courses" | "assignments";
+export type ProgrammeContentKind = "courses" | "assignments" | "resources";
 
 export interface ProgrammeContentItem {
   kind: ProgrammeContentKind;
