@@ -16,6 +16,7 @@ import {
   type CourseLesson,
   type CourseModule,
 } from "@/lib/api";
+import { extractYoutubeId, probeYoutubeDurationSeconds } from "@/lib/youtube";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useBulkSaveJob } from "@/hooks/use-bulk-save-job";
 import { usePermissions } from "@/hooks/use-permission";
@@ -694,6 +695,27 @@ function LessonSlideOver({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Duration autofill ──────────────────────────────────────────
+  // Read the length straight off a hidden IFrame player rather than asking the
+  // YouTube Data API, so no API key or quota is involved. Only ever *fills* an
+  // empty field — a duration the author typed is never overwritten.
+  const [probingDuration, setProbingDuration] = useState(false);
+  const probedUrlRef = useRef<string | null>(null);
+
+  const autofillDuration = useCallback(async (rawUrl: string) => {
+    const videoId = extractYoutubeId(rawUrl);
+    if (!videoId || probedUrlRef.current === rawUrl) return;
+    probedUrlRef.current = rawUrl;
+
+    setProbingDuration(true);
+    const seconds = await probeYoutubeDurationSeconds(videoId);
+    setProbingDuration(false);
+    if (seconds == null) return; // private / embed-disabled / offline — stay silent
+
+    // Guard against a slow probe landing after the author typed their own value.
+    setDuration((current) => (current.trim() ? current : String(Math.max(1, Math.round(seconds / 60)))));
+  }, []);
+
   async function handleSave() {
     setError(null);
     if (!title.trim()) {
@@ -762,11 +784,25 @@ function LessonSlideOver({
           </FieldGroup>
 
           <FieldGroup label="YouTube URL *">
-            <input value={youtubeUrl} onChange={(event) => setYoutubeUrl(event.target.value)} placeholder="https://youtube.com/watch?v=…" style={inputSt} />
+            <input
+              value={youtubeUrl}
+              onChange={(event) => {
+                setYoutubeUrl(event.target.value);
+                void autofillDuration(event.target.value);
+              }}
+              onBlur={(event) => void autofillDuration(event.target.value)}
+              placeholder="https://youtube.com/watch?v=…"
+              style={inputSt}
+            />
           </FieldGroup>
 
           <FieldGroup label="Duration (minutes)">
-            <input type="number" min={1} value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="e.g. 12" style={{ ...inputSt, width: "120px" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <input type="number" min={1} value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="e.g. 12" style={{ ...inputSt, width: "120px" }} />
+              {probingDuration && (
+                <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)" }}>Reading from YouTube…</span>
+              )}
+            </div>
           </FieldGroup>
 
           <FieldGroup label="Notes">
