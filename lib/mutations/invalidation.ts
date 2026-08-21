@@ -46,7 +46,10 @@ const DOMAIN_KEYS = {
   calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
   // manual attendance marking — rosters, grids, list attendee counts, dashboards + attendancePct
   liveClassAttendance: [['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
-  resources: [['og', 'resources']],
+  // retargeting a resource changes whether its owning programme may still edit
+  // it (the closure is evaluated over the targets), so the programme Content
+  // tab and its assignable picker go stale on every resource write
+  resources: [['og', 'resources'], ['og', 'programme']],
   // doubts have their own dashboard card; keep dashboard, drop analytics
   doubts: [['og', 'doubts'], ['og', 'dashboard']],
   // notifications sent (send-notification write) — bust the recipient lists and counts

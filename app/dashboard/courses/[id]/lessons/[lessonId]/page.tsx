@@ -11,114 +11,29 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getLessonById,
   getCourseById,
-  patchLessonProgress,
   getQuizAttempts,
   type LessonDetail,
   type QuizAttempt,
 } from "@/lib/api";
+import {
+  stagePending,
+  flushPending,
+  flushPendingOnUnload,
+  replayPending,
+  SAFETY_FLUSH_MS,
+  COMPLETION_PCT,
+} from "@/lib/lesson-progress-buffer";
 import { qk } from "@/lib/queries/keys";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
-// ── YouTube IFrame API type declarations ───────────────────────
-// (Minimal — only what we use. Avoids a third-party @types package.)
+import {
+  ensureYouTubeIframeApi,
+  type YTPlayer,
+} from "@/lib/youtube";
 
-declare global {
-  interface Window {
-    YT: {
-      Player: new (
-        element: string | HTMLElement,
-        options: {
-          videoId?: string;
-          playerVars?: Record<string, string | number>;
-          events?: {
-            onReady?: (e: { target: YTPlayer }) => void;
-            onStateChange?: (e: { data: number; target: YTPlayer }) => void;
-            onError?: (e: { data: number; target: YTPlayer }) => void;
-          };
-        },
-      ) => YTPlayer;
-      PlayerState: { PLAYING: number; PAUSED: number; ENDED: number };
-    };
-    onYouTubeIframeAPIReady?: () => void;
-    __openGradYoutubeIframeApiPromise?: Promise<void>;
-  }
-}
-
-interface YTPlayer {
-  getCurrentTime(): number;
-  getDuration(): number;
-  getPlayerState(): number;
-  destroy(): void;
-}
-
-const YT_API_SCRIPT_ID = "yt-api-script";
-const YT_API_READY_TIMEOUT_MS = 15000;
 const YT_PLAYER_DIV_ID = "yt-player-root";
-
-function ensureYouTubeIframeApi(): Promise<void> {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("YouTube iframe API can only load in the browser."));
-  }
-
-  if (window.YT?.Player) {
-    return Promise.resolve();
-  }
-
-  if (window.__openGradYoutubeIframeApiPromise) {
-    return window.__openGradYoutubeIframeApiPromise;
-  }
-
-  window.__openGradYoutubeIframeApiPromise = new Promise<void>((resolve, reject) => {
-    let settled = false;
-    let pollTimer: number | null = null;
-    let timeoutTimer: number | null = null;
-    const handleError = () => fail();
-    const existingScript = document.getElementById(YT_API_SCRIPT_ID) as HTMLScriptElement | null;
-    const script = existingScript ?? document.createElement("script");
-
-    const cleanup = () => {
-      if (pollTimer) window.clearInterval(pollTimer);
-      if (timeoutTimer) window.clearTimeout(timeoutTimer);
-      script.removeEventListener("error", handleError);
-    };
-
-    const finish = () => {
-      if (settled || !window.YT?.Player) return;
-      settled = true;
-      cleanup();
-      resolve();
-    };
-
-    const fail = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      window.__openGradYoutubeIframeApiPromise = undefined;
-      reject(new Error("YouTube iframe API failed to load."));
-    };
-
-    const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      previousReady?.();
-      finish();
-    };
-
-    if (!existingScript) {
-      script.id = YT_API_SCRIPT_ID;
-      script.src = "https://www.youtube.com/iframe_api";
-      script.async = true;
-      document.head.appendChild(script);
-    }
-
-    script.addEventListener("error", handleError, { once: true });
-    pollTimer = window.setInterval(finish, 250);
-    timeoutTimer = window.setTimeout(fail, YT_API_READY_TIMEOUT_MS);
-  });
-
-  return window.__openGradYoutubeIframeApiPromise;
-}
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -153,6 +68,13 @@ export default function LessonPage() {
   const playerInitTokenRef   = useRef(0);
   const videoIdRef           = useRef<string>("");
 
+  // Progress buffer state (see lib/lesson-progress-buffer.ts).
+  const pendingPctRef        = useRef(0);   // latest local value
+  const lastFlushedPctRef    = useRef(0);   // latest value handed to the server
+  const lastFlushAtRef       = useRef(0);   // drives the safety-tick flush
+  const durationSecondsRef   = useRef<number | null>(null);
+  const durationSentRef      = useRef(false);
+
   // Refs so memoised callbacks always read the latest values without going stale
   const studentIdRef = useRef(studentId);
   const lessonIdRef  = useRef(lessonId as string);
@@ -161,6 +83,14 @@ export default function LessonPage() {
     lessonIdRef.current = lessonId as string;
     coursesInvalidatedRef.current = false;
     nextPrefetchedRef.current = false;
+    // Reset the buffer for the incoming lesson. Runs after the teardown effect's
+    // cleanup has already flushed the outgoing one (React destroys before it
+    // creates), so the old lesson's progress is never dropped here.
+    pendingPctRef.current = 0;
+    lastFlushedPctRef.current = 0;
+    lastFlushAtRef.current = Date.now();
+    durationSecondsRef.current = null;
+    durationSentRef.current = false;
   }, [lessonId]);
 
   // ── Data load ─────────────────────────────────────────────────
@@ -187,6 +117,11 @@ export default function LessonPage() {
         setIsComplete(Boolean(l.is_complete));
         setWatchedPct(l.watched_percent ?? 0);
         completionFiredRef.current = Boolean(l.is_complete);
+        // Seed the buffer at the stored value so re-watching an already-viewed
+        // lesson doesn't replay percentages the server would only discard.
+        pendingPctRef.current = l.watched_percent ?? 0;
+        lastFlushedPctRef.current = l.watched_percent ?? 0;
+        lastFlushAtRef.current = Date.now();
 
         const quizIds = l.module_quiz_ids ?? [];
         const [course, ...attemptLists] = await Promise.all([
@@ -220,25 +155,83 @@ export default function LessonPage() {
 
   // ── YouTube IFrame API ─────────────────────────────────────────
 
-  const recordProgress = useCallback((pct: number) => {
+  const buildPayload = useCallback((pct: number) => {
     const sid = studentIdRef.current;
     const lid = lessonIdRef.current;
-    if (!sid || !lid) return;
-    if (pct >= 80 && !completionFiredRef.current) {
-      completionFiredRef.current = true;
+    if (!sid || !lid) return null;
+    return {
+      student_id: sid,
+      lesson_id: lid,
+      watched_percent: pct,
+      // Sent at most once per view — the server only reads it to fill a NULL
+      // duration_minutes, so repeating it on every flush would be dead weight.
+      duration_seconds: durationSentRef.current ? null : durationSecondsRef.current,
+    };
+  }, []);
+
+  /**
+   * Send the buffered percentage. `lastFlushedPctRef` advances optimistically:
+   * on failure we deliberately do NOT retry in-session (that would hammer a
+   * struggling server) — the localStorage copy is replayed on the next load.
+   */
+  const flushProgress = useCallback(async () => {
+    const pct = pendingPctRef.current;
+    // GREATEST() in the server upsert makes a non-advancing write a no-op.
+    if (pct <= lastFlushedPctRef.current) return;
+    const payload = buildPayload(pct);
+    if (!payload) return;
+
+    lastFlushedPctRef.current = pct;
+    lastFlushAtRef.current = Date.now();
+    if (payload.duration_seconds != null) durationSentRef.current = true;
+
+    const result = await flushPending(payload);
+    if (result?.is_complete) {
+      setIsComplete(true);
+      const sid = studentIdRef.current;
+      if (sid && !coursesInvalidatedRef.current) {
+        coursesInvalidatedRef.current = true;
+        void queryClient.invalidateQueries({ queryKey: qk.studentCourses(sid) });
+      }
     }
-    patchLessonProgress({ student_id: sid, lesson_id: lid, watched_percent: pct })
-      .then(result => {
-        if (result.is_complete) {
-          setIsComplete(true);
-          if (!coursesInvalidatedRef.current) {
-            coursesInvalidatedRef.current = true;
-            void queryClient.invalidateQueries({ queryKey: qk.studentCourses(sid) });
-          }
-        }
-      })
-      .catch(() => { /* ignore */ });
-  }, [queryClient]);
+  }, [buildPayload, queryClient]);
+
+  /** Teardown flush — synchronous, `keepalive`, never awaited. */
+  const flushProgressOnTeardown = useCallback(() => {
+    const pct = pendingPctRef.current;
+    if (pct <= lastFlushedPctRef.current) return;
+    const payload = buildPayload(pct);
+    if (!payload) return;
+
+    lastFlushedPctRef.current = pct;
+    lastFlushAtRef.current = Date.now();
+    if (payload.duration_seconds != null) durationSentRef.current = true;
+
+    flushPendingOnUnload(payload);
+  }, [buildPayload]);
+
+  /**
+   * Record progress locally on every poll tick; go to the network only when
+   * something meaningful changed. This is what took PATCH /lesson-progress
+   * from ~720 writes per hour-long video down to a handful.
+   */
+  const stageProgress = useCallback((pct: number) => {
+    if (pct <= pendingPctRef.current) return;
+    const payload = buildPayload(pct);
+    if (!payload) return;
+
+    pendingPctRef.current = pct;
+    stagePending(payload);
+
+    // Crossing 80% is what unlocks the next lesson under SEQUENTIAL locking.
+    // That write must reach the server now — never leave it sitting in the
+    // buffer, or a student who closes the tab here stays locked out.
+    const crossedCompletion = pct >= COMPLETION_PCT && !completionFiredRef.current;
+    if (crossedCompletion) completionFiredRef.current = true;
+
+    const safetyDue = Date.now() - lastFlushAtRef.current >= SAFETY_FLUSH_MS;
+    if (crossedCompletion || pct >= 100 || safetyDue) void flushProgress();
+  }, [buildPayload, flushProgress]);
 
   const stopPoll = useCallback(() => {
     if (pollTimerRef.current) {
@@ -247,6 +240,8 @@ export default function LessonPage() {
     }
   }, []);
 
+  // Ticks every 5s so the progress bar stays smooth, but issues no requests —
+  // stageProgress() decides when a flush is actually warranted.
   const startPoll = useCallback(() => {
     if (pollTimerRef.current) return;
     pollTimerRef.current = setInterval(() => {
@@ -254,11 +249,15 @@ export default function LessonPage() {
       if (!p || p.getPlayerState() !== (window.YT?.PlayerState.PLAYING ?? 1)) return;
       const duration = p.getDuration();
       if (!duration) return;
+      // The player is the only place the true video length is known. Carrying
+      // it along means authors never have to type a duration by hand and no
+      // YouTube Data API key is needed anywhere in the stack.
+      durationSecondsRef.current = Math.round(duration);
       const pct = Math.round((p.getCurrentTime() / duration) * 100);
       setWatchedPct(pct);
-      recordProgress(pct);
+      stageProgress(pct);
     }, 5000);
-  }, [recordProgress]);
+  }, [stageProgress]);
 
   const destroyPlayer = useCallback(() => {
     stopPoll();
@@ -321,10 +320,10 @@ export default function LessonPage() {
             stopPoll();
           }
           if (e.data === window.YT.PlayerState.ENDED) {
-            // recordProgress() only calls the API — it never updates watchedPct.
+            // stageProgress() only buffers — it never updates watchedPct.
             // setWatchedPct(100) here fills the bar visually to 100%.
             setWatchedPct(100);
-            recordProgress(100);
+            stageProgress(100); // pct >= 100 flushes immediately
           }
         },
         onError: (e) => {
@@ -355,7 +354,7 @@ export default function LessonPage() {
         },
       },
     });
-  }, [destroyPlayer, recordProgress, startPoll, stopPoll]);
+  }, [destroyPlayer, stageProgress, startPoll, stopPoll]);
 
   useEffect(() => {
     // Guard: only init when lesson is fully loaded and the wrapper is in the DOM.
@@ -380,6 +379,9 @@ export default function LessonPage() {
     function handleVisibilityChange() {
       if (document.hidden) {
         stopPoll();
+        // Mobile browsers freeze hidden tabs and often never fire pagehide, so
+        // this — not pagehide — is the flush that actually saves phone users.
+        flushProgressOnTeardown();
         return;
       }
 
@@ -389,9 +391,31 @@ export default function LessonPage() {
       }
     }
 
+    function handlePageHide() {
+      stopPoll();
+      flushProgressOnTeardown();
+    }
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [startPoll, stopPoll]);
+    window.addEventListener("pagehide", handlePageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, [startPoll, stopPoll, flushProgressOnTeardown]);
+
+  // Client-side navigation away from the lesson fires no pagehide — only an
+  // unmount. Flush here so "watch, then click the next lesson" isn't lost.
+  useEffect(() => {
+    return () => { flushProgressOnTeardown(); };
+  }, [lessonId, flushProgressOnTeardown]);
+
+  // Replay anything a crash, an offline moment or an expired token left behind.
+  // Safe to repeat: the server upsert only ever raises watched_percent.
+  useEffect(() => {
+    if (!studentId) return;
+    void replayPending(studentId);
+  }, [studentId]);
 
   // L6 — prefetch the next lesson once the student is far enough along that
   // navigation is imminent. In sequential courses the next lesson is locked
