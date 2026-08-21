@@ -18,6 +18,12 @@ export const API_BASE_URL =
 // For custom auth mode: setApiAuthToken is called with the stored JWT.
 let _apiToken: string | null = null;
 let _tokenGetter: (() => Promise<string | null>) | null = null;
+// Last header resolveAuthHeader() produced. Unload-time flushes (pagehide /
+// visibilitychange) cannot await _tokenGetter — the page can be frozen before
+// the promise settles — so they read this synchronously instead. A token that
+// has since expired just 401s, and the caller keeps its buffered payload for
+// replay on the next page load.
+let _lastAuthHeader: Record<string, string> = {};
 
 export function setApiAuthToken(token: string): void {
   _apiToken = token;
@@ -35,14 +41,28 @@ export function setApiTokenGetter(getter: () => Promise<string | null>): void {
 export function clearApiAuth(): void {
   _apiToken = null;
   _tokenGetter = null;
+  _lastAuthHeader = {};
 }
 
 async function resolveAuthHeader(): Promise<Record<string, string>> {
+  let header: Record<string, string> = {};
   if (_tokenGetter) {
     const token = await _tokenGetter();
-    return token ? { Authorization: `Bearer ${token}` } : {};
+    header = token ? { Authorization: `Bearer ${token}` } : {};
+  } else if (_apiToken) {
+    header = { Authorization: `Bearer ${_apiToken}` };
   }
-  return _apiToken ? { Authorization: `Bearer ${_apiToken}` } : {};
+  _lastAuthHeader = header;
+  return header;
+}
+
+/**
+ * The most recently resolved auth header, without awaiting Clerk.
+ * Only for unload-time requests that cannot survive an await — everything
+ * else must go through apiFetch. Empty until the first apiFetch resolves.
+ */
+export function getCachedAuthHeaderSync(): Record<string, string> {
+  return _lastAuthHeader;
 }
 
 /**
@@ -2357,11 +2377,18 @@ export async function getLessonById(lessonId: string): Promise<LessonDetail> {
   return (await r.json()) as LessonDetail;
 }
 
-export async function patchLessonProgress(payload: {
+export type LessonProgressPayload = {
   student_id: string;
   lesson_id: string;
   watched_percent: number;
-}): Promise<{ id: string; is_complete: boolean; watched_percent: number }> {
+  /** Length the caller's YouTube player reported. Backfills the lesson's
+   *  duration_minutes while that column is still NULL. Sent once per view. */
+  duration_seconds?: number | null;
+};
+
+export async function patchLessonProgress(
+  payload: LessonProgressPayload,
+): Promise<{ id: string; is_complete: boolean; watched_percent: number }> {
   const r = await apiFetch(`${API_BASE_URL}/lesson-progress`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -2373,6 +2400,32 @@ export async function patchLessonProgress(payload: {
     throw new ApiError(err?.message ?? "Failed to update progress.", r.status);
   }
   return (await r.json()) as { id: string; is_complete: boolean; watched_percent: number };
+}
+
+/**
+ * Unload-safe progress flush, for `pagehide` / `visibilitychange → hidden`.
+ *
+ * Uses `keepalive` rather than navigator.sendBeacon because beacon cannot set
+ * an Authorization header, and putting the Clerk token in the body would leak
+ * it into request logs. Reads the cached auth header synchronously — awaiting
+ * Clerk here risks the page freezing before the request is even issued.
+ *
+ * Never throws and never awaits a response body: the caller has already
+ * persisted the payload locally, and a failure just leaves it queued for the
+ * next replay.
+ */
+export function flushLessonProgressOnUnload(payload: LessonProgressPayload): void {
+  try {
+    void fetch(`${API_BASE_URL}/lesson-progress`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...getCachedAuthHeaderSync() },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      keepalive: true,
+    }).catch(() => { /* buffered locally; replayed on next load */ });
+  } catch {
+    /* buffered locally; replayed on next load */
+  }
 }
 
 export type QuizAttempt = {
