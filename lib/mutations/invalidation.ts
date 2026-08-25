@@ -23,7 +23,11 @@ import { useCallback } from 'react';
 // write). They now appear ONLY on domains whose writes actually change those
 // views — writes that don't touch aggregates/dashboard cards no longer trigger
 // that fan-out. Under-invalidation risk is covered per-domain below.
-const DOMAIN_KEYS = {
+/**
+ * Exported so a test can assert which caches a write busts. Getting this wrong
+ * is invisible in development and shows up as a stale screen in production.
+ */
+export const DOMAIN_KEYS = {
   // course content: lists, detail, overview, lessons, plus anything derived
   courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // user CRUD / role / archive — busts the managers list and authz-derived views
@@ -40,12 +44,19 @@ const DOMAIN_KEYS = {
   bundles: [['og', 'bundles'], ['og', 'student']],
   // batch CRUD / membership / content assignment — cascades write
   // course/bundle enrolments, so student views + rosters + analytics go stale
-  batches: [['og', 'batches'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
+  // 'attendance' and 'live-classes' are here because membership decides who is
+  // IN a cohort: adding or removing a member changes both the canonical report's
+  // rows and every class roster they appear on.
+  batches: [['og', 'batches'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
-  // calendar/live-class changes affect the calendar + dashboard "upcoming" card, not analytics
-  calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'dashboard']],
-  // manual attendance marking — rosters, grids, list attendee counts, dashboards + attendancePct
-  liveClassAttendance: [['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
+  // calendar/live-class changes affect the calendar + dashboard "upcoming" card.
+  // 'attendance' is in here because a live class IS an occasion in the canonical
+  // report: deleting or retargeting an ended class changes Records, the
+  // drill-downs and My Attendance, all of which cache under 'attendance'.
+  calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'attendance'], ['og', 'dashboard']],
+  // manual attendance marking — the roster it was made on AND the canonical
+  // report, which now reads the same rows through /attendance/records
+  liveClassAttendance: [['og', 'live-classes'], ['og', 'attendance'], ['og', 'analytics'], ['og', 'dashboard']],
   // retargeting a resource changes whether its owning programme may still edit
   // it (the closure is evaluated over the targets), so the programme Content
   // tab and its assignable picker go stale on every resource write
@@ -56,7 +67,7 @@ const DOMAIN_KEYS = {
   notifications: [['og', 'notifications'], ['og', 'inbox']],
   // enrolment changes (assign course, bulk enrol/remove) — affect both the
   // student's view and roster/analytics
-  enrolment: [['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'analytics'], ['og', 'dashboard']],
+  enrolment: [['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
   // lesson progress tick — affects course overview, student dashboards, analytics
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // tracker has its own surfaces + a dashboard tasks card; not analytics
@@ -64,8 +75,10 @@ const DOMAIN_KEYS = {
   // resolving/dismissing a student question report — busts the Test Bank badge
   // counts and the dashboard "Reported Questions" card
   questionReports: [['og', 'question-reports'], ['og', 'dashboard']],
-  // attendance writes (link marks/overrides, register commits) — also feeds dashboards
-  attendance: [['og', 'attendance'], ['og', 'dashboard']],
+  // attendance writes (link marks/overrides, register commits) — a committed
+  // register is what the canonical report reads for school-based cohorts, and
+  // the live-class roster renders it too, so both families go stale
+  attendance: [['og', 'attendance'], ['og', 'live-classes'], ['og', 'dashboard']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;

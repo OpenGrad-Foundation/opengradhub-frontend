@@ -54,20 +54,16 @@ export const qk = {
   bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
   batches: (status?: string) => ['og', 'batches', status ?? 'ACTIVE'] as const,
   batch: (id: string) => ['og', 'batches', 'detail', id] as const,
-  liveClasses: () => ['og', 'live-classes'] as const,
+  /**
+   * `filters` keeps a filtered staff list from colliding with the bare list the
+   * School confirmations tab and the class edit page still fetch.
+   */
+  liveClasses: (filters?: Record<string, unknown>) =>
+    ['og', 'live-classes', filters ?? {}] as const,
   nextLiveClass: (studentId: string) =>
     ['og', 'live-classes', 'next', studentId] as const,
-  liveClassAttendees: (id: string) =>
-    ['og', 'live-classes', id, 'attendees'] as const,
   liveClassRoster: (id: string) =>
     ['og', 'live-classes', id, 'roster'] as const,
-  // Live-class attendance summary. Distinct from `attendanceSummary` below,
-  // which is the register/attendance-module summary — different feature, and
-  // the two collided on this name when the branches merged.
-  liveClassAttendanceSummary: (filters: Record<string, unknown>) =>
-    ['og', 'live-classes', 'attendance-summary', filters] as const,
-  studentAttendance: (studentId: string) =>
-    ['og', 'live-classes', 'student-attendance', studentId] as const,
   assignments: () => ['og', 'assignments'] as const,
   submissionQueue: (filters: Record<string, unknown>) =>
     ['og', 'assignments', 'submission-queue', filters] as const,
@@ -82,7 +78,11 @@ export const qk = {
     ['og', 'attendance', 'links', classId] as const,
   attendanceRegister: (id: string) =>
     ['og', 'attendance', 'register', id] as const,
-  attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
+  /** The canonical report. Under 'attendance' so any write busts it. */
+  attendanceRecords: (filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'records', filters] as const,
+  attendanceStudentRecords: (studentId: string, filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'records', 'student', studentId, filters] as const,
   attendanceMe: () => ['og', 'attendance', 'me'] as const,
   attendanceSheet: (schoolId: string, month: string) =>
     ['og', 'attendance', 'sheet', schoolId, month] as const,

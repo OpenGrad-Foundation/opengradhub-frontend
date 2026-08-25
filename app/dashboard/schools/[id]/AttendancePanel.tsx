@@ -95,8 +95,23 @@ export function AttendancePanel({ schoolId, canView }: { schoolId: string; canVi
                 </thead>
                 <tbody>
                   {data.students.map((s) => (
-                    <tr key={s.student_id} style={{ borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-                      <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{s.name}</td>
+                    // A row for a student tracked online is still shown — the
+                    // register is a record of what the school committed — but it
+                    // is not that student's attendance, so it is not presented as
+                    // if it were.
+                    <tr
+                      key={s.student_id}
+                      style={{ borderBottom: "1px solid rgba(3,72,82,0.06)", opacity: s.official ? 1 : 0.5 }}
+                      title={s.official ? undefined : "Tracked online — not counted from this register."}
+                    >
+                      <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                        {s.name}
+                        {!s.official && (
+                          <span style={{ marginLeft: "6px", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            · tracked online
+                          </span>
+                        )}
+                      </td>
                       <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "rgba(3,72,82,0.7)" }}>
                         {s.present}/{s.total}
                         {s.total > 0 && ` (${Math.round((s.present / s.total) * 100)}%)`}

@@ -53,6 +53,11 @@ export type UploadSummary = {
 };
 
 export type UploadDetail = UploadSummary & {
+  /**
+   * Only on a commit response: students whose rows were written but will never
+   * be read as their attendance, because they are tracked online.
+   */
+  ignored_online?: { student_id: string; name: string }[];
   grid: GridRow[];
   unmatched: ExtractedRow[];
   /** The month this upload resolves to: the reviewer's override, or the inferred one. */
@@ -160,29 +165,121 @@ export type SchoolRegisterView = {
     present: number;
     total: number;
     marks: Record<string, boolean>;
+    /** False when the student is tracked online — the row is shown, not counted. */
+    official: boolean;
   }[];
 };
 
-export type SchoolSummaryRow = {
-  school_id: string;
-  school_name: string;
-  link_attended: number;
-  link_total: number;
-  register_present: number;
-  register_total: number;
+// ── Canonical attendance (one source of truth, shared by every screen) ────────
+
+export type DeliveryMode = "ONLINE" | "SCHOOL_BASED";
+/** UNKNOWN means nothing authoritative has spoken — it is NOT absence. */
+export type AttendanceStatus = "PRESENT" | "ABSENT" | "UNKNOWN";
+export type AttendanceSource = "JOIN" | "MANUAL" | "REGISTER" | "NONE";
+export type OccasionKind = "LIVE_CLASS" | "REGISTER_DATE";
+
+export type Occasion = {
+  key: string;
+  kind: OccasionKind;
+  label: string;
+  at: string;
+};
+
+export type RecordsView = {
+  mode: DeliveryMode;
+  from: string;
+  to: string;
+  occasions: Occasion[];
+  students: {
+    id: string;
+    name: string;
+    school_name: string | null;
+    cells: AttendanceStatus[];
+    present: number;
+    marked: number;
+    total: number;
+    pct: number;
+  }[];
+  /** Cohort-wide, not page-wide. */
+  totals: { students: number; occasions: number; present: number; marked: number; pct: number };
+  page: number;
+  limit: number;
+  total: number;
+};
+
+export type SeriesEntry = {
+  key: string;
+  kind: OccasionKind;
+  label: string;
+  at: string;
+  status: AttendanceStatus;
+  source: AttendanceSource;
+  marked_by_name: string | null;
+};
+
+export type AttendanceSeries = {
+  mode: DeliveryMode;
+  /** Counts every occasion in range, even when `entries` was capped. */
+  summary: { present: number; marked: number; total: number; pct: number };
+  entries: SeriesEntry[];
+  /** True when the server capped `entries` and they do not show the whole summary. */
+  truncated: boolean;
+};
+
+export type StudentRecordsView = {
+  student: { id: string; name: string; school_name: string | null };
+  from: string;
+  to: string;
+  series: AttendanceSeries[];
+  note: string | null;
+};
+
+export type RosterRow = {
+  student_id: string;
+  name: string;
+  email: string | null;
+  school_name: string | null;
+  status: AttendanceStatus;
+  source: AttendanceSource;
+  joined_at: string | null;
+  marked_at: string | null;
+  marked_by_name: string | null;
+};
+
+export type ClassRosterView = {
+  class: {
+    id: string;
+    title: string;
+    scheduled_at: string;
+    attendance_mode: DeliveryMode | null;
+  };
+  can_mark: boolean;
+  source: AttendanceSource;
+  note: string | null;
+  rows: RosterRow[];
 };
 
 export type MyAttendanceStats = {
-  register: {
-    percent: number | null;
-    months: { month: string; present: number; total: number }[];
-  };
-  school_links: { attended: number; total: number };
+  from: string;
+  to: string;
+  series: AttendanceSeries[];
+  /** A school-level fact. Never an individual mark. */
+  school_confirmations: { attended: number; total: number };
   quizzes: {
     assigned: number;
     completed: number;
     items: { id: string; title: string; completed: boolean }[];
   };
+};
+
+export type RecordsFilters = {
+  batch_id?: string;
+  course_id?: string;
+  student_q?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  limit?: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -314,8 +411,48 @@ export async function retryRegisterExtraction(id: string): Promise<UploadDetail>
 
 // ── Authed: stats ────────────────────────────────────────────────────────────
 
-export async function getAttendanceSummary(): Promise<{ schools: SchoolSummaryRow[] }> {
-  return json(await apiFetch(`${API_BASE_URL}/attendance/summary`));
+/** THE canonical individual-attendance report. Exactly one cohort filter. */
+export async function getAttendanceRecords(filters: RecordsFilters): Promise<RecordsView> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== "") params.set(k, String(v));
+  }
+  return json(await apiFetch(`${API_BASE_URL}/attendance/records?${params.toString()}`));
+}
+
+/**
+ * One student's timeline. The cohort and date range are carried through from
+ * the grid so a drill-down can never disagree with the row it was opened from.
+ */
+export async function getStudentRecords(
+  studentId: string,
+  filters: { batch_id?: string; course_id?: string; from?: string; to?: string } = {},
+): Promise<StudentRecordsView> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== "") params.set(k, String(v));
+  }
+  const qs = params.toString();
+  return json(await apiFetch(
+    `${API_BASE_URL}/attendance/records/students/${encodeURIComponent(studentId)}${qs ? `?${qs}` : ""}`,
+  ));
+}
+
+/** The one roster view — replaces the old attendee modal and attendance sheet. */
+export async function getClassRoster(liveClassId: string): Promise<ClassRosterView> {
+  return json(await apiFetch(`${API_BASE_URL}/live-classes/${encodeURIComponent(liveClassId)}/roster`));
+}
+
+export async function putClassAttendance(
+  liveClassId: string,
+  marks: { student_id: string; status: "PRESENT" | "ABSENT" }[],
+): Promise<{ updated: number }> {
+  return json(await apiFetch(`${API_BASE_URL}/live-classes/${encodeURIComponent(liveClassId)}/attendance`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ marks }),
+    cache: "no-store",
+  }));
 }
 
 export async function getMyAttendance(): Promise<MyAttendanceStats> {

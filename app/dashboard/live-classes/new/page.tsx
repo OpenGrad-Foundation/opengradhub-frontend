@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -10,8 +11,6 @@ import { createLiveClass, getCourses, type Course } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
-
-type Target = "course" | "programme" | "batch";
 
 export default function NewLiveClassPage() {
   const router = useRouter();
@@ -23,9 +22,11 @@ export default function NewLiveClassPage() {
   const [datetime, setDatetime] = useState("");
   const [duration, setDuration] = useState("60");
   const [meetUrl,  setMeetUrl]  = useState("");
-  const [target,   setTarget]   = useState<Target>("course");
   const [courseId, setCourseId] = useState("");
-  const [progType, setProgType] = useState("UG");
+  // Empty, not "UG". Every audience field is presented as optional, so a
+  // pre-selected programme silently ANDs itself into a target the user never
+  // chose — dropping every CAT/PG student in the batch they did choose.
+  const [progType, setProgType] = useState("");
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const [courses,  setCourses]  = useState<Course[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -53,21 +54,33 @@ export default function NewLiveClassPage() {
     if (!title.trim())   { setError("Title is required."); return; }
     if (!datetime)       { setError("Date & time is required."); return; }
     if (!meetUrl.trim()) { setError("Meeting URL is required."); return; }
-    if (target === "course" && !courseId) { setError("Select a course."); return; }
-    if (target === "batch" && batchIds.length === 0) { setError("Select at least one batch."); return; }
+    if (!courseId && !progType && batchIds.length === 0) {
+      setError("Pick at least one of course, programme or batches.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await createLiveClass({
+      const created = await createLiveClass({
         title:            title.trim(),
         description:      desc.trim() || undefined,
         scheduled_at:     new Date(datetime).toISOString(),
         duration_minutes: Math.max(1, Number(duration) || 60),
         meeting_url:      meetUrl.trim(),
-        course_id:        target === "course" ? courseId : undefined,
-        programme_type:   target === "programme" ? progType : undefined,
-        batch_ids:        target === "batch" ? batchIds : undefined,
+        course_id:        courseId || undefined,
+        programme_type:   progType || undefined,
+        batch_ids:        batchIds.length ? batchIds : undefined,
       });
+      // A class can be scheduled even when some targeted students are in no
+      // batch — their attendance simply cannot be tracked. Blocking the schedule
+      // would help nobody, but staying silent would hide it.
+      if (created?.unresolved_students) {
+        toast.warning(
+          `${created.unresolved_students} targeted student${created.unresolved_students > 1 ? "s aren't" : " isn't"} in a batch, ` +
+          `so their attendance can't be tracked yet.`,
+          { duration: 8000 },
+        );
+      }
       invalidate('calendar');
       router.replace("/dashboard/live-classes");
     } catch (err) {
@@ -76,6 +89,16 @@ export default function NewLiveClassPage() {
       setSubmitting(false);
     }
   }
+
+  // Spelled out in words, because "course + batch" reads as addition to most
+  // people and this is the opposite: each filter removes students.
+  const parts: string[] = [];
+  if (courseId) parts.push(`enrolled in ${courses.find(c => c.id === courseId)?.title ?? "the course"}`);
+  if (progType) parts.push(`in the ${progType} programme`);
+  if (batchIds.length) parts.push(`in ${batchIds.length} selected batch${batchIds.length === 1 ? "" : "es"}`);
+  const audienceSummary = parts.length === 0
+    ? "nobody yet — pick at least one"
+    : `students ${parts.join(" AND ")}`;
 
   return (
     <div style={{ maxWidth: "640px" }}>
@@ -108,50 +131,48 @@ export default function NewLiveClassPage() {
             <input type="url" value={meetUrl} onChange={e => setMeetUrl(e.target.value)} style={S.input} placeholder="https://meet.google.com/… or https://zoom.us/j/…" required />
           </Field>
 
-          {/* Target radio */}
+          {/* Audience: three INDEPENDENT optional filters that narrow each
+              other. Picking a course and a batch means "students in that course
+              who are also in that batch" — not the two audiences added up. At
+              least one is required, because a class with no audience reaches
+              nobody. */}
           <div>
             <p style={fieldLabel}>Target Audience *</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-              {(["course", "programme", "batch"] as Target[]).map(t => (
-                <button key={t} type="button" onClick={() => setTarget(t)} style={{
-                  flex: "1 1 auto",
-                  padding: "8px 18px", borderRadius: "10px", cursor: "pointer",
-                  border: target === t ? "1.5px solid #034852" : "1.5px solid rgba(3,72,82,0.18)",
-                  background: target === t ? "rgba(3,72,82,0.07)" : "transparent",
-                  color: target === t ? "#034852" : "rgba(3,72,82,0.55)",
-                  fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: target === t ? 700 : 500,
-                  transition: "all 180ms ease",
-                }}>
-                  {t === "course" ? "Specific Course" : t === "programme" ? "All students in programme" : "Specific Batches"}
-                </button>
-              ))}
+            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 10px" }}>
+              Pick any combination. Each one you add <b>narrows</b> the audience —
+              a student must match all of them.
+            </p>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              <Field label="Course (optional)">
+                <select value={courseId} onChange={e => setCourseId(e.target.value)} style={S.input}>
+                  <option value="">Any course</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Programme (optional)">
+                <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
+                  <option value="">Any programme</option>
+                  {PROGRAMME_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>{k.label}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Batches (optional)">
+                <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={S.input} />
+              </Field>
             </div>
+
+            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", margin: "10px 0 0" }}>
+              <b>Audience:</b> {audienceSummary}
+            </p>
           </div>
 
-          {target === "course" ? (
-            <Field label="Course">
-              <select value={courseId} onChange={e => setCourseId(e.target.value)} style={S.input}>
-                <option value="">Select active course…</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
-                ))}
-              </select>
-            </Field>
-          ) : target === "programme" ? (
-            <Field label="Programme Type">
-              <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                {PROGRAMME_KINDS.map((k) => (
-                  <option key={k.value} value={k.value}>{k.label}</option>
-                ))}
-              </select>
-            </Field>
-          ) : (
-            <Field label="Batches">
-              <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={S.input} />
-            </Field>
-          )}
-
-          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
+          {error && <p role="alert" style={{ fontSize: "13px", color: "#c62828", fontWeight: 600, margin: 0 }}>{error}</p>}
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
             <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", flex: "1 1 120px" }}>Cancel</Link>
@@ -165,21 +186,27 @@ export default function NewLiveClassPage() {
   );
 }
 
+/**
+ * A real <label>, wrapping its control so the association is implicit and
+ * cannot fall out of sync with an id. It used to be a <p>, which looks like a
+ * label and is one to nobody: not a single field in this form was
+ * programmatically labelled.
+ */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p style={{ margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>{label}</p>
+    <label style={{ display: "block" }}>
+      <span style={{ display: "block", margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#4a6b70" }}>{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
-const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" };
+const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#4a6b70" };
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "clamp(20px, 5vw, 32px)", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" };
 const S = {
   label:      { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
   heading:    { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input:      { width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn: { padding: "11px 22px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 220ms ease" } as React.CSSProperties,
-  outlineBtn: { padding: "11px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px", background: "transparent", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer" } as React.CSSProperties,
+  input:      { width: "100%", minHeight: "44px", padding: "12px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn: { minHeight: "44px", padding: "12px 22px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 220ms ease" } as React.CSSProperties,
+  outlineBtn: { minHeight: "44px", padding: "12px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px", background: "transparent", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer" } as React.CSSProperties,
 };

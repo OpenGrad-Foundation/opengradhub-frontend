@@ -29,8 +29,23 @@ function TabStrip({
   idPrefix: string;
   onSelect?: (key: string) => void;
 }) {
+  // WAI-ARIA tabs move between tabs with the arrow keys, and Tab jumps straight
+  // to the panel. Without this a keyboard user has to walk through every tab to
+  // reach the content, and screen-reader users are told a pattern the widget
+  // does not actually implement.
+  function onKeyDown(e: React.KeyboardEvent) {
+    const delta = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+    const jump = e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
+    if (!delta && jump === null) return;
+    e.preventDefault();
+    const i = tabs.findIndex((t) => t.key === activeKey);
+    const next = jump ?? (i + delta + tabs.length) % tabs.length;
+    onSelect?.(tabs[next].key);
+    document.getElementById(`${idPrefix}-tab-${tabs[next].key}`)?.focus();
+  }
+
   return (
-    <div role="tablist" aria-label={ariaLabel} className="mb-4 flex gap-1 border-b border-slate-200">
+    <div role="tablist" aria-label={ariaLabel} onKeyDown={onKeyDown} className="mb-4 flex gap-1 border-b border-slate-200">
       {tabs.map((tab) => {
         const isActive = tab.key === activeKey;
         return (
@@ -41,9 +56,11 @@ function TabStrip({
             id={`${idPrefix}-tab-${tab.key}`}
             aria-controls={`${idPrefix}-panel-${tab.key}`}
             aria-selected={isActive}
+            // Only the selected tab is a tab stop; the arrows do the rest.
+            tabIndex={isActive ? 0 : -1}
             onClick={() => onSelect?.(tab.key)}
             className={
-              'px-4 py-2 text-sm font-semibold border-b-2 transition-colors ' +
+              'min-h-[44px] px-4 text-sm font-semibold border-b-2 transition-colors ' +
               (isActive
                 ? 'border-[var(--teal)] text-[var(--dark-teal)]'
                 : 'border-transparent text-slate-500 hover:text-[var(--dark-teal)]')

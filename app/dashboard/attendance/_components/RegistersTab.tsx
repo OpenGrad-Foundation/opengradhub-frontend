@@ -106,7 +106,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
   if (!canManage) {
     return (
       <p className="text-sm text-slate-500">
-        You can view attendance totals in the Overview tab. Uploading a register needs the
+        You can view attendance in the Records tab. Uploading a register needs the
         attendance manage permission.
       </p>
     );
