@@ -30,8 +30,10 @@ describe('dashboard route permissions', () => {
       fill: 'tracker.fill',
       blocker_clear: 'tracker.blocker.clear',
       admin: 'tracker.admin',
-      // Added with school-visit geo verification (backend migration 096).
+      // Added with school-visit geo verification (backend migration 097).
       geo_override: 'tracker.geo.override',
+      // Added with deadline extensions (backend migration 098).
+      extension_grant: 'tracker.extension.grant',
     });
     expect(ROUTE_PERMISSION.tracker).toBe(PERM.tracker.view);
   });

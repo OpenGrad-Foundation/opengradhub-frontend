@@ -152,8 +152,10 @@ export const PERM = {
     fill: "tracker.fill",
     blocker_clear: "tracker.blocker.clear",
     admin: "tracker.admin",
-    /** Accept an out-of-range school-visit verification (migration 096). */
+    /** Accept an out-of-range school-visit verification (migration 097). */
     geo_override: "tracker.geo.override",
+    /** Reopen one overdue record until a new date (migration 098). */
+    extension_grant: "tracker.extension.grant",
   },
 } as const;
 

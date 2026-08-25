@@ -62,6 +62,8 @@ import {
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
 import {
+  getRecordExtensions,
+  grantExtension,
   getRecordPeriodHistory,
   getTemplateGeoVerifications,
   getRecordGeoVerification,
@@ -512,5 +514,24 @@ export function useRecordPeriodHistory(
     queryFn: () => getRecordPeriodHistory(recordId as string, limit, before),
     enabled: Boolean(recordId) && enabled,
     staleTime: 30_000,
+  });
+}
+
+/** Every deadline extension on a record, newest first. */
+export function useRecordExtensions(recordId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerExtensions(recordId ?? ''),
+    queryFn: () => getRecordExtensions(recordId as string),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useGrantExtension() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ recordId, extended_to, reason }: { recordId: string; extended_to: string; reason: string }) =>
+      grantExtension(recordId, extended_to, reason),
+    onSuccess: () => invalidate('tracker'),
   });
 }

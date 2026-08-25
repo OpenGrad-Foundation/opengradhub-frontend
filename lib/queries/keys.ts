@@ -115,6 +115,7 @@ export const qk = {
   trackerGeo: (templateId: string, periodKey: string) =>
     ['og', 'tracker', 'geo', templateId, periodKey] as const,
   /** The shared verification a single row consumes, for its History drawer. */
+  trackerExtensions: (recordId: string) => ['og', 'tracker', 'extensions', recordId] as const,
   trackerRecordGeo: (recordId: string) => ['og', 'tracker', 'geo-record', recordId] as const,
   /** One page of a recurring task's earlier periods; cursor is part of the key. */
   trackerPeriods: (recordId: string, before: string) =>

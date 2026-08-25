@@ -13,6 +13,7 @@ import {
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
+import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
 import { SchoolGeoPanel } from "./school-geo-panel";
 import { StudentDetailsForm } from "./student-details-form";
@@ -29,6 +30,7 @@ export function TrackerEditableGrid({
   onStatusFilterChange,
   viewingOther = false,
   canOverrideGeo = false,
+  canGrantExtension = false,
 }: {
   template: TrackerTemplate;
   grid: TrackerGrid;
@@ -42,6 +44,8 @@ export function TrackerEditableGrid({
   viewingOther?: boolean;
   /** May the viewer accept an out-of-range verification? */
   canOverrideGeo?: boolean;
+  /** May the viewer reopen an overdue row with a dated extension? */
+  canGrantExtension?: boolean;
 }) {
   const save = useSaveTrackerBatch();
   const raise = useRaiseTrackerBlocker();
@@ -174,8 +178,13 @@ export function TrackerEditableGrid({
     const geoUnmet =
       requiresGeo && currentStatus !== doneStatus &&
       !(row.school_id && geoAcceptedSchools.has(row.school_id));
-    const blockedHint = geoUnmet ? geoHint(row) : proofHint;
-    const blocked = proofUnmet || geoUnmet;
+    // Overdue outranks the proof/geo reasons: no photo can unblock it, only a
+    // manager's extension, so the fellow is told the real blocker.
+    const overdue = row.lifecycle === "overdue" && currentStatus !== doneStatus;
+    const blockedHint = overdue
+      ? "Overdue — ask your ZM or PM for an extension"
+      : geoUnmet ? geoHint(row) : proofHint;
+    const blocked = overdue || proofUnmet || geoUnmet;
     if (template.completion_style === "workflow") {
       return (
         <div className="flex flex-col gap-1">
@@ -469,6 +478,8 @@ export function TrackerEditableGrid({
           requireLocation={template.require_location}
           requireGeo={requiresGeo}
           recurring={Boolean(template.recurrence_frequency)}
+          overdue={grid.rows.find((r) => r.record_id === historyRecordId)?.lifecycle === "overdue"}
+          canGrantExtension={canGrantExtension}
           onClose={() => setHistoryRecordId(null)}
         />
       )}
@@ -485,10 +496,12 @@ export function TrackerEditableGrid({
 }
 
 function HistoryDrawer({
-  recordId, requirePhoto, requireLocation, requireGeo, recurring, onClose,
+  recordId, requirePhoto, requireLocation, requireGeo, recurring,
+  overdue, canGrantExtension, onClose,
 }: {
   recordId: string; requirePhoto: boolean; requireLocation: boolean;
-  requireGeo: boolean; recurring: boolean; onClose: () => void;
+  requireGeo: boolean; recurring: boolean;
+  overdue: boolean; canGrantExtension: boolean; onClose: () => void;
 }) {
   const { data, isLoading, error } = useTrackerRecordHistory(recordId);
   return (
@@ -506,6 +519,7 @@ function HistoryDrawer({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
+          <ExtensionPanel recordId={recordId} overdue={overdue} canGrant={canGrantExtension} />
           {requireGeo && <RecordGeoSummary recordId={recordId} />}
           {/* Earlier occurrences of this same task for this same target. Only the
               previous period renders up front; older ones load on demand. */}

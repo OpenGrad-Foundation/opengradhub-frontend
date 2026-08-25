@@ -507,7 +507,9 @@ function GridPanel({
   /** Drilled into another person's rows (a manager reviewing a fellow). */
   viewingOther?: boolean;
 }) {
-  const canOverrideGeo = usePermissions().has(PERM.tracker.geo_override);
+  const perms = usePermissions();
+  const canOverrideGeo = perms.has(PERM.tracker.geo_override);
+  const canGrantExtension = perms.has(PERM.tracker.extension_grant);
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
@@ -525,6 +527,7 @@ function GridPanel({
         canClear={canClear}
         viewingOther={viewingOther}
         canOverrideGeo={canOverrideGeo}
+        canGrantExtension={canGrantExtension}
       />
     </div>
   );

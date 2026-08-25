@@ -815,3 +815,33 @@ export function getRecordPeriodHistory(recordId: string, limit?: number, before?
     `/tracker/records/${encodeURIComponent(recordId)}/periods${suffix}`,
   );
 }
+
+// ── Deadline extensions ───────────────────────────────────────────────────────
+// An overdue record cannot be completed by anyone. Only a dated extension from a
+// manager above the doer reopens it, and only until that date.
+
+export type TrackerExtension = {
+  id: string;
+  record_id: string;
+  /** New last day, inclusive. */
+  extended_to: string;
+  reason: string;
+  granted_by: string;
+  granted_by_name: string | null;
+  granted_at: string;
+  /** Still covering the row today; a lapsed grant stays visible as history. */
+  active: boolean;
+};
+
+export function getRecordExtensions(recordId: string) {
+  return trackerJson<TrackerExtension[]>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extensions`,
+  );
+}
+
+export function grantExtension(recordId: string, extendedTo: string, reason: string) {
+  return trackerJson<TrackerExtension>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extension`,
+    jsonInit("POST", { extended_to: extendedTo, reason }),
+  );
+}
