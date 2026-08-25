@@ -13,6 +13,7 @@ import {
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
+import { PeriodHistory } from "./period-history";
 import { SchoolGeoPanel } from "./school-geo-panel";
 import { StudentDetailsForm } from "./student-details-form";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
@@ -467,6 +468,7 @@ export function TrackerEditableGrid({
           requirePhoto={template.require_photo}
           requireLocation={template.require_location}
           requireGeo={requiresGeo}
+          recurring={Boolean(template.recurrence_frequency)}
           onClose={() => setHistoryRecordId(null)}
         />
       )}
@@ -483,10 +485,10 @@ export function TrackerEditableGrid({
 }
 
 function HistoryDrawer({
-  recordId, requirePhoto, requireLocation, requireGeo, onClose,
+  recordId, requirePhoto, requireLocation, requireGeo, recurring, onClose,
 }: {
   recordId: string; requirePhoto: boolean; requireLocation: boolean;
-  requireGeo: boolean; onClose: () => void;
+  requireGeo: boolean; recurring: boolean; onClose: () => void;
 }) {
   const { data, isLoading, error } = useTrackerRecordHistory(recordId);
   return (
@@ -505,6 +507,9 @@ function HistoryDrawer({
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
           {requireGeo && <RecordGeoSummary recordId={recordId} />}
+          {/* Earlier occurrences of this same task for this same target. Only the
+              previous period renders up front; older ones load on demand. */}
+          <PeriodHistory recordId={recordId} recurring={recurring} />
           {(requirePhoto || requireLocation) && (
             <div className="mb-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Proof</p>

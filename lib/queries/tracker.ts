@@ -62,6 +62,7 @@ import {
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
 import {
+  getRecordPeriodHistory,
   getTemplateGeoVerifications,
   getRecordGeoVerification,
   uploadGeoVerification,
@@ -491,5 +492,25 @@ export function useOverrideGeoVerification() {
     mutationFn: ({ verificationId, reason }: { verificationId: string; reason: string }) =>
       overrideGeoVerification(verificationId, reason),
     onSuccess: () => invalidate('tracker'),
+  });
+}
+
+/**
+ * One page of a recurring task's earlier periods.
+ *
+ * Paged rather than fetched whole: a daily task accumulates a row per day forever,
+ * and the UI only shows the previous period until the user asks for more.
+ */
+export function useRecordPeriodHistory(
+  recordId: string | undefined,
+  enabled = true,
+  before?: string,
+  limit = 5,
+) {
+  return useQuery({
+    queryKey: qk.trackerPeriods(recordId ?? '', before ?? 'latest'),
+    queryFn: () => getRecordPeriodHistory(recordId as string, limit, before),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 30_000,
   });
 }

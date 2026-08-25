@@ -768,3 +768,44 @@ export function getGeoVerificationOriginal(verificationId: string) {
     `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/original`,
   );
 }
+
+// ── Earlier occurrences of a recurring task ───────────────────────────────────
+
+export type TrackerPeriodHistoryEntry = {
+  record_id: string;
+  period_key: string;
+  status: string;
+  /**
+   * A past period is done or MISSED — missed meaning a row existed and never
+   * reached done. Periods that were never created are absent rather than shown
+   * as gaps: nobody was asked, so nobody missed anything.
+   */
+  lifecycle: "done" | "missed";
+  updated_at: string;
+  updated_by_name: string | null;
+  geo: {
+    id: string;
+    status: "verified" | "outside_radius";
+    accepted: boolean;
+    distance_m: number;
+    radius_m: number;
+    exif_captured_at: string;
+    preview_url: string | null;
+  } | null;
+};
+
+export type TrackerPeriodHistoryPage = {
+  entries: TrackerPeriodHistoryEntry[];
+  /** Feed back as `before` for the next (older) page; null when exhausted. */
+  next_cursor: string | null;
+};
+
+export function getRecordPeriodHistory(recordId: string, limit?: number, before?: string) {
+  const qs = new URLSearchParams();
+  if (limit) qs.set("limit", String(limit));
+  if (before) qs.set("before", before);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return trackerJson<TrackerPeriodHistoryPage>(
+    `/tracker/records/${encodeURIComponent(recordId)}/periods${suffix}`,
+  );
+}
