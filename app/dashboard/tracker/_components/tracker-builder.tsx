@@ -71,7 +71,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
   const [priority, setPriority] = useState<TrackerPriority>("medium");
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [requirePhoto, setRequirePhoto] = useState(false);
-  const [requireLocation, setRequireLocation] = useState(false);
+  const [requireGeo, setRequireGeo] = useState(false);
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -194,7 +194,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
         priority,
         recurrence_frequency: recurrence || undefined,
         require_photo: requirePhoto,
-        require_location: requireLocation,
+        require_geo_verification: requireGeo && targetType !== "fellow",
         status: saveAsDraft ? "draft" : "active",
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
@@ -208,7 +208,7 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
       setResult(`Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility);
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
-      setRequirePhoto(false); setRequireLocation(false); setSaveAsDraft(false);
+      setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
     } catch (err) {
@@ -298,10 +298,22 @@ export function TrackerBuilder({ canAuthor }: { canAuthor: boolean }) {
             <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
             Require a photo before it can be marked done
           </label>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input type="checkbox" checked={requireLocation} onChange={(e) => setRequireLocation(e.target.checked)} />
-            Require capturing location before it can be marked done
-          </label>
+          {/* Geo verification needs a single school to measure against, which a staff
+              task does not have — a fellow may cover several. */}
+          {targetType !== "fellow" && (
+            <>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={requireGeo} onChange={(e) => setRequireGeo(e.target.checked)} />
+                Verify school visit using photo location metadata
+              </label>
+              <p className="ml-6 text-xs text-gray-500">
+                The fellow uploads one photo taken at the school with their phone camera; we read the
+                location saved inside it. One photo covers all entries for that school in each period.
+                This checks verified photo metadata, which can be edited — it is evidence, not proof of
+                physical presence.
+              </p>
+            </>
+          )}
         </div>
       </section>
 

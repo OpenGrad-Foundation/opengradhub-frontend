@@ -39,7 +39,10 @@ export type TrackerTemplate = {
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   require_photo: boolean;
+  /** Legacy per-record live location capture. Superseded by require_geo_verification
+   *  and no longer offered when authoring; existing tasks keep working. */
   require_location: boolean;
+  require_geo_verification: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -79,6 +82,10 @@ export type TrackerGridRow = {
   blocked: boolean;
   blocker: { id: string; text: string } | null;
   school_name: string | null;
+  /** The row's school id. School-visit verification is shared per school, so rows are
+   *  matched to a verification by id — names are not unique. Optional while older
+   *  cached grid payloads (which predate it) are still in play. */
+  school_id?: string | null;
   target_name: string | null;
   /** The row's target entity id (student/school/fellow user id). Present for student-target
    *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
@@ -133,6 +140,7 @@ export type CreateTrackerTemplateInput = {
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
   status?: "draft" | "active" | "archived";
 };
 
@@ -144,6 +152,7 @@ export type TrackerTemplatePatch = {
   recurrence_frequency?: TrackerRecurrence | null;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
 };
 
 export type TrackerFieldPatch = {
@@ -660,5 +669,179 @@ export async function saveStudentDetails(
 export function listProfilePaths(target: TrackerTargetType) {
   return trackerJson<{ paths: TrackerProfilePath[] }>(
     `/tracker/profile-paths?target=${encodeURIComponent(target)}`,
+  );
+}
+
+// ── School-visit geo verification ──────────────────────────────────────────────
+// One verification is collected per task + period + school + doer, and covers EVERY
+// row for that school. It is derived from the EXIF metadata of a photo taken with the
+// phone's own camera — the browser is never asked for location permission.
+
+/** Why an upload could not be used as evidence. Mirrors the backend's reason codes. */
+export type GeoRejectionReason =
+  | "no_gps"
+  | "no_capture_time"
+  | "accuracy_too_poor"
+  | "outside_period"
+  | "school_not_configured"
+  | "unreadable"
+  | "too_large";
+
+export type TrackerGeoVerification = {
+  id: string;
+  school_id: string;
+  status: "verified" | "outside_radius";
+  /** Passed the geofence, or a supervisor overrode it. This is what unlocks completion. */
+  accepted: boolean;
+  distance_m: number;
+  radius_m: number;
+  accuracy_m: number | null;
+  exif_captured_at: string;
+  uploaded_at: string;
+  /** Metadata-stripped thumbnail. The EXIF-bearing original is fetched separately. */
+  preview_url: string | null;
+  override_by: string | null;
+  override_at: string | null;
+  override_reason: string | null;
+};
+
+export function getTemplateGeoVerifications(templateId: string, periodKey?: string) {
+  const qs = periodKey ? `?period_key=${encodeURIComponent(periodKey)}` : "";
+  return trackerJson<TrackerGeoVerification[]>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications${qs}`,
+  );
+}
+
+export async function getRecordGeoVerification(
+  recordId: string,
+): Promise<TrackerGeoVerification | null> {
+  // A row with no verification yet comes back as a 200 with an EMPTY body (Nest
+  // serialises a `null` return that way), which trackerJson maps to undefined.
+  // React Query rejects undefined outright, so the absence is normalised to null.
+  const res = await trackerJson<TrackerGeoVerification | null | undefined>(
+    `/tracker/records/${encodeURIComponent(recordId)}/geo-verification`,
+  );
+  return res ?? null;
+}
+
+/**
+ * Upload the visit photo, RAW.
+ *
+ * The file is sent exactly as the camera wrote it: any client-side resize or canvas
+ * re-encode would strip the EXIF this whole feature reads. The server parses the
+ * metadata, computes the distance and decides the verdict.
+ */
+export async function uploadGeoVerification(
+  templateId: string,
+  schoolId: string,
+  file: File,
+): Promise<TrackerGeoVerification> {
+  const form = new FormData();
+  form.append("photo", file, file.name || "visit.jpg");
+  form.append("school_id", schoolId);
+  const res = await apiFetch(
+    `${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications`,
+    { method: "POST", body: form },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { message?: string; reason?: GeoRejectionReason }
+      | null;
+    throw new GeoUploadError(body?.message ?? "Could not verify that photo.", body?.reason, res.status);
+  }
+  return (await res.json()) as TrackerGeoVerification;
+}
+
+/** Carries the machine-readable reason so the panel can render the right state. */
+export class GeoUploadError extends ApiError {
+  readonly reason?: GeoRejectionReason;
+  constructor(message: string, reason: GeoRejectionReason | undefined, status: number) {
+    super(message, status);
+    this.reason = reason;
+  }
+}
+
+export function overrideGeoVerification(verificationId: string, reason: string) {
+  return trackerJson<TrackerGeoVerification>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/override`,
+    jsonInit("POST", { reason }),
+  );
+}
+
+/** Presigned URL for the EXIF-bearing original — supervisor review only. */
+export function getGeoVerificationOriginal(verificationId: string) {
+  return trackerJson<{ url: string }>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/original`,
+  );
+}
+
+// ── Earlier occurrences of a recurring task ───────────────────────────────────
+
+export type TrackerPeriodHistoryEntry = {
+  record_id: string;
+  period_key: string;
+  status: string;
+  /**
+   * A past period is done or MISSED — missed meaning a row existed and never
+   * reached done. Periods that were never created are absent rather than shown
+   * as gaps: nobody was asked, so nobody missed anything.
+   */
+  lifecycle: "done" | "missed";
+  updated_at: string;
+  updated_by_name: string | null;
+  geo: {
+    id: string;
+    status: "verified" | "outside_radius";
+    accepted: boolean;
+    distance_m: number;
+    radius_m: number;
+    exif_captured_at: string;
+    preview_url: string | null;
+  } | null;
+};
+
+export type TrackerPeriodHistoryPage = {
+  entries: TrackerPeriodHistoryEntry[];
+  /** Feed back as `before` for the next (older) page; null when exhausted. */
+  next_cursor: string | null;
+};
+
+export function getRecordPeriodHistory(recordId: string, limit?: number, before?: string) {
+  const qs = new URLSearchParams();
+  if (limit) qs.set("limit", String(limit));
+  if (before) qs.set("before", before);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  return trackerJson<TrackerPeriodHistoryPage>(
+    `/tracker/records/${encodeURIComponent(recordId)}/periods${suffix}`,
+  );
+}
+
+// ── Deadline extensions ───────────────────────────────────────────────────────
+// An overdue record cannot be completed by anyone. Only a dated extension from a
+// manager above the doer reopens it, and only until that date.
+
+export type TrackerExtension = {
+  id: string;
+  record_id: string;
+  /** New last day, inclusive. */
+  extended_to: string;
+  reason: string;
+  granted_by: string;
+  granted_by_name: string | null;
+  granted_at: string;
+  /** Still covering the row today; a lapsed grant stays visible as history. */
+  active: boolean;
+};
+
+export function getRecordExtensions(recordId: string) {
+  return trackerJson<TrackerExtension[]>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extensions`,
+  );
+}
+
+export function grantExtension(recordId: string, extendedTo: string, reason: string) {
+  return trackerJson<TrackerExtension>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extension`,
+    jsonInit("POST", { extended_to: extendedTo, reason }),
   );
 }

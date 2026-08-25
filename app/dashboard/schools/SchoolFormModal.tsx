@@ -29,6 +29,13 @@ export function SchoolFormModal({
   const [district, setDistrict] = useState(school?.district ?? "");
   const [state, setState] = useState(school?.state ?? "");
   const [code, setCode] = useState(school?.code ?? "");
+  // Optional school-visit verification geometry. Kept as strings so a half-filled
+  // pair can be caught and explained rather than silently coerced to 0.
+  const [latitude, setLatitude] = useState(school?.latitude != null ? String(school.latitude) : "");
+  const [longitude, setLongitude] = useState(school?.longitude != null ? String(school.longitude) : "");
+  const [radius, setRadius] = useState(
+    school?.verification_radius_m != null ? String(school.verification_radius_m) : "",
+  );
   const [fellowId, setFellowId] = useState<string>(school?.fellow_id ?? "");
   const [fellows, setFellows] = useState<FellowOption[]>([]);
   const [saving, setSaving] = useState(false);
@@ -52,14 +59,17 @@ export function SchoolFormModal({
       setErr("District is required (except for All-state schools).");
       return;
     }
+    const geo = parseGeo(latitude, longitude, radius);
+    if ("error" in geo) { setErr(geo.error); return; }
+
     setSaving(true);
     setErr(null);
     try {
       if (mode === "create") {
-        const created = await createSchool({ name, district, state, code });
+        const created = await createSchool({ name, district, state, code, ...geo.value });
         if (fellowId) await setSchoolFellow(created.id, fellowId);
       } else if (school) {
-        await updateSchool(school.id, { name, district, state, code });
+        await updateSchool(school.id, { name, district, state, code, ...geo.value });
         if (fellowId !== initialFellowId) {
           await setSchoolFellow(school.id, fellowId || null);
         }
@@ -110,8 +120,8 @@ export function SchoolFormModal({
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
           <div style={{ display: "grid", gap: "14px" }}>
             <div>
-              <label style={formLabelStyle}>Name *</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
+              <label style={formLabelStyle} htmlFor="school-name">Name *</label>
+              <input id="school-name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
             </div>
             <div>
               <label style={formLabelStyle}>State &amp; District</label>
@@ -126,6 +136,39 @@ export function SchoolFormModal({
             <div>
               <label style={formLabelStyle}>Code (optional — auto-generated if blank)</label>
               <input value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} placeholder="OG-SCH-001" />
+            </div>
+            <div>
+              <label style={formLabelStyle}>Visit verification location (optional)</label>
+              <p style={{ fontSize: "12px", color: "#5b7280", margin: "0 0 8px" }}>
+                Used to check school-visit photos. Leave blank if you don&apos;t have the
+                coordinates — visits simply can&apos;t be geo-verified until they&apos;re set.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div>
+                  <label style={formLabelStyle} htmlFor="school-latitude">Latitude</label>
+                  <input
+                    id="school-latitude" value={latitude} onChange={(e) => setLatitude(e.target.value)}
+                    style={inputStyle} inputMode="decimal" placeholder="11.0168"
+                  />
+                </div>
+                <div>
+                  <label style={formLabelStyle} htmlFor="school-longitude">Longitude</label>
+                  <input
+                    id="school-longitude" value={longitude} onChange={(e) => setLongitude(e.target.value)}
+                    style={inputStyle} inputMode="decimal" placeholder="76.9558"
+                  />
+                </div>
+              </div>
+            </div>
+            <div>
+              <label style={formLabelStyle} htmlFor="school-radius">Verification radius in metres</label>
+              <input
+                id="school-radius" value={radius} onChange={(e) => setRadius(e.target.value)}
+                style={inputStyle} inputMode="numeric" placeholder="200"
+              />
+              <p style={{ fontSize: "12px", color: "#5b7280", margin: "6px 0 0" }}>
+                Leave blank to use the default of 200 m. Allowed range 25–5000 m.
+              </p>
             </div>
             <div>
               <label style={formLabelStyle}>Assigned Fellow</label>
@@ -272,4 +315,50 @@ function FellowPicker({
       )}
     </div>
   );
+}
+
+type GeoValue = {
+  latitude: number | null;
+  longitude: number | null;
+  verification_radius_m: number | null;
+};
+
+/**
+ * Validate the optional coordinate/radius trio before sending.
+ *
+ * Mirrors the server rules (which remain authoritative) so a typo is explained in the
+ * form instead of coming back as a database constraint error. Coordinates are
+ * both-or-neither: half a pair cannot locate anything.
+ */
+function parseGeo(lat: string, lng: string, radius: string): { value: GeoValue } | { error: string } {
+  const latText = lat.trim();
+  const lngText = lng.trim();
+  const radiusText = radius.trim();
+
+  if ((latText === "") !== (lngText === "")) {
+    return { error: "Enter both latitude and longitude, or leave both blank." };
+  }
+
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+  if (latText !== "") {
+    latitude = Number(latText);
+    longitude = Number(lngText);
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      return { error: "Latitude must be a number between -90 and 90." };
+    }
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      return { error: "Longitude must be a number between -180 and 180." };
+    }
+  }
+
+  let verification_radius_m: number | null = null;
+  if (radiusText !== "") {
+    verification_radius_m = Number(radiusText);
+    if (!Number.isInteger(verification_radius_m) || verification_radius_m < 25 || verification_radius_m > 5000) {
+      return { error: "Verification radius must be a whole number between 25 and 5000 metres." };
+    }
+  }
+
+  return { value: { latitude, longitude, verification_radius_m } };
 }
