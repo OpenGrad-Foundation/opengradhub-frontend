@@ -61,6 +61,12 @@ import {
   addTrackerFields,
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
+import {
+  getTemplateGeoVerifications,
+  getRecordGeoVerification,
+  uploadGeoVerification,
+  overrideGeoVerification,
+} from '../tracker-api';
 import { qk } from './keys';
 
 export function useTrackerTemplates(status?: string) {
@@ -441,5 +447,49 @@ export function useProfilePaths(target: TrackerTargetType, enabled = true) {
     queryFn: () => listProfilePaths(target),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+// ── School-visit geo verification ─────────────────────────────────────────────
+
+/** Verification state per school for a task's current period. */
+export function useTemplateGeoVerifications(
+  templateId: string | undefined,
+  enabled = true,
+  periodKey?: string,
+) {
+  return useQuery({
+    queryKey: qk.trackerGeo(templateId ?? '', periodKey ?? 'current'),
+    queryFn: () => getTemplateGeoVerifications(templateId as string, periodKey),
+    enabled: Boolean(templateId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+/** The shared verification a specific row consumes — used by the History drawer. */
+export function useRecordGeoVerification(recordId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerRecordGeo(recordId ?? ''),
+    queryFn: () => getRecordGeoVerification(recordId as string),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useUploadGeoVerification(templateId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ schoolId, file }: { schoolId: string; file: File }) =>
+      uploadGeoVerification(templateId, schoolId, file),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useOverrideGeoVerification() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ verificationId, reason }: { verificationId: string; reason: string }) =>
+      overrideGeoVerification(verificationId, reason),
+    onSuccess: () => invalidate('tracker'),
   });
 }

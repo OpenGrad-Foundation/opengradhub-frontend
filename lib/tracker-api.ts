@@ -39,7 +39,10 @@ export type TrackerTemplate = {
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   require_photo: boolean;
+  /** Legacy per-record live location capture. Superseded by require_geo_verification
+   *  and no longer offered when authoring; existing tasks keep working. */
   require_location: boolean;
+  require_geo_verification: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -79,6 +82,10 @@ export type TrackerGridRow = {
   blocked: boolean;
   blocker: { id: string; text: string } | null;
   school_name: string | null;
+  /** The row's school id. School-visit verification is shared per school, so rows are
+   *  matched to a verification by id — names are not unique. Optional while older
+   *  cached grid payloads (which predate it) are still in play. */
+  school_id?: string | null;
   target_name: string | null;
   /** The row's target entity id (student/school/fellow user id). Present for student-target
    *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
@@ -133,6 +140,7 @@ export type CreateTrackerTemplateInput = {
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
   status?: "draft" | "active" | "archived";
 };
 
@@ -144,6 +152,7 @@ export type TrackerTemplatePatch = {
   recurrence_frequency?: TrackerRecurrence | null;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
 };
 
 export type TrackerFieldPatch = {
@@ -660,5 +669,102 @@ export async function saveStudentDetails(
 export function listProfilePaths(target: TrackerTargetType) {
   return trackerJson<{ paths: TrackerProfilePath[] }>(
     `/tracker/profile-paths?target=${encodeURIComponent(target)}`,
+  );
+}
+
+// ── School-visit geo verification ──────────────────────────────────────────────
+// One verification is collected per task + period + school + doer, and covers EVERY
+// row for that school. It is derived from the EXIF metadata of a photo taken with the
+// phone's own camera — the browser is never asked for location permission.
+
+/** Why an upload could not be used as evidence. Mirrors the backend's reason codes. */
+export type GeoRejectionReason =
+  | "no_gps"
+  | "no_capture_time"
+  | "accuracy_too_poor"
+  | "outside_period"
+  | "school_not_configured"
+  | "unreadable"
+  | "too_large";
+
+export type TrackerGeoVerification = {
+  id: string;
+  school_id: string;
+  status: "verified" | "outside_radius";
+  /** Passed the geofence, or a supervisor overrode it. This is what unlocks completion. */
+  accepted: boolean;
+  distance_m: number;
+  radius_m: number;
+  accuracy_m: number | null;
+  exif_captured_at: string;
+  uploaded_at: string;
+  /** Metadata-stripped thumbnail. The EXIF-bearing original is fetched separately. */
+  preview_url: string | null;
+  override_by: string | null;
+  override_at: string | null;
+  override_reason: string | null;
+};
+
+export function getTemplateGeoVerifications(templateId: string, periodKey?: string) {
+  const qs = periodKey ? `?period_key=${encodeURIComponent(periodKey)}` : "";
+  return trackerJson<TrackerGeoVerification[]>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications${qs}`,
+  );
+}
+
+export function getRecordGeoVerification(recordId: string) {
+  return trackerJson<TrackerGeoVerification | null>(
+    `/tracker/records/${encodeURIComponent(recordId)}/geo-verification`,
+  );
+}
+
+/**
+ * Upload the visit photo, RAW.
+ *
+ * The file is sent exactly as the camera wrote it: any client-side resize or canvas
+ * re-encode would strip the EXIF this whole feature reads. The server parses the
+ * metadata, computes the distance and decides the verdict.
+ */
+export async function uploadGeoVerification(
+  templateId: string,
+  schoolId: string,
+  file: File,
+): Promise<TrackerGeoVerification> {
+  const form = new FormData();
+  form.append("photo", file, file.name || "visit.jpg");
+  form.append("school_id", schoolId);
+  const res = await apiFetch(
+    `${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications`,
+    { method: "POST", body: form },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { message?: string; reason?: GeoRejectionReason }
+      | null;
+    throw new GeoUploadError(body?.message ?? "Could not verify that photo.", body?.reason, res.status);
+  }
+  return (await res.json()) as TrackerGeoVerification;
+}
+
+/** Carries the machine-readable reason so the panel can render the right state. */
+export class GeoUploadError extends ApiError {
+  readonly reason?: GeoRejectionReason;
+  constructor(message: string, reason: GeoRejectionReason | undefined, status: number) {
+    super(message, status);
+    this.reason = reason;
+  }
+}
+
+export function overrideGeoVerification(verificationId: string, reason: string) {
+  return trackerJson<TrackerGeoVerification>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/override`,
+    jsonInit("POST", { reason }),
+  );
+}
+
+/** Presigned URL for the EXIF-bearing original — supervisor review only. */
+export function getGeoVerificationOriginal(verificationId: string) {
+  return trackerJson<{ url: string }>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/original`,
   );
 }

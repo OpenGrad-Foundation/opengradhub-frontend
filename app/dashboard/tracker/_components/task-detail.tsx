@@ -141,8 +141,15 @@ export function TaskDetail({
             {template.completion_style === "workflow" && (
               <Meta label="Steps" value={(template.workflow_statuses ?? []).join("  →  ")} wide />
             )}
-            {(template.require_photo || template.require_location) && (
-              <Meta label="Proof of visit" value={[template.require_photo ? "Photo" : null, template.require_location ? "Location" : null].filter(Boolean).join(" + ")} />
+            {(template.require_photo || template.require_location || template.require_geo_verification) && (
+              <Meta
+                label="Proof of visit"
+                value={[
+                  template.require_photo ? "Photo per entry" : null,
+                  template.require_geo_verification ? "School visit verified by photo location" : null,
+                  template.require_location ? "Location (legacy)" : null,
+                ].filter(Boolean).join(" + ")}
+              />
             )}
           </dl>
         </div>
@@ -418,7 +425,7 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
   const [status, setStatus] = useState<TrackerTemplate["status"]>(template.status);
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>((template.recurrence_frequency as TrackerRecurrence) ?? "");
   const [requirePhoto, setRequirePhoto] = useState(template.require_photo);
-  const [requireLocation, setRequireLocation] = useState(template.require_location);
+  const [requireGeo, setRequireGeo] = useState(template.require_geo_verification);
   const [err, setErr] = useState<string | null>(null);
 
   const inputClass = "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
@@ -433,7 +440,7 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
         status,
         recurrence_frequency: recurrence || null,
         require_photo: requirePhoto,
-        require_location: requireLocation,
+        require_geo_verification: requireGeo,
       });
       onDone();
     } catch (e) {
@@ -478,10 +485,13 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
           <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
           Require a photo
         </label>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={requireLocation} onChange={(e) => setRequireLocation(e.target.checked)} />
-          Require location capture
-        </label>
+        {/* Needs a single school to measure against, which a staff task does not have. */}
+        {template.target_type !== "fellow" && (
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={requireGeo} onChange={(e) => setRequireGeo(e.target.checked)} />
+            Verify school visit using photo location metadata
+          </label>
+        )}
       </div>
       {err && <p className="text-sm text-red-700 sm:col-span-2">{err}</p>}
       <div className="flex items-center gap-2 sm:col-span-2">
