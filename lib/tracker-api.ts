@@ -712,10 +712,16 @@ export function getTemplateGeoVerifications(templateId: string, periodKey?: stri
   );
 }
 
-export function getRecordGeoVerification(recordId: string) {
-  return trackerJson<TrackerGeoVerification | null>(
+export async function getRecordGeoVerification(
+  recordId: string,
+): Promise<TrackerGeoVerification | null> {
+  // A row with no verification yet comes back as a 200 with an EMPTY body (Nest
+  // serialises a `null` return that way), which trackerJson maps to undefined.
+  // React Query rejects undefined outright, so the absence is normalised to null.
+  const res = await trackerJson<TrackerGeoVerification | null | undefined>(
     `/tracker/records/${encodeURIComponent(recordId)}/geo-verification`,
   );
+  return res ?? null;
 }
 
 /**
