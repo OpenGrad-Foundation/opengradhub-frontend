@@ -1,10 +1,14 @@
 "use client";
 
 /**
- * Stream 1 staff view: per-class school links — share on WhatsApp, copy,
- * override, add/remove schools, re-sync from targeting.
+ * School confirmations: a per-class public link a school opens to say "our
+ * school attended". Whole-school and nothing more — it never marks an
+ * individual student and never competes with the register.
+ *
+ * Renamed from "Live Classes", which read as if this tab were the live-class
+ * attendance surface. It is not: individual attendance lives in Records.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import {
@@ -16,7 +20,9 @@ import {
   useRegenerateLink,
 } from "@/lib/queries/attendance";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSchools } from "@/lib/api";
+import { fetchSchools, getCourses, type Course } from "@/lib/api";
+import { useBatches } from "@/lib/queries/batches";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
 import type { LinkRow } from "@/lib/attendance-api";
 
@@ -95,7 +101,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
             href={waShareHref(link, classTitle, scheduledAt)}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700"
+            className="inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-3 text-sm font-semibold text-white hover:bg-green-800"
           >
             WhatsApp
           </a>
@@ -104,40 +110,54 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
               void navigator.clipboard.writeText(publicUrl(link.token));
               toast.success("Link copied");
             }}
-            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Copy link
           </button>
           {canManage && (
             <>
               <button
-                onClick={() =>
+                onClick={() => {
+                  // Unmarking discards a confirmation the school actually made;
+                  // marking present only adds one.
+                  if (link.attended_at && !window.confirm(
+                    "Unmark this school? Its recorded confirmation for this class will be cleared.",
+                  )) return;
                   override.mutate(
                     { linkId: link.id, attended: !link.attended_at },
                     { onError: (e) => toast.error(e.message) },
-                  )
-                }
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  );
+                }}
+                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {link.attended_at ? "Unmark" : "Mark present"}
               </button>
               <button
-                onClick={() =>
+                onClick={() => {
+                  // The old link has already been sent to a school. Rotating
+                  // the token stops it working, and nothing can undo that.
+                  if (!window.confirm(
+                    "Regenerate this link?\n\nThe link already shared with the school will stop working and cannot be restored.",
+                  )) return;
                   regenerate.mutate(link.id, {
                     onSuccess: () => toast.success("Token regenerated — old link is dead"),
                     onError: (e) => toast.error(e.message),
-                  })
-                }
+                  });
+                }}
                 title="Rotate the public token (use if the link leaked)"
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Regenerate
               </button>
               <button
-                onClick={() =>
-                  removeLink.mutate(link.id, { onError: (e) => toast.error(e.message) })
-                }
-                className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  if (!window.confirm("Remove this school's link? Its confirmation for this class goes with it.")) return;
+                  removeLink.mutate(link.id, {
+                    onSuccess: () => toast.success("Link removed"),
+                    onError: (e) => toast.error(e.message),
+                  });
+                }}
+                className="min-h-[44px] rounded-lg border border-red-200 px-3 text-sm font-medium text-[#c62828] hover:bg-red-50"
               >
                 Remove
               </button>
@@ -208,17 +228,85 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
   );
 }
 
-export function LinksTab({ canManage }: { canManage: boolean }) {
-  const { data: classes, isLoading } = useLiveClasses();
-  const [openId, setOpenId] = useState<string | null>(null);
+/**
+ * Course / batch / programme, the three ways a live class declares who it is
+ * for. Filtering happens over the rows already on the client, so this costs no
+ * request — the school set for each class is what is loaded lazily, per row.
+ */
+function AudienceFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [courses, setCourses] = useState<Course[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getCourses(undefined, undefined, undefined, true)
+      .then((cs) => { if (!cancelled) setCourses(cs); })
+      .catch(() => { /* the picker just stays short; the list still works */ });
+    return () => { cancelled = true; };
+  }, []);
+  const batches = useBatches();
 
-  // Read the clock once per mount instead of on every render: reading it during
-  // render is impure (React 19 lint) and would let the upcoming/past split shift
-  // under the user mid-session.
-  const [now] = useState(() => Date.now());
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Audience"
+      className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
+    >
+      <option value="">All audiences</option>
+      <optgroup label="Courses">
+        {courses.map((c) => <option key={c.id} value={`course:${c.id}`}>{c.title}</option>)}
+      </optgroup>
+      <optgroup label="Batches">
+        {(batches.data ?? []).map((b) => <option key={b.id} value={`batch:${b.id}`}>{b.name}</option>)}
+      </optgroup>
+      <optgroup label="Programmes">
+        {PROGRAMME_KINDS.map((k) => <option key={k.value} value={`programme:${k.value}`}>{k.label}</option>)}
+      </optgroup>
+    </select>
+  );
+}
+
+export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
+  const { data: classes, isLoading, error, refetch } = useLiveClasses();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [view, setView] = useState<"all" | "upcoming" | "past">("all");
+  // `course:<id>` | `batch:<id>` | `programme:<kind>` — the three ways a class
+  // declares its audience, all already present on the rows this tab fetched.
+  const [audience, setAudience] = useState("");
+
+  // Read the clock on a tick rather than on every render: reading it during
+  // render is impure (React 19 lint), but freezing it at mount meant a class
+  // that ended while the tab was open never crossed into Past — this screen is
+  // left open for long stretches.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const sorted = useMemo(() => {
-    const list = [...(classes ?? [])];
+    // Filtered client-side over the list this tab already fetches: the school
+    // set for a class is loaded lazily per row, so a server round-trip would
+    // buy nothing here.
+    const needle = q.trim().toLowerCase();
+    const list = (classes ?? []).filter((c) => {
+      if (needle && !c.title.toLowerCase().includes(needle)) return false;
+
+      if (audience) {
+        const [kind, id] = audience.split(":");
+        const matches =
+          kind === "course" ? c.course_id === id
+          : kind === "batch" ? (c.batch_ids ?? []).includes(id)
+          : kind === "programme" ? c.programme_type === id
+          : true;
+        if (!matches) return false;
+      }
+
+      if (view === "all") return true;
+      const ended = new Date(c.scheduled_at).getTime()
+        + c.duration_minutes * 60_000 <= now;
+      return view === "past" ? ended : !ended;
+    });
     // Upcoming first (soonest at top), then past classes newest-first.
     return list.sort((a, b) => {
       const at = new Date(a.scheduled_at).getTime();
@@ -227,13 +315,75 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
       if (aUp !== bUp) return aUp ? -1 : 1;
       return aUp ? at - bt : bt - at;
     });
-  }, [classes, now]);
+  }, [classes, now, q, view, audience]);
 
   if (isLoading) return <p className="text-slate-500">Loading live classes…</p>;
-  if (sorted.length === 0) return <p className="text-slate-500">No live classes yet.</p>;
+
+  // Swallowing this rendered "No live classes yet" — a failure dressed as a
+  // fact, with nothing for the user to do about it.
+  if (error) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+        <p className="text-sm font-semibold text-[#c62828]">Couldn&apos;t load live classes.</p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="mt-3 min-h-[44px] rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold text-[var(--dark-teal)]"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const total = classes?.length ?? 0;
 
   return (
     <div className="space-y-2">
+      <p className="text-sm text-slate-500">
+        A whole-school confirmation for a live class. This does not mark individual
+        students — their attendance is in <b>Records</b>.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 pb-1">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search class titles…"
+          aria-label="Search class titles"
+          className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
+        />
+        <div className="flex gap-1" role="group" aria-label="Time filter">
+          {(["all", "upcoming", "past"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              aria-pressed={view === v}
+              className={
+                "min-h-[44px] rounded-lg px-4 text-sm font-semibold capitalize " +
+                (view === v
+                  ? "text-white bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)]"
+                  : "border border-[var(--color-border)] text-[var(--dark-teal)]")
+              }
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        <AudienceFilter value={audience} onChange={setAudience} />
+        {sorted.length !== total && (
+          <span className="text-xs text-slate-500">{sorted.length} of {total}</span>
+        )}
+      </div>
+
+      {sorted.length === 0 && (
+        <p className="text-slate-500">
+          {total === 0 ? "No live classes yet." : "No classes match these filters."}
+        </p>
+      )}
+
       {sorted.map((cls) => (
         <div key={cls.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <button

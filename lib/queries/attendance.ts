@@ -17,11 +17,15 @@ import {
   discardRegister,
   deleteRegister,
   retryRegisterExtraction,
-  getAttendanceSummary,
+  getAttendanceRecords,
+  getStudentRecords,
+  getClassRoster,
+  putClassAttendance,
   getMyAttendance,
   getSchoolRegister,
   getRegisterGaps,
   type CommitEntry,
+  type RecordsFilters,
 } from '../attendance-api';
 import { useInvalidate } from '../mutations/invalidation';
 import { qk } from './keys';
@@ -46,11 +50,52 @@ export function useRegisterUpload(id: string | null) {
   });
 }
 
-export function useAttendanceSummary() {
+/**
+ * The canonical report. Disabled until a cohort is picked: the endpoint needs
+ * exactly one of batch_id / course_id and would otherwise 400 on every mount.
+ */
+export function useAttendanceRecords(filters: RecordsFilters) {
+  const enabled = !!filters.batch_id || !!filters.course_id;
   return useQuery({
-    queryKey: qk.attendanceSummary(),
-    queryFn: getAttendanceSummary,
+    queryKey: qk.attendanceRecords(filters as Record<string, unknown>),
+    queryFn: () => getAttendanceRecords(filters),
+    enabled,
     staleTime: 60_000,
+    retry: false, // a mixed cohort answers 400 by design — don't hammer it
+  });
+}
+
+/** One student's timeline, carrying the grid's cohort and range through. */
+export function useStudentRecords(
+  studentId: string | null,
+  filters: { batch_id?: string; course_id?: string; from?: string; to?: string } = {},
+) {
+  return useQuery({
+    queryKey: qk.attendanceStudentRecords(studentId ?? '', filters as Record<string, unknown>),
+    queryFn: () => getStudentRecords(studentId!, filters),
+    enabled: !!studentId,
+    staleTime: 60_000,
+  });
+}
+
+/** The one roster view, for both marking and viewing. */
+export function useClassRoster(liveClassId: string | null) {
+  return useQuery({
+    queryKey: qk.liveClassRoster(liveClassId ?? ''),
+    queryFn: () => getClassRoster(liveClassId!),
+    enabled: !!liveClassId,
+    staleTime: 30_000,
+  });
+}
+
+export function useMarkClassAttendance() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ liveClassId, marks }: {
+      liveClassId: string;
+      marks: { student_id: string; status: 'PRESENT' | 'ABSENT' }[];
+    }) => putClassAttendance(liveClassId, marks),
+    onSuccess: () => invalidate('liveClassAttendance'),
   });
 }
 
