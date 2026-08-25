@@ -2952,6 +2952,19 @@ export type SchoolOption = {
   code: string | null;
   fellow_id: string | null;
   fellow_name: string | null;
+  /** Optional school-visit verification geometry; null until an admin sets it.
+   *  Optional on the type so payloads cached before migration 096 still typecheck. */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Overrides the 200 m default when set. */
+  verification_radius_m?: number | null;
+};
+
+/** The optional geo trio accepted by school create/update. */
+export type SchoolGeoInput = {
+  latitude?: number | null;
+  longitude?: number | null;
+  verification_radius_m?: number | null;
 };
 
 /**
@@ -2993,7 +3006,7 @@ export async function createSchool(payload: {
   district?: string;
   state?: string;
   code?: string;
-}): Promise<SchoolOption> {
+} & SchoolGeoInput): Promise<SchoolOption> {
   const response = await apiFetch(`${API_BASE_URL}/schools`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -3010,7 +3023,7 @@ export async function createSchool(payload: {
 /** Update a single school. */
 export async function updateSchool(
   id: string,
-  payload: { name?: string; district?: string; state?: string; code?: string },
+  payload: { name?: string; district?: string; state?: string; code?: string } & SchoolGeoInput,
 ): Promise<SchoolOption> {
   const response = await apiFetch(`${API_BASE_URL}/schools/${id}`, {
     method: "PATCH",

@@ -144,7 +144,7 @@ export default function TrackerPage() {
             <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to task
             </button>
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} />
           </div>
         ) : drillTask ? (
           <TaskBreakdown
@@ -163,7 +163,7 @@ export default function TrackerPage() {
             <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to my tasks
             </button>
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} />
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -496,6 +496,7 @@ function GridPanel({
   error,
   canFill,
   canClear,
+  viewingOther = false,
 }: {
   template: TrackerTemplate | null;
   grid: TrackerGrid | undefined;
@@ -503,7 +504,12 @@ function GridPanel({
   error: unknown;
   canFill: boolean;
   canClear: boolean;
+  /** Drilled into another person's rows (a manager reviewing a fellow). */
+  viewingOther?: boolean;
 }) {
+  const perms = usePermissions();
+  const canOverrideGeo = perms.has(PERM.tracker.geo_override);
+  const canGrantExtension = perms.has(PERM.tracker.extension_grant);
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
@@ -514,7 +520,15 @@ function GridPanel({
   return (
     <div className="flex flex-col gap-4">
       {counts && <StatusCards counts={counts} />}
-      <TrackerEditableGrid template={template} grid={grid} canFill={canFill} canClear={canClear} />
+      <TrackerEditableGrid
+        template={template}
+        grid={grid}
+        canFill={canFill}
+        canClear={canClear}
+        viewingOther={viewingOther}
+        canOverrideGeo={canOverrideGeo}
+        canGrantExtension={canGrantExtension}
+      />
     </div>
   );
 }

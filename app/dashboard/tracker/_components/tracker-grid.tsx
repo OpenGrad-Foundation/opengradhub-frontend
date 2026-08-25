@@ -5,12 +5,17 @@ import { Check, Clock, Download, FileUp, Loader2, Save, UserCog, X } from "lucid
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
+  useRecordGeoVerification,
   useSaveTrackerBatch,
+  useTemplateGeoVerifications,
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { RecordProofs } from "./record-proofs";
+import { ExtensionPanel } from "./extension-panel";
+import { PeriodHistory } from "./period-history";
+import { SchoolGeoPanel } from "./school-geo-panel";
 import { StudentDetailsForm } from "./student-details-form";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
@@ -23,6 +28,9 @@ export function TrackerEditableGrid({
   canClear,
   statusFilter = "",
   onStatusFilterChange,
+  viewingOther = false,
+  canOverrideGeo = false,
+  canGrantExtension = false,
 }: {
   template: TrackerTemplate;
   grid: TrackerGrid;
@@ -31,6 +39,13 @@ export function TrackerEditableGrid({
   /** 4-state status filter shared with the card strip above the grid. */
   statusFilter?: TaskState | "";
   onStatusFilterChange?: (state: TaskState | "") => void;
+  /** True when a manager is drilled into someone else's rows: the visit panel is
+   *  then read-only, since only the doer can supply their own visit photo. */
+  viewingOther?: boolean;
+  /** May the viewer accept an out-of-range verification? */
+  canOverrideGeo?: boolean;
+  /** May the viewer reopen an overdue row with a dated extension? */
+  canGrantExtension?: boolean;
 }) {
   const save = useSaveTrackerBatch();
   const raise = useRaiseTrackerBlocker();
@@ -46,6 +61,16 @@ export function TrackerEditableGrid({
     canFill && isStudentTarget && Boolean(row.target_id);
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
+  // Shared school-visit verification: ONE per school, consumed by every row for that
+  // school. Fetched once here (React Query dedupes with the panel's own read) so the
+  // done control can show why a row is blocked. The server remains authoritative.
+  const requiresGeo = Boolean(template.require_geo_verification);
+  const geoQuery = useTemplateGeoVerifications(template.id, requiresGeo);
+  const geoAcceptedSchools = useMemo(() => {
+    const accepted = new Set<string>();
+    for (const v of geoQuery.data ?? []) if (v.accepted) accepted.add(v.school_id);
+    return accepted;
+  }, [geoQuery.data]);
   const [schoolFilter, setSchoolFilter] = useState("");
   const [search, setSearch] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -148,18 +173,30 @@ export function TrackerEditableGrid({
     // Block reaching the done status client-side until required proofs exist (the server
     // 409s regardless; this just avoids a dead-end). Applies to workflow + checklist.
     const proofUnmet = requiresProof && currentStatus !== doneStatus && proofReady[row.record_id] === false;
+    // A row cannot reach done until its SCHOOL has an accepted visit verification.
+    // Purely a convenience: batchSave enforces the same rule inside its transaction.
+    const geoUnmet =
+      requiresGeo && currentStatus !== doneStatus &&
+      !(row.school_id && geoAcceptedSchools.has(row.school_id));
+    // Overdue outranks the proof/geo reasons: no photo can unblock it, only a
+    // manager's extension, so the fellow is told the real blocker.
+    const overdue = row.lifecycle === "overdue" && currentStatus !== doneStatus;
+    const blockedHint = overdue
+      ? "Overdue — ask your ZM or PM for an extension"
+      : geoUnmet ? geoHint(row) : proofHint;
+    const blocked = overdue || proofUnmet || geoUnmet;
     if (template.completion_style === "workflow") {
       return (
         <div className="flex flex-col gap-1">
           <select value={currentStatus} disabled={!canFill} onChange={(e) => setStatus(row.record_id, e.target.value)} className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}>
-            {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={proofUnmet && s === doneStatus}>{s}</option>)}
+            {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={blocked && s === doneStatus}>{s}</option>)}
           </select>
-          {proofUnmet && <p className="text-xs text-amber-700">{proofHint}</p>}
+          {blocked && <p className="text-xs text-amber-700">{blockedHint}</p>}
         </div>
       );
     }
     const done = currentStatus === "done";
-    const proofBlocking = proofUnmet;
+    const proofBlocking = blocked;
     if (big) {
       return (
         <div className="flex flex-col gap-1">
@@ -171,12 +208,12 @@ export function TrackerEditableGrid({
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
-          {proofBlocking && <p className="text-center text-xs text-amber-700">{proofHint}</p>}
+          {proofBlocking && <p className="text-center text-xs text-amber-700">{blockedHint}</p>}
         </div>
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking ? proofHint : undefined}>
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking ? blockedHint : undefined}>
         <input type="checkbox" disabled={!canFill || proofBlocking} checked={done} onChange={(e) => setStatus(row.record_id, e.target.checked ? "done" : "not_started")} />
         {done ? "Done" : "Open"}
       </label>
@@ -273,6 +310,20 @@ export function TrackerEditableGrid({
       </button>
     ) : null;
 
+  const geoPanel = (
+    <SchoolGeoPanel
+      template={template}
+      // Every school of the task, not just the filtered subset — the panel must show
+      // each school's state, while the shared filter decides which one is being uploaded for.
+      rows={grid.rows}
+      schoolFilter={schoolFilter}
+      onSchoolFilterChange={setSchoolFilter}
+      canFill={canFill && !viewingOther}
+      readOnly={viewingOther}
+      canOverride={canOverrideGeo}
+    />
+  );
+
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
@@ -338,6 +389,7 @@ export function TrackerEditableGrid({
           </div>
         )}
       </div>
+      {geoPanel}
       {bulkOpen && (
         <TrackerBulkUploadPanel
           template={template}
@@ -424,6 +476,10 @@ export function TrackerEditableGrid({
           recordId={historyRecordId}
           requirePhoto={template.require_photo}
           requireLocation={template.require_location}
+          requireGeo={requiresGeo}
+          recurring={Boolean(template.recurrence_frequency)}
+          overdue={grid.rows.find((r) => r.record_id === historyRecordId)?.lifecycle === "overdue"}
+          canGrantExtension={canGrantExtension}
           onClose={() => setHistoryRecordId(null)}
         />
       )}
@@ -440,9 +496,12 @@ export function TrackerEditableGrid({
 }
 
 function HistoryDrawer({
-  recordId, requirePhoto, requireLocation, onClose,
+  recordId, requirePhoto, requireLocation, requireGeo, recurring,
+  overdue, canGrantExtension, onClose,
 }: {
-  recordId: string; requirePhoto: boolean; requireLocation: boolean; onClose: () => void;
+  recordId: string; requirePhoto: boolean; requireLocation: boolean;
+  requireGeo: boolean; recurring: boolean;
+  overdue: boolean; canGrantExtension: boolean; onClose: () => void;
 }) {
   const { data, isLoading, error } = useTrackerRecordHistory(recordId);
   return (
@@ -460,6 +519,11 @@ function HistoryDrawer({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-3">
+          <ExtensionPanel recordId={recordId} overdue={overdue} canGrant={canGrantExtension} />
+          {requireGeo && <RecordGeoSummary recordId={recordId} />}
+          {/* Earlier occurrences of this same task for this same target. Only the
+              previous period renders up front; older ones load on demand. */}
+          <PeriodHistory recordId={recordId} recurring={recurring} />
           {(requirePhoto || requireLocation) && (
             <div className="mb-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Proof</p>
@@ -591,4 +655,54 @@ function display(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
+}
+
+/** Why a row is blocked by the shared school-visit verification. */
+function geoHint(row: TrackerGridRow): string {
+  if (!row.school_id) return "This row has no school, so a visit cannot be verified";
+  return "Verify the school visit above first";
+}
+
+/**
+ * The shared school-visit verification this row consumed.
+ *
+ * Resolved from the row rather than duplicated onto it: one verification covers the
+ * whole school visit, and creating a per-record copy just to make history render would
+ * multiply the evidence (and the coordinates) across every row.
+ */
+function RecordGeoSummary({ recordId }: { recordId: string }) {
+  const { data, isLoading } = useRecordGeoVerification(recordId);
+  if (isLoading) {
+    return (
+      <div className="mb-4 flex items-center gap-2 text-xs text-gray-500">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading visit verification…
+      </div>
+    );
+  }
+  return (
+    <div className="mb-4">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+        School visit verification
+      </p>
+      {!data ? (
+        <p className="text-xs text-gray-400">No visit verification for this row yet.</p>
+      ) : (
+        <div className="flex flex-col gap-1 rounded-md border border-gray-200 bg-gray-50/60 p-3 text-xs">
+          <p className="font-medium text-gray-800">
+            {data.override_by ? "Overridden" : data.status === "verified" ? "Verified" : "Outside radius"}
+            {" · "}
+            {data.distance_m >= 1000
+              ? `${(data.distance_m / 1000).toFixed(1)} km`
+              : `${Math.round(data.distance_m)} m`}{" "}
+            from school (limit {data.radius_m} m)
+          </p>
+          <p className="text-gray-500">Photo taken {formatDateTime(data.exif_captured_at)}</p>
+          {data.override_reason && (
+            <p className="text-amber-800">Override reason: {data.override_reason}</p>
+          )}
+          <p className="text-gray-400">Shared across this school visit.</p>
+        </div>
+      )}
+    </div>
+  );
 }

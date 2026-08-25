@@ -113,6 +113,15 @@ export const qk = {
   trackerMyTasks: () => ['og', 'tracker', 'my-tasks'] as const,
   trackerRecordHistory: (recordId: string) => ['og', 'tracker', 'history', 'record', recordId] as const,
   trackerProofs: (recordId: string) => ['og', 'tracker', 'proofs', recordId] as const,
+  /** Shared school-visit verifications for a task's period (not per record). */
+  trackerGeo: (templateId: string, periodKey: string) =>
+    ['og', 'tracker', 'geo', templateId, periodKey] as const,
+  /** The shared verification a single row consumes, for its History drawer. */
+  trackerExtensions: (recordId: string) => ['og', 'tracker', 'extensions', recordId] as const,
+  trackerRecordGeo: (recordId: string) => ['og', 'tracker', 'geo-record', recordId] as const,
+  /** One page of a recurring task's earlier periods; cursor is part of the key. */
+  trackerPeriods: (recordId: string, before: string) =>
+    ['og', 'tracker', 'periods', recordId, before] as const,
   trackerTemplateHistory: (templateId: string) => ['og', 'tracker', 'history', 'template', templateId] as const,
   trackerBlockerThread: (blockerId: string) => ['og', 'tracker', 'blocker-thread', blockerId] as const,
   trackerOverview: () => ['og', 'tracker', 'overview'] as const,

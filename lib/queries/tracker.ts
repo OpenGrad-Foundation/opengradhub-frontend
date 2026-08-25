@@ -61,6 +61,15 @@ import {
   addTrackerFields,
 } from '../tracker-api';
 import { useInvalidate } from '../mutations/invalidation';
+import {
+  getRecordExtensions,
+  grantExtension,
+  getRecordPeriodHistory,
+  getTemplateGeoVerifications,
+  getRecordGeoVerification,
+  uploadGeoVerification,
+  overrideGeoVerification,
+} from '../tracker-api';
 import { qk } from './keys';
 
 export function useTrackerTemplates(status?: string) {
@@ -441,5 +450,88 @@ export function useProfilePaths(target: TrackerTargetType, enabled = true) {
     queryFn: () => listProfilePaths(target),
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+// ── School-visit geo verification ─────────────────────────────────────────────
+
+/** Verification state per school for a task's current period. */
+export function useTemplateGeoVerifications(
+  templateId: string | undefined,
+  enabled = true,
+  periodKey?: string,
+) {
+  return useQuery({
+    queryKey: qk.trackerGeo(templateId ?? '', periodKey ?? 'current'),
+    queryFn: () => getTemplateGeoVerifications(templateId as string, periodKey),
+    enabled: Boolean(templateId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+/** The shared verification a specific row consumes — used by the History drawer. */
+export function useRecordGeoVerification(recordId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerRecordGeo(recordId ?? ''),
+    queryFn: () => getRecordGeoVerification(recordId as string),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useUploadGeoVerification(templateId: string) {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ schoolId, file }: { schoolId: string; file: File }) =>
+      uploadGeoVerification(templateId, schoolId, file),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+export function useOverrideGeoVerification() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ verificationId, reason }: { verificationId: string; reason: string }) =>
+      overrideGeoVerification(verificationId, reason),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
+/**
+ * One page of a recurring task's earlier periods.
+ *
+ * Paged rather than fetched whole: a daily task accumulates a row per day forever,
+ * and the UI only shows the previous period until the user asks for more.
+ */
+export function useRecordPeriodHistory(
+  recordId: string | undefined,
+  enabled = true,
+  before?: string,
+  limit = 5,
+) {
+  return useQuery({
+    queryKey: qk.trackerPeriods(recordId ?? '', before ?? 'latest'),
+    queryFn: () => getRecordPeriodHistory(recordId as string, limit, before),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/** Every deadline extension on a record, newest first. */
+export function useRecordExtensions(recordId: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerExtensions(recordId ?? ''),
+    queryFn: () => getRecordExtensions(recordId as string),
+    enabled: Boolean(recordId) && enabled,
+    staleTime: 15_000,
+  });
+}
+
+export function useGrantExtension() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ recordId, extended_to, reason }: { recordId: string; extended_to: string; reason: string }) =>
+      grantExtension(recordId, extended_to, reason),
+    onSuccess: () => invalidate('tracker'),
   });
 }
