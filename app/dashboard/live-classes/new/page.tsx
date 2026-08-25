@@ -12,8 +12,6 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
-type Target = "course" | "programme" | "batch";
-
 export default function NewLiveClassPage() {
   const router = useRouter();
   const { isLoading } = useCurrentUser();
@@ -24,9 +22,11 @@ export default function NewLiveClassPage() {
   const [datetime, setDatetime] = useState("");
   const [duration, setDuration] = useState("60");
   const [meetUrl,  setMeetUrl]  = useState("");
-  const [target,   setTarget]   = useState<Target>("course");
   const [courseId, setCourseId] = useState("");
-  const [progType, setProgType] = useState("UG");
+  // Empty, not "UG". Every audience field is presented as optional, so a
+  // pre-selected programme silently ANDs itself into a target the user never
+  // chose — dropping every CAT/PG student in the batch they did choose.
+  const [progType, setProgType] = useState("");
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const [courses,  setCourses]  = useState<Course[]>([]);
   const [submitting, setSubmitting] = useState(false);

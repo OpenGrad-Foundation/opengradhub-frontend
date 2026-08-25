@@ -48,7 +48,8 @@ export function ClassRoster({ liveClassId, onClose }: {
   const [filter, setFilter] = useState<Filter>("ALL");
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const rows = data?.rows ?? [];
+  // A fresh [] each render would re-run the memo below every time.
+  const rows = useMemo(() => data?.rows ?? [], [data]);
   const canMark = data?.can_mark ?? false;
 
   const effective = (r: RosterRow): AttendanceStatus => overrides[r.student_id] ?? r.status;
@@ -69,6 +70,16 @@ export function ClassRoster({ liveClassId, onClose }: {
       ...o,
       [r.student_id]: effective(r) === "PRESENT" ? "ABSENT" : "PRESENT",
     }));
+  }
+
+  // Backdrop click and Escape both route through onClose, so the guard belongs
+  // here rather than on the buttons: a staged marking session is real work and
+  // one stray click off the panel should not silently discard it.
+  function requestClose() {
+    if (dirty.length > 0 && !window.confirm(
+      `Discard ${dirty.length} unsaved mark${dirty.length === 1 ? "" : "s"}?`,
+    )) return;
+    onClose();
   }
 
   async function save() {
@@ -94,17 +105,23 @@ export function ClassRoster({ liveClassId, onClose }: {
 
   return (
     <Modal
-      onClose={onClose}
+      onClose={requestClose}
       title={
         <>
           <p style={S.label}>Attendance</p>
           <h2 style={{ ...S.heading, fontSize: "18px", margin: "4px 0 0" }}>{data?.class.title ?? "…"}</h2>
           <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "4px 0 0" }}>
             {/* Denominator is what was actually RECORDED. Falling back to the
-                roster size turned "nothing recorded" into "everyone absent". */}
-            {marked === 0
-              ? `Nothing recorded yet · ${rows.length} student${rows.length === 1 ? "" : "s"}`
-              : `${present}/${marked} present`}
+                roster size turned "nothing recorded" into "everyone absent" —
+                and an empty `rows` while the fetch is still in flight is not
+                evidence of anything, so it gets no verdict at all. */}
+            {isPending
+              ? "Loading…"
+              : error
+                ? "Couldn't load this roster"
+                : marked === 0
+                  ? `Nothing recorded yet · ${rows.length} student${rows.length === 1 ? "" : "s"}`
+                  : `${present}/${marked} present`}
           </p>
           {sourceLine && (
             <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)", margin: "4px 0 0" }}>{sourceLine}</p>
@@ -157,7 +174,7 @@ export function ClassRoster({ liveClassId, onClose }: {
 
         {canMark && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
-            <button onClick={onClose} style={S.secondaryBtn}>Cancel</button>
+            <button onClick={requestClose} style={S.secondaryBtn}>Cancel</button>
             <button
               onClick={() => void save()}
               disabled={mark.isPending || dirty.length === 0}

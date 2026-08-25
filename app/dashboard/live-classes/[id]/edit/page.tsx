@@ -7,19 +7,11 @@ import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
-import { updateLiveClass, getCourses, type LiveClass, type Course } from "@/lib/api";
+import { updateLiveClass, getCourses, type Course } from "@/lib/api";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
-
-type Target = "course" | "programme" | "batch";
-
-function deriveTarget(cls: LiveClass): Target {
-  if (cls.batch_ids?.length) return "batch";
-  if (cls.programme_type) return "programme";
-  return "course";
-}
 
 function datetimeLocalValue(iso: string): string {
   const d = new Date(iso);
@@ -42,7 +34,6 @@ export default function EditLiveClassPage() {
   const [datetime,   setDatetime]   = useState("");
   const [duration,   setDuration]   = useState("60");
   const [meetUrl,    setMeetUrl]    = useState("");
-  const [target,     setTarget]     = useState<Target>("course");
   const [courseId,   setCourseId]   = useState("");
   const [progType,   setProgType]   = useState("UG");
   const [batchIds,   setBatchIds]   = useState<string[]>([]);

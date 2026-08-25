@@ -125,15 +125,26 @@ export function RecordsTab() {
 /** The numbers the deleted Overview tab used to carry, for the cohort on screen. */
 function Totals({ data }: { data: NonNullable<ReturnType<typeof useAttendanceRecords>["data"]> }) {
   const source = data.mode === "ONLINE" ? "from live-class attendance" : "from committed school registers";
+  // "0%" and "0 of 0" are the same lie the rest of this feature exists to stop:
+  // an empty record is no evidence, not a cohort that never showed up.
+  const nothingRecorded = data.totals.marked === 0;
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-        <span className="text-3xl font-bold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>
-          {data.totals.pct}%
-        </span>
-        <span className="text-sm text-slate-600">
-          {data.totals.present} of {data.totals.marked} recorded marks present
-        </span>
+        {nothingRecorded ? (
+          <span className="text-lg font-semibold text-slate-500" style={{ fontFamily: "var(--font-heading)" }}>
+            Nothing recorded yet
+          </span>
+        ) : (
+          <>
+            <span className="text-3xl font-bold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>
+              {data.totals.pct}%
+            </span>
+            <span className="text-sm text-slate-600">
+              {data.totals.present} of {data.totals.marked} recorded marks present
+            </span>
+          </>
+        )}
         <span className="text-sm text-slate-500">
           {data.totals.students} students · {data.totals.occasions} {data.mode === "ONLINE" ? "classes" : "days"}
         </span>
@@ -295,8 +306,19 @@ function StudentDrilldown({ studentId, cohort, from, to, onClose }: {
                 <div key={s.mode}>
                   <p className="mb-2 text-sm font-semibold text-slate-600">
                     {s.mode === "ONLINE" ? "Live classes" : "School register"} ·{" "}
-                    {s.summary.present}/{s.summary.marked} ({s.summary.pct}%)
+                    {s.summary.marked === 0
+                      ? "nothing recorded yet"
+                      : `${s.summary.present}/${s.summary.marked} (${s.summary.pct}%)`}
                   </p>
+                  {/* The summary counts the whole period; the list below does not.
+                      Saying so is the difference between a short history and a
+                      history that looks like it contradicts its own total. */}
+                  {s.truncated && (
+                    <p className="mb-2 text-xs text-slate-500">
+                      Showing the most recent {s.entries.length}. Older records are in
+                      the total above but not listed.
+                    </p>
+                  )}
                   <div className="space-y-1.5">
                     {s.entries.map((e) => (
                       <div key={e.key} className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2">

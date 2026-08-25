@@ -67,14 +67,38 @@ export function ClassFilterBar({ state, set }: {
 /** One control for all three targeting modes, grouped so they stay legible. */
 function AudiencePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [courses, setCourses] = useState<Course[]>([]);
+  const [courseError, setCourseError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
+    setCourseError(false);
     getCourses(undefined, undefined, undefined, true)
       .then((cs) => { if (!cancelled) setCourses(cs); })
-      .catch(() => { /* the picker stays short; list errors surface separately */ });
+      .catch(() => { if (!cancelled) setCourseError(true); });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
+
   const batches = useBatches();
+
+  // A picker missing half its options looks exactly like a picker for an
+  // account with no courses or batches. Swallowing the failure left the user
+  // hunting for an audience that was never going to appear.
+  const failed = courseError || batches.isError;
+  if (failed) {
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#e53e3e" }}>
+        Couldn&apos;t load audiences.
+        <button
+          type="button"
+          onClick={() => { setReloadKey((k) => k + 1); void batches.refetch(); }}
+          style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "#e53e3e", textDecoration: "underline", cursor: "pointer" }}
+        >
+          Retry
+        </button>
+      </span>
+    );
+  }
 
   return (
     <select
