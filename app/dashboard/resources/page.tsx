@@ -6,9 +6,11 @@ import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { createResource, type Resource } from "@/lib/api";
 import { useResources, useUpdateResource, useDeleteResource } from "@/lib/queries/resources";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
+import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
+import { fetchTargetableSchools } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
@@ -167,8 +169,13 @@ function ResourceCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const canEdit = usePermission(PERM.resources.edit);
-  const canDelete = usePermission(PERM.resources.delete);
+  // Two independent gates, ANDed — the same split the server applies. The
+  // permission answers "may this role edit resources at all"; the per-row flag
+  // answers "this one". Showing a button on the permission alone puts an Edit
+  // control on every card and 403s the moment it is clicked, which is how it
+  // behaved while any PROGRAM_MANAGER could edit anything.
+  const canEdit = usePermission(PERM.resources.edit) && resource.can_edit;
+  const canDelete = usePermission(PERM.resources.delete) && resource.can_delete;
   const { mutate: doDelete, isPending: deleting } = useDeleteResource();
   const typeInfo = TYPE_STYLES[resource.type ?? ""] ?? {
     bg: "rgba(3,72,82,0.08)",
@@ -435,6 +442,7 @@ function CreateResourceForm({
   const [type, setType] = useState("PDF");
   const [programmeType, setProgrammeType] = useState("ALL");
   const [batchIds, setBatchIds] = useState<string[]>([]);
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const invalidate = useInvalidate();
@@ -453,6 +461,7 @@ function CreateResourceForm({
         // "ALL" → null on the backend = visible to every programme.
         programme_type: programmeType === "ALL" ? undefined : programmeType,
         batch_ids: batchIds.length > 0 ? batchIds : undefined,
+        school_ids: schoolIds.length > 0 ? schoolIds : undefined,
         uploaded_by: userId,
         role: roleCode,
       });
@@ -488,6 +497,7 @@ function CreateResourceForm({
           type={type} setType={setType}
           programmeType={programmeType} setProgrammeType={setProgrammeType}
           batchIds={batchIds} setBatchIds={setBatchIds}
+          schoolIds={schoolIds} setSchoolIds={setSchoolIds}
         />
 
         {error && (
@@ -531,6 +541,7 @@ function EditResourceForm({
   const [type, setType] = useState(resource.type ?? "PDF");
   const [programmeType, setProgrammeType] = useState(resource.programme_type ?? "ALL");
   const [batchIds, setBatchIds] = useState<string[]>(resource.batch_ids ?? []);
+  const [schoolIds, setSchoolIds] = useState<string[]>(resource.school_ids ?? []);
   const [error, setError] = useState<string | null>(null);
   const { mutateAsync, isPending } = useUpdateResource();
 
@@ -548,6 +559,7 @@ function EditResourceForm({
           type,
           programme_type: programmeType === "ALL" ? undefined : programmeType,
           batch_ids: batchIds.length > 0 ? batchIds : undefined,
+          school_ids: schoolIds.length > 0 ? schoolIds : undefined,
         },
       });
       onSaved();
@@ -593,6 +605,7 @@ function EditResourceForm({
           type={type} setType={setType}
           programmeType={programmeType} setProgrammeType={setProgrammeType}
           batchIds={batchIds} setBatchIds={setBatchIds}
+          schoolIds={schoolIds} setSchoolIds={setSchoolIds}
         />
 
         {error && (
@@ -646,6 +659,7 @@ function ResourceFormFields({
   type, setType,
   programmeType, setProgrammeType,
   batchIds, setBatchIds,
+  schoolIds, setSchoolIds,
 }: {
   title: string; setTitle: (v: string) => void;
   url: string; setUrl: (v: string) => void;
@@ -653,7 +667,20 @@ function ResourceFormFields({
   type: string; setType: (v: string) => void;
   programmeType: string; setProgrammeType: (v: string) => void;
   batchIds: string[]; setBatchIds: (v: string[]) => void;
+  schoolIds: string[]; setSchoolIds: (v: string[]) => void;
 }) {
+  // Same key and staleTime as every other school picker on the dashboard, so
+  // opening this form reuses whatever the attendance or batch screens fetched.
+  // A DIFFERENT key from the plain ["og","schools","options"] listing used by
+  // the attendance and batch screens: this asks for the targeting scope, which
+  // is a strictly smaller set. Sharing the key would let whichever screen
+  // loaded first decide which set this picker shows.
+  const { data: schools, isError: schoolsFailed, isLoading: schoolsLoading } = useQuery({
+    queryKey: ["og", "schools", "options", "targeting"],
+    queryFn: fetchTargetableSchools,
+    staleTime: 5 * 60_000,
+  });
+
   return (
     <div style={{ display: "grid", gap: "16px" }}>
       {/* Title */}
@@ -728,10 +755,40 @@ function ResourceFormFields({
         </div>
       </div>
 
-      {/* Batches */}
+      {/* Targets. Both are optional and they OR together: naming either one
+          narrows the audience, naming neither leaves it at everyone the
+          programme filter above already allows. */}
       <div>
         <label style={formLabelStyle}>Target Batches (optional — empty = everyone)</label>
         <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={formInputStyle} />
+      </div>
+
+      <div>
+        <label style={formLabelStyle}>Target Schools (optional — reaches every student there)</label>
+        {schoolsFailed ? (
+          // GET /schools is gated by `user_management.create` OR `schools.view`,
+          // neither of which is the permission that got the caller onto this
+          // form. A role can legitimately hold one and not the other, so say so
+          // rather than render an empty box that reads as broken.
+          <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
+            Your role cannot browse the school list — target batches instead.
+          </p>
+        ) : (
+          <SchoolMultiPicker
+            schools={schools ?? []}
+            value={schoolIds}
+            onChange={setSchoolIds}
+            isLoading={schoolsLoading}
+            inputStyle={formInputStyle}
+          />
+        )}
+        {schoolIds.length > 0 && (
+          <p style={{ margin: "6px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+            A school-targeted resource cannot be handed to a programme to manage — a school
+            hosts programmes rather than belonging to one, so no programme can be said to
+            bound who this reaches. Target batches instead if you need that.
+          </p>
+        )}
       </div>
     </div>
   );

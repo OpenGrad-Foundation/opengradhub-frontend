@@ -107,6 +107,25 @@ describe('content writes invalidate outside the programme family', () => {
     expect(fn).toMatch(/qk\.assignments\(\)/);
   });
 
+  it('drops the resources cache too — resources are a content kind since 095', () => {
+    const fn = mutations.slice(mutations.indexOf('function useProgrammeContentInvalidation'));
+    expect(fn).toMatch(/'og', 'resources'/);
+  });
+
+  it('a resource write drops the programme caches, since retargeting changes editability', () => {
+    // The closure is evaluated over the resource's TARGETS, so editing those
+    // can flip the Content tab's `editable` column and empty the assignable
+    // picker. One-way invalidation would leave the programme screen asserting
+    // an edit right the server no longer grants.
+    const invalidation = fs.readFileSync(
+      path.join(__dirname, '..', 'lib', 'mutations', 'invalidation.ts'),
+      'utf-8',
+    );
+    const at = invalidation.indexOf('resources:');
+    expect(at).toBeGreaterThan(-1);
+    expect(invalidation.slice(at, at + 120)).toMatch(/'og', 'programme'/);
+  });
+
   it('both content mutations use it', () => {
     for (const hook of ['useAssignProgrammeContent', 'useReleaseProgrammeContent']) {
       const at = mutations.indexOf(`export function ${hook}`);
@@ -158,7 +177,7 @@ describe('the member picker does not need a permission its users lack', () => {
     // EDITOR edits content; deciding WHICH content the programme owns is OWNER
     // only. "Manages the programme's content" implied both.
     expect(detail).not.toMatch(/EDITOR:\s*"Manages the programme's content\."/);
-    expect(detail).toMatch(/EDITOR:\s*"Can edit the courses and assignments/);
+    expect(detail).toMatch(/EDITOR:\s*"Can edit the courses, assignments and resources/);
   });
 
   it('tells an archived programme’s owner that they can undo it', () => {
@@ -192,5 +211,50 @@ describe('the courses list routes on the right authority', () => {
       /manageable \|\| editableContent \? `\/dashboard\/course-management\/\$\{course\.id\}`/,
     );
     expect(coursesPage).toMatch(/"Edit content"/);
+  });
+});
+
+describe('resources are a first-class content kind', () => {
+  const page = fs.readFileSync(
+    path.join(__dirname, '..', 'app', 'dashboard', 'programmes', '[id]', 'page.tsx'),
+    'utf-8',
+  );
+
+  it('offers all three kinds in the picker', () => {
+    const kinds = page.slice(page.indexOf('const KINDS'), page.indexOf('const KIND_ROW_LABEL'));
+    for (const k of ['courses', 'assignments', 'resources']) {
+      expect(kinds, `${k} missing from KINDS`).toContain(`"${k}"`);
+    }
+  });
+
+  it('labels rows from a lookup, not a two-way ternary', () => {
+    // A ternary silently labelled every non-course row "Assignment", so adding
+    // a third kind would have mislabelled every resource rather than failing.
+    expect(page).toContain('KIND_ROW_LABEL[c.kind]');
+    expect(page).not.toMatch(/c\.kind === "courses" \? "Course" : "Assignment"/);
+  });
+});
+
+describe('the resources list is not persisted to disk', () => {
+  it('has no IDB persister — the response is per-user', () => {
+    // Filtered by the caller's batches and school, and carrying per-row
+    // can_edit. Persisted under a cohort key it outlives the session and
+    // serves one user's rows to the next on a shared device.
+    const q = fs.readFileSync(
+      path.join(__dirname, '..', 'lib', 'queries', 'resources.ts'),
+      'utf-8',
+    );
+    expect(q).not.toContain('makeIdbPersister');
+  });
+});
+
+describe('resource actions are gated on the server answer, not the permission alone', () => {
+  it('ANDs the per-row flag into canEdit and canDelete', () => {
+    const page = fs.readFileSync(
+      path.join(__dirname, '..', 'app', 'dashboard', 'resources', 'page.tsx'),
+      'utf-8',
+    );
+    expect(page).toContain('resource.can_edit');
+    expect(page).toContain('resource.can_delete');
   });
 });

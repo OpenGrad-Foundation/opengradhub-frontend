@@ -46,7 +46,7 @@ const LEVEL_HELP: Record<ProgrammeLevel, string> = {
   OWNER: "Manages members, schools, batches, and which content this programme owns.",
   // EDITOR edits content but cannot decide what the programme owns. Saying
   // "manages the programme's content" implied the latter, which it never had.
-  EDITOR: "Can edit the courses and assignments this programme already owns.",
+  EDITOR: "Can edit the courses, assignments and resources this programme already owns.",
   VIEWER: "Read-only. No student data.",
 };
 
@@ -298,10 +298,16 @@ function MembersSection({
 
 // ── content ──────────────────────────────────────────────────────────────────
 
-const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string }> = [
-  { key: "courses", label: "Courses", one: "course" },
-  { key: "assignments", label: "Assignments", one: "assignment" },
+const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row: string }> = [
+  { key: "courses", label: "Courses", one: "course", row: "Course" },
+  { key: "assignments", label: "Assignments", one: "assignment", row: "Assignment" },
+  { key: "resources", label: "Resources", one: "resource", row: "Resource" },
 ];
+
+const KIND_ROW_LABEL = Object.fromEntries(KINDS.map((k) => [k.key, k.row])) as Record<
+  ProgrammeContentKind,
+  string
+>;
 
 /**
  * What the programme owns, and what owning it grants.
@@ -312,9 +318,13 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string }> = 
  *    teaches is owned here but the resolver fails closed on it, so members get
  *    no edit rights. A row that looks granted and is not is worse than a
  *    warning.
- *  - Only courses and assignments appear. Quizzes and bundles carry the same
- *    ownership column but nothing reads it, so offering them would report a
- *    grant that does not exist.
+ *  - Courses, assignments and resources appear; quizzes and bundles do not.
+ *    Those two carry the same ownership column but nothing reads it, so
+ *    offering them would report a grant that does not exist.
+ *  - Resources are the strictest of the three. One is offered here only when it
+ *    targets batches this programme has claimed. A resource aimed at a whole
+ *    school never qualifies, because hosting a school is not the same as owning
+ *    its students, so no programme can be said to bound who it reaches.
  */
 function ContentSection({
   programmeId, canManage, onError,
@@ -342,7 +352,7 @@ function ContentSection({
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 style={{ ...titleStyle, fontSize: 17 }}>Content</h2>
       <div style={{ fontSize: 13, color: "rgba(3,72,82,0.6)", marginTop: -6 }}>
-        Courses and assignments this programme owns. OWNERs and EDITORs can edit them;
+        Courses, assignments and resources this programme owns. OWNERs and EDITORs can edit them;
         student data is never included.
       </div>
 
@@ -435,7 +445,7 @@ function ContentSection({
             {owned.map((c) => (
               <tr key={`${c.kind}:${c.id}`} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                 <td style={tdStyle}>{c.title}</td>
-                <td style={tdStyle}>{c.kind === "courses" ? "Course" : "Assignment"}</td>
+                <td style={tdStyle}>{KIND_ROW_LABEL[c.kind] ?? c.kind}</td>
                 <td style={tdStyle}>{c.created_by_name ?? "—"}</td>
                 <td style={tdStyle}>
                   {c.editable

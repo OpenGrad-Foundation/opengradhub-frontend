@@ -104,6 +104,10 @@ function useProgrammeContentInvalidation() {
     void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
     void qc.invalidateQueries({ queryKey: ['og', 'course'] });
     void qc.invalidateQueries({ queryKey: qk.assignments() });
+    // Resources became a content kind in 095. Assigning one changes who may
+    // edit it, which the resources list reports per row as can_edit, so that
+    // list goes stale on assign and release exactly as courses do.
+    void qc.invalidateQueries({ queryKey: ['og', 'resources'] });
   };
 }
 
