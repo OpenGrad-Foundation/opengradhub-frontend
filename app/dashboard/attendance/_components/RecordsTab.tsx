@@ -16,38 +16,36 @@ import { getCourses, type Course } from "@/lib/api";
 import { useBatches } from "@/lib/queries/batches";
 import { useAttendanceRecords, useStudentRecords } from "@/lib/queries/attendance";
 import { ApiError } from "@/lib/api";
-import { STATUS_LABEL, STATUS_GLYPH, STATUS_FG, STATUS_ORDER, chipStyle } from "@/lib/attendance-status";
+import { STATUS_LABEL, STATUS_GLYPH, STATUS_FG, STATUS_ORDER, chipStyle, MUTED } from "@/lib/attendance-status";
+import { recordsToCsv, csvFilename, downloadCsv } from "@/lib/attendance-csv";
+import { useRecordsFilters } from "./useRecordsFilters";
 
 type Cohort = { type: "batch" | "course"; id: string };
 
 export function RecordsTab() {
-  const [cohort, setCohort] = useState<Cohort>({ type: "batch", id: "" });
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [studentQ, setStudentQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [drill, setDrill] = useState<string | null>(null);
+  const { state, set, openStudent, closeStudent } = useRecordsFilters();
+  const { cohortType, cohortId, from, to, page, view, student } = state;
 
-  // Typing stays local; the query only moves once the user pauses. Feeding the
-  // raw input straight into the key fired a request per keystroke against a
-  // matrix endpoint — the Live Classes search already debounces the identical
-  // control, and this one is used on the same phones.
-  const [debouncedQ, setDebouncedQ] = useState("");
+  // Typing stays local; the URL only moves once the user pauses. Writing every
+  // keystroke into history would make Back walk backwards one character at a
+  // time, and fire a request per character against a matrix endpoint.
+  const [typed, setTyped] = useState(state.q);
+  useEffect(() => { setTyped(state.q); }, [state.q]);
   useEffect(() => {
-    if (studentQ.trim() === debouncedQ) return;
-    const t = setTimeout(() => { setDebouncedQ(studentQ.trim()); setPage(1); }, 300);
+    if (typed.trim() === state.q) return;
+    const t = setTimeout(() => set({ q: typed.trim() }), 300);
     return () => clearTimeout(t);
-  }, [studentQ, debouncedQ]);
+  }, [typed, state.q, set]);
 
   const filters = {
-    ...(cohort.type === "batch" ? { batch_id: cohort.id } : { course_id: cohort.id }),
+    ...(cohortType === "batch" ? { batch_id: cohortId } : { course_id: cohortId }),
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
-    ...(debouncedQ ? { student_q: debouncedQ } : {}),
+    ...(state.q ? { student_q: state.q } : {}),
     page,
     limit: 25,
   };
-  const { data, isPending, error } = useAttendanceRecords(cohort.id ? filters : {});
+  const { data, isPending, error } = useAttendanceRecords(cohortId ? filters : {});
 
   // A cohort that spans both delivery modes is a 400 by design — it is a
   // question with no single answer, not a failure. Say so, and say what to do.
@@ -57,8 +55,8 @@ export function RecordsTab() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <select
-          value={cohort.type}
-          onChange={(e) => { setCohort({ type: e.target.value as Cohort["type"], id: "" }); setPage(1); }}
+          value={cohortType}
+          onChange={(e) => set({ cohortType: e.target.value as "batch" | "course", cohortId: "" })}
           aria-label="Cohort type"
           className={CONTROL}
         >
@@ -67,63 +65,175 @@ export function RecordsTab() {
         </select>
 
         <CohortPicker
-          type={cohort.type}
-          value={cohort.id}
-          onChange={(id) => { setCohort((c) => ({ ...c, id })); setPage(1); }}
+          type={cohortType}
+          value={cohortId}
+          onChange={(id) => set({ cohortId: id })}
         />
 
         <input type="date" value={from} aria-label="From date"
-          onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={CONTROL} />
-        <span className="text-xs text-slate-500">to</span>
+          onChange={(e) => set({ from: e.target.value })} className={CONTROL} />
+        <span className="text-xs text-slate-600">to</span>
         <input type="date" value={to} aria-label="To date"
-          onChange={(e) => { setTo(e.target.value); setPage(1); }} className={CONTROL} />
+          onChange={(e) => set({ to: e.target.value })} className={CONTROL} />
 
         <input
           type="search"
-          value={studentQ}
+          value={typed}
           placeholder="Find a student…"
           aria-label="Find a student"
-          onChange={(e) => setStudentQ(e.target.value)}
+          onChange={(e) => setTyped(e.target.value)}
           className={`${CONTROL} min-w-[160px]`}
         />
       </div>
 
-      {!cohort.id ? (
-        <Panel>Pick a {cohort.type} to see attendance.</Panel>
+      {!cohortId ? (
+        <Panel>Pick a {cohortType} to see attendance.</Panel>
       ) : mixed ? (
         <Panel>{(error as ApiError).message}</Panel>
       ) : isPending ? (
-        <p className="text-slate-500">Loading…</p>
+        <p className="text-slate-600">Loading…</p>
       ) : error ? (
-        <p className="text-sm text-red-600">{(error as Error).message}</p>
+        <p role="alert" className="text-sm text-[#c62828]">{(error as Error).message}</p>
       ) : !data ? null : (
         <>
           <Totals data={data} />
+
           {data.occasions.length === 0 ? (
             <Panel>Nothing has been recorded for this cohort in this period yet.</Panel>
           ) : (
-            <Grid data={data} onDrill={setDrill} />
+            <>
+              <ViewBar
+                view={view}
+                onView={(v) => set({ view: v })}
+                onExport={() => downloadCsv(csvFilename(data, from, to), recordsToCsv(data))}
+              />
+              {view === "students"
+                ? <StudentList data={data} onDrill={openStudent} />
+                : <Grid data={data} onDrill={openStudent} />}
+            </>
           )}
+
           {data.total > data.limit && (
             <div className="flex items-center justify-between text-xs text-slate-600">
-              <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className={PAGE_BTN}>← Prev</button>
+              <button disabled={page <= 1} onClick={() => set({ page: page - 1 })} className={PAGE_BTN}>← Prev</button>
               <span>Page {data.page} · {data.total} students</span>
-              <button disabled={page * data.limit >= data.total} onClick={() => setPage((p) => p + 1)} className={PAGE_BTN}>Next →</button>
+              <button disabled={page * data.limit >= data.total} onClick={() => set({ page: page + 1 })} className={PAGE_BTN}>Next →</button>
             </div>
           )}
         </>
       )}
 
-      {drill && (
+      {student && (
         <StudentDrilldown
-          studentId={drill}
-          cohort={cohort}
+          studentId={student}
+          cohort={{ type: cohortType, id: cohortId }}
           from={from}
           to={to}
-          onClose={() => setDrill(null)}
+          onClose={closeStudent}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Two renderings of one answer, and an escape hatch to a spreadsheet.
+ *
+ * The matrix is a desktop comparison tool: it is excellent for spotting a
+ * column where nobody was marked, and unusable on the phone a fellow is
+ * actually holding. So the list leads and the grid is opt-in, rather than
+ * every visitor landing on a 25 x 90 table.
+ */
+function ViewBar({ view, onView, onExport }: {
+  view: "students" | "grid";
+  onView: (v: "students" | "grid") => void;
+  onExport: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex gap-1" role="group" aria-label="Layout">
+        {([["students", "By student"], ["grid", "Grid"]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => onView(v)}
+            aria-pressed={view === v}
+            className={
+              "min-h-[44px] rounded-lg px-4 text-sm font-semibold " +
+              (view === v
+                ? "bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)] text-white"
+                : "border border-[var(--color-border)] text-[var(--dark-teal)]")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onExport}
+        className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold text-[var(--dark-teal)]"
+      >
+        Export CSV
+      </button>
+    </div>
+  );
+}
+
+/**
+ * The default view: one row per student, worst first.
+ *
+ * Sorting by "least recorded" rather than alphabetically puts the rows that
+ * need action at the top. An attendance report is read to find the exceptions,
+ * and alphabetical order buries them at random.
+ */
+function StudentList({ data, onDrill }: {
+  data: NonNullable<ReturnType<typeof useAttendanceRecords>["data"]>;
+  onDrill: (studentId: string) => void;
+}) {
+  const rows = [...data.students].sort((a, b) => {
+    const gapA = a.total - a.marked, gapB = b.total - b.marked;
+    if (gapA !== gapB) return gapB - gapA;      // biggest hole in the record first
+    if (a.pct !== b.pct) return a.pct - b.pct;  // then lowest attendance
+    return a.name.localeCompare(b.name);
+  });
+
+  return (
+    <ul className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
+      {rows.map((st) => {
+        const unrecorded = st.total - st.marked;
+        return (
+          <li key={st.id}>
+            <button
+              type="button"
+              onClick={() => onDrill(st.id)}
+              className="flex min-h-[56px] w-full items-center gap-3 px-4 py-3 text-left hover:bg-slate-50"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-[var(--dark-teal)]">{st.name}</span>
+                <span className="block truncate text-xs" style={{ color: MUTED }}>
+                  {st.school_name ?? "—"}
+                  {unrecorded > 0 && ` · ${unrecorded} not recorded`}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                {st.marked === 0 ? (
+                  <span className="text-sm font-semibold" style={{ color: MUTED }}>Nothing recorded</span>
+                ) : (
+                  <>
+                    <span className="block font-bold tabular-nums text-[var(--dark-teal)]">{st.pct}%</span>
+                    <span className="block text-[11px]" style={{ color: MUTED }}>
+                      {st.present} of {st.marked}
+                    </span>
+                  </>
+                )}
+              </span>
+              <span aria-hidden="true" style={{ color: MUTED }}>›</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
