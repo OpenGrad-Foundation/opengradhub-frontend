@@ -16,6 +16,7 @@ import {
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
 import { useBatches } from "@/lib/queries/batches";
+import { useProgrammes } from "@/lib/queries/programmes";
 import { useQuestionStats, useAllQuizAttempts, useDeleteQuizAttempt } from "@/lib/queries/quizzes";
 import type { QuizAttemptWithStudent } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
@@ -605,17 +606,33 @@ function MonitorView() {
   const batchId   = params.get('batch_id') ?? '';
   const from      = params.get('from') ?? '';
   const to        = params.get('to')   ?? '';
-  const q         = params.get('q')    ?? '';
-  const page      = Number(params.get('page') ?? '1');
-  const drawerId  = params.get('drawer');
+  const q           = params.get('q')    ?? '';
+  const programmeId = params.get('programme_id') ?? '';
+  const page        = Number(params.get('page') ?? '1');
+  const drawerId    = params.get('drawer');
 
   const { data: batches = [] } = useBatches('ACTIVE');
+  const { data: allProgrammes = [] } = useProgrammes();
+  const { isSuperAdmin } = usePermissions();
+
+  // MEMBERSHIP, not visibility. `GET /programmes` returns every programme to a
+  // PROGRAM_MANAGER — they administer the catalogue — with `my_level: null` on
+  // the ones they are not in. Filtering on the raw list would classify every PM
+  // as a member and offer picker options the backend answers with a 404.
+  // SUPER_ADMIN is never a member and is the deliberate exception: they filter
+  // over everything.
+  const myProgrammes = isSuperAdmin
+    ? allProgrammes
+    : allProgrammes.filter((p) => p.my_level != null);
+  const inProgrammeMode = !isSuperAdmin && myProgrammes.length > 0;
+  const showPicker = isSuperAdmin ? allProgrammes.length > 0 : myProgrammes.length >= 2;
 
   const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
     type: type ?? undefined,
     course_id: courseId || undefined,
     bundle_id: bundleId || undefined,
     batch_id: batchId || undefined,
+    programme_id: programmeId || undefined,
     from: from || undefined,
     to:   to   || undefined,
     q:    q    || undefined,
@@ -641,7 +658,12 @@ function MonitorView() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <SegBtn label="All"     active={!type}              onClick={() => setParam('type', null)} />
           <SegBtn label="Module"  active={type === 'MODULE'}  onClick={() => setParam('type', 'MODULE')} />
-          <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
+          {/* A programme reaches quizzes through the courses it owns, and a
+              course quiz is always a MODULE_TEST — so in programme mode this
+              filter can only ever return nothing. Hidden rather than dead. */}
+          {!inProgrammeMode && (
+            <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
+          )}
 
           <input
             value={q}
@@ -658,6 +680,22 @@ function MonitorView() {
             type="date" value={to}   onChange={(e) => setParam('to', e.target.value)}
             style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
           />
+
+          {showPicker && (
+            <select
+              value={programmeId}
+              onChange={(e) => setParam('programme_id', e.target.value || null)}
+              aria-label="Filter by programme"
+              style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px', background: '#fff', maxWidth: '220px' }}
+            >
+              {/* SUPER_ADMIN's default is the platform-wide view; sending no
+                  programme_id is what preserves it. */}
+              <option value="">{isSuperAdmin ? 'All programmes' : 'All my programmes'}</option>
+              {myProgrammes.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          )}
 
           {batches.length > 0 && (
             <select
@@ -692,7 +730,24 @@ function MonitorView() {
         </div>
       ) : !data || data.items.length === 0 ? (
         <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
-          <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>No assessments match your filters.</p>
+          <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>
+            {inProgrammeMode
+              ? 'No quizzes yet — none of this programme\u2019s courses have published quizzes.'
+              : 'No assessments match your filters.'}
+          </p>
+          {inProgrammeMode && (
+            // Courses are attached to a programme by hand, on its content tab.
+            // A silent fallback to the platform-wide list would hide a missing
+            // attachment forever, so the empty state says where to go instead.
+            <p style={{ marginTop: '10px', fontSize: '13px' }}>
+              <a
+                href={`/dashboard/programmes/${programmeId || myProgrammes[0]?.id || ''}`}
+                style={{ color: '#209379', fontWeight: 600 }}
+              >
+                Attach courses to this programme →
+              </a>
+            </p>
+          )}
         </div>
       ) : (
         <>
@@ -733,9 +788,12 @@ function MonitorRow({ item, onClick }: { item: AssessmentsOverviewItem; onClick:
   const lastAttempt = item.last_attempted_at
     ? new Date(item.last_attempted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
-  const label = item.type === 'MODULE'
+  const base = item.type === 'MODULE'
     ? `${item.course_title ?? ''} · Module Quiz`
     : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Quiz';
+  // Only set when the row was reached through one of the caller's own
+  // programmes, so it never names a programme they cannot otherwise see.
+  const label = item.programme_name ? `${item.programme_name} · ${base}` : base;
 
   return (
     <button

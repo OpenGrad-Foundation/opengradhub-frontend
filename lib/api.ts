@@ -4089,6 +4089,8 @@ export type AssessmentsOverviewItem = {
   course_title: string | null;
   bundle_title: string | null;
   duration_minutes: number | null;
+  /** The owning programme, when the row was reached through the caller's own. */
+  programme_name: string | null;
   max_attempts: number | null;
   attempts_count: number;
   students_attempted: number;
@@ -4109,6 +4111,7 @@ export type AssessmentsOverviewFilters = {
   course_id?: string;
   bundle_id?: string;
   batch_id?: string;
+  programme_id?: string;
   from?: string;
   to?: string;
   q?: string;
