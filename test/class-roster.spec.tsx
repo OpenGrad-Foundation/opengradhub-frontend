@@ -88,9 +88,18 @@ describe("ClassRoster — a SCHOOL_BASED class", () => {
 
   it("shows a student the register never covered as not recorded, never absent", () => {
     const { getByText } = render(<ClassRoster liveClassId="c2" onClose={() => {}} />);
-    // Chitra's own chip — not the filter button that shares the label.
-    const chip = getByText("Chitra").closest("button")!.querySelector("span");
-    expect(chip?.textContent).toBe("Not recorded");
+    // Chitra's own row — not the filter button that shares the label.
+    const row = getByText("Chitra").closest("[data-roster-row]")!;
+    expect(row.textContent).toContain("Not recorded");
+  });
+
+  it("renders read-only rows as rows, not as dead buttons", () => {
+    const { getByText } = render(<ClassRoster liveClassId="c2" onClose={() => {}} />);
+    // A disabled <button> leaves the tab order and announces itself as
+    // unavailable — the wrong thing to say about content that is merely not
+    // editable from this screen.
+    expect(getByText("Chitra").closest("button")).toBeNull();
+    expect(getByText("Chitra").closest("[data-roster-row]")).toBeTruthy();
   });
 });
 

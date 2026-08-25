@@ -11,13 +11,17 @@
 import { useState } from "react";
 import { useMyAttendance } from "@/lib/queries/attendance";
 import type { AttendanceSeries } from "@/lib/attendance-api";
+import { STATUS_LABEL } from "@/lib/attendance-status";
 
 const PREVIEW = 30;
 
+// Labels come from the shared vocabulary so a student and the staff looking at
+// the same record read the same words. `text-slate-500` on `bg-slate-100` was
+// the one pair here below AA.
 const STATUS = {
-  PRESENT: { label: "Present", bg: "bg-green-100", fg: "text-green-700" },
-  ABSENT: { label: "Absent", bg: "bg-red-100", fg: "text-red-700" },
-  UNKNOWN: { label: "Not recorded", bg: "bg-slate-100", fg: "text-slate-500" },
+  PRESENT: { label: STATUS_LABEL.PRESENT, bg: "bg-green-100", fg: "text-green-800" },
+  ABSENT: { label: STATUS_LABEL.ABSENT, bg: "bg-red-100", fg: "text-red-800" },
+  UNKNOWN: { label: STATUS_LABEL.UNKNOWN, bg: "bg-slate-100", fg: "text-slate-700" },
 } as const;
 
 function seriesTitle(s: AttendanceSeries): string {

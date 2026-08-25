@@ -15,16 +15,10 @@ import { Modal } from "@/components/Modal";
 import { getCourses, type Course } from "@/lib/api";
 import { useBatches } from "@/lib/queries/batches";
 import { useAttendanceRecords, useStudentRecords } from "@/lib/queries/attendance";
-import type { AttendanceStatus } from "@/lib/attendance-api";
 import { ApiError } from "@/lib/api";
+import { STATUS_LABEL, STATUS_GLYPH, STATUS_FG, STATUS_ORDER, chipStyle } from "@/lib/attendance-status";
 
 type Cohort = { type: "batch" | "course"; id: string };
-
-const CELL: Record<AttendanceStatus, { mark: string; color: string; title: string }> = {
-  PRESENT: { mark: "✓", color: "#0abe62", title: "Present" },
-  ABSENT: { mark: "✗", color: "rgba(229,62,62,0.8)", title: "Absent" },
-  UNKNOWN: { mark: "–", color: "rgba(3,72,82,0.35)", title: "Not recorded" },
-};
 
 export function RecordsTab() {
   const [cohort, setCohort] = useState<Cohort>({ type: "batch", id: "" });
@@ -34,11 +28,22 @@ export function RecordsTab() {
   const [page, setPage] = useState(1);
   const [drill, setDrill] = useState<string | null>(null);
 
+  // Typing stays local; the query only moves once the user pauses. Feeding the
+  // raw input straight into the key fired a request per keystroke against a
+  // matrix endpoint — the Live Classes search already debounces the identical
+  // control, and this one is used on the same phones.
+  const [debouncedQ, setDebouncedQ] = useState("");
+  useEffect(() => {
+    if (studentQ.trim() === debouncedQ) return;
+    const t = setTimeout(() => { setDebouncedQ(studentQ.trim()); setPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [studentQ, debouncedQ]);
+
   const filters = {
     ...(cohort.type === "batch" ? { batch_id: cohort.id } : { course_id: cohort.id }),
     ...(from ? { from } : {}),
     ...(to ? { to } : {}),
-    ...(studentQ.trim() ? { student_q: studentQ.trim() } : {}),
+    ...(debouncedQ ? { student_q: debouncedQ } : {}),
     page,
     limit: 25,
   };
@@ -78,7 +83,7 @@ export function RecordsTab() {
           value={studentQ}
           placeholder="Find a student…"
           aria-label="Find a student"
-          onChange={(e) => { setStudentQ(e.target.value); setPage(1); }}
+          onChange={(e) => setStudentQ(e.target.value)}
           className={`${CONTROL} min-w-[160px]`}
         />
       </div>
@@ -154,31 +159,65 @@ function Totals({ data }: { data: NonNullable<ReturnType<typeof useAttendanceRec
   );
 }
 
+/**
+ * Two live classes on one date used to render two identical column headers,
+ * with the only differentiator hidden in a `title` tooltip. Time disambiguates
+ * them without widening the column much.
+ */
+function occasionHeading(o: { kind: string; at: string }): string {
+  if (o.kind !== "LIVE_CLASS") return o.at.slice(5);
+  const d = new Date(o.at);
+  return `${d.toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+/**
+ * "–" is the load-bearing mark in this grid and the one most likely to be read
+ * as an accusation. Nothing on screen explained any of the three until now —
+ * the meanings lived in tooltips, which are mouse-only.
+ */
+function Legend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-200 px-4 py-2 text-xs text-slate-600">
+      {STATUS_ORDER.map((st) => (
+        <span key={st} className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="font-bold" style={{ color: STATUS_FG[st] }}>{STATUS_GLYPH[st]}</span>
+          {STATUS_LABEL[st]}
+        </span>
+      ))}
+      <span className="text-slate-500">· % is of what was recorded, not of every class</span>
+    </div>
+  );
+}
+
 function Grid({ data, onDrill }: {
   data: NonNullable<ReturnType<typeof useAttendanceRecords>["data"]>;
   onDrill: (studentId: string) => void;
 }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      <div className="overflow-x-auto">
+      <Legend />
+      {/* Wide grids scroll sideways and nothing said so. The inset shadow only
+          appears when there is more to reach, so it reads as an edge rather
+          than as decoration. */}
+      <div className="overflow-x-auto [background:linear-gradient(to_right,white_30%,transparent),linear-gradient(to_left,white_30%,transparent),linear-gradient(to_right,rgba(3,72,82,0.10),transparent_12px),linear-gradient(to_left,rgba(3,72,82,0.10),transparent_12px)] [background-attachment:local,local,scroll,scroll] [background-repeat:no-repeat] [background-size:40px_100%,40px_100%,14px_100%,14px_100%] [background-position:left_center,right_center,left_center,right_center]">
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-xs text-slate-500">
-              <th className="sticky left-0 bg-white px-4 py-2.5 text-left font-medium">Student</th>
+              <th scope="col" className="sticky left-0 bg-white px-4 py-2.5 text-left font-medium">Student</th>
               {data.occasions.map((o) => (
-                <th key={o.key} className="px-3 py-2.5 font-medium whitespace-nowrap" title={o.label}>
-                  {o.kind === "LIVE_CLASS"
-                    ? new Date(o.at).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })
-                    : o.at.slice(5)}
+                <th key={o.key} scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap" title={o.label}>
+                  {occasionHeading(o)}
                 </th>
               ))}
-              <th className="px-3 py-2.5 font-medium">%</th>
+              <th scope="col" className="px-3 py-2.5 font-medium" title="Present as a share of what was recorded — not of every class or day">
+                %
+              </th>
             </tr>
           </thead>
           <tbody>
             {data.students.map((st) => (
-              <tr key={st.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                <td className="sticky left-0 bg-white px-4 py-2.5 font-medium text-[var(--dark-teal)]">
+              <tr key={st.id} className="group border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                <td className="sticky left-0 bg-white px-4 py-2.5 font-medium text-[var(--dark-teal)] group-hover:bg-slate-50">
                   {/* A real control, not a clickable row: a <tr> with onClick is
                       unreachable by keyboard and announces nothing. */}
                   <button
@@ -195,14 +234,26 @@ function Grid({ data, onDrill }: {
                   <td
                     key={data.occasions[i].key}
                     className="px-3 py-2.5 text-center font-bold"
-                    style={{ color: CELL[c].color }}
-                    title={CELL[c].title}
+                    style={{ color: STATUS_FG[c] }}
                   >
-                    {CELL[c].mark}
+                    {/* The glyph is for the eye only. A `title` tooltip is
+                        mouse-only and reaches neither a screen reader nor a
+                        touch device, and "–" reads as "absent" to anyone who
+                        has not been told otherwise. */}
+                    <span aria-hidden="true">{STATUS_GLYPH[c]}</span>
+                    <span className="sr-only">{`${STATUS_LABEL[c]} on ${data.occasions[i].label}`}</span>
                   </td>
                 ))}
-                <td className="px-3 py-2.5 text-center font-bold text-[var(--dark-teal)]">
+                <td
+                  className="px-3 py-2.5 text-center font-bold tabular-nums text-[var(--dark-teal)]"
+                  title={st.marked === 0 ? "Nothing recorded" : `${st.present} of ${st.marked} recorded`}
+                >
                   {st.marked === 0 ? "—" : `${st.pct}%`}
+                  {st.marked > 0 && (
+                    <span className="block text-[11px] font-normal text-slate-500">
+                      of {st.marked}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -333,14 +384,9 @@ function StudentDrilldown({ studentId, cohort, from, to, onClose }: {
                         </div>
                         <span
                           className="shrink-0 rounded-full px-3 py-1 text-xs font-bold"
-                          style={{
-                            background: e.status === "PRESENT" ? "rgba(10,190,98,0.12)"
-                              : e.status === "ABSENT" ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.07)",
-                            color: e.status === "PRESENT" ? "#0abe62"
-                              : e.status === "ABSENT" ? "#e53e3e" : "rgba(3,72,82,0.55)",
-                          }}
+                          style={chipStyle(e.status)}
                         >
-                          {CELL[e.status].title}
+                          {STATUS_LABEL[e.status]}
                         </span>
                       </div>
                     ))}

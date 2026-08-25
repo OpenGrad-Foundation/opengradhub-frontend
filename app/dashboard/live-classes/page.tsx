@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -12,6 +13,8 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { ClassRoster } from "./_components/ClassRoster";
 import { ClassFilterBar } from "./_components/ClassFilterBar";
 import { useClassFilters } from "./_components/useClassFilters";
+import { STATUS_LABEL, chipStyle, MUTED } from "@/lib/attendance-status";
+import type { AttendanceStatus } from "@/lib/attendance-api";
 
 /**
  * One class list.
@@ -56,6 +59,7 @@ function LiveClassesInner() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [rosterClass, setRosterClass] = useState<string | null>(null);
+  const [blockedUrl, setBlockedUrl] = useState<string | null>(null);
   const invalidate = useInvalidate();
 
   // Tick every minute so the "Join Now" button state refreshes.
@@ -85,8 +89,11 @@ function LiveClassesInner() {
     try {
       await deleteLiveClass(cls.id);
       invalidate("calendar");
+      toast.success(`"${cls.title}" deleted.`);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not delete.");
+      // alert() blocks the page and looks nothing like the rest of the app,
+      // which already has toasts.
+      toast.error(e instanceof Error ? e.message : "Could not delete.");
     } finally {
       setDeleting(null);
     }
@@ -94,14 +101,21 @@ function LiveClassesInner() {
 
   async function handleJoin(cls: LiveClass) {
     setJoining(cls.id);
+    // Opened BEFORE the await, while we still hold the user's gesture. Calling
+    // window.open() after an awaited request puts it outside that window, so
+    // Android and most blockers refuse it — and by then the join has already
+    // been recorded as the attendance mark. Present, but never in the class.
+    const tab = window.open("", "_blank", "noopener,noreferrer");
     try {
       const { meeting_url } = await joinLiveClass(cls.id, userId);
-      window.open(meeting_url, "_blank", "noopener,noreferrer");
+      if (tab && !tab.closed) tab.location.href = meeting_url;
+      else setBlockedUrl(meeting_url); // blocked anyway — hand them the link
       // For an online class the click IS the attendance mark, so the list's own
       // status has to be refetched rather than left showing the old answer.
       invalidate("liveClassAttendance");
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Could not join.");
+      tab?.close();
+      toast.error(e instanceof Error ? e.message : "Could not join.");
     } finally {
       setJoining(null);
     }
@@ -123,7 +137,7 @@ function LiveClassesInner() {
         <div>
           <p style={S.label}>Live Sessions</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Live Classes</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+          <p style={{ fontSize: "14px", color: MUTED, marginTop: "4px" }}>
             {classes.length} {isPast ? "past" : "upcoming"}
           </p>
         </div>
@@ -168,7 +182,7 @@ function LiveClassesInner() {
         <LoadingState />
       ) : error ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
-          <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
+          <p style={{ color: "#c62828", fontWeight: 600 }}>{error}</p>
         </div>
       ) : classes.length === 0 ? (
         <EmptyState isPast={isPast} canCreate={canCreate} isStaff={isStaff} />
@@ -195,6 +209,19 @@ function LiveClassesInner() {
       {rosterClass && (
         <ClassRoster liveClassId={rosterClass} onClose={() => setRosterClass(null)} />
       )}
+
+      {/* The mark is already recorded at this point, so the only thing left to
+          do is make sure the student can still actually get to the class. */}
+      {blockedUrl && (
+        <div style={{ ...glassCard, marginTop: "16px", padding: "16px 20px" }} role="alert">
+          <p style={{ margin: 0, fontSize: "14px", color: "#034852" }}>
+            Your browser blocked the meeting window. You&apos;re marked present —{" "}
+            <a href={blockedUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--teal)", fontWeight: 700 }}>
+              open the class
+            </a>.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -219,16 +246,6 @@ function EmptyState({ isPast, canCreate, isStaff }: { isPast: boolean; canCreate
   );
 }
 
-const STATUS_CHIP: Record<string, React.CSSProperties> = {
-  PRESENT: { background: "rgba(10,190,98,0.12)", color: "#0abe62" },
-  ABSENT: { background: "rgba(229,62,62,0.1)", color: "#e53e3e" },
-  UNKNOWN: { background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.5)" },
-};
-const STATUS_LABEL: Record<string, string> = {
-  PRESENT: "Present",
-  ABSENT: "Absent",
-  UNKNOWN: "Not recorded",
-};
 
 function ClassCard({
   cls, isStaff, mayJoin, now, onJoin, joining, onViewAttendance, onEdit, onDelete, deleting,
@@ -285,17 +302,17 @@ function ClassCard({
           )}
         </p>
         {cls.description && (
-          <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)", lineHeight: 1.4 }}>
+          <p style={{ margin: "2px 0 0", fontSize: "13px", color: MUTED, lineHeight: 1.4 }}>
             {cls.description.slice(0, 80)}{cls.description.length > 80 ? "…" : ""}
           </p>
         )}
         <div style={{ display: "flex", gap: "10px", marginTop: "6px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+          <span style={{ fontSize: "12px", color: MUTED }}>
             {isLive ? "🔴 Live now" : formatDatetime(cls.scheduled_at)}
           </span>
-          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>· {cls.duration_minutes} min</span>
-          {cls.course_title && <span style={{ fontSize: "12px", color: "#209379", fontWeight: 600 }}>· {cls.course_title}</span>}
-          {cls.programme_type && <span style={{ fontSize: "12px", color: "#209379", fontWeight: 600 }}>· {cls.programme_type}</span>}
+          <span style={{ fontSize: "12px", color: MUTED }}>· {cls.duration_minutes} min</span>
+          {cls.course_title && <span style={{ fontSize: "12px", color: "var(--teal)", fontWeight: 600 }}>· {cls.course_title}</span>}
+          {cls.programme_type && <span style={{ fontSize: "12px", color: "var(--teal)", fontWeight: 600 }}>· {cls.programme_type}</span>}
         </div>
 
         {(onEdit || onDelete || (ended && onViewAttendance)) && (
@@ -329,7 +346,7 @@ function ClassCard({
               {joining ? "Joining…" : isLive ? "Join Now" : "Join (opens soon)"}
             </button>
           ) : (
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0, textAlign: "right" }}>
+            <p style={{ fontSize: "12px", color: MUTED, margin: 0, textAlign: "right" }}>
               Opens in<br />
               <strong style={{ color: "#034852" }}>{msToCountdown(msUntil)}</strong>
             </p>
@@ -339,8 +356,8 @@ function ClassCard({
 
       {!isStaff && ended && cls.attendance_status && (
         <div style={{ flexShrink: 0 }}>
-          <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, ...STATUS_CHIP[cls.attendance_status] }}>
-            {STATUS_LABEL[cls.attendance_status]}
+          <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, ...chipStyle(cls.attendance_status as AttendanceStatus) }}>
+            {STATUS_LABEL[cls.attendance_status as AttendanceStatus]}
           </span>
         </div>
       )}
@@ -361,12 +378,12 @@ function LoadingState() {
 
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "20px", padding: "28px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
 const S = {
-  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
+  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "var(--teal)", margin: 0 } as React.CSSProperties,
   heading: { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  primaryBtn: { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", display: "inline-block" } as React.CSSProperties,
-  segment: { padding: "8px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852" } as React.CSSProperties,
-  segmentOn: { border: "none", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff" } as React.CSSProperties,
-  linkBtn: { padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(32,147,121,0.35)", borderRadius: "8px", background: "transparent", color: "#209379", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  ghostBtn: { padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  dangerBtn: { padding: "4px 12px", fontSize: "12px", fontWeight: 600, border: "1.5px solid rgba(229,62,62,0.3)", borderRadius: "8px", background: "transparent", color: "#e53e3e", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  primaryBtn: { minHeight: "44px", padding: "12px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(6,122,63,0.22)", display: "inline-block" } as React.CSSProperties,
+  segment: { minHeight: "44px", padding: "10px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852" } as React.CSSProperties,
+  segmentOn: { border: "none", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff" } as React.CSSProperties,
+  linkBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(0,109,108,0.35)", borderRadius: "8px", background: "transparent", color: "var(--teal)", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  ghostBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  dangerBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(198,40,40,0.35)", borderRadius: "8px", background: "transparent", color: "#c62828", fontFamily: "var(--font-body)" } as React.CSSProperties,
 };

@@ -15,20 +15,9 @@ import { useMemo, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { useClassRoster, useMarkClassAttendance } from "@/lib/queries/attendance";
 import type { AttendanceStatus, RosterRow } from "@/lib/attendance-api";
+import { STATUS_LABEL as LABEL, chipStyle, MUTED } from "@/lib/attendance-status";
 
 type Filter = "ALL" | "PRESENT" | "ABSENT" | "UNKNOWN";
-
-const CHIP: Record<AttendanceStatus, React.CSSProperties> = {
-  PRESENT: { background: "rgba(10,190,98,0.12)", color: "#0abe62" },
-  ABSENT: { background: "rgba(229,62,62,0.1)", color: "#e53e3e" },
-  UNKNOWN: { background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.55)" },
-};
-
-const LABEL: Record<AttendanceStatus, string> = {
-  PRESENT: "Present",
-  ABSENT: "Absent",
-  UNKNOWN: "Not recorded",
-};
 
 /** How this student's status was arrived at, in words a fellow would use. */
 function provenance(r: RosterRow): string {
@@ -61,15 +50,39 @@ export function ClassRoster({ liveClassId, onClose }: {
   const present = rows.filter((r) => effective(r) === "PRESENT").length;
   const marked = rows.filter((r) => effective(r) !== "UNKNOWN").length;
 
-  const shown = rows.filter((r) => filter === "ALL" || effective(r) === filter);
+  const isDirty = (r: RosterRow) =>
+    overrides[r.student_id] !== undefined && overrides[r.student_id] !== r.status;
+  // A row that no longer matches the filter BECAUSE you just changed it stays
+  // put. Letting it disappear mid-correction hid the mistake before the user
+  // could see it, and took the only undo with it.
+  const shown = rows.filter((r) => filter === "ALL" || effective(r) === filter || isDirty(r));
   const hasUnknown = rows.some((r) => effective(r) === "UNKNOWN");
 
-  function toggle(r: RosterRow) {
+  /**
+   * Tapping cycles through the states this row can reach and ALWAYS comes back
+   * to the value the server holds. The old version flipped PRESENT<->ABSENT, so
+   * a row that arrived UNKNOWN could be marked but never un-marked: one mis-tap
+   * was unrecoverable without discarding the whole session.
+   *
+   * From UNKNOWN:  Not recorded -> Present -> Absent -> Not recorded
+   * From a mark:   Present <-> Absent, the second tap restoring the original.
+   */
+  function cycle(r: RosterRow) {
     if (!canMark || mark.isPending) return;
-    setOverrides((o) => ({
-      ...o,
-      [r.student_id]: effective(r) === "PRESENT" ? "ABSENT" : "PRESENT",
-    }));
+    const cur = effective(r);
+    setOverrides((o) => {
+      const next = { ...o };
+      if (r.status === "UNKNOWN") {
+        if (cur === "UNKNOWN") next[r.student_id] = "PRESENT";
+        else if (cur === "PRESENT") next[r.student_id] = "ABSENT";
+        else delete next[r.student_id];
+      } else if (cur === r.status) {
+        next[r.student_id] = r.status === "PRESENT" ? "ABSENT" : "PRESENT";
+      } else {
+        delete next[r.student_id];
+      }
+      return next;
+    });
   }
 
   // Backdrop click and Escape both route through onClose, so the guard belongs
@@ -142,7 +155,7 @@ export function ClassRoster({ liveClassId, onClose }: {
         {isPending ? (
           <p style={S.muted}>Loading roster…</p>
         ) : error ? (
-          <p style={{ color: "#e53e3e", fontSize: "14px" }}>{(error as Error).message}</p>
+          <p style={{ color: "#c62828", fontSize: "14px" }}>{(error as Error).message}</p>
         ) : rows.length === 0 ? (
           <p style={S.muted}>No students in your scope for this class.</p>
         ) : (
@@ -150,27 +163,49 @@ export function ClassRoster({ liveClassId, onClose }: {
             {shown.map((r) => {
               const st = effective(r);
               const why = provenance(r);
-              return (
-                <button
-                  key={r.student_id}
-                  onClick={() => toggle(r)}
-                  disabled={!canMark || mark.isPending}
-                  style={{ ...S.row, cursor: canMark ? "pointer" : "default" }}
-                >
+              const changed = isDirty(r);
+              const body = (
+                <>
                   <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>{r.name}</p>
-                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+                    <p style={{ margin: "2px 0 0", fontSize: "12px", color: MUTED }}>
                       {r.school_name ?? "—"}{why ? ` · ${why}` : ""}
                     </p>
                   </div>
-                  <span style={{ ...S.chip, ...CHIP[st] }}>{LABEL[st]}</span>
+                  {/* Says what it WAS as well as what it now is, so a change is
+                      reviewable before Save rather than only afterwards. */}
+                  {changed && (
+                    <span style={S.wasChip}>
+                      was {LABEL[r.status].toLowerCase()}
+                    </span>
+                  )}
+                  <span style={{ ...S.chip, ...chipStyle(st) }}>{LABEL[st]}</span>
+                </>
+              );
+
+              // Read-only rosters render as plain rows. A disabled <button> is
+              // dropped from the tab order and announces itself as unavailable,
+              // which is the wrong thing to say about content that is simply
+              // not editable here.
+              return canMark ? (
+                <button
+                  key={r.student_id}
+                  onClick={() => cycle(r)}
+                  disabled={mark.isPending}
+                  aria-label={`${r.name} — ${LABEL[st]}. Change.`}
+                  data-roster-row
+                  style={{ ...S.row, cursor: "pointer" }}
+                >
+                  {body}
                 </button>
+              ) : (
+                <div key={r.student_id} data-roster-row style={S.row}>{body}</div>
               );
             })}
           </div>
         )}
 
-        {saveError && <p style={{ color: "#e53e3e", fontSize: "13px", marginTop: "10px" }}>{saveError}</p>}
+        {saveError && <p role="alert" style={{ color: "#c62828", fontSize: "13px", marginTop: "10px" }}>{saveError}</p>}
 
         {canMark && (
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
@@ -189,16 +224,16 @@ export function ClassRoster({ liveClassId, onClose }: {
 }
 
 const S = {
-  backdrop: { position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: "16px" } as React.CSSProperties,
-  modal: { background: "#fff", borderRadius: "20px", padding: "24px", width: "100%", maxWidth: "560px", boxShadow: "0 10px 40px rgba(0,0,0,0.15)" } as React.CSSProperties,
-  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
+  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "var(--teal)", margin: 0 } as React.CSSProperties,
   heading: { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  muted: { fontSize: "14px", color: "rgba(3,72,82,0.6)" } as React.CSSProperties,
-  closeBtn: { background: "none", border: "none", fontSize: "16px", cursor: "pointer", color: "rgba(3,72,82,0.5)", padding: "4px" } as React.CSSProperties,
-  row: { display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", background: "#fff", fontFamily: "inherit" } as React.CSSProperties,
-  chip: { flexShrink: 0, padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 } as React.CSSProperties,
-  filterBtn: { padding: "5px 12px", borderRadius: "8px", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", fontSize: "12px", fontWeight: 600, color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  filterOn: { border: "none", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff" } as React.CSSProperties,
-  primaryBtn: { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,
-  secondaryBtn: { padding: "10px 20px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent", color: "#034852", fontWeight: 600, fontSize: "13px", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  muted: { fontSize: "14px", color: MUTED } as React.CSSProperties,
+  row: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", minHeight: "56px", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", background: "#fff", fontFamily: "inherit", width: "100%", boxSizing: "border-box" } as React.CSSProperties,
+  chip: { flexShrink: 0, padding: "6px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700 } as React.CSSProperties,
+  wasChip: { flexShrink: 0, padding: "4px 10px", borderRadius: "20px", fontSize: "11px", fontWeight: 600, color: MUTED, border: "1px dashed rgba(3,72,82,0.25)" } as React.CSSProperties,
+  // 44px minimum on every control: these are tapped by fellows on phones, and
+  // the old 26px chips and 24px card buttons were below every platform floor.
+  filterBtn: { minHeight: "44px", padding: "8px 16px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", fontSize: "13px", fontWeight: 600, color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  filterOn: { border: "none", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff" } as React.CSSProperties,
+  primaryBtn: { minHeight: "44px", padding: "12px 22px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer" } as React.CSSProperties,
+  secondaryBtn: { minHeight: "44px", padding: "12px 22px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent", color: "#034852", fontWeight: 600, fontSize: "14px", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
 };

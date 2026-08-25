@@ -101,7 +101,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
             href={waShareHref(link, classTitle, scheduledAt)}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg bg-green-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-green-700"
+            className="inline-flex min-h-[44px] items-center rounded-lg bg-green-700 px-3 text-sm font-semibold text-white hover:bg-green-800"
           >
             WhatsApp
           </a>
@@ -110,40 +110,54 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
               void navigator.clipboard.writeText(publicUrl(link.token));
               toast.success("Link copied");
             }}
-            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             Copy link
           </button>
           {canManage && (
             <>
               <button
-                onClick={() =>
+                onClick={() => {
+                  // Unmarking discards a confirmation the school actually made;
+                  // marking present only adds one.
+                  if (link.attended_at && !window.confirm(
+                    "Unmark this school? Its recorded confirmation for this class will be cleared.",
+                  )) return;
                   override.mutate(
                     { linkId: link.id, attended: !link.attended_at },
                     { onError: (e) => toast.error(e.message) },
-                  )
-                }
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                  );
+                }}
+                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 {link.attended_at ? "Unmark" : "Mark present"}
               </button>
               <button
-                onClick={() =>
+                onClick={() => {
+                  // The old link has already been sent to a school. Rotating
+                  // the token stops it working, and nothing can undo that.
+                  if (!window.confirm(
+                    "Regenerate this link?\n\nThe link already shared with the school will stop working and cannot be restored.",
+                  )) return;
                   regenerate.mutate(link.id, {
                     onSuccess: () => toast.success("Token regenerated — old link is dead"),
                     onError: (e) => toast.error(e.message),
-                  })
-                }
+                  });
+                }}
                 title="Rotate the public token (use if the link leaked)"
-                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                className="min-h-[44px] rounded-lg border border-slate-300 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
                 Regenerate
               </button>
               <button
-                onClick={() =>
-                  removeLink.mutate(link.id, { onError: (e) => toast.error(e.message) })
-                }
-                className="rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  if (!window.confirm("Remove this school's link? Its confirmation for this class goes with it.")) return;
+                  removeLink.mutate(link.id, {
+                    onSuccess: () => toast.success("Link removed"),
+                    onError: (e) => toast.error(e.message),
+                  });
+                }}
+                className="min-h-[44px] rounded-lg border border-red-200 px-3 text-sm font-medium text-[#c62828] hover:bg-red-50"
               >
                 Remove
               </button>
@@ -235,7 +249,7 @@ function AudienceFilter({ value, onChange }: { value: string; onChange: (v: stri
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label="Audience"
-      className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--dark-teal)] min-w-[200px]"
+      className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
     >
       <option value="">All audiences</option>
       <optgroup label="Courses">
@@ -252,7 +266,7 @@ function AudienceFilter({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
-  const { data: classes, isLoading } = useLiveClasses();
+  const { data: classes, isLoading, error, refetch } = useLiveClasses();
   const [openId, setOpenId] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [view, setView] = useState<"all" | "upcoming" | "past">("all");
@@ -260,10 +274,15 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
   // declares its audience, all already present on the rows this tab fetched.
   const [audience, setAudience] = useState("");
 
-  // Read the clock once per mount instead of on every render: reading it during
-  // render is impure (React 19 lint) and would let the upcoming/past split shift
-  // under the user mid-session.
-  const [now] = useState(() => Date.now());
+  // Read the clock on a tick rather than on every render: reading it during
+  // render is impure (React 19 lint), but freezing it at mount meant a class
+  // that ended while the tab was open never crossed into Past — this screen is
+  // left open for long stretches.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   const sorted = useMemo(() => {
     // Filtered client-side over the list this tab already fetches: the school
@@ -300,6 +319,23 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
 
   if (isLoading) return <p className="text-slate-500">Loading live classes…</p>;
 
+  // Swallowing this rendered "No live classes yet" — a failure dressed as a
+  // fact, with nothing for the user to do about it.
+  if (error) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+        <p className="text-sm font-semibold text-[#c62828]">Couldn&apos;t load live classes.</p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="mt-3 min-h-[44px] rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold text-[var(--dark-teal)]"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   const total = classes?.length ?? 0;
 
   return (
@@ -316,7 +352,7 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search class titles…"
           aria-label="Search class titles"
-          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--dark-teal)] min-w-[200px]"
+          className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
         />
         <div className="flex gap-1" role="group" aria-label="Time filter">
           {(["all", "upcoming", "past"] as const).map((v) => (
@@ -326,9 +362,9 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
               onClick={() => setView(v)}
               aria-pressed={view === v}
               className={
-                "rounded-lg px-3 py-1.5 text-xs font-semibold capitalize " +
+                "min-h-[44px] rounded-lg px-4 text-sm font-semibold capitalize " +
                 (view === v
-                  ? "text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)]"
+                  ? "text-white bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)]"
                   : "border border-[var(--color-border)] text-[var(--dark-teal)]")
               }
             >
