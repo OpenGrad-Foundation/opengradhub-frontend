@@ -1231,6 +1231,31 @@ export async function getLiveClasses(filters?: LiveClassFilters): Promise<LiveCl
   return (await r.json()) as LiveClass[];
 }
 
+export type AudiencePreview = {
+  /** Active students matching every filter set. Zero is a real answer. */
+  total: number;
+  /** Of those, how many are in no active batch — untrackable for attendance. */
+  untrackable: number;
+};
+
+/**
+ * How many students a prospective target reaches. The create form's filters AND
+ * together, so an empty intersection reads exactly like a full one in prose.
+ */
+export async function getAudiencePreview(t: {
+  course_id?: string;
+  programme_type?: string;
+  batch_ids?: string[];
+}): Promise<AudiencePreview> {
+  const params = new URLSearchParams();
+  if (t.course_id) params.set("course_id", t.course_id);
+  if (t.programme_type) params.set("programme_type", t.programme_type);
+  if (t.batch_ids?.length) params.set("batch_ids", t.batch_ids.join(","));
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/audience-preview?${params.toString()}`);
+  if (!r.ok) throw new ApiError("Failed to preview the audience.", r.status);
+  return (await r.json()) as AudiencePreview;
+}
+
 export async function getNextLiveClass(studentId: string): Promise<LiveClass | null> {
   const url = new URL(`${API_BASE_URL}/live-classes/next`);
   url.searchParams.set("studentId", studentId);

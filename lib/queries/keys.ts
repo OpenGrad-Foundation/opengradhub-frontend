@@ -64,6 +64,8 @@ export const qk = {
     ['og', 'live-classes', 'next', studentId] as const,
   liveClassRoster: (id: string) =>
     ['og', 'live-classes', id, 'roster'] as const,
+  liveClassAudiencePreview: (target: Record<string, unknown>) =>
+    ['og', 'live-classes', 'audience-preview', target] as const,
   assignments: () => ['og', 'assignments'] as const,
   submissionQueue: (filters: Record<string, unknown>) =>
     ['og', 'assignments', 'submission-queue', filters] as const,

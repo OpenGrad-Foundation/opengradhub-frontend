@@ -16,6 +16,22 @@ let studentRecords: { data: unknown; isPending: boolean; error: Error | null };
 /** Every filter object the records query was asked for, in order. */
 const recordsCalls: Record<string, unknown>[] = [];
 
+/**
+ * Records keeps its filters in the URL now, so the tests need a query string
+ * that actually changes when a control is used — a stub router would leave the
+ * component permanently on its defaults.
+ */
+const url = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: (u: string) => { url.search = u.includes("?") ? u.slice(u.indexOf("?") + 1) : ""; },
+    push: (u: string) => { url.search = u.includes("?") ? u.slice(u.indexOf("?") + 1) : ""; },
+    back: () => { url.search = ""; },
+  }),
+  useSearchParams: () => new URLSearchParams(url.search),
+  usePathname: () => "/dashboard/attendance",
+}));
+
 vi.mock("@/lib/queries/attendance", () => ({
   useClassRoster: () => ({ data: roster, ...rosterState }),
   useMarkClassAttendance: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -53,6 +69,7 @@ beforeEach(() => {
   batchesState = { data: [{ id: "b1", name: "Batch One" }], isError: false, refetch: vi.fn() };
   studentRecords = { data: undefined, isPending: true, error: null };
   recordsCalls.length = 0;
+  url.search = "";
   vi.restoreAllMocks();
 });
 
@@ -101,8 +118,10 @@ describe("staged marks are not thrown away by a stray click", () => {
 describe("a cohort with no marks is not a cohort at 0%", () => {
   /** Records renders nothing until a cohort is chosen, so choose one. */
   function renderWithBatch() {
-    render(<RecordsTab />);
+    const r = render(<RecordsTab />);
     fireEvent.change(screen.getByLabelText("Select batch"), { target: { value: "b1" } });
+    r.rerender(<RecordsTab />);
+    return r;
   }
 
   it("the totals strip refuses to print 0% / 0 of 0", () => {
@@ -180,9 +199,11 @@ describe("a shortened history says it is shortened", () => {
       },
     };
 
-    render(<RecordsTab />);
+    const r = render(<RecordsTab />);
     fireEvent.change(screen.getByLabelText("Select batch"), { target: { value: "b1" } });
+    r.rerender(<RecordsTab />);
     fireEvent.click(screen.getByRole("button", { name: /Asha/ }));
+    r.rerender(<RecordsTab />);
 
     // The summary counts 40 marks; the list shows 1. Without this line the two
     // read as a contradiction.
@@ -252,10 +273,14 @@ describe("the grid explains its own marks", () => {
     page: 1, limit: 25, total: 1,
   } as unknown as RecordsView;
 
+  /** The matrix is opt-in now, so switch to it before asserting on it. */
   function renderGrid() {
     records = GRID;
-    render(<RecordsTab />);
+    const r = render(<RecordsTab />);
     fireEvent.change(screen.getByLabelText("Select batch"), { target: { value: "b1" } });
+    r.rerender(<RecordsTab />);
+    fireEvent.click(screen.getByRole("button", { name: "Grid" }));
+    r.rerender(<RecordsTab />);
   }
 
   it("shows a legend, because a bare '–' reads as absent", () => {
@@ -290,26 +315,36 @@ describe("the grid explains its own marks", () => {
 
 describe("the student search waits for a pause", () => {
   it("does not re-query on every keystroke", () => {
+    records = {
+      mode: "ONLINE",
+      totals: { present: 0, marked: 0, students: 0, occasions: 0, pct: 0 },
+      occasions: [], students: [], page: 1, limit: 25, total: 0,
+    } as unknown as RecordsView;
+
+    // Pick the cohort on REAL timers: under fake timers React never commits the
+    // rerender, so the component would still be sitting on its defaults.
+    const r = render(<RecordsTab />);
+    fireEvent.change(screen.getByLabelText("Select batch"), { target: { value: "b1" } });
+    r.rerender(<RecordsTab />);
+
     vi.useFakeTimers();
     try {
-      records = {
-        mode: "ONLINE",
-        totals: { present: 0, marked: 0, students: 0, occasions: 0, pct: 0 },
-        occasions: [], students: [], page: 1, limit: 25, total: 0,
-      } as unknown as RecordsView;
-      render(<RecordsTab />);
-      fireEvent.change(screen.getByLabelText("Select batch"), { target: { value: "b1" } });
-
       const box = screen.getByLabelText("Find a student");
       recordsCalls.length = 0;
       for (const v of ["A", "As", "Ash", "Asha"]) fireEvent.change(box, { target: { value: v } });
 
       // Every keystroke re-renders, but none of them may reach the query.
       expect(recordsCalls.filter((f) => f.student_q !== undefined)).toHaveLength(0);
+
       act(() => { vi.advanceTimersByTime(350); });
-      expect(recordsCalls.filter((f) => f.student_q === "Asha").length).toBeGreaterThan(0);
     } finally {
       vi.useRealTimers();
     }
+
+    // The debounce's contract is the URL it writes — that is both what the
+    // query reads back and what makes the filtered view shareable. Asserting on
+    // it directly avoids depending on when React chooses to commit.
+    expect(url.search).toContain("q=Asha");
+    expect(url.search).toContain("id=b1");
   });
 });
