@@ -167,3 +167,48 @@ describe("the upcoming/past split follows the clock", () => {
     expect(src).not.toMatch(/const \[now\] = useState/);
   });
 });
+
+describe("icons are drawings, not text", () => {
+  it("the class list uses no emoji as structural icons", () => {
+    for (const f of [
+      "app/dashboard/live-classes/page.tsx",
+      "app/dashboard/_components/NextLiveClassHero.tsx",
+    ]) {
+      const src = fs.readFileSync(path.join(process.cwd(), f), "utf-8");
+      // Pictographic emoji only. A "✓" inside a button label is text and stays
+      // text; what had to go were the standalone picture-icons, which render
+      // differently on every platform, cannot be recoloured by a token, and are
+      // announced as "movie camera" in the middle of a class title.
+      expect(src, f).not.toMatch(/[\u{1F300}-\u{1FAFF}]/u);
+    }
+  });
+});
+
+describe("the class card can lay itself out on a phone", () => {
+  it("declares breakpoints, which an inline style object cannot", () => {
+    const src = fs.readFileSync(
+      path.join(process.cwd(), "app/dashboard/live-classes/page.tsx"),
+      "utf-8",
+    );
+    const card = src.slice(src.indexOf("function ClassCard("), src.indexOf("function ArchivedTag("));
+    expect(card).toContain("flex-col");
+    expect(card).toContain("sm:flex-row");
+  });
+});
+
+describe("secondary text tokens clear AA", () => {
+  it("muted and subtle are mixed dark enough to read, and keep their order", () => {
+    const css = fs.readFileSync(path.join(process.cwd(), "app/globals.css"), "utf-8");
+    const pct = (name: string) => {
+      const m = css.match(new RegExp(`--color-text-${name}:\\s*color-mix\\(in srgb, var\\(--dark-teal\\) (\\d+)%`));
+      if (!m) throw new Error(`--color-text-${name} not found`);
+      return Number(m[1]);
+    };
+    const muted = pct("muted");
+    const subtle = pct("subtle");
+    // 65% measured 3.92:1 and 45% measured 2.40:1 — both under the 4.5:1 floor.
+    expect(subtle).toBeGreaterThanOrEqual(72);
+    // muted is the more prominent of the two, so it must stay the darker.
+    expect(muted).toBeGreaterThan(subtle);
+  });
+});

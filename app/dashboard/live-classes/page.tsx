@@ -14,6 +14,7 @@ import { ClassRoster } from "./_components/ClassRoster";
 import { ClassFilterBar } from "./_components/ClassFilterBar";
 import { useClassFilters } from "./_components/useClassFilters";
 import { STATUS_LABEL, chipStyle, MUTED } from "@/lib/attendance-status";
+import { VideoIcon, RecordedIcon, LiveDot, CalendarIcon } from "@/components/icons/ClassIcons";
 import type { AttendanceStatus } from "@/lib/attendance-api";
 
 /**
@@ -168,7 +169,7 @@ function LiveClassesInner() {
 
       {!isStaff && isPast && recorded > 0 && (
         <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "16px", padding: "16px 24px", marginBottom: "20px" }}>
-          <span style={{ fontSize: "22px" }}>🗓️</span>
+          <CalendarIcon className="h-6 w-6 text-[var(--teal)]" />
           <div>
             <p style={{ ...S.label, marginBottom: "2px" }}>My Attendance</p>
             <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#034852" }}>
@@ -282,55 +283,58 @@ function ClassCard({
     return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
+  /*
+   * Stacks on a phone and sits in a row from `sm` up. The old card was a fixed
+   * horizontal flex written in inline styles, which cannot express a media
+   * query at all — so on a 375px screen the title, the meta, four buttons and
+   * the join column all fought over the same line. Fellows use this on phones.
+   */
   return (
-    <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "20px", padding: "20px 24px" }}>
-      <div style={{ flexShrink: 0, width: "44px", textAlign: "center" }}>
-        {isLive ? (
-          <span style={{ display: "inline-block", width: "10px", height: "10px", borderRadius: "50%", background: "#e53e3e", boxShadow: "0 0 0 4px rgba(229,62,62,0.2)" }} />
-        ) : (
-          <span style={{ fontSize: "20px" }}>{ended ? "📹" : "🎥"}</span>
-        )}
+    <div className={CARD + " flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-5 sm:p-6"}>
+      <div className="flex items-start gap-3 sm:w-11 sm:shrink-0 sm:items-center sm:justify-center">
+        {isLive ? <LiveDot /> : ended ? <RecordedIcon className="text-[#4a6b70]" /> : <VideoIcon className="text-[var(--teal)]" />}
+        <p className="text-base font-bold text-[var(--dark-teal)] sm:hidden">{cls.title}</p>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#034852" }}>
+      <div className="min-w-0 flex-1">
+        <p className="hidden text-[15px] font-bold text-[var(--dark-teal)] sm:block">
           {cls.title}
-          {cls.is_archived_target && (
-            <span style={{ marginLeft: "8px", padding: "2px 8px", borderRadius: "20px", fontSize: "11px", fontWeight: 700, background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.55)" }}>
-              Archived
-            </span>
-          )}
+          {cls.is_archived_target && <ArchivedTag />}
         </p>
+        {cls.is_archived_target && <span className="sm:hidden"><ArchivedTag /></span>}
+
         {cls.description && (
-          <p style={{ margin: "2px 0 0", fontSize: "13px", color: MUTED, lineHeight: 1.4 }}>
-            {cls.description.slice(0, 80)}{cls.description.length > 80 ? "…" : ""}
+          <p className="mt-0.5 line-clamp-2 text-[13px] leading-snug" style={{ color: MUTED }}>
+            {cls.description}
           </p>
         )}
-        <div style={{ display: "flex", gap: "10px", marginTop: "6px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "12px", color: MUTED }}>
-            {isLive ? "🔴 Live now" : formatDatetime(cls.scheduled_at)}
+
+        <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1 text-xs" style={{ color: MUTED }}>
+          <span className="inline-flex items-center gap-1.5">
+            {isLive && <LiveDot className="h-2 w-2 ring-2" />}
+            {isLive ? "Live now" : formatDatetime(cls.scheduled_at)}
           </span>
-          <span style={{ fontSize: "12px", color: MUTED }}>· {cls.duration_minutes} min</span>
-          {cls.course_title && <span style={{ fontSize: "12px", color: "var(--teal)", fontWeight: 600 }}>· {cls.course_title}</span>}
-          {cls.programme_type && <span style={{ fontSize: "12px", color: "var(--teal)", fontWeight: 600 }}>· {cls.programme_type}</span>}
+          <span>· {cls.duration_minutes} min</span>
+          {cls.course_title && <span className="font-semibold text-[var(--teal)]">· {cls.course_title}</span>}
+          {cls.programme_type && <span className="font-semibold text-[var(--teal)]">· {cls.programme_type}</span>}
         </div>
 
         {(onEdit || onDelete || (ended && onViewAttendance)) && (
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <div className="mt-2.5 flex flex-wrap gap-2">
             {/* Past classes get exactly ONE attendance action. */}
             {ended && onViewAttendance && (
-              <button onClick={(e) => { e.stopPropagation(); onViewAttendance(); }} style={S.linkBtn}>
+              <button onClick={(e) => { e.stopPropagation(); onViewAttendance(); }} className={LINK_BTN}>
                 View attendance
               </button>
             )}
             {onEdit && (
-              <button onClick={(e) => { e.stopPropagation(); onEdit(); }} style={S.ghostBtn}>Edit</button>
+              <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className={GHOST_BTN}>Edit</button>
             )}
             {onDelete && (
               <button
                 onClick={(e) => { e.stopPropagation(); onDelete(); }}
                 disabled={deleting}
-                style={{ ...S.dangerBtn, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.6 : 1 }}
+                className={DANGER_BTN + " disabled:cursor-not-allowed disabled:opacity-60"}
               >
                 {deleting ? "Deleting…" : "Delete"}
               </button>
@@ -340,28 +344,38 @@ function ClassCard({
       </div>
 
       {mayJoin && !ended && (
-        <div style={{ flexShrink: 0, textAlign: "right" }}>
+        <div className="sm:shrink-0 sm:text-right">
           {canJoinNow ? (
-            <button onClick={onJoin} disabled={joining} style={{ ...S.primaryBtn, opacity: joining ? 0.7 : 1, fontSize: "13px" }}>
+            <button onClick={onJoin} disabled={joining} className={PRIMARY_BTN + " w-full sm:w-auto disabled:opacity-70"}>
               {joining ? "Joining…" : isLive ? "Join Now" : "Join (opens soon)"}
             </button>
           ) : (
-            <p style={{ fontSize: "12px", color: MUTED, margin: 0, textAlign: "right" }}>
-              Opens in<br />
-              <strong style={{ color: "#034852" }}>{msToCountdown(msUntil)}</strong>
+            <p className="text-xs sm:text-right" style={{ color: MUTED }}>
+              Opens in <strong className="text-[var(--dark-teal)]">{msToCountdown(msUntil)}</strong>
             </p>
           )}
         </div>
       )}
 
       {!isStaff && ended && cls.attendance_status && (
-        <div style={{ flexShrink: 0 }}>
-          <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: "20px", fontSize: "12px", fontWeight: 700, ...chipStyle(cls.attendance_status as AttendanceStatus) }}>
+        <div className="sm:shrink-0">
+          <span
+            className="inline-block rounded-full px-3 py-1 text-xs font-bold"
+            style={chipStyle(cls.attendance_status as AttendanceStatus)}
+          >
             {STATUS_LABEL[cls.attendance_status as AttendanceStatus]}
           </span>
         </div>
       )}
     </div>
+  );
+}
+
+function ArchivedTag() {
+  return (
+    <span className="ml-2 rounded-full bg-[rgba(3,72,82,0.07)] px-2 py-0.5 text-[11px] font-bold" style={{ color: MUTED }}>
+      Archived
+    </span>
   );
 }
 
@@ -375,6 +389,21 @@ function LoadingState() {
     </div>
   );
 }
+
+/**
+ * Tailwind equivalents of the inline styles below. The card needs breakpoints,
+ * and a style object cannot express one — so everything the card touches moved
+ * to classes. The rest of the page keeps its inline styles for now.
+ */
+const CARD = "rounded-[20px] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]";
+const BTN_BASE = "inline-flex min-h-[44px] items-center justify-center rounded-lg px-3.5 text-[13px] font-semibold";
+const LINK_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(0,109,108,0.35)] text-[var(--teal)]`;
+const GHOST_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(3,72,82,0.2)] text-[var(--dark-teal)]`;
+const DANGER_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(198,40,40,0.35)] text-[#c62828]`;
+const PRIMARY_BTN =
+  "inline-flex min-h-[44px] items-center justify-center rounded-[10px] px-5 text-[13px] font-bold text-white " +
+  "bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)] shadow-[0_6px_14px_rgba(6,122,63,0.22)] " +
+  "[font-family:var(--font-heading)]";
 
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "20px", padding: "28px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
 const S = {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { VideoIcon } from "@/components/icons/ClassIcons";
 import { getNextLiveClass, joinLiveClass, type LiveClass } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
@@ -87,7 +88,7 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
             LIVE
           </span>
         ) : (
-          <span style={{ fontSize: "28px" }}>🎥</span>
+          <VideoIcon className="h-7 w-7 text-[var(--teal)]" />
         )}
       </div>
 

@@ -57,8 +57,13 @@
      "no flat grey" rule). Adopt incrementally; a future .dark theme overrides
      only this block. */
   --color-text:        var(--dark-teal);
-  --color-text-muted:  color-mix(in srgb, var(--dark-teal) 65%, transparent);
-  --color-text-subtle: color-mix(in srgb, var(--dark-teal) 45%, transparent);
+  /* 78% / 72%, not 65% / 45%. The old mixes measured 3.92:1 and 2.40:1 against
+     the surface — both under the 4.5:1 AA floor for normal text, and these are
+     the tokens carrying secondary copy across the whole product. They now land
+     at 5.57:1 and 4.72:1, and keep their order: muted is the more prominent of
+     the two, so it stays the darker. */
+  --color-text-muted:  color-mix(in srgb, var(--dark-teal) 78%, transparent);
+  --color-text-subtle: color-mix(in srgb, var(--dark-teal) 72%, transparent);
   --color-surface:        oklch(99.2% 0.004 195); /* near-white, faint teal tint */
   --color-surface-sunken: var(--color-mint-soft);
   --color-border:        color-mix(in srgb, var(--dark-teal) 12%, transparent);

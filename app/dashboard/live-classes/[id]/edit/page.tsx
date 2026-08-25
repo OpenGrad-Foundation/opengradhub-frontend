@@ -12,6 +12,8 @@ import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
+import { useAudiencePreview } from "@/lib/queries/live-classes";
+import { AudienceCount } from "@/components/AudienceCount";
 
 function datetimeLocalValue(iso: string): string {
   const d = new Date(iso);
@@ -63,6 +65,15 @@ export default function EditLiveClassPage() {
       .then(all => setCourses(all.filter(c => c.status === "ACTIVE")))
       .catch(() => {});
   }, []);
+
+  // Prose alone cannot tell forty students from none. The count can.
+  // Declared before any early return: hooks must run in the same order
+  // on every render.
+  const preview = useAudiencePreview({
+    course_id: courseId || undefined,
+    programme_type: progType || undefined,
+    batch_ids: batchIds.length ? batchIds : undefined,
+  });
 
   if (userLoading || permLoading) return null;
 
@@ -217,9 +228,10 @@ export default function EditLiveClassPage() {
               </Field>
             </div>
 
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", margin: "10px 0 0" }}>
+            <p style={{ fontSize: "12px", color: "#3f5f66", margin: "10px 0 0" }}>
               <b>Audience:</b> {audienceSummary}
             </p>
+            <AudienceCount preview={preview} />
           </div>
 
           {error && <p role="alert" style={{ fontSize: "13px", color: "#c62828", fontWeight: 600, margin: 0 }}>{error}</p>}
