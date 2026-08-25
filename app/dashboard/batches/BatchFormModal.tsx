@@ -28,6 +28,10 @@ export function BatchFormModal({
   const [name, setName] = useState(batch?.name ?? "");
   const [schoolId, setSchoolId] = useState<string>(batch?.school_id ?? defaultSchoolId ?? "");
   const [programme, setProgramme] = useState<string>(batch?.programme_type ?? "");
+  // No default: the product requires an explicit choice, and a pre-selected
+  // value is not a choice. The API rejects a create without one too.
+  const [deliveryMode, setDeliveryMode] = useState<string>(batch?.delivery_mode ?? "");
+  const modeLocked = mode === "edit" && !!batch?.delivery_mode_locked;
   const [status, setStatus] = useState<string>(batch?.status ?? "ACTIVE");
   const [startsOn, setStartsOn] = useState<string>(batch?.starts_on ?? "");
   const [endsOn, setEndsOn] = useState<string>(batch?.ends_on ?? "");
@@ -46,6 +50,10 @@ export function BatchFormModal({
 
   async function save() {
     if (!name.trim()) { setErr("Name is required."); return; }
+    if (!deliveryMode) {
+      setErr("Choose whether this batch is online or school-based.");
+      return;
+    }
     if (startsOn && endsOn && startsOn > endsOn) {
       setErr("Start date must be before end date.");
       return;
@@ -56,6 +64,9 @@ export function BatchFormModal({
       name,
       school_id: schoolId || null,
       programme_type: programme || null,
+      // Omitted on edit once frozen: sending the unchanged value is harmless,
+      // but not sending it at all keeps the intent obvious.
+      ...(modeLocked ? {} : { delivery_mode: deliveryMode as "ONLINE" | "SCHOOL_BASED" }),
       starts_on: startsOn || null,
       ends_on: endsOn || null,
     };
@@ -127,6 +138,25 @@ export function BatchFormModal({
                   Clear school (make independent)
                 </button>
               )}
+            </div>
+            <div>
+              <label style={formLabelStyle}>Attendance *</label>
+              <select
+                value={deliveryMode}
+                onChange={(e) => setDeliveryMode(e.target.value)}
+                disabled={modeLocked}
+                style={{ ...inputStyle, opacity: modeLocked ? 0.6 : 1 }}
+                aria-label="Attendance"
+              >
+                <option value="">Choose…</option>
+                <option value="ONLINE">Online — joining the class marks attendance</option>
+                <option value="SCHOOL_BASED">School-based — the school register is the record</option>
+              </select>
+              <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: "4px 0 0" }}>
+                {modeLocked
+                  ? "This batch already has attendance history, so this can no longer change."
+                  : "Decides which record counts as this batch's attendance. It cannot be changed once attendance exists."}
+              </p>
             </div>
             <div>
               <label style={formLabelStyle}>Programme</label>

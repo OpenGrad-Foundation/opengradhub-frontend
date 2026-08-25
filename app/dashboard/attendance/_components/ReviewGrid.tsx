@@ -174,7 +174,22 @@ function ReviewGridInner({
     commit.mutate(
       { id: upload.id, entries },
       {
-        onSuccess: () => { toast.success("Register committed"); onDone(); },
+        onSuccess: (detail) => {
+          toast.success("Register committed");
+          // Rows for students tracked online were written but will never be read
+          // as their attendance. Saying so beats letting the operator believe
+          // they just recorded something that counts.
+          const ignored = detail?.ignored_online ?? [];
+          if (ignored.length) {
+            toast.info(
+              `${ignored.length} student${ignored.length > 1 ? "s are" : " is"} tracked online — ` +
+              `their attendance comes from joining live classes, not this register ` +
+              `(${ignored.map((x) => x.name).join(", ")}).`,
+              { duration: 8000 },
+            );
+          }
+          onDone();
+        },
         onError: (e) => toast.error(e.message),
       },
     );

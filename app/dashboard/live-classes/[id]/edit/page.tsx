@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { toast } from "sonner";
 import Link from "next/link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -58,11 +59,11 @@ export default function EditLiveClassPage() {
     setDatetime(datetimeLocalValue(cls.scheduled_at));
     setDuration(String(cls.duration_minutes));
     setMeetUrl(cls.meeting_url);
-    const t = deriveTarget(cls);
-    setTarget(t);
-    if (t === "course")     setCourseId(cls.course_id ?? "");
-    if (t === "programme")  setProgType(cls.programme_type ?? "UG");
-    if (t === "batch")      setBatchIds(cls.batch_ids ?? []);
+    // Load every target the class actually carries. Guessing a single "kind"
+    // and hydrating only that one silently dropped the others on save.
+    setCourseId(cls.course_id ?? "");
+    setProgType(cls.programme_type ?? "");
+    setBatchIds(cls.batch_ids ?? []);
     setReady(true);
   }, [cls, ready]);
 
@@ -109,21 +110,40 @@ export default function EditLiveClassPage() {
     if (!title.trim())   { setError("Title is required."); return; }
     if (!datetime)       { setError("Date & time is required."); return; }
     if (!meetUrl.trim()) { setError("Meeting URL is required."); return; }
-    if (target === "course" && !courseId)          { setError("Select a course."); return; }
-    if (target === "batch" && batchIds.length === 0) { setError("Select at least one batch."); return; }
+    if (!courseId && !progType && batchIds.length === 0) {
+      setError("Pick at least one of course, programme or batches.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await updateLiveClass(id, {
+      // PATCH leaves omitted fields alone, so the targets NOT chosen have to be
+      // sent as explicit nulls. Omitting them kept the previous audience
+      // attached alongside the new one — which either leaks the class to the
+      // cohort the editor just dropped, or trips the mixed-mode guard for a
+      // change that was actually fine.
+      const created = await updateLiveClass(id, {
         title:            title.trim(),
         description:      desc.trim() || undefined,
         scheduled_at:     new Date(datetime).toISOString(),
         duration_minutes: Math.max(1, Number(duration) || 60),
         meeting_url:      meetUrl.trim(),
-        course_id:        target === "course" ? courseId : undefined,
-        programme_type:   target === "programme" ? progType : undefined,
-        batch_ids:        target === "batch" ? batchIds : undefined,
+        // Explicit nulls for what is NOT set: PATCH leaves omitted fields alone,
+        // so clearing a filter has to be said out loud.
+        course_id:        courseId || null,
+        programme_type:   progType || null,
+        batch_ids:        batchIds,
       });
+      // A class can be scheduled even when some targeted students are in no
+      // batch — their attendance simply cannot be tracked. Blocking the schedule
+      // would help nobody, but staying silent would hide it.
+      if (created?.unresolved_students) {
+        toast.warning(
+          `${created.unresolved_students} targeted student${created.unresolved_students > 1 ? "s aren't" : " isn't"} in a batch, ` +
+          `so their attendance can't be tracked yet.`,
+          { duration: 8000 },
+        );
+      }
       invalidate("calendar");
       router.replace("/dashboard/live-classes");
     } catch (err) {
@@ -132,6 +152,16 @@ export default function EditLiveClassPage() {
       setSubmitting(false);
     }
   }
+
+  // Spelled out, because "course + batch" reads as addition to most people and
+  // this is the opposite: each filter removes students.
+  const parts: string[] = [];
+  if (courseId) parts.push(`enrolled in ${courses.find(c => c.id === courseId)?.title ?? "the course"}`);
+  if (progType) parts.push(`in the ${progType} programme`);
+  if (batchIds.length) parts.push(`in ${batchIds.length} selected batch${batchIds.length === 1 ? "" : "es"}`);
+  const audienceSummary = parts.length === 0
+    ? "nobody yet — pick at least one"
+    : `students ${parts.join(" AND ")}`;
 
   return (
     <div style={{ maxWidth: "640px" }}>
@@ -164,47 +194,42 @@ export default function EditLiveClassPage() {
             <input type="url" value={meetUrl} onChange={e => setMeetUrl(e.target.value)} style={S.input} placeholder="https://meet.google.com/… or https://zoom.us/j/…" required />
           </Field>
 
-          {/* Target radio */}
+          {/* Three independent optional filters that NARROW each other. */}
           <div>
             <p style={fieldLabel}>Target Audience *</p>
-            <div style={{ display: "flex", gap: "10px" }}>
-              {(["course", "programme", "batch"] as Target[]).map(t => (
-                <button key={t} type="button" onClick={() => setTarget(t)} style={{
-                  padding: "8px 18px", borderRadius: "10px", cursor: "pointer",
-                  border: target === t ? "1.5px solid #034852" : "1.5px solid rgba(3,72,82,0.18)",
-                  background: target === t ? "rgba(3,72,82,0.07)" : "transparent",
-                  color: target === t ? "#034852" : "rgba(3,72,82,0.55)",
-                  fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: target === t ? 700 : 500,
-                  transition: "all 180ms ease",
-                }}>
-                  {t === "course" ? "Specific Course" : t === "programme" ? "All students in programme" : "Specific Batches"}
-                </button>
-              ))}
-            </div>
-          </div>
+            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 10px" }}>
+              Pick any combination. Each one you add <b>narrows</b> the audience —
+              a student must match all of them.
+            </p>
 
-          {target === "course" ? (
-            <Field label="Course">
-              <select value={courseId} onChange={e => setCourseId(e.target.value)} style={S.input}>
-                <option value="">Select active course…</option>
-                {courses.map(c => (
-                  <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
-                ))}
-              </select>
-            </Field>
-          ) : target === "programme" ? (
-            <Field label="Programme Type">
-              <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                {PROGRAMME_KINDS.map((k) => (
-                  <option key={k.value} value={k.value}>{k.label}</option>
-                ))}
-              </select>
-            </Field>
-          ) : (
-            <Field label="Batches">
-              <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={S.input} />
-            </Field>
-          )}
+            <div style={{ display: "grid", gap: "12px" }}>
+              <Field label="Course (optional)">
+                <select value={courseId} onChange={e => setCourseId(e.target.value)} style={S.input}>
+                  <option value="">Any course</option>
+                  {courses.map(c => (
+                    <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Programme (optional)">
+                <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
+                  <option value="">Any programme</option>
+                  {PROGRAMME_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>{k.label}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Batches (optional)">
+                <BatchMultiPicker value={batchIds} onChange={setBatchIds} inputStyle={S.input} />
+              </Field>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", margin: "10px 0 0" }}>
+              <b>Audience:</b> {audienceSummary}
+            </p>
+          </div>
 
           {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
 

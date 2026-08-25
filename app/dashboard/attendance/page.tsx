@@ -1,16 +1,21 @@
 "use client";
 
 /**
- * Attendance tab — permission-switched:
- *  - attendance.view (staff): Live Classes links | Registers | Overview tabs
- *  - attendance.view_own (students): personal stats view
+ * Attendance — permission-switched.
+ *
+ *  staff   (attendance.view)     Records | School confirmations | Registers
+ *  student (attendance.view_own) their own attendance
+ *
+ * "Records" is first and default because it is the answer to the question the
+ * module exists for: was this student present? The other two tabs are the ways
+ * data gets IN — a whole-school confirmation, and a paper register.
  */
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { Tabs } from "../_components/Tabs";
-import { LinksTab } from "./_components/LinksTab";
+import { RecordsTab } from "./_components/RecordsTab";
+import { SchoolConfirmationsTab } from "./_components/SchoolConfirmationsTab";
 import { RegistersTab } from "./_components/RegistersTab";
-import { OverviewTab } from "./_components/OverviewTab";
 import { StudentView } from "./_components/StudentView";
 
 export default function AttendancePage() {
@@ -56,16 +61,16 @@ export default function AttendancePage() {
         Attendance
       </h1>
       <p className="mt-1 text-sm text-slate-500">
-        Per-school live-class links and paper register uploads.
+        Student attendance, whole-school confirmations, and paper registers.
       </p>
 
       <div className="mt-4">
         <Tabs
           ariaLabel="Attendance tabs"
           tabs={[
-            { key: "links", label: "Live Classes", panel: <LinksTab canManage={canManage} /> },
+            { key: "records", label: "Records", panel: <RecordsTab /> },
+            { key: "confirmations", label: "School confirmations", panel: <SchoolConfirmationsTab canManage={canManage} /> },
             { key: "registers", label: "Registers", panel: <RegistersTab canManage={canManage} /> },
-            { key: "overview", label: "Overview", panel: <OverviewTab /> },
           ]}
         />
       </div>

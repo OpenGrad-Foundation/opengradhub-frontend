@@ -1187,23 +1187,46 @@ export type LiveClass = {
   created_by: string | null;
   created_at: string;
   attendee_count: number;
-  attended?: boolean;
+  /** Which store answers for this class. null = a legacy row nothing resolved. */
+  attendance_mode: "ONLINE" | "SCHOOL_BASED" | null;
+  /** True when every target is archived. Hidden from the staff list by default. */
+  is_archived_target?: boolean;
+  /**
+   * The student's own canonical verdict. null while the class has not ended.
+   * Replaces the old boolean `attended`, which could not express a
+   * register-sourced UNKNOWN.
+   */
+  attendance_status?: "PRESENT" | "ABSENT" | "UNKNOWN" | null;
+  /** Reported on create/edit: targeted students with no batch, so untrackable. */
+  unresolved_students?: number;
 };
 
-export type LiveClassAttendee = {
-  id: string;
-  name: string;
-  email: string;
-  joined_at: string;
+export type LiveClassFilters = {
+  /** 'upcoming' includes a class that is running right now. */
+  view?: "upcoming" | "past";
+  q?: string;
+  audience_type?: "course" | "batch" | "programme";
+  audience_id?: string;
+  include_archived?: boolean;
 };
 
-export type LiveClassAttendeesResult = {
-  joined: LiveClassAttendee[];
-  missed: Omit<LiveClassAttendee, "joined_at">[];
-};
-
-export async function getLiveClasses(): Promise<LiveClass[]> {
-  const r = await apiFetch(`${API_BASE_URL}/live-classes`);
+/**
+ * Filters are all optional, and omitting them returns everything — the School
+ * confirmations tab and the class edit page depend on that.
+ */
+export async function getLiveClasses(filters?: LiveClassFilters): Promise<LiveClass[]> {
+  const params = new URLSearchParams();
+  if (filters?.view) params.set("view", filters.view);
+  if (filters?.q?.trim()) params.set("q", filters.q.trim());
+  if (filters?.audience_type && filters?.audience_id) {
+    params.set("audience_type", filters.audience_type);
+    params.set("audience_id", filters.audience_id);
+  }
+  if (filters?.include_archived !== undefined) {
+    params.set("include_archived", String(filters.include_archived));
+  }
+  const qs = params.toString();
+  const r = await apiFetch(`${API_BASE_URL}/live-classes${qs ? `?${qs}` : ""}`);
   if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
   return (await r.json()) as LiveClass[];
 }
@@ -1257,15 +1280,6 @@ export async function createLiveClass(payload: {
   return (await r.json()) as LiveClass;
 }
 
-export async function getLiveClassAttendees(id: string): Promise<LiveClassAttendeesResult> {
-  const r = await apiFetch(`${API_BASE_URL}/live-classes/${id}/attendees`);
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch attendees.", r.status);
-  }
-  return (await r.json()) as LiveClassAttendeesResult;
-}
-
 export async function updateLiveClass(
   id: string,
   payload: {
@@ -1274,8 +1288,13 @@ export async function updateLiveClass(
     scheduled_at?: string;
     duration_minutes?: number;
     meeting_url?: string;
-    course_id?: string;
-    programme_type?: string;
+    /**
+     * PATCH leaves an OMITTED target alone and CLEARS an explicitly null one.
+     * The distinction matters: switching a class between targeting modes has to
+     * null the modes it is leaving, or the class keeps both audiences.
+     */
+    course_id?: string | null;
+    programme_type?: string | null;
     batch_ids?: string[];
   },
 ): Promise<LiveClass> {
@@ -4105,6 +4124,10 @@ export type Batch = {
   school_id: string | null;
   school_name: string | null;
   programme_type: string | null;
+  /** Where this cohort's official individual attendance comes from. */
+  delivery_mode: "ONLINE" | "SCHOOL_BASED";
+  /** True once attendance history exists — after that the mode is frozen. */
+  delivery_mode_locked: boolean;
   status: string;
   starts_on: string | null;
   ends_on: string | null;
@@ -4158,6 +4181,8 @@ export type BatchPayload = {
   name?: string;
   school_id?: string | null;
   programme_type?: string | null;
+  /** Required on create — the API rejects a batch without one. */
+  delivery_mode?: "ONLINE" | "SCHOOL_BASED";
   status?: string;
   starts_on?: string | null;
   ends_on?: string | null;

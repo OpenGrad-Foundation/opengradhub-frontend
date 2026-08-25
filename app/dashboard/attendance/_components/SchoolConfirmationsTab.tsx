@@ -1,10 +1,14 @@
 "use client";
 
 /**
- * Stream 1 staff view: per-class school links — share on WhatsApp, copy,
- * override, add/remove schools, re-sync from targeting.
+ * School confirmations: a per-class public link a school opens to say "our
+ * school attended". Whole-school and nothing more — it never marks an
+ * individual student and never competes with the register.
+ *
+ * Renamed from "Live Classes", which read as if this tab were the live-class
+ * attendance surface. It is not: individual attendance lives in Records.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import {
@@ -16,7 +20,9 @@ import {
   useRegenerateLink,
 } from "@/lib/queries/attendance";
 import { useQuery } from "@tanstack/react-query";
-import { fetchSchools } from "@/lib/api";
+import { fetchSchools, getCourses, type Course } from "@/lib/api";
+import { useBatches } from "@/lib/queries/batches";
+import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
 import type { LinkRow } from "@/lib/attendance-api";
 
@@ -208,9 +214,51 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
   );
 }
 
-export function LinksTab({ canManage }: { canManage: boolean }) {
+/**
+ * Course / batch / programme, the three ways a live class declares who it is
+ * for. Filtering happens over the rows already on the client, so this costs no
+ * request — the school set for each class is what is loaded lazily, per row.
+ */
+function AudienceFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [courses, setCourses] = useState<Course[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getCourses(undefined, undefined, undefined, true)
+      .then((cs) => { if (!cancelled) setCourses(cs); })
+      .catch(() => { /* the picker just stays short; the list still works */ });
+    return () => { cancelled = true; };
+  }, []);
+  const batches = useBatches();
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="Audience"
+      className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--dark-teal)] min-w-[200px]"
+    >
+      <option value="">All audiences</option>
+      <optgroup label="Courses">
+        {courses.map((c) => <option key={c.id} value={`course:${c.id}`}>{c.title}</option>)}
+      </optgroup>
+      <optgroup label="Batches">
+        {(batches.data ?? []).map((b) => <option key={b.id} value={`batch:${b.id}`}>{b.name}</option>)}
+      </optgroup>
+      <optgroup label="Programmes">
+        {PROGRAMME_KINDS.map((k) => <option key={k.value} value={`programme:${k.value}`}>{k.label}</option>)}
+      </optgroup>
+    </select>
+  );
+}
+
+export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
   const { data: classes, isLoading } = useLiveClasses();
   const [openId, setOpenId] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [view, setView] = useState<"all" | "upcoming" | "past">("all");
+  // `course:<id>` | `batch:<id>` | `programme:<kind>` — the three ways a class
+  // declares its audience, all already present on the rows this tab fetched.
+  const [audience, setAudience] = useState("");
 
   // Read the clock once per mount instead of on every render: reading it during
   // render is impure (React 19 lint) and would let the upcoming/past split shift
@@ -218,7 +266,28 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
   const [now] = useState(() => Date.now());
 
   const sorted = useMemo(() => {
-    const list = [...(classes ?? [])];
+    // Filtered client-side over the list this tab already fetches: the school
+    // set for a class is loaded lazily per row, so a server round-trip would
+    // buy nothing here.
+    const needle = q.trim().toLowerCase();
+    const list = (classes ?? []).filter((c) => {
+      if (needle && !c.title.toLowerCase().includes(needle)) return false;
+
+      if (audience) {
+        const [kind, id] = audience.split(":");
+        const matches =
+          kind === "course" ? c.course_id === id
+          : kind === "batch" ? (c.batch_ids ?? []).includes(id)
+          : kind === "programme" ? c.programme_type === id
+          : true;
+        if (!matches) return false;
+      }
+
+      if (view === "all") return true;
+      const ended = new Date(c.scheduled_at).getTime()
+        + c.duration_minutes * 60_000 <= now;
+      return view === "past" ? ended : !ended;
+    });
     // Upcoming first (soonest at top), then past classes newest-first.
     return list.sort((a, b) => {
       const at = new Date(a.scheduled_at).getTime();
@@ -227,13 +296,58 @@ export function LinksTab({ canManage }: { canManage: boolean }) {
       if (aUp !== bUp) return aUp ? -1 : 1;
       return aUp ? at - bt : bt - at;
     });
-  }, [classes, now]);
+  }, [classes, now, q, view, audience]);
 
   if (isLoading) return <p className="text-slate-500">Loading live classes…</p>;
-  if (sorted.length === 0) return <p className="text-slate-500">No live classes yet.</p>;
+
+  const total = classes?.length ?? 0;
 
   return (
     <div className="space-y-2">
+      <p className="text-sm text-slate-500">
+        A whole-school confirmation for a live class. This does not mark individual
+        students — their attendance is in <b>Records</b>.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2 pb-1">
+        <input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search class titles…"
+          aria-label="Search class titles"
+          className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--dark-teal)] min-w-[200px]"
+        />
+        <div className="flex gap-1" role="group" aria-label="Time filter">
+          {(["all", "upcoming", "past"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setView(v)}
+              aria-pressed={view === v}
+              className={
+                "rounded-lg px-3 py-1.5 text-xs font-semibold capitalize " +
+                (view === v
+                  ? "text-white bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)]"
+                  : "border border-[var(--color-border)] text-[var(--dark-teal)]")
+              }
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+        <AudienceFilter value={audience} onChange={setAudience} />
+        {sorted.length !== total && (
+          <span className="text-xs text-slate-500">{sorted.length} of {total}</span>
+        )}
+      </div>
+
+      {sorted.length === 0 && (
+        <p className="text-slate-500">
+          {total === 0 ? "No live classes yet." : "No classes match these filters."}
+        </p>
+      )}
+
       {sorted.map((cls) => (
         <div key={cls.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <button
