@@ -36,7 +36,10 @@ const LIST_PAGE_SIZE = 10;
 
 type ViewMode = "grid" | "list";
 type ProgrammeFilter = string; // "ALL" or any PROGRAMME_KINDS value
-type StatusFilter = "ALL" | "ACTIVE" | "DRAFT" | "ARCHIVED";
+// Drafts live in their own tab, so the published tab only chooses between the
+// two "published" statuses. DRAFT is never reachable from the status filter.
+type StatusFilter = "ACTIVE" | "ARCHIVED";
+type CourseTab = "PUBLISHED" | "DRAFTS";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
 
@@ -52,7 +55,9 @@ export default function CoursesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState<ProgrammeFilter>("ALL");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
+  const [tab, setTab] = useState<CourseTab>("PUBLISHED");
+  const [draftCount, setDraftCount] = useState<number | null>(null);
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("ALL");
   const [lockingFilter, setLockingFilter] = useState<LockingFilter>("ALL");
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
@@ -68,6 +73,15 @@ export default function CoursesPage() {
   // genuine identity distinction — a learner sees their own enrolments.
   const isStudent = roleCode === "STUDENT";
   const supportsFullStatusFilter = canManage;
+  // Only managers can see DRAFT rows at all (the API forces ACTIVE otherwise),
+  // so the drafts tab is hidden for everyone else.
+  const showDraftsTab = !isStudent && supportsFullStatusFilter;
+  const draftsTab = showDraftsTab && tab === "DRAFTS";
+  const effectiveStatus: string | undefined = !supportsFullStatusFilter
+    ? undefined
+    : draftsTab
+    ? "DRAFT"
+    : statusFilter;
   const pageSize = viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
 
   const {
@@ -89,6 +103,11 @@ export default function CoursesPage() {
 
   const handleStatusChange = (value: StatusFilter) => {
     setStatusFilter(value);
+    setPage(1);
+  };
+
+  const handleTabChange = (next: CourseTab) => {
+    setTab(next);
     setPage(1);
   };
 
@@ -127,8 +146,8 @@ export default function CoursesPage() {
         pageSize,
       };
 
-      if (supportsFullStatusFilter && statusFilter !== "ALL") {
-        params.status = statusFilter;
+      if (effectiveStatus) {
+        params.status = effectiveStatus;
       }
 
       const response = await getCoursesPage(params);
@@ -145,14 +164,13 @@ export default function CoursesPage() {
     accessFilter,
     canManage,
     deferredSearch,
+    effectiveStatus,
     isStudent,
     lockingFilter,
     tagsFilter,
     page,
     pageSize,
     programmeFilter,
-    statusFilter,
-    supportsFullStatusFilter,
     userId,
   ]);
 
@@ -161,6 +179,35 @@ export default function CoursesPage() {
       void fetchCourses();
     }
   }, [fetchCourses, userLoading]);
+
+  // Unfiltered draft total for the tab badge. Deliberately cheap (page_size 1 —
+  // only `total` is used) and refreshed on tab switch rather than on every
+  // filter keystroke, so typing in search does not double the request count.
+  useEffect(() => {
+    if (!showDraftsTab || !userId) {
+      setDraftCount(null);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await getCoursesPage({
+          allStatuses: true,
+          status: "DRAFT",
+          page: 1,
+          pageSize: 1,
+        });
+        if (!cancelled) setDraftCount(response.total);
+      } catch {
+        if (!cancelled) setDraftCount(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showDraftsTab, tab, userId]);
 
   const subtitle = useMemo(() => {
     if (isStudent) return "Your enrolled courses";
@@ -183,7 +230,7 @@ export default function CoursesPage() {
   const activeFilterCount = useMemo(() => {
     return [
       programmeFilter !== "ALL",
-      supportsFullStatusFilter && statusFilter !== "ALL",
+      supportsFullStatusFilter && !draftsTab && statusFilter !== "ACTIVE",
       accessFilter !== "ALL",
       lockingFilter !== "ALL",
       tagsFilter.length > 0,
@@ -192,6 +239,7 @@ export default function CoursesPage() {
   }, [
     accessFilter,
     deferredSearch,
+    draftsTab,
     lockingFilter,
     tagsFilter,
     programmeFilter,
@@ -202,7 +250,7 @@ export default function CoursesPage() {
   const resetFilters = () => {
     setSearchInput("");
     setProgrammeFilter("ALL");
-    setStatusFilter("ALL");
+    setStatusFilter("ACTIVE");
     setAccessFilter("ALL");
     setLockingFilter("ALL");
     setTagsFilter([]);
@@ -273,6 +321,26 @@ export default function CoursesPage() {
             </div>
           </div>
 
+          {showDraftsTab && (
+            <div
+              role="tablist"
+              aria-label="Course status"
+              className="flex w-full items-center gap-1 overflow-x-auto border-b border-[rgba(3,72,82,0.1)]"
+            >
+              <CourseTabButton
+                active={tab === "PUBLISHED"}
+                label="Courses"
+                onClick={() => handleTabChange("PUBLISHED")}
+              />
+              <CourseTabButton
+                active={tab === "DRAFTS"}
+                label="Course Drafts"
+                count={draftCount}
+                onClick={() => handleTabChange("DRAFTS")}
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="group flex flex-1 items-center gap-2 rounded-xl border border-[rgba(3,72,82,0.12)] bg-white/90 px-3 py-2 shadow-sm transition focus-within:border-[rgba(10,190,98,0.35)]">
               <Search size={15} className="text-[rgba(3,72,82,0.45)] transition group-focus-within:text-[var(--teal)]" />
@@ -310,15 +378,15 @@ export default function CoursesPage() {
               />
               <FilterSelect
                 label="Status"
-                value={supportsFullStatusFilter ? statusFilter : "ACTIVE"}
-                disabled={!supportsFullStatusFilter}
+                value={draftsTab ? "DRAFT" : supportsFullStatusFilter ? statusFilter : "ACTIVE"}
+                disabled={!supportsFullStatusFilter || draftsTab}
                 onChange={(value) => handleStatusChange(value as StatusFilter)}
                 options={
-                  supportsFullStatusFilter
+                  draftsTab
+                    ? [{ value: "DRAFT", label: "Draft only" }]
+                    : supportsFullStatusFilter
                     ? [
-                        { value: "ALL", label: "All statuses" },
                         { value: "ACTIVE", label: "Active" },
-                        { value: "DRAFT", label: "Draft" },
                         { value: "ARCHIVED", label: "Archived" },
                       ]
                     : [{ value: "ACTIVE", label: "Active only" }]
@@ -421,11 +489,21 @@ export default function CoursesPage() {
       ) : managementCourses.length === 0 ? (
         <section className="mt-6">
           <StateCard
-            eyebrow="No Courses"
-            title={activeFilterCount > 0 ? "No courses match the current filters." : "No courses found."}
+            eyebrow={draftsTab ? "No Drafts" : "No Courses"}
+            title={
+              activeFilterCount > 0
+                ? draftsTab
+                  ? "No drafts match the current filters."
+                  : "No courses match the current filters."
+                : draftsTab
+                ? "No draft courses."
+                : "No courses found."
+            }
             description={
               activeFilterCount > 0
                 ? "Try widening the filters or clearing the search."
+                : draftsTab
+                ? "Courses stay here until they are published. Drafts are not visible to students."
                 : canCreate
                 ? 'Create your first course from "New Course" to start managing content here.'
                 : "Check back soon for available courses."
@@ -844,6 +922,45 @@ function ViewToggleButton({
     >
       {icon}
       {label}
+    </button>
+  );
+}
+
+function CourseTabButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count?: number | null;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition ${
+        active
+          ? "border-[var(--teal)] text-[var(--dark-teal)]"
+          : "border-transparent text-[rgba(3,72,82,0.6)] hover:text-[var(--dark-teal)]"
+      }`}
+    >
+      {label}
+      {typeof count === "number" && count > 0 && (
+        <span
+          className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            active
+              ? "bg-[rgba(10,190,98,0.14)] text-[var(--dark-teal)]"
+              : "bg-[rgba(3,72,82,0.07)] text-[rgba(3,72,82,0.7)]"
+          }`}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }
