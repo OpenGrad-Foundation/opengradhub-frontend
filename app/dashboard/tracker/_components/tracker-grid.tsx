@@ -15,7 +15,7 @@ import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskSta
 import { RecordProofs } from "./record-proofs";
 import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
-import { SchoolGeoPanel } from "./school-geo-panel";
+import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
@@ -71,6 +71,9 @@ export function TrackerEditableGrid({
     for (const v of geoQuery.data ?? []) if (v.accepted) accepted.add(v.school_id);
     return accepted;
   }, [geoQuery.data]);
+  // The verification dialog: opened from the toolbar chip (browse/replace a photo) or
+  // by the gate itself, when a row cannot reach done without its school verified.
+  const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
   const [schoolFilter, setSchoolFilter] = useState("");
   const [search, setSearch] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -184,14 +187,28 @@ export function TrackerEditableGrid({
     const blockedHint = overdue
       ? "Overdue — ask your ZM or PM for an extension"
       : geoUnmet ? geoHint(row) : proofHint;
-    const blocked = overdue || proofUnmet || geoUnmet;
+    // A missing visit verification is the one blocker the fellow can clear from here, so
+    // it does NOT disable the control: reaching for done opens the verification dialog
+    // instead of dead-ending on a greyed-out checkbox. Overdue and a school-less row keep
+    // disabling it — no photo can fix either.
+    const gateable = canFill && geoUnmet && !overdue && !proofUnmet && Boolean(row.school_id);
+    const blocked = overdue || proofUnmet || (geoUnmet && !gateable);
+    const openGate = () => setGeoModal({ schoolId: row.school_id ?? null, blocking: true });
     if (template.completion_style === "workflow") {
       return (
         <div className="flex flex-col gap-1">
-          <select value={currentStatus} disabled={!canFill} onChange={(e) => setStatus(row.record_id, e.target.value)} className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}>
+          <select
+            value={currentStatus}
+            disabled={!canFill}
+            onChange={(e) => {
+              if (gateable && e.target.value === doneStatus) { openGate(); return; }
+              setStatus(row.record_id, e.target.value);
+            }}
+            className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}
+          >
             {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={blocked && s === doneStatus}>{s}</option>)}
           </select>
-          {blocked && <p className="text-xs text-amber-700">{blockedHint}</p>}
+          {(blocked || gateable) && <p className="text-xs text-amber-700">{blockedHint}</p>}
         </div>
       );
     }
@@ -203,18 +220,29 @@ export function TrackerEditableGrid({
           <button
             type="button"
             disabled={!canFill || proofBlocking}
-            onClick={() => setStatus(row.record_id, done ? "not_started" : "done")}
+            onClick={() => {
+              if (gateable) { openGate(); return; }
+              setStatus(row.record_id, done ? "not_started" : "done");
+            }}
             className={"flex h-12 w-full items-center justify-center gap-2 rounded-lg text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-gray-300 text-gray-700")}
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
-          {proofBlocking && <p className="text-center text-xs text-amber-700">{blockedHint}</p>}
+          {(proofBlocking || gateable) && <p className="text-center text-xs text-amber-700">{blockedHint}</p>}
         </div>
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking ? blockedHint : undefined}>
-        <input type="checkbox" disabled={!canFill || proofBlocking} checked={done} onChange={(e) => setStatus(row.record_id, e.target.checked ? "done" : "not_started")} />
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking || gateable ? blockedHint : undefined}>
+        <input
+          type="checkbox"
+          disabled={!canFill || proofBlocking}
+          checked={done}
+          onChange={(e) => {
+            if (gateable) { openGate(); return; }
+            setStatus(row.record_id, e.target.checked ? "done" : "not_started");
+          }}
+        />
         {done ? "Done" : "Open"}
       </label>
     );
@@ -310,20 +338,6 @@ export function TrackerEditableGrid({
       </button>
     ) : null;
 
-  const geoPanel = (
-    <SchoolGeoPanel
-      template={template}
-      // Every school of the task, not just the filtered subset — the panel must show
-      // each school's state, while the shared filter decides which one is being uploaded for.
-      rows={grid.rows}
-      schoolFilter={schoolFilter}
-      onSchoolFilterChange={setSchoolFilter}
-      canFill={canFill && !viewingOther}
-      readOnly={viewingOther}
-      canOverride={canOverrideGeo}
-    />
-  );
-
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
@@ -340,6 +354,13 @@ export function TrackerEditableGrid({
               {schools.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
+          <GeoStatusChip
+            template={template}
+            // Every school of the task, not just the filtered subset: the count must
+            // reflect what still blocks the task, not what is on screen.
+            rows={grid.rows}
+            onOpen={() => setGeoModal({ schoolId: null, blocking: false })}
+          />
         </div>
         {canFill && (
           <div className="flex items-center gap-2">
@@ -389,7 +410,6 @@ export function TrackerEditableGrid({
           </div>
         )}
       </div>
-      {geoPanel}
       {bulkOpen && (
         <TrackerBulkUploadPanel
           template={template}
@@ -481,6 +501,19 @@ export function TrackerEditableGrid({
           overdue={grid.rows.find((r) => r.record_id === historyRecordId)?.lifecycle === "overdue"}
           canGrantExtension={canGrantExtension}
           onClose={() => setHistoryRecordId(null)}
+        />
+      )}
+
+      {geoModal && (
+        <GeoVerificationModal
+          template={template}
+          rows={grid.rows}
+          initialSchoolId={geoModal.schoolId}
+          blocking={geoModal.blocking}
+          canFill={canFill && !viewingOther}
+          readOnly={viewingOther}
+          canOverride={canOverrideGeo}
+          onClose={() => setGeoModal(null)}
         />
       )}
 
