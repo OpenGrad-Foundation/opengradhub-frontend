@@ -36,10 +36,9 @@ const LIST_PAGE_SIZE = 10;
 
 type ViewMode = "grid" | "list";
 type ProgrammeFilter = string; // "ALL" or any PROGRAMME_KINDS value
-// Drafts live in their own tab, so the published tab only chooses between the
-// two "published" statuses. DRAFT is never reachable from the status filter.
-type StatusFilter = "ACTIVE" | "ARCHIVED";
-type CourseTab = "PUBLISHED" | "DRAFTS";
+// Every status has its own tab, so there is no status filter at all — the tab
+// is the status. ACTIVE / DRAFT / ARCHIVED map 1:1 onto the three tabs.
+type CourseTab = "PUBLISHED" | "DRAFTS" | "ARCHIVED";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
 
@@ -55,9 +54,9 @@ export default function CoursesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState<ProgrammeFilter>("ALL");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
   const [tab, setTab] = useState<CourseTab>("PUBLISHED");
   const [draftCount, setDraftCount] = useState<number | null>(null);
+  const [archivedCount, setArchivedCount] = useState<number | null>(null);
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("ALL");
   const [lockingFilter, setLockingFilter] = useState<LockingFilter>("ALL");
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
@@ -73,15 +72,18 @@ export default function CoursesPage() {
   // genuine identity distinction — a learner sees their own enrolments.
   const isStudent = roleCode === "STUDENT";
   const supportsFullStatusFilter = canManage;
-  // Only managers can see DRAFT rows at all (the API forces ACTIVE otherwise),
-  // so the drafts tab is hidden for everyone else.
-  const showDraftsTab = !isStudent && supportsFullStatusFilter;
-  const draftsTab = showDraftsTab && tab === "DRAFTS";
+  // Only managers can see DRAFT/ARCHIVED rows at all (the API forces ACTIVE
+  // otherwise), so the extra tabs are hidden for everyone else.
+  const showStatusTabs = !isStudent && supportsFullStatusFilter;
+  const draftsTab = showStatusTabs && tab === "DRAFTS";
+  const archivedTab = showStatusTabs && tab === "ARCHIVED";
   const effectiveStatus: string | undefined = !supportsFullStatusFilter
     ? undefined
     : draftsTab
     ? "DRAFT"
-    : statusFilter;
+    : archivedTab
+    ? "ARCHIVED"
+    : "ACTIVE";
   const pageSize = viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
 
   const {
@@ -98,11 +100,6 @@ export default function CoursesPage() {
 
   const handleProgrammeChange = (value: ProgrammeFilter) => {
     setProgrammeFilter(value);
-    setPage(1);
-  };
-
-  const handleStatusChange = (value: StatusFilter) => {
-    setStatusFilter(value);
     setPage(1);
   };
 
@@ -180,34 +177,43 @@ export default function CoursesPage() {
     }
   }, [fetchCourses, userLoading]);
 
-  // Unfiltered draft total for the tab badge. Deliberately cheap (page_size 1 —
-  // only `total` is used) and refreshed on tab switch rather than on every
-  // filter keystroke, so typing in search does not double the request count.
+  // Unfiltered draft/archived totals for the tab badges. Deliberately cheap
+  // (page_size 1 — only `total` is used) and refreshed on tab switch rather
+  // than on every filter keystroke, so typing in search does not double the
+  // request count.
   useEffect(() => {
-    if (!showDraftsTab || !userId) {
+    if (!showStatusTabs || !userId) {
       setDraftCount(null);
+      setArchivedCount(null);
       return;
     }
 
     let cancelled = false;
     void (async () => {
-      try {
-        const response = await getCoursesPage({
-          allStatuses: true,
-          status: "DRAFT",
-          page: 1,
-          pageSize: 1,
-        });
-        if (!cancelled) setDraftCount(response.total);
-      } catch {
-        if (!cancelled) setDraftCount(null);
-      }
+      const load = async (status: "DRAFT" | "ARCHIVED") => {
+        try {
+          const response = await getCoursesPage({
+            allStatuses: true,
+            status,
+            page: 1,
+            pageSize: 1,
+          });
+          return response.total;
+        } catch {
+          return null;
+        }
+      };
+
+      const [drafts, archived] = await Promise.all([load("DRAFT"), load("ARCHIVED")]);
+      if (cancelled) return;
+      setDraftCount(drafts);
+      setArchivedCount(archived);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [showDraftsTab, tab, userId]);
+  }, [showStatusTabs, tab, userId]);
 
   const visibleStudentCourses = useMemo(() => {
     const term = deferredSearch.trim().toLowerCase();
@@ -223,7 +229,6 @@ export default function CoursesPage() {
   const activeFilterCount = useMemo(() => {
     return [
       programmeFilter !== "ALL",
-      supportsFullStatusFilter && !draftsTab && statusFilter !== "ACTIVE",
       accessFilter !== "ALL",
       lockingFilter !== "ALL",
       tagsFilter.length > 0,
@@ -232,18 +237,14 @@ export default function CoursesPage() {
   }, [
     accessFilter,
     deferredSearch,
-    draftsTab,
     lockingFilter,
     tagsFilter,
     programmeFilter,
-    statusFilter,
-    supportsFullStatusFilter,
   ]);
 
   const resetFilters = () => {
     setSearchInput("");
     setProgrammeFilter("ALL");
-    setStatusFilter("ACTIVE");
     setAccessFilter("ALL");
     setLockingFilter("ALL");
     setTagsFilter([]);
@@ -269,15 +270,15 @@ export default function CoursesPage() {
 
   return (
     <PageShell>
-      {/* Header sits bare on the page at 28px/700, like Batches and the
-          Question Bank. It used to live inside the filter card at 24px/600,
-          which made Courses read as a different product. */}
+      {/* Header sits bare on the page at 28px/700 in the heading face, exactly
+          like Batches, Schools and Doubts. It used to carry an eyebrow and the
+          display face, which made Courses read as a different product. */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-3xl">
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--light-teal)]">
-            {isStudent ? "Learning" : "Course Management"}
-          </p>
-          <h1 className="mt-1 font-display text-[28px] font-bold text-[var(--dark-teal)]">
+          <h1
+            className="text-[28px] font-bold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)", margin: 0 }}
+          >
             Courses
           </h1>
         </div>
@@ -314,7 +315,7 @@ export default function CoursesPage() {
 
       <section className="rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4">
-          {showDraftsTab && (
+          {showStatusTabs && (
             <div
               role="tablist"
               aria-label="Course status"
@@ -330,6 +331,12 @@ export default function CoursesPage() {
                 label="Course Drafts"
                 count={draftCount}
                 onClick={() => handleTabChange("DRAFTS")}
+              />
+              <CourseTabButton
+                active={tab === "ARCHIVED"}
+                label="Archived"
+                count={archivedCount}
+                onClick={() => handleTabChange("ARCHIVED")}
               />
             </div>
           )}
@@ -368,22 +375,6 @@ export default function CoursesPage() {
                 value={programmeFilter}
                 onChange={(value) => handleProgrammeChange(value as ProgrammeFilter)}
                 options={[{ value: "ALL", label: "All programmes" }, ...PROGRAMME_KINDS]}
-              />
-              <FilterSelect
-                label="Status"
-                value={draftsTab ? "DRAFT" : supportsFullStatusFilter ? statusFilter : "ACTIVE"}
-                disabled={!supportsFullStatusFilter || draftsTab}
-                onChange={(value) => handleStatusChange(value as StatusFilter)}
-                options={
-                  draftsTab
-                    ? [{ value: "DRAFT", label: "Draft only" }]
-                    : supportsFullStatusFilter
-                    ? [
-                        { value: "ACTIVE", label: "Active" },
-                        { value: "ARCHIVED", label: "Archived" },
-                      ]
-                    : [{ value: "ACTIVE", label: "Active only" }]
-                }
               />
               <FilterSelect
                 label="Access"
@@ -482,14 +473,18 @@ export default function CoursesPage() {
       ) : managementCourses.length === 0 ? (
         <section className="mt-6">
           <StateCard
-            eyebrow={draftsTab ? "No Drafts" : "No Courses"}
+            eyebrow={draftsTab ? "No Drafts" : archivedTab ? "Nothing Archived" : "No Courses"}
             title={
               activeFilterCount > 0
                 ? draftsTab
                   ? "No drafts match the current filters."
+                  : archivedTab
+                  ? "No archived courses match the current filters."
                   : "No courses match the current filters."
                 : draftsTab
                 ? "No draft courses."
+                : archivedTab
+                ? "No archived courses."
                 : "No courses found."
             }
             description={
@@ -497,6 +492,8 @@ export default function CoursesPage() {
                 ? "Try widening the filters or clearing the search."
                 : draftsTab
                 ? "Courses stay here until they are published. Drafts are not visible to students."
+                : archivedTab
+                ? "Archive a course from its management page to retire it without deleting it."
                 : canCreate
                 ? 'Create your first course from "New Course" to start managing content here.'
                 : "Check back soon for available courses."
