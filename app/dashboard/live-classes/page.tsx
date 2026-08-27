@@ -316,7 +316,6 @@ function ClassCard({
           </span>
           <span>· {cls.duration_minutes} min</span>
           {cls.course_title && <span className="font-semibold text-[var(--teal)]">· {cls.course_title}</span>}
-          {cls.programme_type && <span className="font-semibold text-[var(--teal)]">· {cls.programme_type}</span>}
         </div>
 
         {(onEdit || onDelete || (ended && onViewAttendance)) && (

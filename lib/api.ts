@@ -1182,7 +1182,6 @@ export type LiveClass = {
   meeting_url: string;
   course_id: string | null;
   course_title: string | null;
-  programme_type: string | null;
   batch_ids: string[] | null;
   created_by: string | null;
   created_at: string;
@@ -1205,7 +1204,7 @@ export type LiveClassFilters = {
   /** 'upcoming' includes a class that is running right now. */
   view?: "upcoming" | "past";
   q?: string;
-  audience_type?: "course" | "batch" | "programme";
+  audience_type?: "course" | "batch";
   audience_id?: string;
   include_archived?: boolean;
 };
@@ -1244,12 +1243,10 @@ export type AudiencePreview = {
  */
 export async function getAudiencePreview(t: {
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }): Promise<AudiencePreview> {
   const params = new URLSearchParams();
   if (t.course_id) params.set("course_id", t.course_id);
-  if (t.programme_type) params.set("programme_type", t.programme_type);
   if (t.batch_ids?.length) params.set("batch_ids", t.batch_ids.join(","));
   const r = await apiFetch(`${API_BASE_URL}/live-classes/audience-preview?${params.toString()}`);
   if (!r.ok) throw new ApiError("Failed to preview the audience.", r.status);
@@ -1289,7 +1286,6 @@ export async function createLiveClass(payload: {
   duration_minutes: number;
   meeting_url: string;
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }): Promise<LiveClass> {
   const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
@@ -1319,7 +1315,6 @@ export async function updateLiveClass(
      * null the modes it is leaving, or the class keeps both audiences.
      */
     course_id?: string | null;
-    programme_type?: string | null;
     batch_ids?: string[];
   },
 ): Promise<LiveClass> {
