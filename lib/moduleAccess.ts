@@ -35,7 +35,6 @@ export type ModuleKey =
   | "student_export"
   | "user_management"
   | "role_management"
-  | "bulk_assign"
   | "programmes"
   | "schools"
   | "batches"
@@ -61,7 +60,6 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   student_export:   { label: "Student Export",  href: "/dashboard/student-export" },
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
-  bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
   programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
@@ -88,19 +86,6 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
 export const HIDDEN_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
   "attendance",
 ]);
-
-// ── Collapsible sidebar groups ──────────────────────────────────────────────
-//
-// Module keys that nest under a collapsible sidebar group instead of sitting
-// flat in the rail. Order *within* a group still follows MODULE_ORDER
-// (MODULE_META declaration order); the groups themselves render in the order
-// declared here, after the pinned Dashboard and before the flat remainder.
-//
-// Presentation-only: the *set* of granted modules still comes from the backend,
-// so listing a key here never grants it. A group whose members are all ungranted
-// renders nothing at all.
-//
-// A key must appear in at most one group.
 
 // ── Collapsible sidebar groups ──────────────────────────────────────────────
 //
@@ -152,6 +137,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     members: new Set<ModuleKey>([
       "user_management",
       "role_management",
+      "programmes",
       "schools",
       "batches",
     ]),

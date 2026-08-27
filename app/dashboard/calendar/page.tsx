@@ -331,7 +331,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
           )}
 
           <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
-            School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
+            School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
 
@@ -469,7 +469,7 @@ function EditEventModal({ event, onClose, onSaved }: {
           )}
 
           <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
-            School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
+            School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
 

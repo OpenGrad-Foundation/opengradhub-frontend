@@ -3846,7 +3846,12 @@ export async function getAvailableQuizzes(): Promise<AvailableQuiz[]> {
   return (await r.json()) as AvailableQuiz[];
 }
 
-// ── Bulk Assign API ────────────────────────────────────────────
+// ── Bulk enrolment API ─────────────────────────────────────────
+//
+// What is left of the retired Bulk Assign module: the User Management
+// "Bulk Assign" panel filters students and enrols them in courses/bundles in
+// one call. The standalone /dashboard/bulk-manage page and its unenrol +
+// enrolled-items endpoints are gone; enrolment at scale belongs to Batches.
 
 export type StudentForBulk = {
   id: string;
@@ -3882,43 +3887,6 @@ export async function getStudentsForBulk(
     throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
   }
   return (await r.json()) as StudentForBulk[];
-}
-
-export type EnrolledItems = {
-  courses: { id: string; title: string; programme_type: string; lesson_count: number }[];
-  bundles: { id: string; name: string; course_count: number }[];
-};
-
-export async function getEnrolledItemsForStudents(
-  studentIds: string[],
-): Promise<EnrolledItems> {
-  if (!studentIds.length) return { courses: [], bundles: [] };
-  const url = new URL(`${API_BASE_URL}/enrolments/enrolled-items`);
-  url.searchParams.set("student_ids", studentIds.join(","));
-  const r = await apiFetch(url.toString());
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch enrolled items.", r.status);
-  }
-  return (await r.json()) as EnrolledItems;
-}
-
-export async function bulkRemove(payload: {
-  student_ids: string[];
-  course_ids?: string[];
-  bundle_ids?: string[];
-}): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
-  const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to bulk remove.", r.status);
-  }
-  return (await r.json()) as { removed_courses: number; removed_bundles: number; not_enrolled: number };
 }
 
 export async function bulkEnrol(payload: {
