@@ -157,6 +157,17 @@ export const ANALYTICS_DASHBOARD_PERMISSIONS = [
   PERM.analytics.view_fellow,
 ] as const;
 
+/**
+ * Staff-only analytics permissions. Excludes `analytics.view` on purpose —
+ * students hold it for their own dashboards, and it must not unlock a page
+ * that shows another student's record.
+ */
+export const STAFF_ANALYTICS_PERMISSIONS = [
+  PERM.analytics.view_admin,
+  PERM.analytics.view_manager,
+  PERM.analytics.view_fellow,
+] as const;
+
 export const REPORTS_ROUTE_PERMISSIONS = [
   PERM.reports.view,
   PERM.analytics.view_admin,
@@ -187,6 +198,7 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
   schools: PERM.schools.view,
+  students: STAFF_ANALYTICS_PERMISSIONS,
   batches: PERM.batches.view,
   "role-management": PERM.role_management.view,
   tracker: PERM.tracker.view,

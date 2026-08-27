@@ -23,6 +23,19 @@ describe('dashboard route permissions', () => {
     expect(ROUTE_PERMISSION['role-management']).toBe(PERM.role_management.view);
   });
 
+  it('gates the student profile route on the staff analytics permissions only', () => {
+    expect(ROUTE_PERMISSION.students).toEqual(
+      expect.arrayContaining([
+        'analytics.view_admin',
+        'analytics.view_manager',
+        'analytics.view_fellow',
+      ]),
+    );
+    // students hold analytics.view for their own dashboards — it must not open
+    // another student's profile page.
+    expect(ROUTE_PERMISSION.students).not.toContain('analytics.view');
+  });
+
   it('treats Tracker as a separate Hub module gated by tracker.view', () => {
     expect(PERM.tracker).toEqual({
       view: 'tracker.view',
