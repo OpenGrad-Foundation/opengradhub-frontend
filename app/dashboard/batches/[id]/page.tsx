@@ -148,7 +148,6 @@ export default function BatchDetailPage() {
       {/* ── Section 1: Members ───────────────────────────────── */}
       <Section
         title="Students in this Batch"
-        subtitle="Students automatically receive every course, bundle, and quiz assigned to the batch."
         action={canEnrol && !archived ? (
           <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
         ) : undefined}
@@ -165,7 +164,6 @@ export default function BatchDetailPage() {
       {/* ── Section 2: Courses ───────────────────────────────── */}
       <Section
         title="Courses"
-        subtitle="Assigned directly to the batch. Removing a course revokes it from members unless another batch, bundle, or direct enrolment still grants it."
         action={canAssign && !archived ? (
           <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
         ) : undefined}
@@ -203,7 +201,6 @@ export default function BatchDetailPage() {
       {/* ── Section 3: Bundles ───────────────────────────────── */}
       <Section
         title="Bundles"
-        subtitle="Members are enrolled in the bundle and all of its courses."
         action={canAssign && !archived ? (
           <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
         ) : undefined}
@@ -237,7 +234,6 @@ export default function BatchDetailPage() {
       {/* ── Section 4: Tests ─────────────────────────────────── */}
       <Section
         title="Quizzes"
-        subtitle="Standalone global quizzes with an optional availability window per batch."
         action={canAssign && !archived ? (
           <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
         ) : undefined}
@@ -443,11 +439,6 @@ function MemberTable({
           )}
         </div>
       )}
-      {canRemove && (
-        <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: "0 0 10px" }}>
-          Batch fellows own Tracker tasks assigned to this batch. Student doubts still route to the school fellow.
-        </p>
-      )}
       <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
           <thead>
@@ -651,6 +642,8 @@ function AddMembersModal({
   onAdded: (msg: string) => void;
 }) {
   const [students, setStudents] = useState<StudentRosterItem[]>([]);
+  const [rosterTotal, setRosterTotal] = useState(0);
+  const [rosterTruncated, setRosterTruncated] = useState(false);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -663,7 +656,11 @@ function AddMembersModal({
 
   useEffect(() => {
     getStudentsList()
-      .then((data) => setStudents(data.filter((u) => !existingMemberIds.includes(u.id))))
+      .then((page) => {
+        setStudents(page.items.filter((u) => !existingMemberIds.includes(u.id)));
+        setRosterTotal(page.total);
+        setRosterTruncated(page.truncated);
+      })
       .catch((e) => { setError(e instanceof Error ? e.message : "Failed to load students."); setStudents([]); })
       .finally(() => setLoading(false));
   }, [existingMemberIds]);
@@ -773,13 +770,21 @@ function AddMembersModal({
           ))}
         </select>
       </div>
+      {rosterTruncated && (
+        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.25)", fontSize: "12px", fontWeight: 600, color: "#9b2c2c" }}>
+          Showing {students.length} of {rosterTotal} students. The rest are not
+          loaded and cannot be found by searching — narrow by state, district or
+          school, or add the remainder in a second pass. &ldquo;Select all&rdquo;
+          is disabled while the list is incomplete.
+        </p>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length && !rosterTruncated ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length && !rosterTruncated ? "#034852" : "rgba(3,72,82,0.4)" }}>
           <input
             type="checkbox"
             checked={allFilteredSelected}
             onChange={toggleAllFiltered}
-            disabled={filtered.length === 0}
+            disabled={filtered.length === 0 || rosterTruncated}
             style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
           />
           Select all{filtered.length ? ` (${filtered.length})` : ""}
@@ -1153,18 +1158,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode;
+function Section({ title, action, children }: {
+  title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ ...glassCard, marginBottom: "24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: subtitle ? "4px" : "20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
         <h2 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h2>
         {action}
       </div>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: "0 0 18px" }}>{subtitle}</p>
-      )}
       {children}
     </div>
   );

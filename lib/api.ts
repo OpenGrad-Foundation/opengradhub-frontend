@@ -221,16 +221,28 @@ export type StudentRosterItem = {
   district: string | null;
 };
 
+export type StudentRosterPage = {
+  items: StudentRosterItem[];
+  /** Full match count, independent of the row cap. */
+  total: number;
+  /** True when the row cap bit and `items` is only a prefix of `total`. */
+  truncated: boolean;
+};
+
 /**
  * Fetch the student roster via GET /users/students, which Program Managers
  * can access (analytics.view_manager) unlike GET /users (user_management.view).
+ *
+ * The whole roster comes back in one request so callers can filter locally.
+ * Callers rendering a picker must surface `truncated` — a silent prefix reads
+ * as a complete list and gets acted on as one.
  */
-export async function getStudentsList(): Promise<StudentRosterItem[]> {
+export async function getStudentsList(): Promise<StudentRosterPage> {
   const response = await apiFetch(`${API_BASE_URL}/users/students`);
   if (!response.ok) {
     throw new ApiError("Failed to fetch students.", response.status);
   }
-  return (await response.json()) as StudentRosterItem[];
+  return (await response.json()) as StudentRosterPage;
 }
 
 /**

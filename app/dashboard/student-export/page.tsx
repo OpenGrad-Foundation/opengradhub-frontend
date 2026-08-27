@@ -181,9 +181,6 @@ export default function StudentExportPage() {
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
           Student Export
         </h1>
-        <p style={{ ...subtitleStyle, marginTop: "6px" }}>
-          Filter students, preview, and download CSV exports.
-        </p>
       </div>
 
       <div style={filterCard}>

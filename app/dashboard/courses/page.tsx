@@ -209,13 +209,6 @@ export default function CoursesPage() {
     };
   }, [showDraftsTab, tab, userId]);
 
-  const subtitle = useMemo(() => {
-    if (isStudent) return "Your enrolled courses";
-    if (roleCode === "PROGRAM_MANAGER") return "Search and manage the full course catalogue";
-    if (roleCode === "SUPER_ADMIN") return "Search and manage the full OpenGrad course catalogue";
-    return "Browse the active course catalogue with cleaner search and filtering";
-  }, [isStudent, roleCode]);
-
   const visibleStudentCourses = useMemo(() => {
     const term = deferredSearch.trim().toLowerCase();
     if (!term) return studentCourses;
@@ -287,9 +280,6 @@ export default function CoursesPage() {
           <h1 className="mt-1 font-display text-[28px] font-bold text-[var(--dark-teal)]">
             Courses
           </h1>
-          <p className="mt-1 max-w-2xl text-sm leading-5 text-[rgba(3,72,82,0.6)]">
-            {subtitle}
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

@@ -229,9 +229,6 @@ export function RolePermissionPanel({
             ) : (
               <>
                 <p style={{ ...S.heading, fontSize: "15px", marginBottom: "4px" }}>{selectedModuleName}</p>
-                <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", marginBottom: "20px" }}>
-                  Toggles set the role&apos;s default grants. Per-user exceptions live in User Management.
-                </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                   {selectedPerms.map((perm) => {
                     const on = granted.has(perm.code);

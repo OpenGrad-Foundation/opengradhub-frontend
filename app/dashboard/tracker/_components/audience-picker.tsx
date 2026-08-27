@@ -82,7 +82,6 @@ export function AudiencePicker({
 
   return (
     <div>
-      <p className="mb-3 text-xs text-gray-500">Narrow by area, then pick all matching {targetWord} at once.</p>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {roleOpts.length > 1 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Role

@@ -63,9 +63,6 @@ export default function NewBundlePage() {
       <div style={{ margin: "16px 0 28px" }}>
         <p style={labelSt}>New Bundle</p>
         <h1 style={{ ...headingSt, fontSize: "28px", margin: "4px 0 0" }}>Create Bundle</h1>
-        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-          Set a name and description — you can add courses after saving.
-        </p>
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>

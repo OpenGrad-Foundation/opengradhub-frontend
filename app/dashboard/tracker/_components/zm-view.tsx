@@ -34,7 +34,6 @@ export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: strin
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-gray-950">Your zonal managers</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open a ZM to see their own tasks and their fellows.</p>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ZMs…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
       </div>

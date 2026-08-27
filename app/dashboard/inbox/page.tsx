@@ -88,7 +88,6 @@ export default function InboxPage() {
         <div>
           <p style={S.label}>Messages</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Inbox</h1>
-          <p style={{ ...S.subtitle, marginTop: "4px" }}>Your notifications and announcements</p>
           <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
             {hasUnread && (
               <button style={S.textButton} onClick={() => void handleMarkAllRead()}>

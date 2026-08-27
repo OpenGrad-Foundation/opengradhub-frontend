@@ -400,9 +400,6 @@ export default function CourseManagementPage() {
           </BackLink>
           <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
           <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
-          <p style={subtitle}>
-            Manage students, curriculum, analytics, and settings without leaving the staff workspace.
-          </p>
         </div>
 
         <div className="course-mgmt-header-buttons" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -492,7 +489,6 @@ export default function CourseManagementPage() {
               <div>
                 <p style={eyebrow}>Students</p>
                 <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Roster and progress</h3>
-                <p style={subtitle}>Track enrolled students, progress, marks, assignment state, and recent activity.</p>
               </div>
               <div className="course-mgmt-filters-box" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <input
@@ -675,7 +671,6 @@ export default function CourseManagementPage() {
           <div style={{ marginBottom: "18px" }}>
             <p style={eyebrow}>Settings</p>
             <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Course details and publishing</h3>
-            <p style={subtitle}>Update metadata here while keeping learner preview and curriculum editing separate.</p>
           </div>
           <CourseMetaForm
             key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.tags?.join(",") ?? ""}-${currentCourse.cover_image_url ?? ""}`}

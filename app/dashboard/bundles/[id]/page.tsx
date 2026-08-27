@@ -144,7 +144,6 @@ export default function BundleDetailPage() {
       {/* ── Section 1: Courses ───────────────────────────────── */}
       <Section
         title="Courses in this Bundle"
-        subtitle="Drag to reorder. Students enrolled in this bundle are automatically given access to all courses here."
         action={
           <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
             + Add Course
@@ -164,7 +163,6 @@ export default function BundleDetailPage() {
       {/* ── Section 2: Students ──────────────────────────────── */}
       <Section
         title="Students Enrolled"
-        subtitle="All students enrolled in this bundle have access to every course listed above."
         action={
           <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
             + Assign to Student
@@ -182,7 +180,6 @@ export default function BundleDetailPage() {
       {/* ── Section 3: Tests ─────────────────────────────────── */}
       <Section
         title="Quizzes in this Bundle"
-        subtitle="Published global quizzes attached to this bundle. Enrolled students can see and take these from their Quizzes page."
         action={
           <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
             + Add Quiz
@@ -920,18 +917,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode;
+function Section({ title, action, children }: {
+  title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ ...glassCard, marginBottom: "24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: subtitle ? "4px" : "20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
         <h2 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h2>
         {action}
       </div>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: "0 0 18px" }}>{subtitle}</p>
-      )}
       {children}
     </div>
   );

@@ -183,9 +183,6 @@ export default function ReportsPage() {
         <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
           Reports
         </h1>
-        <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-          Download your performance reports as a PDF — month-to-date, by course, or by quiz.
-        </p>
       </div>
 
       {error && (
@@ -198,9 +195,6 @@ export default function ReportsPage() {
       <div style={{ ...glassCard, padding: "28px 32px" }}>
         <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
           Generate a report
-        </p>
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "0 0 20px" }}>
-          Pick a scope, then download the PDF.
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "flex-end" }}>
@@ -296,9 +290,6 @@ export default function ReportsPage() {
       <div style={{ ...glassCard, marginTop: "28px" }}>
         <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
           Performance History
-        </p>
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "0 0 8px" }}>
-          Every completed quiz attempt with per-subject scores and ranks.
         </p>
 
         {historyLoading ? (

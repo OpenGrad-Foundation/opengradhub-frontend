@@ -62,11 +62,6 @@ export default function ResourcesPage() {
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
             Resources
           </h1>
-          <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-            {roleCode === "STUDENT"
-              ? `Study materials for ${programmeType ?? "all"} programme`
-              : "All study materials across programmes"}
-          </p>
         </div>
 
         {canCreate && (

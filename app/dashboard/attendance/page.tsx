@@ -60,9 +60,6 @@ export default function AttendancePage() {
       >
         Attendance
       </h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Student attendance, whole-school confirmations, and paper registers.
-      </p>
 
       <div className="mt-4">
         <Tabs

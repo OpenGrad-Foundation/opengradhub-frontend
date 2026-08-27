@@ -41,6 +41,7 @@ import {
   MODULE_META,
   NAV_GROUPS,
   GROUPED_MODULE_KEYS,
+  HIDDEN_MODULE_KEYS,
   type ModuleKey,
   type NavGroupKey,
 } from "@/lib/moduleAccess";
