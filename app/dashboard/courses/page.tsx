@@ -276,51 +276,54 @@ export default function CoursesPage() {
 
   return (
     <PageShell>
+      {/* Header sits bare on the page at 28px/700, like Batches and the
+          Question Bank. It used to live inside the filter card at 24px/600,
+          which made Courses read as a different product. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[var(--light-teal)]">
+            {isStudent ? "Learning" : "Course Management"}
+          </p>
+          <h1 className="mt-1 font-display text-[28px] font-bold text-[var(--dark-teal)]">
+            Courses
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm leading-5 text-[rgba(3,72,82,0.6)]">
+            {subtitle}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {!isStudent && (
+            <div className="flex items-center gap-1.5 rounded-full border border-[rgba(3,72,82,0.1)] bg-white/90 p-1 shadow-sm">
+              <ViewToggleButton
+                active={viewMode === "grid"}
+                icon={<LayoutGrid size={14} />}
+                label="Grid"
+                onClick={() => handleViewModeChange("grid")}
+              />
+              <ViewToggleButton
+                active={viewMode === "list"}
+                icon={<List size={14} />}
+                label="List"
+                onClick={() => handleViewModeChange("list")}
+              />
+            </div>
+          )}
+
+          {canCreate && (
+            <Link
+              href="/dashboard/courses/new"
+              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--green),var(--teal))] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(10,190,98,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(10,190,98,0.32)]"
+            >
+              <Plus size={16} />
+              New Course
+            </Link>
+          )}
+        </div>
+      </div>
+
       <section className="rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[0.65rem] font-bold uppercase tracking-[0.32em] text-[var(--light-teal)]">
-                {isStudent ? "Learning" : "Course Management"}
-              </p>
-              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--dark-teal)]">
-                Courses
-              </h1>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-[rgba(3,72,82,0.7)]">
-                {subtitle}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {!isStudent && (
-                <div className="flex items-center gap-1.5 rounded-full border border-[rgba(3,72,82,0.1)] bg-white/90 p-1 shadow-sm">
-                  <ViewToggleButton
-                    active={viewMode === "grid"}
-                    icon={<LayoutGrid size={14} />}
-                    label="Grid"
-                    onClick={() => handleViewModeChange("grid")}
-                  />
-                  <ViewToggleButton
-                    active={viewMode === "list"}
-                    icon={<List size={14} />}
-                    label="List"
-                    onClick={() => handleViewModeChange("list")}
-                  />
-                </div>
-              )}
-
-              {canCreate && (
-                <Link
-                  href="/dashboard/courses/new"
-                  className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--green),var(--teal))] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(10,190,98,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(10,190,98,0.32)]"
-                >
-                  <Plus size={16} />
-                  New Course
-                </Link>
-              )}
-            </div>
-          </div>
-
           {showDraftsTab && (
             <div
               role="tablist"
