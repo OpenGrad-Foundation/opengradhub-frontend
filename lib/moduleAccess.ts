@@ -87,21 +87,63 @@ export const HIDDEN_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
   "attendance",
 ]);
 
-// Module keys that nest under the collapsible "LMS Tools" sidebar group.
-// Order within the group still follows MODULE_ORDER (MODULE_META declaration order).
-// Presentation-only: the *set* of granted modules still comes from the backend.
-export const LMS_GROUP_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
-  "courses",
-  "bundles",
-  "assessments",   // "Quizzes"
-  "test_bank",     // "Question Bank"
-  "assignments",
-  "live_classes",
-  "calendar",
-  "resources",
-  "doubts",
-  "analytics",
-  "reports",
-  "student_export",
-  "batches",
-]);
+// ── Collapsible sidebar groups ──────────────────────────────────────────────
+//
+// Module keys that nest under a collapsible sidebar group instead of sitting
+// flat in the rail. Order *within* a group still follows MODULE_ORDER
+// (MODULE_META declaration order); the groups themselves render in the order
+// declared here, after the pinned Dashboard and before the flat remainder.
+//
+// Presentation-only: the *set* of granted modules still comes from the backend,
+// so listing a key here never grants it. A group whose members are all ungranted
+// renders nothing at all.
+//
+// A key must appear in at most one group.
+
+export type NavGroupKey = "lms" | "management";
+
+export type NavGroup = {
+  key: NavGroupKey;
+  label: string;
+  /** localStorage key holding this group's persisted open/closed state. */
+  storageKey: string;
+  members: ReadonlySet<ModuleKey>;
+};
+
+export const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    key: "lms",
+    label: "LMS",
+    storageKey: "sidebar.lms.open",
+    members: new Set<ModuleKey>([
+      "courses",
+      "bundles",
+      "assessments",   // "Quizzes"
+      "test_bank",     // "Question Bank"
+      "assignments",
+      "live_classes",
+      "calendar",
+      "resources",
+      "doubts",
+      "analytics",
+      "reports",
+      "student_export",
+    ]),
+  },
+  {
+    key: "management",
+    label: "Management",
+    storageKey: "sidebar.management.open",
+    members: new Set<ModuleKey>([
+      "user_management",
+      "role_management",
+      "schools",
+      "batches",
+    ]),
+  },
+];
+
+// Every key claimed by some group — used to compute the flat remainder.
+export const GROUPED_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>(
+  NAV_GROUPS.flatMap((g) => [...g.members]),
+);

@@ -84,9 +84,6 @@ export default function RoleManagementPage() {
       <div className="rm-header" style={{ marginBottom: "32px" }}>
         <p style={labelStyle}>Administration</p>
         <h1 className="rm-title" style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
-        <p style={{ ...subtitleStyle, marginTop: "6px" }}>
-          Set the default permissions for each role, or create a new role.
-        </p>
       </div>
 
       <div className="rm-card" style={glassCard}>

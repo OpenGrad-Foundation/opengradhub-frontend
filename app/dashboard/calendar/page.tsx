@@ -77,9 +77,6 @@ export default function CalendarPage() {
         <div>
           <p style={S.label}>Upcoming</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Calendar</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-            Live sessions, deadlines, and programme events
-          </p>
         </div>
         {canCreate && (
           <button onClick={() => setShowCreate(true)} style={primaryBtn}>

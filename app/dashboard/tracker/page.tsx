@@ -317,7 +317,6 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-gray-950">Your team</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open a team member to see their tasks.</p>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search team…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
       </div>
@@ -542,9 +541,9 @@ function BlockersPanel({
   return (
     <>
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <BlockerList title="Raised by me" subtitle="Blockers you flagged that are still open." blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} onOpen={setOpenId} />
+        <BlockerList title="Raised by me" blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} onOpen={setOpenId} />
         {isManagerView && (
-          <BlockerList title="Needs my attention" subtitle="Blockers escalated up to you, awaiting a response." blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} onOpen={setOpenId} />
+          <BlockerList title="Needs my attention" blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} onOpen={setOpenId} />
         )}
       </div>
       {openId && <BlockerDrawer blockerId={openId} canClear={canClear} onClose={() => setOpenId(null)} />}
@@ -554,7 +553,6 @@ function BlockersPanel({
 
 function BlockerList({
   title,
-  subtitle,
   blockers,
   loading,
   error,
@@ -562,7 +560,6 @@ function BlockerList({
   onOpen,
 }: {
   title: string;
-  subtitle: string;
   blockers: TrackerBlocker[];
   loading: boolean;
   error: unknown;
@@ -577,7 +574,6 @@ function BlockerList({
     <section className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h2 className="text-base font-semibold text-gray-950">{title}</h2>
-        <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>
       </div>
       {blockers.length === 0 ? (
         <p className="px-4 py-8 text-sm text-gray-500">No blockers.</p>

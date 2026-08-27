@@ -71,7 +71,6 @@ export default function DoubtsPage() {
         <div>
           <p style={labelStyle}>Support</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
-          <p style={{ ...subtitleStyle, marginTop: "4px" }}>Ask questions and track your answers</p>
         </div>
         {canSubmit && (
           <button
@@ -174,9 +173,6 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
       <div style={{ marginBottom: 20 }}>
         <p style={labelStyle}>Support</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
-        <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-          Doubts from students in your scope.
-        </p>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>

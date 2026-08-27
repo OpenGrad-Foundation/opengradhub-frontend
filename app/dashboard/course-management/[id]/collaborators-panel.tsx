@@ -116,10 +116,6 @@ export default function CollaboratorsPanel({
       <div style={{ marginBottom: "14px" }}>
         <p style={eyebrow}>Sharing</p>
         <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Collaborators</h3>
-        <p style={subtitle}>
-          Collaborators can edit this course, manage its curriculum, and view its management
-          dashboards. Only the creator (or a Super Admin) can delete the course or change this list.
-        </p>
       </div>
 
       {error && (

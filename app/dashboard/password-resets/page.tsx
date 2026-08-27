@@ -75,11 +75,6 @@ export default function PasswordResetsPage() {
   return (
     <div className="p-6 sm:p-8 max-w-3xl">
       <h1 className="text-xl font-bold mb-1">Password Reset Requests</h1>
-      <p className="text-sm text-black/60 mb-6">
-        Students who forgot their password and verified their roll number and date of
-        birth. Approve a request by setting a new password for the student, then share
-        it with them offline.
-      </p>
 
       {notice && (
         <p role="status" className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">

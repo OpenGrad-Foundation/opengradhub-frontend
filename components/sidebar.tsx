@@ -26,6 +26,7 @@ import {
   School,
   Layers,
   ListChecks,
+  Settings,
   X,
   ChevronUp,
   ChevronDown,
@@ -35,7 +36,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { MODULE_META, LMS_GROUP_KEYS, HIDDEN_MODULE_KEYS, type ModuleKey } from "@/lib/moduleAccess";
+import {
+  MODULE_META,
+  NAV_GROUPS,
+  GROUPED_MODULE_KEYS,
+  HIDDEN_MODULE_KEYS,
+  type ModuleKey,
+  type NavGroupKey,
+} from "@/lib/moduleAccess";
 
 // Nav order = the order MODULE_META is declared in.
 const MODULE_ORDER = Object.keys(MODULE_META) as ModuleKey[];
@@ -64,6 +72,11 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   batches:         Layers,
   tracker:         ListChecks,
   attendance:      CalendarCheck,
+};
+
+const GROUP_ICONS: Record<NavGroupKey, LucideIcon> = {
+  lms:        Layers,
+  management: Settings,
 };
 
 // ── Active path helper ───────────────────────────────────────────────────────
@@ -100,44 +113,70 @@ export default function Sidebar({
     (key) => grantedCodes.has(key) && !HIDDEN_MODULE_KEYS.has(key),
   ).map((key) => ({ key, ...MODULE_META[key] }));
 
-  // Dashboard is pinned at top; LMS keys nest into the collapsible group;
+  // Dashboard is pinned at top; grouped keys nest into their collapsible group;
   // everything else stays flat below. All three preserve MODULE_ORDER.
   const topModules = granted.filter((m) => m.key === "dashboard");
-  const lmsModules = granted.filter(
-    (m) => m.key !== "dashboard" && LMS_GROUP_KEYS.has(m.key),
-  );
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    modules: granted.filter(
+      (m) => m.key !== "dashboard" && group.members.has(m.key),
+    ),
+  })).filter((group) => group.modules.length > 0);
   const restModules = granted.filter(
-    (m) => m.key !== "dashboard" && !LMS_GROUP_KEYS.has(m.key),
+    (m) => m.key !== "dashboard" && !GROUPED_MODULE_KEYS.has(m.key),
   );
+  // Every leaf that lives inside some group, in MODULE_ORDER — what the
+  // collapsed rail shows flat, since it has no room for group headers.
+  const groupedModules = groups.flatMap((group) => group.modules);
 
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
   const navRef = useRef<HTMLElement>(null);
 
-  // "LMS Tools" group open state, persisted across sessions. Read in an effect
-  // (not during render) to avoid SSR/hydration mismatch.
-  const [lmsStoredOpen, setLmsStoredOpen] = useState(true);
+  // Per-group open state, persisted across sessions. Groups default to open and
+  // are read from storage in an effect (not during render) to avoid an
+  // SSR/hydration mismatch.
+  const [storedOpen, setStoredOpen] = useState<Record<NavGroupKey, boolean>>(
+    () =>
+      Object.fromEntries(
+        NAV_GROUPS.map((g) => [g.key, true]),
+      ) as Record<NavGroupKey, boolean>,
+  );
   useEffect(() => {
-    try {
-      const v = localStorage.getItem("sidebar.lms.open");
-      if (v !== null) setLmsStoredOpen(v === "true");
-    } catch {
-      /* SSR / storage unavailable — keep default */
-    }
+    setStoredOpen((prev) => {
+      const next = { ...prev };
+      for (const group of NAV_GROUPS) {
+        try {
+          const v = localStorage.getItem(group.storageKey);
+          if (v !== null) next[group.key] = v === "true";
+        } catch {
+          /* SSR / storage unavailable — keep default */
+        }
+      }
+      return next;
+    });
   }, []);
 
-  const activeLmsChild = lmsModules.some((m) => isActivePath(pathname, m.href));
-  const lmsOpen = activeLmsChild || lmsStoredOpen;
+  // A group holding the active route is forced open, whatever the stored state.
+  const isGroupOpen = (group: (typeof groups)[number]) =>
+    group.modules.some((m) => isActivePath(pathname, m.href)) ||
+    storedOpen[group.key];
 
-  const toggleLms = () => {
-    const next = !lmsStoredOpen;
-    setLmsStoredOpen(next);
+  const toggleGroup = (group: (typeof groups)[number]) => {
+    const next = !storedOpen[group.key];
+    setStoredOpen((prev) => ({ ...prev, [group.key]: next }));
     try {
-      localStorage.setItem("sidebar.lms.open", String(next));
+      localStorage.setItem(group.storageKey, String(next));
     } catch {
       /* ignore */
     }
   };
+
+  // Group membership + open/closed state both change the nav's height, so the
+  // scroll-indicator effect re-runs whenever this signature changes.
+  const groupsSignature = groups
+    .map((g) => `${g.key}:${g.modules.length}:${isGroupOpen(g)}`)
+    .join("|");
 
   const checkScrollLimits = () => {
     const nav = navRef.current;
@@ -173,7 +212,7 @@ export default function Sidebar({
       resizeObserver.disconnect();
       window.removeEventListener("resize", checkScrollLimits);
     };
-  }, [topModules.length, lmsModules.length, restModules.length, lmsOpen]);
+  }, [topModules.length, restModules.length, groupsSignature]);
 
   useEffect(() => {
     checkScrollLimits();
@@ -303,35 +342,40 @@ export default function Sidebar({
             {/* Pinned: Dashboard */}
             {topModules.map((module) => renderLeaf(module))}
 
-            {/* Collapsible: LMS Tools (expanded sidebar only) */}
-            {lmsModules.length > 0 && !collapsed && (
-              <li>
-                <button
-                  type="button"
-                  onClick={toggleLms}
-                  aria-expanded={lmsOpen}
-                  className="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[var(--dark-teal)]"
-                >
-                  <Layers size={18} className="text-gray-400" aria-hidden="true" />
-                  <span>LMS Tools</span>
-                  {lmsOpen ? (
-                    <ChevronDown size={16} className="ml-auto text-gray-400" aria-hidden="true" />
-                  ) : (
-                    <ChevronRight size={16} className="ml-auto text-gray-400" aria-hidden="true" />
-                  )}
-                </button>
-                {lmsOpen && (
-                  <ul className="mt-0.5 space-y-0.5 pl-4">
-                    {lmsModules.map((module) => renderLeaf(module))}
-                  </ul>
-                )}
-              </li>
-            )}
+            {/* Collapsible groups (expanded sidebar only) */}
+            {!collapsed &&
+              groups.map((group) => {
+                const open = isGroupOpen(group);
+                const GroupIcon = GROUP_ICONS[group.key];
+                return (
+                  <li key={group.key}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group)}
+                      aria-expanded={open}
+                      className="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[var(--dark-teal)]"
+                    >
+                      {GroupIcon && (
+                        <GroupIcon size={18} className="text-gray-400" aria-hidden="true" />
+                      )}
+                      <span>{group.label}</span>
+                      {open ? (
+                        <ChevronDown size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                      ) : (
+                        <ChevronRight size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                      )}
+                    </button>
+                    {open && (
+                      <ul className="mt-0.5 space-y-0.5 pl-4">
+                        {group.modules.map((module) => renderLeaf(module))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
 
-            {/* Collapsed rail: LMS children flat as icons (no header) */}
-            {lmsModules.length > 0 &&
-              collapsed &&
-              lmsModules.map((module) => renderLeaf(module))}
+            {/* Collapsed rail: group children flat as icons (no headers) */}
+            {collapsed && groupedModules.map((module) => renderLeaf(module))}
 
             {/* Flat remainder */}
             {restModules.map((module) => renderLeaf(module))}

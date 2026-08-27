@@ -40,9 +40,6 @@ export function StudentFieldsManager({ canAuthor }: { canAuthor: boolean }) {
     <div>
       <div className="mb-6">
         <h3 className="text-xl font-semibold text-gray-950">Additional Student Details</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          Extra student fields (e.g. Date of Birth, Aadhaar URL) that Fellows fill and templates can auto-fill.
-        </p>
       </div>
 
       {addingField ? (

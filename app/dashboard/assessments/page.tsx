@@ -398,9 +398,6 @@ function PageHeader() {
           <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
             Quizzes
           </h1>
-          <p style={{ marginTop: "6px", fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>
-            Module quizzes from your courses and programme-wide mock quizzes.
-          </p>
         </div>
         {has(PERM.test_bank.create) && (
           <button

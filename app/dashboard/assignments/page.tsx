@@ -36,9 +36,11 @@ export default function AssignmentsPage() {
         <div>
           <p style={S.label}>Learning</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-            {isManager ? `${assignments.length} assignment${assignments.length !== 1 ? "s" : ""}` : "Your pending and completed assignments"}
-          </p>
+          {isManager && (
+            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+              {assignments.length} assignment{assignments.length !== 1 ? "s" : ""}
+            </p>
+          )}
         </div>
         {canCreate && (
           <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
@@ -98,9 +100,6 @@ function ManagerAssignmentsView({ canCreate }: { canCreate: boolean }) {
         <div>
           <p style={S.label}>Assignments</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-            All assignments you manage, and the queue of submissions to grade.
-          </p>
         </div>
         {canCreate && (
           <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>

@@ -155,7 +155,6 @@ export function TaskDetail({
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">
           <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
-          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. The assignee fills these in on the task itself; “Auto-filled” ones come from the record.</p>
         </div>
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -260,7 +259,6 @@ function TaskSummary({ templateId, targetType }: { templateId: string; targetTyp
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h3 className="text-base font-semibold text-gray-950">Progress</h3>
-        <p className="mt-0.5 text-xs text-gray-500">How your team is doing on this task.</p>
       </div>
       {isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>

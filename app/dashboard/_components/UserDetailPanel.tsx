@@ -617,9 +617,6 @@ export function UserDetailPanel({
           {isStudent && (
             <div style={{ padding: `${padV} ${padH}`, borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
               <p style={{ ...S.label, marginBottom: "6px" }}>Courses & Bundles</p>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "0 0 12px" }}>
-                Assign learning content to this student.
-              </p>
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   onClick={() => onAssignCourse(user)}

@@ -119,11 +119,6 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
             />
           </div>
         )}
-        {needsSchool && !schoolsFailed && (
-          <p className="mt-1.5 text-xs text-slate-400">
-            Select a school to print its register or upload a filled one.
-          </p>
-        )}
       </div>
 
       <div className={`rounded-xl border border-slate-200 bg-white p-4 ${dimmed}`} aria-disabled={needsSchool}>

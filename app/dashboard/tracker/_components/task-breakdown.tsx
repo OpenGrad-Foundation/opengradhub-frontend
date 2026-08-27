@@ -133,9 +133,6 @@ function LevelList({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
         <div>
           <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {isLeafLevel ? "Each row shows its status for the task." : "Open a row to drill into its completion."}
-          </p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />

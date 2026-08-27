@@ -59,9 +59,6 @@ function AttendancePage() {
       >
         Attendance
       </h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Per-school live-class links and paper register uploads.
-      </p>
 
       <div className="mt-4">
         <Tabs
