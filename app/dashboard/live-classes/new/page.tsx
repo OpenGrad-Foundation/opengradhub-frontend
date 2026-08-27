@@ -10,7 +10,6 @@ import { PERM } from "@/lib/permissions";
 import { createLiveClass, getCourses, type Course } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
-import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { useAudiencePreview } from "@/lib/queries/live-classes";
 import { AudienceCount } from "@/components/AudienceCount";
 
@@ -25,10 +24,6 @@ export default function NewLiveClassPage() {
   const [duration, setDuration] = useState("60");
   const [meetUrl,  setMeetUrl]  = useState("");
   const [courseId, setCourseId] = useState("");
-  // Empty, not "UG". Every audience field is presented as optional, so a
-  // pre-selected programme silently ANDs itself into a target the user never
-  // chose — dropping every CAT/PG student in the batch they did choose.
-  const [progType, setProgType] = useState("");
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const [courses,  setCourses]  = useState<Course[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -46,7 +41,6 @@ export default function NewLiveClassPage() {
   // on every render.
   const preview = useAudiencePreview({
     course_id: courseId || undefined,
-    programme_type: progType || undefined,
     batch_ids: batchIds.length ? batchIds : undefined,
   });
 
@@ -65,8 +59,8 @@ export default function NewLiveClassPage() {
     if (!title.trim())   { setError("Title is required."); return; }
     if (!datetime)       { setError("Date & time is required."); return; }
     if (!meetUrl.trim()) { setError("Meeting URL is required."); return; }
-    if (!courseId && !progType && batchIds.length === 0) {
-      setError("Pick at least one of course, programme or batches.");
+    if (!courseId && batchIds.length === 0) {
+      setError("Pick a course, batches, or both.");
       return;
     }
     setSubmitting(true);
@@ -79,7 +73,6 @@ export default function NewLiveClassPage() {
         duration_minutes: Math.max(1, Number(duration) || 60),
         meeting_url:      meetUrl.trim(),
         course_id:        courseId || undefined,
-        programme_type:   progType || undefined,
         batch_ids:        batchIds.length ? batchIds : undefined,
       });
       // A class can be scheduled even when some targeted students are in no
@@ -105,7 +98,6 @@ export default function NewLiveClassPage() {
   // people and this is the opposite: each filter removes students.
   const parts: string[] = [];
   if (courseId) parts.push(`enrolled in ${courses.find(c => c.id === courseId)?.title ?? "the course"}`);
-  if (progType) parts.push(`in the ${progType} programme`);
   if (batchIds.length) parts.push(`in ${batchIds.length} selected batch${batchIds.length === 1 ? "" : "es"}`);
   const audienceSummary = parts.length === 0
     ? "nobody yet — pick at least one"
@@ -142,11 +134,10 @@ export default function NewLiveClassPage() {
             <input type="url" value={meetUrl} onChange={e => setMeetUrl(e.target.value)} style={S.input} placeholder="https://meet.google.com/… or https://zoom.us/j/…" required />
           </Field>
 
-          {/* Audience: three INDEPENDENT optional filters that narrow each
-              other. Picking a course and a batch means "students in that course
-              who are also in that batch" — not the two audiences added up. At
-              least one is required, because a class with no audience reaches
-              nobody. */}
+          {/* Audience: two INDEPENDENT optional filters that narrow each other.
+              Picking a course and a batch means "students in that course who
+              are also in that batch" — not the two audiences added up. At least
+              one is required, because a class with no audience reaches nobody. */}
           <div>
             <p style={fieldLabel}>Target Audience *</p>
             <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 10px" }}>
@@ -160,15 +151,6 @@ export default function NewLiveClassPage() {
                   <option value="">Any course</option>
                   {courses.map(c => (
                     <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Programme (optional)">
-                <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                  <option value="">Any programme</option>
-                  {PROGRAMME_KINDS.map((k) => (
-                    <option key={k.value} value={k.value}>{k.label}</option>
                   ))}
                 </select>
               </Field>

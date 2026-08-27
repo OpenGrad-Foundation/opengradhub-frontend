@@ -297,7 +297,6 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
         const matches =
           kind === "course" ? c.course_id === id
           : kind === "batch" ? (c.batch_ids ?? []).includes(id)
-          : kind === "programme" ? c.programme_type === id
           : true;
         if (!matches) return false;
       }
