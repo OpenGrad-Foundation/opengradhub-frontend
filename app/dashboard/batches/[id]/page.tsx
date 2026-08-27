@@ -39,6 +39,8 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 import { normState } from "@/lib/geo";
 import { useBatch } from "@/lib/queries/batches";
+import { Tabs, type TabDef } from "@/app/dashboard/_components/Tabs";
+import { BatchForm } from "../BatchForm";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,8 @@ export default function BatchDetailPage() {
 
   const canEnrol = has(PERM.batches.enrol);
   const canAssign = has(PERM.batches.assign_content);
+  const canEdit = has(PERM.batches.edit);
+  const canDelete = has(PERM.batches.delete);
   const archived = batch?.status === "ARCHIVED";
 
   async function handleDelete() {
@@ -110,6 +114,161 @@ export default function BatchDetailPage() {
     );
   }
 
+  // Panels are declared up front so the conditional Settings tab stays typed;
+  // <Tabs> renders only the active one.
+  const tabs: TabDef[] = [
+    {
+      key: "students",
+      label: "Students",
+      panel: (
+        <Section
+          title="Students in this Batch"
+          action={canEnrol && !archived ? (
+            <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
+          ) : undefined}
+        >
+          <MemberTable
+            batchId={batchId}
+            members={batch.members}
+            canRemove={canEnrol && !archived}
+            onChanged={() => { void refetch(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "courses",
+      label: "Courses",
+      panel: (
+        <Section
+          title="Courses"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
+          ) : undefined}
+        >
+          {batch.courses.length === 0 ? (
+            <EmptyHint text="No courses assigned yet." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {batch.courses.map((c) => (
+                <ContentRow
+                  key={c.id}
+                  title={c.title}
+                  meta={`${c.programme_type} · ${c.status}`}
+                  badge={!c.is_direct && c.via_bundles.length > 0
+                    ? `via ${c.via_bundles.join(", ")}`
+                    : undefined}
+                  // Bundle-derived courses are detached by removing the bundle,
+                  // so they carry no per-course remove control.
+                  onRemove={canAssign && !archived && c.is_direct ? async () => {
+                    if (!confirm(`Remove "${c.title}" from this batch? Members lose access unless granted elsewhere.`)) return;
+                    try {
+                      await removeCourseFromBatch(batchId, c.id);
+                      invalidate('batches');
+                      void refetch();
+                    } catch (e) {
+                      setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
+                    }
+                  } : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      ),
+    },
+    {
+      key: "bundles",
+      label: "Bundles",
+      panel: (
+        <Section
+          title="Bundles"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
+          ) : undefined}
+        >
+          {batch.bundles.length === 0 ? (
+            <EmptyHint text="No bundles assigned yet." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {batch.bundles.map((b) => (
+                <ContentRow
+                  key={b.id}
+                  title={b.name}
+                  meta={`${b.course_count} course${b.course_count !== 1 ? "s" : ""}`}
+                  href={withFrom(`/dashboard/bundles/${b.id}`, currentUrl)}
+                  onRemove={canAssign && !archived ? async () => {
+                    if (!confirm(`Remove bundle "${b.name}" from this batch? Members lose its courses unless granted elsewhere.`)) return;
+                    try {
+                      await removeBundleFromBatch(batchId, b.id);
+                      invalidate('batches', 'bundles');
+                      void refetch();
+                    } catch (e) {
+                      setGlobalError(e instanceof Error ? e.message : "Failed to remove bundle.");
+                    }
+                  } : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      ),
+    },
+    {
+      key: "quizzes",
+      label: "Quizzes",
+      panel: (
+        <Section
+          title="Quizzes"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
+          ) : undefined}
+        >
+          <TestList
+            batchId={batchId}
+            tests={batch.tests}
+            canManage={canAssign && !archived}
+            onChanged={() => { void refetch(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+  ];
+
+  if (canEdit) {
+    tabs.push({
+      key: "settings",
+      label: "Settings",
+      panel: (
+        <>
+          <Section title="Batch Details">
+            {/* Remounts when the saved record changes so the fields never show
+                a stale draft after a refetch. */}
+            <BatchForm
+              key={[batch.id, batch.name, batch.status, batch.school_id ?? "", batch.programme_type ?? "", batch.starts_on ?? "", batch.ends_on ?? ""].join("|")}
+              mode="edit"
+              batch={batch}
+              submitLabel="Save settings"
+              onSaved={() => { void refetch(); showToast("Batch updated."); }}
+            />
+          </Section>
+          {canDelete && (
+            <Section title="Danger Zone">
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+                Deleting a batch is permanent. It only works while no students are enrolled &mdash; clear the cohort from the Students tab first.
+              </p>
+              <button onClick={() => void handleDelete()} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
+                {deleting ? "Deleting…" : "Delete Batch"}
+              </button>
+            </Section>
+          )}
+        </>
+      ),
+    });
+  }
+
   return (
     <Shell>
       <BackLink fallback="/dashboard/batches" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
@@ -136,116 +295,11 @@ export default function BatchDetailPage() {
             <Chip icon="📝" value={batch.tests.length} label="quiz" plural="quizzes" />
           </div>
         </div>
-        {has(PERM.batches.delete) && (
-          <button onClick={() => void handleDelete()} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? "Deleting…" : "Delete Batch"}
-          </button>
-        )}
       </div>
 
       {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
-      {/* ── Section 1: Members ───────────────────────────────── */}
-      <Section
-        title="Students in this Batch"
-        action={canEnrol && !archived ? (
-          <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
-        ) : undefined}
-      >
-        <MemberTable
-          batchId={batchId}
-          members={batch.members}
-          canRemove={canEnrol && !archived}
-          onChanged={() => { void refetch(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 2: Courses ───────────────────────────────── */}
-      <Section
-        title="Courses"
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
-        ) : undefined}
-      >
-        {batch.courses.length === 0 ? (
-          <EmptyHint text="No courses assigned yet." />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {batch.courses.map((c) => (
-              <ContentRow
-                key={c.id}
-                title={c.title}
-                meta={`${c.programme_type} · ${c.status}`}
-                badge={!c.is_direct && c.via_bundles.length > 0
-                  ? `via ${c.via_bundles.join(", ")}`
-                  : undefined}
-                // Bundle-derived courses are detached by removing the bundle,
-                // so they carry no per-course remove control.
-                onRemove={canAssign && !archived && c.is_direct ? async () => {
-                  if (!confirm(`Remove "${c.title}" from this batch? Members lose access unless granted elsewhere.`)) return;
-                  try {
-                    await removeCourseFromBatch(batchId, c.id);
-                    invalidate('batches');
-                    void refetch();
-                  } catch (e) {
-                    setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
-                  }
-                } : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* ── Section 3: Bundles ───────────────────────────────── */}
-      <Section
-        title="Bundles"
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
-        ) : undefined}
-      >
-        {batch.bundles.length === 0 ? (
-          <EmptyHint text="No bundles assigned yet." />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {batch.bundles.map((b) => (
-              <ContentRow
-                key={b.id}
-                title={b.name}
-                meta={`${b.course_count} course${b.course_count !== 1 ? "s" : ""}`}
-                href={withFrom(`/dashboard/bundles/${b.id}`, currentUrl)}
-                onRemove={canAssign && !archived ? async () => {
-                  if (!confirm(`Remove bundle "${b.name}" from this batch? Members lose its courses unless granted elsewhere.`)) return;
-                  try {
-                    await removeBundleFromBatch(batchId, b.id);
-                    invalidate('batches', 'bundles');
-                    void refetch();
-                  } catch (e) {
-                    setGlobalError(e instanceof Error ? e.message : "Failed to remove bundle.");
-                  }
-                } : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* ── Section 4: Tests ─────────────────────────────────── */}
-      <Section
-        title="Quizzes"
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
-        ) : undefined}
-      >
-        <TestList
-          batchId={batchId}
-          tests={batch.tests}
-          canManage={canAssign && !archived}
-          onChanged={() => { void refetch(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
+      <Tabs tabs={tabs} ariaLabel="Batch sections" />
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addMembersOpen && (
