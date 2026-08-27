@@ -2702,6 +2702,50 @@ export type TopicStrengthRow = {
   accuracy_pct: number;
 };
 
+export type StudentProfileCourse = {
+  id: string;
+  title: string;
+  lessons_total: number;
+  lessons_done: number;
+  completion_pct: number;
+  avg_score: number | null;
+};
+
+export type StudentProfile = {
+  student: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    roll_number: string | null;
+    programme: string | null;
+    status: string;
+    school_id: string | null;
+    school_name: string | null;
+    district: string | null;
+    state: string | null;
+    batches: { id: string; name: string }[];
+  };
+  kpis: {
+    completion_pct: number;
+    avg_score: number | null;
+    attempts: number;
+    last_activity_at: string | null;
+    at_risk: boolean;
+  };
+  courses: StudentProfileCourse[];
+};
+
+/** Staff view of one student. Backend asserts the caller's org scope. */
+export async function getStudentProfile(studentId: string): Promise<StudentProfile> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/profile`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load student profile.", r.status);
+  }
+  return (await r.json()) as StudentProfile;
+}
+
 export async function getTopicStrength(studentId: string): Promise<TopicStrengthRow[]> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`);
   if (!r.ok) {

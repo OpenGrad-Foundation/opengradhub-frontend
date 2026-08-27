@@ -41,7 +41,7 @@ export function NeedsAttention({
             {data.at_risk_students.map((s) => (
               <li key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
                 <Link
-                  href={`/dashboard/users/${s.id}` as any}
+                  href={withFrom(`/dashboard/students/${s.id}`, currentUrl)}
                   style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{s.name}</span>
@@ -64,7 +64,7 @@ export function NeedsAttention({
             {data.worst_quizzes.map((q) => (
               <li key={q.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
                 <Link
-                  href={withFrom(`/dashboard/quiz/${q.id}/leaderboard`, currentUrl) as any}
+                  href={withFrom(`/dashboard/quiz/${q.id}/leaderboard`, currentUrl)}
                   style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{q.title}</span>
