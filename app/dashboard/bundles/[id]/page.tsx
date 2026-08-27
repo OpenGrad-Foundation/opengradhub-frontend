@@ -85,7 +85,9 @@ export default function BundleDetailPage() {
     setDeleting(true);
     try {
       await deleteBundle(bundleId);
-      invalidate('bundles');
+      // batch_bundles rows cascade away via FK — every batch that held this
+      // bundle loses it and its derived courses.
+      invalidate('bundles', 'batches');
       await queryClient.invalidateQueries({ queryKey: ["og", "bundles"] });
       router.push("/dashboard/bundles");
     } catch (e) {
@@ -284,7 +286,9 @@ function CourseList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nStudents already enrolled will keep their individual course access.`)) return;
     try {
       await removeCourseFromBundle(bundleId, courseId);
-      invalidate('bundles');
+      // Enrolments survive by design, but batches reaching this course only via
+      // the bundle lose it from their derived course list.
+      invalidate('bundles', 'batches');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
@@ -495,7 +499,10 @@ function AddCourseModal({
         const result = await addCourseToBundle(bundleId, c.id);
         totalStudentsEnrolled += result.students_enrolled;
       }
-      invalidate('bundles');
+      // Back-end back-fills course_enrolments for every bundle subscriber and
+      // the course joins the derived course list of every batch holding this
+      // bundle — so the student/course views and batch views both go stale.
+      invalidate('bundles', 'enrolment', 'batches');
       const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
       const msg = totalStudentsEnrolled > 0
         ? `${noun} added and ${totalStudentsEnrolled} student${totalStudentsEnrolled !== 1 ? "s" : ""} enrolled.`
@@ -733,7 +740,7 @@ function TestList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
       await removeTestFromBundle(bundleId, quizId);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove quiz.");
@@ -840,7 +847,7 @@ function AddTestModal({
     setError(null);
     try {
       await addTestToBundle(bundleId, selected.id);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add quiz.");

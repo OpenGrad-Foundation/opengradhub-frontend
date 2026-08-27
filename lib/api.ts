@@ -4234,6 +4234,10 @@ export type BatchCourseEntry = {
   title: string;
   programme_type: string;
   status: string;
+  /** true when pinned directly on the batch; false when it only comes from a bundle. */
+  is_direct: boolean;
+  /** names of the batch's bundles that supply this course. */
+  via_bundles: string[];
 };
 
 export type BatchBundleEntry = {

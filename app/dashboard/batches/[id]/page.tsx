@@ -179,7 +179,12 @@ export default function BatchDetailPage() {
                 key={c.id}
                 title={c.title}
                 meta={`${c.programme_type} · ${c.status}`}
-                onRemove={canAssign && !archived ? async () => {
+                badge={!c.is_direct && c.via_bundles.length > 0
+                  ? `via ${c.via_bundles.join(", ")}`
+                  : undefined}
+                // Bundle-derived courses are detached by removing the bundle,
+                // so they carry no per-course remove control.
+                onRemove={canAssign && !archived && c.is_direct ? async () => {
                   if (!confirm(`Remove "${c.title}" from this batch? Members lose access unless granted elsewhere.`)) return;
                   try {
                     await removeCourseFromBatch(batchId, c.id);
@@ -258,7 +263,7 @@ export default function BatchDetailPage() {
       {addCourseOpen && (
         <AddCourseModal
           batchId={batchId}
-          existingCourseIds={batch.courses.map((c) => c.id)}
+          existingCourseIds={batch.courses.filter((c) => c.is_direct).map((c) => c.id)}
           memberCount={batch.members.length}
           onClose={() => setAddCourseOpen(false)}
           onAdded={(msg) => { setAddCourseOpen(false); invalidate('batches', 'enrolment'); void refetch(); showToast(msg); }}
@@ -1096,8 +1101,9 @@ function ModalActions({ onClose, onConfirm, disabled, label }: {
   );
 }
 
-function ContentRow({ title, meta, href, onRemove }: {
-  title: string; meta: string; href?: string; onRemove?: () => Promise<void> | void;
+function ContentRow({ title, meta, href, badge, onRemove }: {
+  title: string; meta: string; href?: string; badge?: string;
+  onRemove?: () => Promise<void> | void;
 }) {
   return (
     <div style={{
@@ -1117,6 +1123,15 @@ function ContentRow({ title, meta, href, onRemove }: {
         )}
         <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>{meta}</p>
       </div>
+      {badge && (
+        <span style={{
+          flexShrink: 0, padding: "3px 9px", borderRadius: "100px",
+          background: "rgba(32,147,121,0.1)", color: "#209379",
+          fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap",
+        }}>
+          {badge}
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={() => void onRemove()}
