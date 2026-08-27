@@ -235,7 +235,6 @@ export function StaffReportsView() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
-        <p style={labelStyle}>Reports</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
           Student Reports
         </h1>

@@ -75,7 +75,6 @@ export default function CalendarPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <p style={S.label}>Upcoming</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Calendar</h1>
         </div>
         {canCreate && (

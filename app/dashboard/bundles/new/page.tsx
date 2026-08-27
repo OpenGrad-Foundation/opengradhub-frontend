@@ -61,7 +61,6 @@ export default function NewBundlePage() {
 
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ margin: "16px 0 28px" }}>
-        <p style={labelSt}>New Bundle</p>
         <h1 style={{ ...headingSt, fontSize: "28px", margin: "4px 0 0" }}>Create Bundle</h1>
       </div>
 

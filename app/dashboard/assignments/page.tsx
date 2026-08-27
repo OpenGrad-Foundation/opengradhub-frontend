@@ -34,7 +34,6 @@ export default function AssignmentsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
-          <p style={S.label}>Learning</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
           {isManager && (
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
@@ -98,7 +97,6 @@ function ManagerAssignmentsView({ canCreate }: { canCreate: boolean }) {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
         <div>
-          <p style={S.label}>Assignments</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
         </div>
         {canCreate && (
@@ -345,7 +343,6 @@ function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
       <div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
           <div>
-            <p style={S.label}>Grading</p>
             <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Submission Queue</h1>
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
               {rows.length} obligation{rows.length !== 1 ? "s" : ""}

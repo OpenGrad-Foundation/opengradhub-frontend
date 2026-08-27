@@ -58,7 +58,6 @@ export default function ResourcesPage() {
         }}
       >
         <div>
-          <p style={labelStyle}>Library</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
             Resources
           </h1>

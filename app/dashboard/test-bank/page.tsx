@@ -251,7 +251,6 @@ function TestBankPageContent() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Quizzes</p>
           <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
           <p style={{ ...mutedStyle, marginTop: "4px" }}>
             {questions.length} question{questions.length !== 1 ? "s" : ""}

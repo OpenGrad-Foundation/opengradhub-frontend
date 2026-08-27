@@ -86,7 +86,6 @@ export default function InboxPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
-          <p style={S.label}>Messages</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Inbox</h1>
           <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
             {hasUnread && (

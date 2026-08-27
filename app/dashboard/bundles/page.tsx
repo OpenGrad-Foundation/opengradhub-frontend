@@ -23,7 +23,6 @@ export default function BundlesPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "32px", gap: "16px" }}>
         <div>
-          <p style={label}>Curriculum</p>
           <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Bundles</h1>
         </div>
         {canCreate && (

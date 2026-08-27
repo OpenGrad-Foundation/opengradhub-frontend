@@ -9,7 +9,7 @@ import { SchoolBulkUploadPanel } from "./BulkUploadPanel";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 import { normState } from "@/lib/geo";
 import { SchoolFormModal } from "./SchoolFormModal";
-import { labelStyle, titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
+import { titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -58,7 +58,6 @@ export default function SchoolsPage() {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Administration</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Schools</h1>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>

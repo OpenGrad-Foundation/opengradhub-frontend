@@ -82,14 +82,12 @@ export default function RoleManagementPage() {
         }
       ` }} />
       <div className="rm-header" style={{ marginBottom: "32px" }}>
-        <p style={labelStyle}>Administration</p>
         <h1 className="rm-title" style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
       </div>
 
       <div className="rm-card" style={glassCard}>
         <div className="rm-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
-            <p style={labelStyle}>Roles</p>
             <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Default Permissions</h2>
           </div>
           {canManage && !adding && (
@@ -174,7 +172,6 @@ export default function RoleManagementPage() {
 }
 
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
-const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
 const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
 const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "rgba(3,72,82,0.6)" };
 const inputStyle: React.CSSProperties = { padding: "10px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none" };

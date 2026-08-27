@@ -116,7 +116,6 @@ export default function UserManagementPage() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Administration</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>User Management</h1>
           <p style={{ ...subtitleStyle, marginTop: "4px" }}>
             {users.length} user{users.length !== 1 ? "s" : ""} registered

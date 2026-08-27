@@ -107,7 +107,6 @@ export default function NewLiveClassPage() {
     <div style={{ maxWidth: "640px" }}>
       <Link href="/dashboard/live-classes" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>← Live Classes</Link>
       <div style={{ marginTop: "14px", marginBottom: "24px" }}>
-        <p style={S.label}>Schedule</p>
         <h1 style={{ ...S.heading, fontSize: "26px", margin: "4px 0 0" }}>New Live Class</h1>
       </div>
 

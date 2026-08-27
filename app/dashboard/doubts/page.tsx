@@ -69,7 +69,6 @@ export default function DoubtsPage() {
       {/* ── Header ─────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
         <div>
-          <p style={labelStyle}>Support</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
         </div>
         {canSubmit && (
@@ -171,7 +170,6 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <div style={{ marginBottom: 20 }}>
-        <p style={labelStyle}>Support</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
       </div>
 

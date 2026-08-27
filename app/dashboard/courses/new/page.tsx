@@ -48,7 +48,6 @@ export default function NewCoursePage() {
   return (
     <PageShell>
       <div style={{ marginBottom: "28px" }}>
-        <p style={label}>Courses</p>
         <h1 style={{ ...title, fontSize: "28px", margin: 0 }}>New Course</h1>
       </div>
       <CourseMetaForm onSave={handleSave} submitLabel="Save as Draft" />

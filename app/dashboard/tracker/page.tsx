@@ -109,7 +109,6 @@ export default function TrackerPage() {
       {isManagerView && <PushNudge />}
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Hub Module</p>
           <h1 className="mt-2 text-3xl font-semibold text-gray-950">Tracker</h1>
           <p className="mt-2 text-sm text-gray-500">
             {currentUser?.role.name ?? "Team"} workspace

@@ -177,7 +177,6 @@ export default function StudentExportPage() {
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
       <div style={{ marginBottom: "32px" }}>
-        <p style={labelStyle}>Data</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
           Student Export
         </h1>
