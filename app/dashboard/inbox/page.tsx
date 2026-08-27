@@ -9,6 +9,7 @@ import { useInboxFeed, type InboxItem } from "@/lib/queries/inbox";
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
 import {
   useArchiveNotification,
+  useClearAll,
   useClearRead,
   useMarkNotificationRead,
 } from "@/lib/queries/notifications";
@@ -48,12 +49,24 @@ export default function InboxPage() {
   const markNotifRead = useMarkNotificationRead();
   const archiveNotif  = useArchiveNotification();
   const clearRead     = useClearRead();
+  const clearAll      = useClearAll();
   const invalidate    = useInvalidate();
 
   const hasUnread = items.some((i) => !i.is_read);
   const hasReadNotifications = items.some(
     (i) => i.source === "notification" && i.is_read,
   );
+  const hasNotifications = items.some((i) => i.source === "notification");
+
+  /**
+   * Empty the inbox in one click — the escape hatch for a feed that filled
+   * faster than it could be read. Announcements have no per-user archive, so
+   * the strongest dismiss available for them is a read receipt.
+   */
+  async function handleClearAll() {
+    await Promise.all([clearAll.mutateAsync(), markAllAnnouncementsRead()]);
+    invalidate("notifications", "announcements");
+  }
 
   async function handleMarkAllRead() {
     await Promise.all([markAllNotificationsRead(), markAllAnnouncementsRead()]);
@@ -100,6 +113,16 @@ export default function InboxPage() {
                 title="Dismiss all read notifications"
               >
                 ✕ Clear read
+              </button>
+            )}
+            {hasNotifications && (
+              <button
+                style={{ ...S.textButton, color: "#e53e3e" }}
+                onClick={() => void handleClearAll()}
+                disabled={clearAll.isPending}
+                title="Dismiss every notification, read or unread"
+              >
+                {clearAll.isPending ? "Clearing…" : "✕ Clear all"}
               </button>
             )}
           </div>

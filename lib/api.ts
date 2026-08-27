@@ -1364,6 +1364,8 @@ export type Notification = {
   body: string;
   channel: "IN_APP" | "EMAIL" | "WHATSAPP";
   is_read: boolean;
+  /** NULL for one-shot rows; N for a roll-up row standing in for N events. */
+  rollup_count?: number | null;
   triggered_at: string;
   link: string | null;
 };
@@ -1438,6 +1440,22 @@ export async function clearReadNotifications(): Promise<void> {
     method: "PATCH",
     cache: "no-store",
   });
+}
+
+/**
+ * Dismiss EVERY notification, read or unread, in one call. The escape hatch for
+ * an inbox that filled faster than the user could read it. Unread rows are
+ * marked read server-side too, so the badge clears with the list.
+ */
+export async function clearAllNotifications(): Promise<{ archived: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/notifications/clear-all`, {
+    method: "PATCH",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to clear notifications.", response.status);
+  }
+  return (await response.json()) as { archived: number };
 }
 
 // ── Assignments API ────────────────────────────────────────────
