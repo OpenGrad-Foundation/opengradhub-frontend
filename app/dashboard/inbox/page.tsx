@@ -56,7 +56,9 @@ export default function InboxPage() {
   const hasReadNotifications = items.some(
     (i) => i.source === "notification" && i.is_read,
   );
-  const hasNotifications = items.some((i) => i.source === "notification");
+  // Shown for announcements too: "Clear all" marks them read, which is the only
+  // dismiss a role-scoped broadcast has.
+  const hasAnything = items.length > 0;
 
   /**
    * Empty the inbox in one click — the escape hatch for a feed that filled
@@ -115,7 +117,7 @@ export default function InboxPage() {
                 ✕ Clear read
               </button>
             )}
-            {hasNotifications && (
+            {hasAnything && (
               <button
                 style={{ ...S.textButton, color: "#e53e3e" }}
                 onClick={() => void handleClearAll()}
