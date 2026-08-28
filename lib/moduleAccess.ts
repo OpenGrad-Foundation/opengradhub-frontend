@@ -6,6 +6,8 @@
 // human label and href — keyed by the DB `modules.code`. There is no role→module
 // table here any more; that lived in the old RBAC world.
 
+import { TRACKER_NAME } from "./labels";
+
 export type RoleCode =
   | "SUPER_ADMIN"
   | "PROGRAM_MANAGER"
@@ -63,7 +65,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
-  tracker:          { label: "Tracker",         href: "/dashboard/tracker" },
+  tracker:          { label: TRACKER_NAME,      href: "/dashboard/tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 

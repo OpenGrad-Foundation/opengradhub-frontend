@@ -19,11 +19,15 @@ const setup = () => render(<TrackerBuilder canAuthor />);
 const geoToggle = () =>
   screen.queryByLabelText(/verify school visit using photo location metadata/i);
 
-function chooseTarget(label: RegExp) {
+// Selected by option value, not by label: the on-screen labels for the staff and
+// school targets both contain the word "school" ("Each school in-charge" vs
+// "Each school"), so a text match cannot tell them apart.
+function chooseTarget(value: "fellow" | "school" | "student") {
   const select = screen.getByLabelText(/who does this task/i) as HTMLSelectElement;
-  const option = [...select.options].find((o) => label.test(o.textContent ?? ""));
-  if (!option) throw new Error(`no target option matching ${label}`);
-  fireEvent.change(select, { target: { value: option.value } });
+  if (![...select.options].some((o) => o.value === value)) {
+    throw new Error(`no target option with value ${value}`);
+  }
+  fireEvent.change(select, { target: { value } });
 }
 
 beforeEach(() => vi.clearAllMocks());
@@ -31,31 +35,31 @@ beforeEach(() => vi.clearAllMocks());
 describe("authoring — school visit verification toggle", () => {
   it("offers the toggle for a school task", () => {
     setup();
-    chooseTarget(/school/i);
+    chooseTarget("school");
     expect(geoToggle()).not.toBeNull();
   });
 
   it("offers the toggle for a student task", () => {
     setup();
-    chooseTarget(/student/i);
+    chooseTarget("student");
     expect(geoToggle()).not.toBeNull();
   });
 
   it("hides the toggle for a staff task, which has no single school", () => {
     setup();
-    chooseTarget(/fellow/i);
+    chooseTarget("fellow");
     expect(geoToggle()).toBeNull();
   });
 
   it("explains that one photo covers every entry for the school", () => {
     setup();
-    chooseTarget(/school/i);
+    chooseTarget("school");
     expect(screen.getByText(/one photo .* covers (all|every)/i)).toBeTruthy();
   });
 
   it("keeps per-entry photo proof as a separate requirement", () => {
     setup();
-    chooseTarget(/school/i);
+    chooseTarget("school");
     // Shared geo evidence does not satisfy the per-record photo requirement; both exist.
     expect(screen.getByLabelText(/require a photo/i)).toBeTruthy();
     expect(geoToggle()).not.toBeNull();
@@ -63,7 +67,7 @@ describe("authoring — school visit verification toggle", () => {
 
   it("no longer offers the legacy live location capture", () => {
     setup();
-    chooseTarget(/school/i);
+    chooseTarget("school");
     expect(screen.queryByLabelText(/require capturing location/i)).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import { API_BASE_URL, ApiError, apiFetch } from "./api";
+import { ZONE } from "./labels";
 
 export type TrackerFieldType = "text" | "number" | "date" | "select" | "multiselect" | "boolean" | "url";
 export type TrackerFieldSource = "profile" | "identity" | "input";
@@ -8,7 +9,7 @@ export type TrackerTargetType = "student" | "school" | "fellow";
 export const PROFILE_PATH_LABELS: Record<string, string> = {
   "student.name": "Student name",
   "student.category": "Student category",
-  "student.district": "District",
+  "student.district": ZONE,
   "student.contact": "Student contact",
   "school.name": "School name",
   "school.code": "School code",

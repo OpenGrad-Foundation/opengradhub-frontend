@@ -13,6 +13,7 @@ import {
   useTrackerZms,
 } from "@/lib/queries/tracker";
 import { StudentDetailsForm } from "./student-details-form";
+import { IN_CHARGE_PLURAL } from "@/lib/labels";
 
 type Level = "pm" | "zm" | "fellow" | "school" | "student";
 type Crumb = { level: Level; id: string; name: string };
@@ -31,7 +32,7 @@ function getHomeLabel(startLevel: Level): string {
   switch (startLevel) {
     case "pm": return "Program Managers";
     case "zm": return "Zonal Managers";
-    case "fellow": return "Fellows";
+    case "fellow": return IN_CHARGE_PLURAL;
     case "school": return "Schools";
     default: return "Students";
   }
@@ -41,7 +42,7 @@ function getListTitle(level: Level, parentName?: string): string {
   if (parentName) {
     switch (level) {
       case "zm": return `Zonal Managers under ${parentName}`;
-      case "fellow": return `Fellows under ${parentName}`;
+      case "fellow": return `${IN_CHARGE_PLURAL} under ${parentName}`;
       case "school": return `Schools assigned to ${parentName}`;
       case "student": return `Students in ${parentName}`;
     }
@@ -49,7 +50,7 @@ function getListTitle(level: Level, parentName?: string): string {
   switch (level) {
     case "pm": return "Program Managers";
     case "zm": return "Your Zonal Managers";
-    case "fellow": return "Your Fellows";
+    case "fellow": return `Your ${IN_CHARGE_PLURAL}`;
     case "school": return "Your Schools";
     default: return "Students";
   }
@@ -191,7 +192,7 @@ function LevelRenderer({
     getProps = (z) => ({
       id: z.id,
       name: z.name,
-      subtitle: `${z.fellow_count} Fellows`,
+      subtitle: `${z.fellow_count} ${IN_CHARGE_PLURAL}`,
     });
   } else if (level === "fellow") {
     const qNode = parentId ? zmFellowsQuery : fellowsQuery;

@@ -27,9 +27,11 @@ import {
   useTrackerMineBlockers,
   useTrackerOverview,
   useTrackerQueueBlockers,
+  useTrackerTemplate,
   useTrackerTemplates,
 } from "@/lib/queries/tracker";
 import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTaskSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
+import { IN_CHARGE, roleLabel, TRACKER_NAME } from "@/lib/labels";
 import { TrackerBuilder } from "./_components/tracker-builder";
 import { StudentFieldsManager } from "./_components/student-fields-manager";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
@@ -109,14 +111,14 @@ export default function TrackerPage() {
       {isManagerView && <PushNudge />}
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="mt-2 text-3xl font-semibold text-gray-950">Tracker</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-gray-950">{TRACKER_NAME}</h1>
           <p className="mt-2 text-sm text-gray-500">
-            {currentUser?.role.name ?? "Team"} workspace
+            {roleLabel(currentUser?.role.name, "Team")} workspace
           </p>
         </div>
       </header>
 
-      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label="Tracker sections">
+      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label={`${TRACKER_NAME} sections`}>
         {tabs.map((tab) => (
           <button
             key={tab}
@@ -179,7 +181,7 @@ export default function TrackerPage() {
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
-                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Fellow</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
                   </div>
                   {teamView === "zm"
                     ? <ZmView onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
@@ -386,10 +388,11 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
       </div>
     );
   }
-  if (detailId && templates.some((t) => t.id === detailId)) {
+  if (detailId) {
     return (
-      <TaskDetail
-        template={templates.find((t) => t.id === detailId)!}
+      <TaskDetailRoute
+        templateId={detailId}
+        fallback={templates.find((t) => t.id === detailId) ?? null}
         canAuthor={canAuthor}
         onBack={() => setDetailId(null)}
         onOpenGrid={() => setGridId(detailId)}
@@ -413,9 +416,48 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
       </div>
       {mode === "template"
         ? <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={(id) => setDetailId(id)} />
-        : <TrackerBuilder canAuthor={canAuthor} />}
+        : (
+          <TrackerBuilder
+            canAuthor={canAuthor}
+            // Land the author on the task they just made instead of the list.
+            onCreated={(id) => { setListView("active"); setMode("template"); setDetailId(id); }}
+          />
+        )}
     </div>
   );
+}
+
+/** Opens one task by id. Resolving from the detail endpoint (not the cached list) means a
+ *  freshly-created task — including a draft — opens right away, before the list refetch lands. */
+function TaskDetailRoute({
+  templateId,
+  fallback,
+  canAuthor,
+  onBack,
+  onOpenGrid,
+}: {
+  templateId: string;
+  fallback: TrackerTemplate | null;
+  canAuthor: boolean;
+  onBack: () => void;
+  onOpenGrid: () => void;
+}) {
+  const { data, isLoading, error } = useTrackerTemplate(templateId);
+  const template = data?.template ?? fallback;
+
+  if (!template) {
+    if (isLoading) return <TrackerLoading />;
+    return (
+      <div className="flex flex-col gap-3">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
+        </button>
+        <ErrorPanel message={error instanceof Error ? error.message : "Could not open that task."} />
+      </div>
+    );
+  }
+
+  return <TaskDetail template={template} canAuthor={canAuthor} onBack={onBack} onOpenGrid={onOpenGrid} />;
 }
 
 /** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state.
@@ -733,16 +775,10 @@ function describeBlockerEvent(ev: TrackerEvent): string {
   switch (ev.event_type) {
     case "blocker_raised": return `Flagged stuck: "${String(d.text ?? "")}"`;
     case "blocker_comment": return String(d.text ?? "");
-    case "blocker_escalated": return `Escalated to ${roleLabel(String(d.to_role ?? ""))}`;
+    case "blocker_escalated": return `Escalated to ${roleLabel(d.to_role as string | null, "manager")}`;
     case "blocker_cleared": return "Blocker cleared";
     default: return ev.event_type;
   }
-}
-
-function roleLabel(code: string): string {
-  if (code === "ZONAL_MANAGER") return "Zonal Manager";
-  if (code === "PROGRAM_MANAGER") return "Program Manager";
-  return code || "manager";
 }
 
 function TabIcon({ tab }: { tab: TrackerTab }) {

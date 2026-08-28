@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { useTrackerZms, useTrackerZmFellows, useTrackerFellowTasks } from "@/lib/queries/tracker";
 import { TaskListView } from "./my-tasks";
+import { IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -53,7 +54,7 @@ export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: strin
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
                   <span className="hidden items-center gap-2 text-xs sm:flex">
-                    <span className="text-gray-500">{z.fellow_count} fellows</span>
+                    <span className="text-gray-500">{z.fellow_count} {IN_CHARGE_LOWER_PLURAL}</span>
                     <span className="text-gray-300">·</span>
                     <span className="font-semibold text-emerald-700">{z.own_done} done</span>
                     <span className="text-gray-300">·</span>
@@ -103,9 +104,9 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-gray-950">Fellows under {zm.name}</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-950">{IN_CHARGE_PLURAL} under {zm.name}</h3>
         {fellows.isLoading ? <Loading /> : (fellows.data ?? []).length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">No fellows under this ZM.</p>
+          <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">No {IN_CHARGE_LOWER_PLURAL} under this ZM.</p>
         ) : (
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <ul className="divide-y divide-gray-100">

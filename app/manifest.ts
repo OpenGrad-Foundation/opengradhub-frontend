@@ -1,11 +1,12 @@
 import type { MetadataRoute } from 'next';
+import { TRACKER_NAME } from '@/lib/labels';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/dashboard',
     name: 'OpenGrad',
     short_name: 'OpenGrad',
-    description: 'OpenGrad LMS & FellowTracker',
+    description: `OpenGrad LMS & ${TRACKER_NAME}`,
     start_url: '/dashboard',
     display: 'standalone',
     background_color: '#ffffff',

@@ -1,3 +1,4 @@
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL } from "./labels";
 import type {
   CurrentUserResponse,
   SignInPayload,
@@ -203,7 +204,7 @@ export async function getFellows(): Promise<FellowOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/users/fellows`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch fellows.", response.status);
+    throw new ApiError(`Failed to fetch ${IN_CHARGE_LOWER_PLURAL}.`, response.status);
   }
 
   return (await response.json()) as FellowOption[];
@@ -3143,7 +3144,7 @@ export async function setSchoolFellow(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update fellow.", response.status);
+    throw new ApiError(errorBody?.message ?? `Failed to update ${IN_CHARGE_LOWER}.`, response.status);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -4373,7 +4374,7 @@ export async function setBatchMembersFellow(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to set batch fellow.", r.status);
+    throw new ApiError(err?.message ?? `Failed to set batch ${IN_CHARGE_LOWER}.`, r.status);
   }
   return (await r.json()) as { updated: number; reassigned: number };
 }

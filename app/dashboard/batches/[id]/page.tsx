@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import {
@@ -388,7 +389,7 @@ function MemberTable({
       setSelectedIds(new Set());
       onChanged();
     } catch (e) {
-      setGlobalError(e instanceof Error ? e.message : "Failed to set batch fellow.");
+      setGlobalError(e instanceof Error ? e.message : `Failed to set batch ${IN_CHARGE_LOWER}.`);
     } finally {
       setAssigning(false);
     }
@@ -469,10 +470,10 @@ function MemberTable({
                 value={fellowChoice}
                 onChange={(e) => setFellowChoice(e.target.value)}
                 disabled={assigning}
-                aria-label="Fellow to assign"
+                aria-label={`${IN_CHARGE} to assign`}
                 style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", fontSize: "12px" }}
               >
-                <option value="">Choose fellow…</option>
+                <option value="">Choose {IN_CHARGE_LOWER}…</option>
                 {fellows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
               <button
@@ -508,7 +509,7 @@ function MemberTable({
                   />
                 </th>
               )}
-              {["Name", "Roll Number", "Email", "Fellow", "Joined"].map((h) => (
+              {["Name", "Roll Number", "Email", IN_CHARGE, "Joined"].map((h) => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
               ))}
             </tr>

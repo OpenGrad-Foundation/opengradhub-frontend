@@ -12,6 +12,7 @@ import {
 } from "@/lib/queries/tracker";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
+import { IN_CHARGE, roleLabel } from "@/lib/labels";
 import { RecordProofs } from "./record-proofs";
 import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
@@ -90,7 +91,7 @@ export function TrackerEditableGrid({
   const hasSchool = schools.length > 0;
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
-  const nameHeader = template.target_type === "fellow" ? "Fellow" : "Student";
+  const nameHeader = template.target_type === "fellow" ? IN_CHARGE : "Student";
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return grid.rows.filter((r) =>
@@ -609,7 +610,7 @@ function describeEvent(ev: TrackerEvent): string {
     case "blocker_cleared":
       return "Blocker cleared";
     case "blocker_escalated":
-      return `Escalated to ${roleLabel(String(d.to_role ?? ""))}`;
+      return `Escalated to ${roleLabel(d.to_role as string | null, "manager")}`;
     case "proof_photo_added":
       return "Photo added";
     case "proof_photo_removed":
@@ -619,12 +620,6 @@ function describeEvent(ev: TrackerEvent): string {
     default:
       return ev.event_type;
   }
-}
-
-function roleLabel(code: string): string {
-  if (code === "ZONAL_MANAGER") return "Zonal Manager";
-  if (code === "PROGRAM_MANAGER") return "Program Manager";
-  return code || "manager";
 }
 
 function formatDateTime(value: string): string {

@@ -7,6 +7,7 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { SchoolBulkUploadPanel } from "./BulkUploadPanel";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { IN_CHARGE, IN_CHARGE_LOWER, ZONE, ZONE_LOWER } from "@/lib/labels";
 import { normState } from "@/lib/geo";
 import { SchoolFormModal } from "./SchoolFormModal";
 import { titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
@@ -107,7 +108,7 @@ export default function SchoolsPage() {
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name, district, state, code, or fellow…"
+                placeholder={`Search name, ${ZONE_LOWER}, state, code, or ${IN_CHARGE_LOWER}…`}
                 aria-label="Search schools"
                 style={{ ...inputStyle, paddingLeft: "36px" }}
               />
@@ -135,10 +136,10 @@ export default function SchoolsPage() {
               <thead>
                 <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
                   <th style={thStyle}>Name</th>
-                  <th style={thStyle}>District</th>
+                  <th style={thStyle}>{ZONE}</th>
                   <th style={thStyle}>State</th>
                   <th style={thStyle}>Code</th>
-                  <th style={thStyle}>Fellow</th>
+                  <th style={thStyle}>{IN_CHARGE}</th>
                   {canEdit && <th style={thStyle} />}
                 </tr>
               </thead>

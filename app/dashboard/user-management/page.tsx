@@ -37,12 +37,13 @@ import { useIsMobile } from "@/hooks/use-is-mobile";
 import { STATES, districtDisabled, resolveState, resolveDistrict } from "@/lib/geo";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
+import { IN_CHARGE, roleLabel, ZONE } from "@/lib/labels";
 
 const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN", label: "Super Admin" },
   { code: "PROGRAM_MANAGER", label: "Program Manager" },
   { code: "ZONAL_MANAGER", label: "Zonal Manager" },
-  { code: "FELLOW", label: "Fellow" },
+  { code: "FELLOW", label: IN_CHARGE },
   { code: "STUDENT", label: "Student" },
   { code: "GOVERNMENT", label: "Government" },
   { code: "FUNDING_PARTNER", label: "Funding Partner" },
@@ -696,7 +697,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </Field>
-                      <Field label="District" id="user-district">
+                      <Field label={ZONE} id="user-district">
                         <select
                           id="user-district"
                           value={district}
@@ -745,7 +746,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       </Field>
                     </Row>
                     <Row>
-                      <Field label="District" id="user-district">
+                      <Field label={ZONE} id="user-district">
                         <select
                           id="user-district"
                           value={district}
@@ -1608,7 +1609,7 @@ function BulkAssignPanel({
       {/* ── Filter bar ─────────────────────────────────────── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "10px", marginBottom: "14px" }}>
         <div style={{ gridColumn: "span 2" }}>
-          <label style={formLabelStyle}>State &amp; District</label>
+          <label style={formLabelStyle}>State &amp; {ZONE}</label>
           <StateDistrictPicker
             state={filterState}
             district={filterDistrict}
@@ -1675,7 +1676,7 @@ function BulkAssignPanel({
                   <thead style={{ position: "sticky", top: 0 }}>
                     <tr style={{ background: "rgba(3,72,82,0.05)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
                       <th style={{ ...thStyle, width: "40px" }}></th>
-                      {["Name", "Roll Number", "Programme", "State", "District", "School"].map((h) => (
+                      {["Name", "Roll Number", "Programme", "State", ZONE, "School"].map((h) => (
                         <th key={h} style={thStyle}>{h}</th>
                       ))}
                     </tr>
@@ -1876,6 +1877,12 @@ function BulkAssignPanel({
 
 // ── Bulk Upload Panel ──────────────────────────────────────────
 
+// Incoming CSV headers that are spelled the way the UI reads, mapped back to the
+// column names the backend importer knows.
+const CSV_HEADER_ALIASES: Record<string, string> = { zone: "district" };
+const canonicalCsvHeader = (h: string): string =>
+  CSV_HEADER_ALIASES[h.trim().toLowerCase()] ?? h;
+
 // Human-readable labels for CSV column names
 const CSV_FIELD_LABELS: Record<string, string> = {
   name:           "Full Name",
@@ -1883,7 +1890,7 @@ const CSV_FIELD_LABELS: Record<string, string> = {
   role:           "Role",
   programme_type: "Programme Type",
   state:          "State",
-  district:       "District",
+  district:       ZONE,
   school_name:    "School",
   school_code:    "School Code",
   roll_number:    "Roll Number",
@@ -1918,7 +1925,7 @@ function getMissingFields(row: Record<string, string>): string[] {
   } else if (role === "FELLOW") {
     if (!row.programme_type?.trim()) missing.push("Programme Type");
     if (!row.state?.trim())          missing.push("State");
-    if (!row.district?.trim())       missing.push("District");
+    if (!row.district?.trim())       missing.push(ZONE);
     if (!row.school_name?.trim())    missing.push("School");
   } else if (role === "PROGRAM_MANAGER" || role === "ZONAL_MANAGER") {
     if (!row.state?.trim())          missing.push("State");
@@ -2021,8 +2028,13 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           setParseError(parsed.errors[0].message || "Invalid CSV format.");
           return;
         }
-        const hdrs = (parsed.meta.fields ?? []).filter(Boolean);
-        const rows = (parsed.data ?? []).filter((r) => r && Object.keys(r).length > 0);
+        // The geo column reads "Zone" on screen but the backend importer still
+        // expects "district", so fold either spelling onto the wire name before
+        // the rows are staged — doUpload re-emits these headers verbatim.
+        const hdrs = (parsed.meta.fields ?? []).filter(Boolean).map(canonicalCsvHeader);
+        const rows = (parsed.data ?? [])
+          .filter((r) => r && Object.keys(r).length > 0)
+          .map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [canonicalCsvHeader(k), v])));
         if (!hdrs.length) {
           setParseError("Could not detect CSV headers. Please use the downloaded template.");
           return;
@@ -2247,7 +2259,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                           >
                             <option value="">Set all…</option>
                             <option value="__CLEAR__">— Clear all —</option>
-                            {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                            {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                           </select>
                         </td>
                       );
@@ -2412,7 +2424,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 style={{ ...controlBase, cursor: "pointer" }}
                               >
                                 <option value="">—</option>
-                                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{roleLabel(r)}</option>)}
                               </select>
                             ) : isDropProg ? (
                               <select
