@@ -61,19 +61,32 @@ function prettyState(s: string | null): string {
   return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
 
+/** Seeds the builder with an audience the author already picked elsewhere — e.g. the
+ *  "Assign task" button on a team member's task list. Only read on mount, so callers
+ *  remount the builder (via `key`) to change it. */
+export type TrackerAssignPrefill = {
+  targetType: TrackerTargetType;
+  /** Target ids to pre-check in the audience picker. */
+  ids: string[];
+  /** Human name of the pre-selected target, shown as a hint above the picker. */
+  label?: string;
+};
+
 export function TrackerBuilder({
   canAuthor,
   onCreated,
+  prefill,
 }: {
   canAuthor: boolean;
   /** Called with the new task's id once it is created (and assigned) so the caller can
    *  open that task instead of leaving the author on an empty form. */
   onCreated?: (templateId: string) => void;
+  prefill?: TrackerAssignPrefill;
 }) {
   const invalidate = useInvalidate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [targetType, setTargetType] = useState<TrackerTargetType>("fellow");
+  const [targetType, setTargetType] = useState<TrackerTargetType>(prefill?.targetType ?? "fellow");
   const [completionStyle, setCompletionStyle] = useState<TrackerCompletionStyle>("checklist");
   const [statusesText, setStatusesText] = useState("");
   const [doneStatus, setDoneStatus] = useState("");
@@ -83,8 +96,8 @@ export function TrackerBuilder({
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [requireGeo, setRequireGeo] = useState(false);
   const [saveAsDraft, setSaveAsDraft] = useState(false);
-  const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(FELLOW_PATHS[0])]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
   // Batch audience (student tasks only): assign to the members of a batch so ownership routes to
   // each member's batch-fellow. Empty = ordinary student audience.
   const [batchId, setBatchId] = useState<string>("");
@@ -389,6 +402,11 @@ export function TrackerBuilder({
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <h3 className="mb-1 text-sm font-semibold text-gray-950">Assign to {targetWord}</h3>
+        {prefill?.label && (
+          <p className="mb-2 text-xs text-gray-500">
+            Pre-selected <span className="font-semibold text-gray-700">{prefill.label}</span>. Add or remove anyone below.
+          </p>
+        )}
         <AudiencePicker key={`${targetType}:${batchId}`} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} batchId={batchId || undefined} />
         <p className="mt-2 text-xs text-gray-500">Leave empty to assign later.</p>
       </section>

@@ -121,9 +121,13 @@ export const qk = {
   /** The shared verification a single row consumes, for its History drawer. */
   trackerExtensions: (recordId: string) => ['og', 'tracker', 'extensions', recordId] as const,
   trackerRecordGeo: (recordId: string) => ['og', 'tracker', 'geo-record', recordId] as const,
-  /** One page of a recurring task's earlier periods; cursor is part of the key. */
-  trackerPeriods: (recordId: string, before: string) =>
-    ['og', 'tracker', 'periods', recordId, before] as const,
+  /** Every tracker row recorded about one student, for their profile page. */
+  trackerStudentTasks: (studentId: string) => ['og', 'tracker', 'student-tasks', studentId] as const,
+  /** One page of a recurring task's earlier periods; cursor is part of the key.
+   *  `scope` separates the tracker route from the student-profile route — same
+   *  payload, but different authorisation, so they must not share a cache entry. */
+  trackerPeriods: (recordId: string, before: string, scope = 'record') =>
+    ['og', 'tracker', 'periods', scope, recordId, before] as const,
   trackerTemplateHistory: (templateId: string) => ['og', 'tracker', 'history', 'template', templateId] as const,
   trackerBlockerThread: (blockerId: string) => ['og', 'tracker', 'blocker-thread', blockerId] as const,
   trackerOverview: () => ['og', 'tracker', 'overview'] as const,

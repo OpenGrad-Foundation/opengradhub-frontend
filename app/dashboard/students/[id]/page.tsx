@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { PerformanceHistoryTable } from "@/components/performance-history-table";
+import { TrackerSection } from "./_components/tracker-section";
 import { useStudentProfile } from "@/lib/queries/students";
 import { useTopicStrength } from "@/lib/queries/analytics";
 import { useReportHistory } from "@/lib/queries/reports";
@@ -130,6 +131,8 @@ export default function StudentProfilePage() {
           </div>
         )}
       </div>
+
+      <TrackerSection studentId={id} />
 
       {topics && topics.length > 0 && (
         <div style={card}>

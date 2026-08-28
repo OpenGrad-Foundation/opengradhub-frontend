@@ -41,6 +41,7 @@ describe('dashboard route permissions', () => {
       view: 'tracker.view',
       author: 'tracker.author',
       fill: 'tracker.fill',
+      fill_override: 'tracker.fill.override',
       blocker_clear: 'tracker.blocker.clear',
       admin: 'tracker.admin',
       // Added with school-visit geo verification (backend migration 097).

@@ -23,6 +23,13 @@ vi.mock("@/lib/queries/analytics", () => ({
 vi.mock("@/lib/queries/reports", () => ({
   useReportHistory: () => ({ data: { rows: [] }, isPending: false, isError: false, error: null }),
 }));
+// The tracker section is exercised on its own in student-tracker-section.spec.tsx;
+// here it only needs to not require a QueryClient.
+vi.mock("@/lib/queries/tracker", () => ({
+  useStudentDetails: () => ({ data: null, error: null }),
+  useStudentTrackerTasks: () => ({ data: null, error: null }),
+  useRecordPeriodHistory: () => ({ data: null, isLoading: false }),
+}));
 vi.mock("@/components/performance-history-table", () => ({
   PerformanceHistoryTable: () => <div data-testid="history-table" />,
 }));

@@ -146,6 +146,8 @@ export const PERM = {
     view: "tracker.view",
     author: "tracker.author",
     fill: "tracker.fill",
+    /** Fill a subordinate's row in their name — ZM/PM only (migration 103). */
+    fill_override: "tracker.fill.override",
     blocker_clear: "tracker.blocker.clear",
     admin: "tracker.admin",
     /** Accept an out-of-range school-visit verification (migration 097). */

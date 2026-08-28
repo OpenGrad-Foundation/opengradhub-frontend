@@ -23,6 +23,7 @@ vi.mock("@/lib/queries/tracker", () => ({
   useUploadGeoVerification: () => ({ mutateAsync: uploadMutate, isPending: false }),
   useOverrideGeoVerification: () => idle,
   useSaveTrackerBatch: () => ({ mutateAsync: saveMutate, isPending: savePending }),
+  useSaveTrackerBatchOnBehalf: () => idle,
   useRaiseTrackerBlocker: () => idle,
   useClearTrackerBlocker: () => idle,
   useRecordGeoVerification: () => empty,
