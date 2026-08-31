@@ -91,7 +91,7 @@ function tabStyle(active: boolean): React.CSSProperties {
 export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { has } = usePermissions();
+  const { has, isSuperAdmin } = usePermissions();
   const canEdit = has(PERM.programmes.edit);
   const canManageMembers = has(PERM.programmes.manage_members);
 
@@ -104,7 +104,11 @@ export default function ProgrammeDetailPage() {
   // Only an OWNER (or a super admin, whom the API lets through) can actually
   // write. Showing the controls to anyone else just produces 403s.
   const isOwner = programme?.my_level === "OWNER";
-  const mayAdminister = canEdit && (isOwner || has("*"));
+  // `has("*")` was never a permission — it only ever returned true because
+  // usePermissions short-circuited on the SUPER_ADMIN role code. With that
+  // wildcard gone it would be permanently false, so the real permission is named
+  // instead. A super admin holds it explicitly, so nothing changes for them.
+  const mayAdminister = canEdit && (isOwner || isSuperAdmin);
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !programme) {
@@ -172,7 +176,7 @@ export default function ProgrammeDetailPage() {
       {tab === "people" && (
         <PeopleSection
           programmeId={id}
-          canManage={canManageMembers && (isOwner || has("*"))}
+          canManage={canManageMembers && (isOwner || isSuperAdmin)}
           onError={notify}
         />
       )}
