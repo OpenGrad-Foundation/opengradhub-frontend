@@ -48,6 +48,11 @@ describe('dashboard route permissions', () => {
       geo_override: 'tracker.geo.override',
       // Added with deadline extensions (backend migration 098).
       extension_grant: 'tracker.extension.grant',
+      // Added with the PBAC conversion of pm-view.guard (backend migration 111).
+      // The All Tasks tab was gated on `roleCode === "PROGRAM_MANAGER" ||
+      // "SUPER_ADMIN"`, mirroring a backend role check. Both now ask this
+      // permission, so the screen cannot offer a surface the API refuses.
+      all_tasks: 'tracker.all_tasks',
     });
     expect(ROUTE_PERMISSION.tracker).toBe(PERM.tracker.view);
   });
