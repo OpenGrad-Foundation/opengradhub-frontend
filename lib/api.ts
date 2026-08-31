@@ -2076,6 +2076,8 @@ export interface ParsedOption {
 
 export interface ParsedQuestion {
   instruction?: string;
+  /** The author's own question number (the n in `Q.n)`), for UI labels. */
+  number?: number;
   content: string;
   question_type: "MCQ" | "NUMERICAL" | "FILL" | "ESSAY" | "GROUP";
   options: ParsedOption[];
@@ -2107,6 +2109,70 @@ export interface ParsedBulkQuiz {
   duration_minutes?: number;
   max_marks?: number;
   sections: ParsedSection[];
+  /** Parser + validator issues found at parse time. */
+  diagnostics?: ParseDiagnostic[];
+}
+
+// ── Import diagnostics (mirror of backend ParseDiagnostic) ───────────────────
+
+export type ParseDiagnosticWhere =
+  | "quiz"
+  | { s: number }
+  | { s: number; q: number; child?: number };
+
+export interface ParseDiagnosticFix {
+  op: "set" | "move" | "discard";
+  field?: keyof ParsedQuestion;
+  value?: string | number;
+  from?: keyof ParsedQuestion;
+  occurrence?: number;
+}
+
+export interface ParseDiagnostic {
+  id?: string;
+  code: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+  where: ParseDiagnosticWhere;
+  field?: keyof ParsedQuestion;
+  line?: number;
+  raw?: string;
+  fix?: ParseDiagnosticFix;
+}
+
+/**
+ * Re-runs the backend's SEMANTIC validation rules over an edited quiz — the
+ * single source of truth the preview calls after every edit, so the rule set
+ * is never mirrored client-side. Syntactic (line-anchored) diagnostics exist
+ * only on the original parse result.
+ */
+export async function bulkValidateQuiz(quiz: ParsedBulkQuiz): Promise<ParseDiagnostic[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quiz }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to validate quiz.", r.status);
+  }
+  return ((await r.json()) as { diagnostics: ParseDiagnostic[] }).diagnostics ?? [];
+}
+
+// ── Question-bank facets (suggestion datalists) ──────────────────────────────
+
+export interface QuestionFacets {
+  subjects: Array<{ value: string; count: number }>;
+  topics: Array<{ value: string; subject: string | null; count: number }>;
+  tags: Array<{ value: string; count: number }>;
+}
+
+/** Distinct subject/topic/tag values already in the question bank. */
+export async function getQuestionFacets(): Promise<QuestionFacets> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/facets`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to load suggestions.", r.status);
+  return (await r.json()) as QuestionFacets;
 }
 
 export async function bulkParseQuiz(fileContent: string): Promise<ParsedBulkQuiz> {
@@ -2136,7 +2202,16 @@ export interface BulkParseJobStatus {
   status: "waiting" | "active" | "delayed" | "completed" | "failed" | string;
   progress: number;
   /** ParsedBulkQuiz for parse jobs; { quiz_id, ... } for import jobs. */
-  result?: (ParsedBulkQuiz & { image_keys?: string[] }) | { quiz_id: string; sections: number; questions: number };
+  result?:
+    | (ParsedBulkQuiz & {
+        image_keys?: string[];
+        /** Extracted PDF text — the "source" the repair step edits. */
+        source_text?: string;
+        source_truncated?: boolean;
+        /** Extraction worked but the text failed to parse — repair the source. */
+        parse_error?: string;
+      })
+    | { quiz_id: string; sections: number; questions: number };
   error?: string;
 }
 
@@ -2198,11 +2273,19 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
 export async function bulkSaveQuiz(
   parsedData: ParsedBulkQuiz,
   destination: QuizDestination,
+  /**
+   * The client's still-unresolved syntactic diagnostics (quarantined typo-tag
+   * lines). The server cannot reconstruct these from the parsed structure, so
+   * it refuses the save if any error-severity item is still in here.
+   */
+  unresolved: ParseDiagnostic[] = [],
 ): Promise<{ jobId: string }> {
+  // diagnostics are derived data — never round-trip them inside the payload.
+  const { diagnostics: _diagnostics, ...quiz } = parsedData;
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ quiz: parsedData, destination }),
+    body: JSON.stringify({ quiz, destination, unresolved }),
     cache: "no-store",
   });
   if (!r.ok) {
