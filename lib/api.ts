@@ -4700,6 +4700,22 @@ export interface ProgrammeMember {
   added_at: string;
 }
 
+export interface ProgrammeOverview {
+  students: number;
+  schools: number;
+  batches: number;
+  staff: number;
+  content: { courses: number; assignments: number; resources: number };
+  /** Read from the immutable programme stamp on each fact, not from the
+   *  student's current programme — so a transfer does not restate history. */
+  activity: {
+    attempts: number;
+    avg_score: number | null;
+    attendance_marks: number;
+    tracker_records: number;
+  };
+}
+
 export interface ProgrammeStudent {
   user_id: string;
   name: string;
@@ -4767,6 +4783,14 @@ export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]
   return programmeJson(
     await apiFetch(`${API_BASE_URL}/programmes/${id}/members`),
     "Failed to load members.",
+  );
+}
+
+/** Counts for the hub's Analytics tab. */
+export async function getProgrammeOverview(id: string): Promise<ProgrammeOverview> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/overview`),
+    "Failed to load programme overview.",
   );
 }
 

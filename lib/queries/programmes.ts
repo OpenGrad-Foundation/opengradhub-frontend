@@ -10,6 +10,7 @@ import {
   getProgrammeContent,
   getProgrammeMembers,
   getProgrammeSchools,
+  getProgrammeOverview,
   getProgrammeStudents,
   getProgrammes,
   type ProgrammeContentKind,
@@ -51,6 +52,16 @@ export function useProgrammeMembers(id: string | undefined) {
     queryKey: qk.programmeMembers(id ?? ''),
     queryFn: () => getProgrammeMembers(id as string),
     enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+/** Hub Analytics tab. Lazily enabled so the counts are not fetched unread. */
+export function useProgrammeOverview(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.programmeOverview(id ?? ''),
+    queryFn: () => getProgrammeOverview(id as string),
+    enabled: Boolean(id) && enabled,
     staleTime: 30_000,
   });
 }

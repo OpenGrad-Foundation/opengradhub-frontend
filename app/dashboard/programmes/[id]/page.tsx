@@ -8,12 +8,12 @@ import { PERM } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getBatchImpact,
   type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel,
-  type ProgrammeStudent, type SchoolOption,
+  type ProgrammeOverview, type ProgrammeStudent, type SchoolOption,
 } from "@/lib/api";
 import {
   useAssignableBatches, useAssignableContent, useEligibleProgrammeMembers, useProgramme,
   useProgrammeBatches, useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
-  useProgrammeStudents,
+  useProgrammeOverview, useProgrammeStudents,
 } from "@/lib/queries/programmes";
 import {
   useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
@@ -65,6 +65,7 @@ const LEVEL_HELP: Record<ProgrammeLevel, string> = {
 const TABS = [
   { key: "people",   label: "People" },
   { key: "students", label: "Students" },
+  { key: "analytics", label: "Analytics" },
   { key: "schools",  label: "Schools" },
   { key: "batches",  label: "Batches" },
   { key: "content",  label: "Content" },
@@ -176,6 +177,7 @@ export default function ProgrammeDetailPage() {
         />
       )}
       {tab === "students" && <StudentsSection programmeId={id} />}
+      {tab === "analytics" && <AnalyticsSection programmeId={id} />}
       {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "content" && <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />}
@@ -389,6 +391,87 @@ function PeopleSection({
           Students cannot be members; they belong to a programme through their profile.
         </div>
       )}
+    </section>
+  );
+}
+
+// ── analytics ────────────────────────────────────────────────────────────────
+
+function statCard(label: string, value: string, hint?: string) {
+  return (
+    <div key={label} style={{ ...cardStyle, padding: "16px 18px", minWidth: 150, flex: "1 1 150px" }}>
+      <div style={{ ...labelStyle, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: 26, fontWeight: 700, color: "#034852" }}>
+        {value}
+      </div>
+      {hint && <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+/**
+ * Programme-level numbers.
+ *
+ * The activity figures come from the immutable programme stamped on each fact
+ * when it was written, NOT from the student's current programme. That is the
+ * difference between "how did this programme do last term" and "how are the
+ * people who happen to be in it today doing" — and only the first is stable when
+ * someone transfers. Said on screen, because a number nobody can interpret is
+ * worse than no number.
+ */
+function AnalyticsSection({ programmeId }: { programmeId: string }) {
+  const { data, isLoading, error } = useProgrammeOverview(programmeId);
+
+  if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
+  if (error || !data) return <div style={errorStyle}>Failed to load programme overview.</div>;
+
+  const o: ProgrammeOverview = data;
+  const contentTotal = o.content.courses + o.content.assignments + o.content.resources;
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <h2 style={{ ...titleStyle, fontSize: 17 }}>Analytics</h2>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Reach</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Students", String(o.students))}
+          {statCard("Schools", String(o.schools))}
+          {statCard("Batches", String(o.batches))}
+          {statCard("Staff", String(o.staff))}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Content owned</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Courses", String(o.content.courses))}
+          {statCard("Assignments", String(o.content.assignments))}
+          {statCard("Resources", String(o.content.resources))}
+        </div>
+        {contentTotal === 0 && (
+          <div style={{ ...noticeStyle, marginTop: 10 }}>
+            This programme owns no content yet. Until it does, its members see an empty
+            Quizzes tab — assign courses on the Content tab.
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Activity</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Quiz attempts", String(o.activity.attempts))}
+          {statCard("Average score", o.activity.avg_score === null ? "—" : `${o.activity.avg_score}%`,
+            o.activity.avg_score === null ? "no completed attempts yet" : undefined)}
+          {statCard("Attendance marks", String(o.activity.attendance_marks))}
+          {statCard("Tracker records", String(o.activity.tracker_records))}
+        </div>
+        <div style={{ ...noticeStyle, marginTop: 10 }}>
+          Activity counts what happened <strong>in this programme</strong>, recorded at the
+          time. A student who transfers takes their future work with them and leaves their
+          history here, so these figures do not change retrospectively.
+        </div>
+      </div>
     </section>
   );
 }
