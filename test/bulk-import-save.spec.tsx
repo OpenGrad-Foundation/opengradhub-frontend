@@ -11,11 +11,18 @@ vi.mock('next/navigation', () => ({
 const bulkParseQuiz = vi.fn();
 const bulkSaveQuiz = vi.fn();
 const getBulkParseJobStatus = vi.fn();
+// The preview editor validates via the backend (debounced + at save) and
+// fetches suggestion facets on mount — both must resolve deterministically
+// here, not attempt real network calls from jsdom.
+const bulkValidateQuiz = vi.fn().mockResolvedValue([]);
+const getQuestionFacets = vi.fn().mockResolvedValue({ subjects: [], topics: [], tags: [] });
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
   bulkParseQuiz: (...args: unknown[]) => bulkParseQuiz(...args),
   bulkSaveQuiz: (...args: unknown[]) => bulkSaveQuiz(...args),
   getBulkParseJobStatus: (...args: unknown[]) => getBulkParseJobStatus(...args),
+  bulkValidateQuiz: (...args: unknown[]) => bulkValidateQuiz(...args),
+  getQuestionFacets: (...args: unknown[]) => getQuestionFacets(...args),
 }));
 
 import BulkImportQuizPage from '@/app/dashboard/quiz-builder/bulk-import/page';
