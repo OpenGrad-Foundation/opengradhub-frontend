@@ -4700,6 +4700,17 @@ export interface ProgrammeMember {
   added_at: string;
 }
 
+export interface ProgrammeStudent {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  status: string;
+  /** How this programme reaches them: their own programme, or an owned batch. */
+  via: "PROGRAMME" | "BATCH";
+}
+
 export interface ProgrammeSchool {
   school_id: string;
   name: string;
@@ -4756,6 +4767,20 @@ export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]
   return programmeJson(
     await apiFetch(`${API_BASE_URL}/programmes/${id}/members`),
     "Failed to load members.",
+  );
+}
+
+/**
+ * The students this programme reaches.
+ *
+ * Reach is `users.programme_id` plus members of the programme's own batches —
+ * never the schools it hosts. A school can host two cohorts, so a school-based
+ * arm would return the other one's roster.
+ */
+export async function getProgrammeStudents(id: string): Promise<ProgrammeStudent[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students`),
+    "Failed to load students.",
   );
 }
 

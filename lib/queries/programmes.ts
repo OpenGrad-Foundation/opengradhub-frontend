@@ -10,6 +10,7 @@ import {
   getProgrammeContent,
   getProgrammeMembers,
   getProgrammeSchools,
+  getProgrammeStudents,
   getProgrammes,
   type ProgrammeContentKind,
 } from '../api';
@@ -50,6 +51,19 @@ export function useProgrammeMembers(id: string | undefined) {
     queryKey: qk.programmeMembers(id ?? ''),
     queryFn: () => getProgrammeMembers(id as string),
     enabled: Boolean(id),
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * The programme's student roster. Lazily enabled by the hub so opening the page
+ * does not fetch a roster nobody looked at.
+ */
+export function useProgrammeStudents(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.programmeStudents(id ?? ''),
+    queryFn: () => getProgrammeStudents(id as string),
+    enabled: Boolean(id) && enabled,
     staleTime: 30_000,
   });
 }
