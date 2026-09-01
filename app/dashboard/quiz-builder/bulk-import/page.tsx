@@ -387,19 +387,17 @@ export default function BulkImportQuizPage() {
           </div>
 
           {showSource && sourceText != null ? (
-            // ── Step 1.5: Repair the source ─────────────────────────────────
-            <>
-              <h1 style={{ ...S.heading, margin: "0 0 16px 0" }}>Fix the Source</h1>
-              <QuizSourceEditor
-                source={sourceText}
-                diagnostics={previewData?.diagnostics ?? []}
-                parsing={parsing}
-                error={error}
-                onReparse={(next) => { void handleReparse(next); }}
-                onContinue={() => { if (previewData) setShowSource(false); }}
-                onCancel={handleDiscardPreview}
-              />
-            </>
+            // ── Step 1.5: Repair the source (full-screen workbench) ─────────
+            <QuizSourceEditor
+              source={sourceText}
+              quiz={previewData}
+              diagnostics={previewData?.diagnostics ?? []}
+              parsing={parsing}
+              error={error}
+              onReparse={(next) => { void handleReparse(next); }}
+              onContinue={() => { if (previewData) setShowSource(false); }}
+              onCancel={handleDiscardPreview}
+            />
           ) : previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>

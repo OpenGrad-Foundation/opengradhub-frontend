@@ -1220,14 +1220,49 @@ export function QuizPreviewEditor({
                 Only questions with issues
               </label>
             </div>
-            {/* Quiz-level items (e.g. missing title) that no row can carry */}
-            {allDiags
-              .filter((d) => d.where === "quiz" && d.severity !== "info")
-              .map((d, i) => (
-                <div key={d.id ?? `qz${i}`} style={{ fontSize: "12px", color: d.severity === "error" ? "#c53030" : "#956f00", fontWeight: 600 }}>
-                  {d.severity === "error" ? "⛔" : "⚠️"} {d.message}
-                </div>
-              ))}
+            {/* Every issue, clickable: opens the question; Apply when a one-click fix exists. */}
+            <div style={{ maxHeight: "220px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
+              {allDiags
+                .filter((d) => d.severity !== "info")
+                .map((d, i) => {
+                  const w = d.where;
+                  const hasQ = typeof w === "object" && "q" in w;
+                  const isSyn = syntactic.includes(d);
+                  const canApply = d.fix?.field != null && d.fix.value != null;
+                  const applyIt = () => {
+                    if (isSyn) { resolveSyntactic(d, "apply"); return; }
+                    const next = applyDiagnosticFix(data, d, "apply");
+                    if (next) onChange(next); // semantic: the next validate clears it
+                  };
+                  return (
+                    <div
+                      key={d.id ?? `d${i}`}
+                      onClick={() => { if (hasQ) setActiveQ({ sIdx: w.s, qIdx: w.q }); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "8px", fontSize: "12px",
+                        color: d.severity === "error" ? "#c53030" : "#956f00", fontWeight: 600,
+                        cursor: hasQ ? "pointer" : "default", padding: "3px 4px", borderRadius: "6px",
+                      }}
+                      title={hasQ ? "Open this question" : undefined}
+                    >
+                      <span aria-hidden>{d.severity === "error" ? "⛔" : "⚠️"}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>{d.message}</span>
+                      {canApply && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); applyIt(); }}
+                          style={{
+                            flexShrink: 0, padding: "3px 10px", borderRadius: "7px", fontSize: "11px", fontWeight: 700,
+                            border: "1.5px solid #0abe62", background: "#fff", color: "#0f6b58", cursor: "pointer",
+                          }}
+                        >
+                          ✓ Apply {String(d.fix!.field)} = {String(d.fix!.value)}
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
           </div>
         )}
 
