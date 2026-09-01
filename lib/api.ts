@@ -2008,6 +2008,8 @@ export interface ParsedQuestion {
   instruction?: string;
   /** The author's own question number (the n in `Q.n)`), for UI labels. */
   number?: number;
+  /** 1-based source line where this question (or group) starts. */
+  line?: number;
   content: string;
   question_type: "MCQ" | "NUMERICAL" | "FILL" | "ESSAY" | "GROUP";
   options: ParsedOption[];
@@ -2028,6 +2030,8 @@ export interface ParsedQuestion {
 
 export interface ParsedSection {
   title: string;
+  /** 1-based source line of the [SECTION] tag. */
+  line?: number;
   duration_minutes?: number;
   marks?: number;
   questions: ParsedQuestion[];
@@ -2067,6 +2071,8 @@ export interface ParseDiagnostic {
   field?: keyof ParsedQuestion;
   line?: number;
   raw?: string;
+  /** The known tag this line most likely meant, for source-level repair. */
+  suggestedTag?: string;
   fix?: ParseDiagnosticFix;
 }
 
