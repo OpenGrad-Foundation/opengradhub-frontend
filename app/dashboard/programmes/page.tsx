@@ -4,6 +4,7 @@ import { useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permission";
+import { useRowNavigation } from "./_components/use-row-navigation";
 import { PERM } from "@/lib/permissions";
 import { useProgrammes } from "@/lib/queries/programmes";
 import { useCreateProgramme } from "@/lib/mutations/programmes";
@@ -22,35 +23,6 @@ function suggestCode(name: string, state: string): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
-}
-
-/**
- * Row-level navigation that does not cost the anchor's behaviour.
- *
- * The name stays a real `<Link>`, so keyboard tabbing, cmd/middle-click into a
- * new tab, "copy link address" and screen-reader link semantics all keep
- * working — a `<tr onClick>` alone silently removes every one of those. This
- * only adds the convenience click, and stands aside whenever the browser is
- * already doing something better:
- *
- *   - a modifier or non-left button  -> the anchor's own new-tab handling
- *   - a click on any interactive child -> that control's job, not ours
- *   - a click that ends a text selection -> the user was selecting, not navigating
- *
- * No tabIndex/role on the row: that would add a second tab stop announcing the
- * same destination the name link already announces.
- */
-function useRowNavigation() {
-  const router = useRouter();
-  return (href: string) => ({
-    onClick: (e: MouseEvent<HTMLTableRowElement>) => {
-      if (e.defaultPrevented || e.button !== 0) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      if ((e.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
-      if (window.getSelection()?.toString()) return;
-      router.push(href);
-    },
-  });
 }
 
 export default function ProgrammesPage() {

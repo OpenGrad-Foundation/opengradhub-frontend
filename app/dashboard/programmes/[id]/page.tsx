@@ -3,7 +3,7 @@ import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { usePermissions } from "@/hooks/use-permission";
+import { usePermissions, usePermission, useAnyPermission } from "@/hooks/use-permission";
 import { useCurrentUser } from "@/lib/queries/current-user";
 import { PERM } from "@/lib/permissions";
 import {
@@ -26,6 +26,9 @@ import {
   linkBtnStyle, noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "../styles";
 import { SearchMultiPicker } from "@/components/SearchMultiPicker";
+import { EntityLink } from "../_components/entity-link";
+import { useRowNavigation } from "../_components/use-row-navigation";
+import { STAFF_ANALYTICS_PERMISSIONS } from "@/lib/permissions";
 
 const LEVELS: ProgrammeLevel[] = ["OWNER", "EDITOR", "VIEWER"];
 
@@ -519,6 +522,8 @@ function AnalyticsSection({ programmeId }: { programmeId: string }) {
  * would stop being reachable if that batch moved.
  */
 function StudentsSection({ programmeId }: { programmeId: string }) {
+  const rowNav = useRowNavigation();
+  const canOpenStudent = useAnyPermission(...STAFF_ANALYTICS_PERMISSIONS);
   const { data: students = [], isLoading, error } = useProgrammeStudents(programmeId);
   const [q, setQ] = useState("");
 
@@ -582,9 +587,18 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
               <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No student matches “{q}”.</td></tr>
             )}
             {filtered.map((s: ProgrammeStudent) => (
-              <tr key={s.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+              <tr
+                key={s.user_id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenStudent ? rowNav(`/dashboard/students/${s.user_id}`) : {})}
+              >
                 <td style={tdStyle}>
-                  {s.name}
+                  <EntityLink
+                    href={`/dashboard/students/${s.user_id}`}
+                    permissions={STAFF_ANALYTICS_PERMISSIONS}
+                  >
+                    {s.name}
+                  </EntityLink>
                   {s.status !== "ACTIVE" && (
                     <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "rgba(3,72,82,0.45)" }}>
                       {s.status}
@@ -625,6 +639,23 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row:
   { key: "assignments", label: "Assignments", one: "assignment", row: "Assignment" },
   { key: "resources", label: "Resources", one: "resource", row: "Resource" },
 ];
+
+/**
+ * Where each content kind lives, and what it takes to open it.
+ *
+ * Resources have no detail page — they are files, opened from the Resources
+ * list — so they are deliberately absent and render as plain text rather than a
+ * link to a route that does not exist.
+ */
+const CONTENT_HREF: Record<string, ((id: string) => string) | undefined> = {
+  courses: (id) => `/dashboard/courses/${id}`,
+  assignments: (id) => `/dashboard/assignments/${id}`,
+};
+const CONTENT_PERMS: Record<string, readonly string[]> = {
+  courses: [PERM.courses.view],
+  assignments: [PERM.assignments.view],
+  resources: [PERM.resources.view],
+};
 
 const KIND_ROW_LABEL = Object.fromEntries(KINDS.map((k) => [k.key, k.row])) as Record<
   ProgrammeContentKind,
@@ -766,7 +797,16 @@ function ContentSection({
             )}
             {owned.map((c) => (
               <tr key={`${c.kind}:${c.id}`} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{c.title}</td>
+                <td style={tdStyle}>
+                  {(() => {
+                    const to = CONTENT_HREF[c.kind];
+                    return to ? (
+                      <EntityLink href={to(c.id)} permissions={CONTENT_PERMS[c.kind] ?? []}>
+                        {c.title}
+                      </EntityLink>
+                    ) : c.title;
+                  })()}
+                </td>
                 <td style={tdStyle}>{KIND_ROW_LABEL[c.kind] ?? c.kind}</td>
                 <td style={tdStyle}>{c.created_by_name ?? "—"}</td>
                 <td style={tdStyle}>
@@ -808,6 +848,8 @@ function ContentSection({
 function SchoolsSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
+  const rowNav = useRowNavigation();
+  const canOpenSchool = usePermission(PERM.schools.view);
   const { data: attached = [], isLoading } = useProgrammeSchools(programmeId);
   const attach = useAttachProgrammeSchool();
   const detach = useDetachProgrammeSchool();
@@ -891,8 +933,16 @@ function SchoolsSection({
               <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No schools attached.</td></tr>
             )}
             {attached.map((s) => (
-              <tr key={s.school_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{s.name}</td>
+              <tr
+                key={s.school_id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenSchool ? rowNav(`/dashboard/schools/${s.school_id}`) : {})}
+              >
+                <td style={tdStyle}>
+                  <EntityLink href={`/dashboard/schools/${s.school_id}`} permissions={[PERM.schools.view]}>
+                    {s.name}
+                  </EntityLink>
+                </td>
                 <td style={tdStyle}>{s.district ?? "—"}</td>
                 <td style={tdStyle}>{s.state ?? "—"}</td>
                 {canManage && (
@@ -937,6 +987,8 @@ function SchoolsSection({
 function BatchesSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
+  const rowNav = useRowNavigation();
+  const canOpenBatch = usePermission(PERM.batches.view);
   const { data: attached = [], isLoading } = useProgrammeBatches(programmeId);
   const { data: assignable = [], isLoading: loadingPick } =
     useAssignableBatches(programmeId, canManage);
@@ -1116,8 +1168,16 @@ function BatchesSection({
               </tr>
             )}
             {attached.map((b) => (
-              <tr key={b.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{b.name}</td>
+              <tr
+                key={b.id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenBatch ? rowNav(`/dashboard/batches/${b.id}`) : {})}
+              >
+                <td style={tdStyle}>
+                  <EntityLink href={`/dashboard/batches/${b.id}`} permissions={[PERM.batches.view]}>
+                    {b.name}
+                  </EntityLink>
+                </td>
                 <td style={tdStyle}>{b.school_name ?? "—"}</td>
                 <td style={tdStyle}>{b.course_count}</td>
                 <td style={tdStyle}>{b.status ?? "—"}</td>
