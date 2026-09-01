@@ -150,6 +150,7 @@ export const PERM = {
     fill_override: "tracker.fill.override",
     blocker_clear: "tracker.blocker.clear",
     admin: "tracker.admin",
+    all_tasks: "tracker.all_tasks",
     /** Accept an out-of-range school-visit verification (migration 097). */
     geo_override: "tracker.geo.override",
     /** Reopen one overdue record until a new date (migration 098). */

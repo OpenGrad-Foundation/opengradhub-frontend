@@ -620,7 +620,7 @@ function MonitorView() {
   // over everything.
   const myProgrammes = isSuperAdmin
     ? allProgrammes
-    : allProgrammes.filter((p) => p.my_level != null);
+    : allProgrammes.filter((p) => p.is_member);
   const inProgrammeMode = !isSuperAdmin && myProgrammes.length > 0;
   const showPicker = isSuperAdmin ? allProgrammes.length > 0 : myProgrammes.length >= 2;
 

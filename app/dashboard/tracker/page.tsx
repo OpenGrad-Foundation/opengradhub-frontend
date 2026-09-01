@@ -71,18 +71,25 @@ export default function TrackerPage() {
   const canAdmin = has(PERM.tracker.admin);
   const isManagerView = canAuthor || canClear || canAdmin;
   const roleCode = currentUser?.role?.code ?? "";
-  const isPmOrAdmin = roleCode === "PROGRAM_MANAGER" || roleCode === "SUPER_ADMIN";
+  // Which tabs exist is an authorization question, so it is asked of
+  // permissions — and of the SAME ones the backend uses, so the screen cannot
+  // offer a surface the API will refuse. `assertPmOrAdmin` checks
+  // tracker.all_tasks and `assertManager` checks tracker.author
+  // (src/tracker/pm-view.guard.ts).
+  const canAllTasks = has(PERM.tracker.all_tasks);
 
   const tabs = useMemo<TrackerTab[]>(() => {
     const next: TrackerTab[] = [];
-    if (isPmOrAdmin || roleCode === "ZONAL_MANAGER") next.push("allTasks"); // task-first drill — PM/Admin/ZM
+    // tracker.all_tasks is PM/Admin; tracker.author additionally covers ZM,
+    // which is exactly the pair the backend's two guards accept.
+    if (canAllTasks || canAuthor) next.push("allTasks");
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
     if (canFill || isManagerView) next.push("myStudents"); // own students list
     if (canAuthor) next.push("builder");                   // new + manage templates
     if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
-  }, [canAuthor, canFill, isManagerView, isPmOrAdmin, roleCode]);
+  }, [canAuthor, canFill, isManagerView, canAllTasks]);
 
   /**
    * `?task=<templateId>` opens straight into that task's grid — the link a student
@@ -218,7 +225,7 @@ export default function TrackerPage() {
                   onClear={() => setOverviewState(null)}
                   onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
                 />
-              ) : isPmOrAdmin ? (
+              ) : canAllTasks ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>

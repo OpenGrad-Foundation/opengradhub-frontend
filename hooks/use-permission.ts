@@ -25,10 +25,22 @@ export function usePermissions(): {
 } {
   const { data, isLoading } = useCurrentUser();
 
+  // `isSuperAdmin` is still reported, because a few screens legitimately want to
+  // SAY "you are an admin". It no longer decides what anyone may do.
   const isSuperAdmin = data?.role?.code === SUPER_ADMIN;
   const granted = new Set(data?.permissions ?? []);
 
-  const has = (code: string) => isSuperAdmin || granted.has(code);
+  // No role short-circuit. `has` used to return true for any SUPER_ADMIN
+  // regardless of their permissions -- the frontend mirror of the wildcard that
+  // was removed from PermissionsGuard, and the same contradiction of "PBAC is
+  // the source of truth": the screen would offer an action the API then refused,
+  // or keep offering one after the permission was revoked.
+  //
+  // A super admin now holds every route permission explicitly (101 of them,
+  // covering all 94 guarded routes; src/auth/scope/sa-coverage.spec.ts fails the
+  // backend build if that stops being true), so this is the same answer arrived
+  // at honestly.
+  const has = (code: string) => granted.has(code);
   const hasAny = (...codes: string[]) => codes.some(has);
   const hasAll = (...codes: string[]) => codes.every(has);
 

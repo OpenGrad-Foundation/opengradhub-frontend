@@ -16,20 +16,20 @@ export const cardStyle: React.CSSProperties = { background: "#ffffff", border: "
 export const errorStyle: React.CSSProperties = { padding: "12px 16px", borderRadius: "12px", background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.2)", color: "#b91c1c", fontSize: "13px" };
 export const noticeStyle: React.CSSProperties = { padding: "12px 16px", borderRadius: "12px", background: "rgba(3,72,82,0.05)", border: "1px solid rgba(3,72,82,0.12)", color: "rgba(3,72,82,0.75)", fontSize: "13px", lineHeight: 1.6 };
 
-/** Level pill colours — OWNER reads as the strongest. */
-export const levelBadge = (level: string): React.CSSProperties => ({
+/**
+ * One badge, because there is one thing left to say: you are a member.
+ *
+ * It used to take a level and colour OWNER / EDITOR / VIEWER differently. The
+ * levels are gone (backend migration 119) — a member's authority is their
+ * permissions, which no badge on this row can know.
+ */
+export const memberBadge = (): React.CSSProperties => ({
   display: "inline-block",
   padding: "3px 10px",
   borderRadius: "999px",
   fontSize: "11px",
   fontWeight: 700,
   letterSpacing: "0.04em",
-  background:
-    level === "OWNER" ? "rgba(10,190,98,0.14)"
-    : level === "EDITOR" ? "rgba(3,72,82,0.10)"
-    : "rgba(0,0,0,0.05)",
-  color:
-    level === "OWNER" ? "#067a45"
-    : level === "EDITOR" ? "#034852"
-    : "rgba(3,72,82,0.6)",
+  background: "rgba(3,72,82,0.10)",
+  color: "#034852",
 });

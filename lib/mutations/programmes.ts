@@ -10,10 +10,9 @@ import {
   detachProgrammeSchool,
   releaseProgrammeContent,
   removeProgrammeMember,
-  setProgrammeMember,
+  addProgrammeMember,
   updateProgramme,
   type ProgrammeContentKind,
-  type ProgrammeLevel,
 } from '../api';
 import { qk } from '../queries/keys';
 
@@ -56,11 +55,11 @@ export function useUpdateProgramme() {
   });
 }
 
-export function useSetProgrammeMember() {
+export function useAddProgrammeMember() {
   const invalidate = useProgrammeInvalidation();
   return useMutation({
-    mutationFn: (args: { id: string; userId: string; level: ProgrammeLevel }) =>
-      setProgrammeMember(args.id, args.userId, args.level),
+    mutationFn: (args: { id: string; userId: string }) =>
+      addProgrammeMember(args.id, args.userId),
     onSuccess: (_d, args) => invalidate(args.id),
   });
 }

@@ -1,31 +1,34 @@
 "use client";
-import { ZONE, ZONE_LOWER } from "@/lib/labels";
+import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { usePermissions } from "@/hooks/use-permission";
+import { usePermissions, usePermission, useAnyPermission } from "@/hooks/use-permission";
+import { useCurrentUser } from "@/lib/queries/current-user";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getBatchImpact,
-  type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel,
-  type SchoolOption,
+  type BatchImpact, type ProgrammeContentKind,
+  type ProgrammeOverview, type ProgrammeStudent, type SchoolOption,
 } from "@/lib/api";
 import {
   useAssignableBatches, useAssignableContent, useEligibleProgrammeMembers, useProgramme,
   useProgrammeBatches, useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
+  useProgrammeOverview, useProgrammeStudents,
 } from "@/lib/queries/programmes";
 import {
   useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
   useDetachProgrammeBatch, useDetachProgrammeSchool, useReleaseProgrammeContent,
-  useRemoveProgrammeMember, useSetProgrammeMember, useUpdateProgramme,
+  useAddProgrammeMember, useRemoveProgrammeMember, useUpdateProgramme,
 } from "@/lib/mutations/programmes";
 import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
+  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
   linkBtnStyle, noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "../styles";
 import { SearchMultiPicker } from "@/components/SearchMultiPicker";
-
-const LEVELS: ProgrammeLevel[] = ["OWNER", "EDITOR", "VIEWER"];
+import { EntityLink } from "../_components/entity-link";
+import { useRowNavigation } from "../_components/use-row-navigation";
+import { STAFF_ANALYTICS_PERMISSIONS } from "@/lib/permissions";
 
 /**
  * Not every message worth showing is a failure. Attaching content that another
@@ -37,36 +40,82 @@ type Banner = { text: string; tone: BannerTone };
 type Notify = (message: string | null, tone?: BannerTone) => void;
 
 /**
- * What each level means, stated in the UI so it is not folklore.
- * Mirrors the backend: level gates writes; VIEWER is deliberately read-only and
- * carries no roster PII or grades.
+ * What membership means, stated in the UI so it is not folklore.
+ *
+ * This used to be a level-by-level table — OWNER administers, EDITOR edits,
+ * VIEWER reads. Backend migration 119 retired those: adding someone puts them in
+ * the programme, and what they may do there is decided by their permissions.
+ * Saying so plainly is the point, because the old screen let an operator believe
+ * the dropdown was the authority when the permission always was.
  */
-const LEVEL_HELP: Record<ProgrammeLevel, string> = {
-  // OWNER is the only level that administers the programme itself — members,
-  // schools, batches, and which content the programme owns.
-  OWNER: "Manages members, schools, batches, and which content this programme owns.",
-  // EDITOR edits content but cannot decide what the programme owns. Saying
-  // "manages the programme's content" implied the latter, which it never had.
-  EDITOR: "Can edit the courses, assignments and resources this programme already owns.",
-  VIEWER: "Read-only. No student data.",
-};
+const MEMBERSHIP_HELP =
+  "Adds them to this programme. What they can do inside it comes from their role's " +
+  "permissions — membership decides WHICH programme those apply to, never what they are.";
+
+/**
+ * The hub is a workspace, not a report, so it is tabbed rather than a single
+ * stacked scroll. The old page rendered all five sections at once, which meant
+ * every visit fetched members, content, schools and batches even when the
+ * operator came to do one thing — and put the destructive Archive control
+ * directly under the batch table.
+ *
+ * Tabs also make the roster affordable: students are only fetched once that tab
+ * is opened.
+ */
+const TABS = [
+  { key: "people",   label: "People" },
+  { key: "students", label: "Students" },
+  { key: "analytics", label: "Analytics" },
+  { key: "schools",  label: "Schools" },
+  { key: "batches",  label: "Batches" },
+  { key: "content",  label: "Content" },
+  { key: "settings", label: "Settings" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+function tabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "10px 18px",
+    border: "none",
+    borderRadius: "10px",
+    background: active ? "rgba(10,190,98,0.12)" : "transparent",
+    color: active ? "#046b45" : "rgba(3,72,82,0.65)",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 700,
+    fontSize: "13px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+}
 
 export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { has } = usePermissions();
+  const { has, isSuperAdmin } = usePermissions();
+  const { data: me } = useCurrentUser();
   const canEdit = has(PERM.programmes.edit);
   const canManageMembers = has(PERM.programmes.manage_members);
 
   const { data: programme, isLoading, error } = useProgramme(id);
+  const [tab, setTab] = useState<TabKey>("people");
   const [banner, setBanner] = useState<Banner | null>(null);
   const notify: Notify = (message, tone = "error") =>
     setBanner(message === null ? null : { text: message, tone });
 
-  // Only an OWNER (or a super admin, whom the API lets through) can actually
-  // write. Showing the controls to anyone else just produces 403s.
-  const isOwner = programme?.my_level === "OWNER";
-  const mayAdminister = canEdit && (isOwner || has("*"));
+  // Membership plus the permission — the same two halves the server checks, so
+  // the controls shown match the writes that will be accepted.
+  //
+  // The badge used to say OWNER while the Settings tab refused the same person,
+  // because the two answered different questions: `my_level` was the legacy
+  // programme_members.level and every gate here is PBAC. Migration 119 retired
+  // that column, and `is_member` is what replaced it — a fact, with no authority
+  // of its own to contradict.
+  const isMember = Boolean(programme?.is_member);
+  // `has("*")` was never a permission — it only ever returned true because
+  // usePermissions short-circuited on the SUPER_ADMIN role code. With that
+  // wildcard gone it would be permanently false, so the real permission is named
+  // instead. A super admin holds it explicitly, so nothing changes for them.
+  const mayAdminister = canEdit && (isMember || isSuperAdmin);
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !programme) {
@@ -100,7 +149,12 @@ export default function ProgrammeDetailPage() {
             {programme.code}
           </div>
         </div>
-        {programme.my_level && <span style={levelBadge(programme.my_level)}>{programme.my_level}</span>}
+        {/* The caller's ROLE, which is what decides how far they see. There is
+            no membership level to show any more, and showing one was the bug:
+            it said OWNER for everyone and contradicted the gates on this page. */}
+        {isMember && me?.role?.code && (
+          <span style={memberBadge()}>{roleLabel(me.role.code)}</span>
+        )}
       </div>
 
       {programme.status === "ARCHIVED" && (
@@ -113,31 +167,78 @@ export default function ProgrammeDetailPage() {
         <div style={banner.tone === "error" ? errorStyle : noticeStyle}>{banner.text}</div>
       )}
 
-      <MembersSection
-        programmeId={id}
-        canManage={canManageMembers && (isOwner || has("*"))}
-        onError={notify}
-      />
-      <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />
-      <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />
-      <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />
-      {mayAdminister && <DangerSection programmeId={id} status={programme.status} onError={notify} />}
+      <div
+        role="tablist"
+        aria-label="Programme sections"
+        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8 }}
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            style={tabStyle(tab === t.key)}
+            onClick={() => { setTab(t.key); notify(null); }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "people" && (
+        <PeopleSection
+          programmeId={id}
+          canManage={canManageMembers && (isMember || isSuperAdmin)}
+          onError={notify}
+        />
+      )}
+      {tab === "students" && <StudentsSection programmeId={id} />}
+      {tab === "analytics" && <AnalyticsSection programmeId={id} />}
+      {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {tab === "content" && <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {tab === "settings" && (
+        mayAdminister
+          ? <DangerSection programmeId={id} status={programme.status} onError={notify} />
+          : (
+            <div style={noticeStyle}>
+              Changing a programme&rsquo;s settings needs the{" "}
+              <strong>Create and Edit Programmes</strong> permission, which your role does
+              not hold. You can still see everything on the other tabs.
+            </div>
+          )
+      )}
     </div>
   );
 }
 
-// ── members ──────────────────────────────────────────────────────────────────
+// ── people ───────────────────────────────────────────────────────────────────
 
-function MembersSection({
+/**
+ * Staff order, broadest first. The hub groups people by ROLE rather than by
+ * membership level because that is the question an operator actually arrives
+ * with — "who runs this programme, and who is on the ground" — and because the
+ * programme-root design makes the role the thing that decides reach.
+ *
+ * Roles are read from the data, so a role added later still renders; this list
+ * only fixes the order of the ones we know about.
+ */
+const ROLE_ORDER = ["SUPER_ADMIN", "PROGRAM_MANAGER", "ZONAL_MANAGER", "FELLOW"];
+
+function roleRank(role: string): number {
+  const i = ROLE_ORDER.indexOf(role);
+  return i === -1 ? ROLE_ORDER.length : i;
+}
+
+function PeopleSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: members = [], isLoading } = useProgrammeMembers(programmeId);
-  const setMember = useSetProgrammeMember();
+  const addMember = useAddProgrammeMember();
   const removeMember = useRemoveProgrammeMember();
 
   const [adding, setAdding] = useState(false);
   const [picks, setPicks] = useState<string[]>([]);
-  const [level, setLevel] = useState<ProgrammeLevel>("EDITOR");
 
   // Gated on programme ownership, not on user_management.view. Using GET /users
   // here meant only a SUPER_ADMIN ever saw candidates: PROGRAM_MANAGER holds
@@ -160,10 +261,19 @@ function MembersSection({
     }
   }
 
+  // Grouped by role, broadest first, names alphabetical inside each group.
+  const grouped = useMemo(() => {
+    const by = new Map<string, typeof members>();
+    for (const m of members) by.set(m.role, [...(by.get(m.role) ?? []), m]);
+    return [...by.entries()]
+      .sort(([a], [b]) => roleRank(a) - roleRank(b) || a.localeCompare(b))
+      .map(([role, rows]) => [role, [...rows].sort((x, y) => x.name.localeCompare(y.name))] as const);
+  }, [members]);
+
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ ...titleStyle, fontSize: 17 }}>Members</h2>
+        <h2 style={{ ...titleStyle, fontSize: 17 }}>People</h2>
         {canManage && !adding && (
           <button style={secondaryButton} onClick={() => setAdding(true)}>Add member</button>
         )}
@@ -196,26 +306,22 @@ function MembersSection({
               </div>
             )}
           </div>
-          <div style={{ flex: "0 1 200px" }}>
-            <label style={formLabelStyle}>Level</label>
-            <select style={inputStyle} value={level} onChange={(e) => setLevel(e.target.value as ProgrammeLevel)}>
-              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 6 }}>
-              {LEVEL_HELP[level]}
+          <div style={{ flex: "0 1 260px" }}>
+            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 24 }}>
+              {MEMBERSHIP_HELP}
               {picks.length > 1 ? ` Applies to all ${picks.length} selected.` : ""}
             </div>
           </div>
           <button
-            style={{ ...primaryButton, opacity: picks.length === 0 || setMember.isPending ? 0.6 : 1 }}
-            disabled={picks.length === 0 || setMember.isPending}
+            style={{ ...primaryButton, opacity: picks.length === 0 || addMember.isPending ? 0.6 : 1 }}
+            disabled={picks.length === 0 || addMember.isPending}
             onClick={() => run(async () => {
               // Sequential on purpose: each add is its own authority check, and
               // a partial success must say exactly who failed.
               const failed: string[] = [];
               for (const userId of picks) {
                 try {
-                  await setMember.mutateAsync({ id: programmeId, userId, level });
+                  await addMember.mutateAsync({ id: programmeId, userId });
                 } catch {
                   const who = candidates.find((c) => c.user_id === userId);
                   failed.push(who?.name ?? userId);
@@ -231,7 +337,7 @@ function MembersSection({
               setPicks([]); setAdding(false);
             })}
           >
-            {setMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
+            {addMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
           </button>
           <button style={secondaryButton} onClick={() => { setAdding(false); setPicks([]); }}>Cancel</button>
         </div>
@@ -243,35 +349,29 @@ function MembersSection({
             <tr>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Role</th>
-              <th style={thStyle}>Level</th>
+
               {canManage && <th style={thStyle} />}
             </tr>
           </thead>
           <tbody>
             {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
             {!isLoading && members.length === 0 && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No members yet.</td></tr>
+              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No one is on this programme yet.</td></tr>
             )}
-            {members.map((m) => (
+            {grouped.map(([role, rows]) => (
+              <Fragment key={role}>
+                <tr style={{ background: "rgba(3,72,82,0.03)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                  <td style={{ ...tdStyle, ...labelStyle, paddingTop: 10, paddingBottom: 10 }} colSpan={canManage ? 4 : 3}>
+                    {roleLabel(role)} · {rows.length}
+                  </td>
+                </tr>
+                {rows.map((m) => (
               <tr key={m.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                 <td style={tdStyle}>
                   {m.name}
                   {m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
                 </td>
-                <td style={tdStyle}>{m.role}</td>
-                <td style={tdStyle}>
-                  {canManage ? (
-                    <select
-                      style={{ ...inputStyle, padding: "6px 10px", width: "auto" }}
-                      value={m.level}
-                      onChange={(e) => run(() => setMember.mutateAsync({
-                        id: programmeId, userId: m.user_id, level: e.target.value as ProgrammeLevel,
-                      }))}
-                    >
-                      {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  ) : <span style={levelBadge(m.level)}>{m.level}</span>}
-                </td>
+                <td style={tdStyle}>{roleLabel(m.role)}</td>
                 {canManage && (
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     <button
@@ -283,6 +383,8 @@ function MembersSection({
                   </td>
                 )}
               </tr>
+            ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -297,6 +399,213 @@ function MembersSection({
   );
 }
 
+// ── analytics ────────────────────────────────────────────────────────────────
+
+function statCard(label: string, value: string, hint?: string) {
+  return (
+    <div key={label} style={{ ...cardStyle, padding: "16px 18px", minWidth: 150, flex: "1 1 150px" }}>
+      <div style={{ ...labelStyle, marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "var(--font-heading)", fontSize: 26, fontWeight: 700, color: "#034852" }}>
+        {value}
+      </div>
+      {hint && <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>{hint}</div>}
+    </div>
+  );
+}
+
+/**
+ * Programme-level numbers.
+ *
+ * The activity figures come from the immutable programme stamped on each fact
+ * when it was written, NOT from the student's current programme. That is the
+ * difference between "how did this programme do last term" and "how are the
+ * people who happen to be in it today doing" — and only the first is stable when
+ * someone transfers. Said on screen, because a number nobody can interpret is
+ * worse than no number.
+ */
+function AnalyticsSection({ programmeId }: { programmeId: string }) {
+  const { data, isLoading, error } = useProgrammeOverview(programmeId);
+
+  if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
+  if (error || !data) return <div style={errorStyle}>Failed to load programme overview.</div>;
+
+  const o: ProgrammeOverview = data;
+  const contentTotal = o.content.courses + o.content.assignments + o.content.resources;
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <h2 style={{ ...titleStyle, fontSize: 17 }}>Analytics</h2>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Reach</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Students", String(o.students))}
+          {statCard("Schools", String(o.schools))}
+          {statCard("Batches", String(o.batches))}
+          {statCard("Staff", String(o.staff))}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Content owned</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Courses", String(o.content.courses))}
+          {statCard("Assignments", String(o.content.assignments))}
+          {statCard("Resources", String(o.content.resources))}
+        </div>
+        {contentTotal === 0 && (
+          <div style={{ ...noticeStyle, marginTop: 10 }}>
+            This programme owns no content yet. Until it does, its members see an empty
+            Quizzes tab — assign courses on the Content tab.
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Activity</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {statCard("Quiz attempts", String(o.activity.attempts))}
+          {statCard("Average score", o.activity.avg_score === null ? "—" : `${o.activity.avg_score}%`,
+            o.activity.avg_score === null ? "no completed attempts yet" : undefined)}
+          {statCard("Attendance marks", String(o.activity.attendance_marks))}
+          {statCard("Tracker records", String(o.activity.tracker_records))}
+        </div>
+        <div style={{ ...noticeStyle, marginTop: 10 }}>
+          Activity counts what happened <strong>in this programme</strong>, recorded at the
+          time. A student who transfers takes their future work with them and leaves their
+          history here, so these figures do not change retrospectively.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── students ─────────────────────────────────────────────────────────────────
+
+/**
+ * The programme's roster, read-only.
+ *
+ * There is no "add student" control here on purpose. A student joins a
+ * programme by having `users.programme_id` set, or by being enrolled in one of
+ * its batches — both of which happen in User management and Batches. Offering a
+ * third way in here would create a fourth answer to "which programme is this
+ * student in", which is the ambiguity the programme-root work exists to remove.
+ *
+ * `via` is shown because the two routes are not equivalent: a PROGRAMME student
+ * belongs to it, whereas a BATCH student is reached through an owned batch and
+ * would stop being reachable if that batch moved.
+ */
+function StudentsSection({ programmeId }: { programmeId: string }) {
+  const rowNav = useRowNavigation();
+  const canOpenStudent = useAnyPermission(...STAFF_ANALYTICS_PERMISSIONS);
+  const { data: students = [], isLoading, error } = useProgrammeStudents(programmeId);
+  const [q, setQ] = useState("");
+
+  const filtered = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return students;
+    return students.filter(
+      (s: ProgrammeStudent) =>
+        s.name.toLowerCase().includes(needle) ||
+        (s.roll_number ?? "").toLowerCase().includes(needle) ||
+        (s.school_name ?? "").toLowerCase().includes(needle),
+    );
+  }, [students, q]);
+
+  const viaBatch = students.filter((s: ProgrammeStudent) => s.via === "BATCH").length;
+
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <h2 style={{ ...titleStyle, fontSize: 17 }}>Students</h2>
+        {students.length > 0 && (
+          <input
+            style={{ ...inputStyle, width: 260 }}
+            placeholder="Search name, roll number or school"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        )}
+      </div>
+
+      {error && <div style={errorStyle}>Failed to load students.</div>}
+
+      {!isLoading && students.length > 0 && (
+        <div style={noticeStyle}>
+          {students.length} student{students.length === 1 ? "" : "s"}
+          {viaBatch > 0 && <> · {viaBatch} reached through a batch rather than being assigned to this programme</>}
+        </div>
+      )}
+
+      <div style={cardStyle}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+            <tr>
+              <th style={thStyle}>Name</th>
+              <th style={thStyle}>Roll number</th>
+              <th style={thStyle}>School</th>
+              <th style={thStyle}>Reached via</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
+            {!isLoading && students.length === 0 && (
+              <tr>
+                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>
+                  No students yet. A student joins by being assigned to this programme in
+                  User management, or by being enrolled in one of its batches.
+                </td>
+              </tr>
+            )}
+            {!isLoading && students.length > 0 && filtered.length === 0 && (
+              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No student matches “{q}”.</td></tr>
+            )}
+            {filtered.map((s: ProgrammeStudent) => (
+              <tr
+                key={s.user_id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenStudent ? rowNav(`/dashboard/students/${s.user_id}`) : {})}
+              >
+                <td style={tdStyle}>
+                  <EntityLink
+                    href={`/dashboard/students/${s.user_id}`}
+                    permissions={STAFF_ANALYTICS_PERMISSIONS}
+                  >
+                    {s.name}
+                  </EntityLink>
+                  {s.status !== "ACTIVE" && (
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "rgba(3,72,82,0.45)" }}>
+                      {s.status}
+                    </span>
+                  )}
+                </td>
+                <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{s.roll_number ?? "—"}</td>
+                <td style={tdStyle}>{s.school_name ?? "—"}</td>
+                <td style={tdStyle}>
+                  <span
+                    style={{
+                      fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
+                      background: s.via === "PROGRAMME" ? "rgba(10,190,98,0.12)" : "rgba(3,72,82,0.07)",
+                      color: s.via === "PROGRAMME" ? "#046b45" : "rgba(3,72,82,0.7)",
+                    }}
+                    title={
+                      s.via === "PROGRAMME"
+                        ? "Assigned to this programme directly."
+                        : "Reached through one of this programme's batches. Moving that batch would end it."
+                    }
+                  >
+                    {s.via === "PROGRAMME" ? "Programme" : "Batch"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 // ── content ──────────────────────────────────────────────────────────────────
 
 const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row: string }> = [
@@ -304,6 +613,23 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row:
   { key: "assignments", label: "Assignments", one: "assignment", row: "Assignment" },
   { key: "resources", label: "Resources", one: "resource", row: "Resource" },
 ];
+
+/**
+ * Where each content kind lives, and what it takes to open it.
+ *
+ * Resources have no detail page — they are files, opened from the Resources
+ * list — so they are deliberately absent and render as plain text rather than a
+ * link to a route that does not exist.
+ */
+const CONTENT_HREF: Record<string, ((id: string) => string) | undefined> = {
+  courses: (id) => `/dashboard/courses/${id}`,
+  assignments: (id) => `/dashboard/assignments/${id}`,
+};
+const CONTENT_PERMS: Record<string, readonly string[]> = {
+  courses: [PERM.courses.view],
+  assignments: [PERM.assignments.view],
+  resources: [PERM.resources.view],
+};
 
 const KIND_ROW_LABEL = Object.fromEntries(KINDS.map((k) => [k.key, k.row])) as Record<
   ProgrammeContentKind,
@@ -445,7 +771,16 @@ function ContentSection({
             )}
             {owned.map((c) => (
               <tr key={`${c.kind}:${c.id}`} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{c.title}</td>
+                <td style={tdStyle}>
+                  {(() => {
+                    const to = CONTENT_HREF[c.kind];
+                    return to ? (
+                      <EntityLink href={to(c.id)} permissions={CONTENT_PERMS[c.kind] ?? []}>
+                        {c.title}
+                      </EntityLink>
+                    ) : c.title;
+                  })()}
+                </td>
                 <td style={tdStyle}>{KIND_ROW_LABEL[c.kind] ?? c.kind}</td>
                 <td style={tdStyle}>{c.created_by_name ?? "—"}</td>
                 <td style={tdStyle}>
@@ -487,6 +822,8 @@ function ContentSection({
 function SchoolsSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
+  const rowNav = useRowNavigation();
+  const canOpenSchool = usePermission(PERM.schools.view);
   const { data: attached = [], isLoading } = useProgrammeSchools(programmeId);
   const attach = useAttachProgrammeSchool();
   const detach = useDetachProgrammeSchool();
@@ -570,8 +907,16 @@ function SchoolsSection({
               <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No schools attached.</td></tr>
             )}
             {attached.map((s) => (
-              <tr key={s.school_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{s.name}</td>
+              <tr
+                key={s.school_id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenSchool ? rowNav(`/dashboard/schools/${s.school_id}`) : {})}
+              >
+                <td style={tdStyle}>
+                  <EntityLink href={`/dashboard/schools/${s.school_id}`} permissions={[PERM.schools.view]}>
+                    {s.name}
+                  </EntityLink>
+                </td>
                 <td style={tdStyle}>{s.district ?? "—"}</td>
                 <td style={tdStyle}>{s.state ?? "—"}</td>
                 {canManage && (
@@ -616,6 +961,8 @@ function SchoolsSection({
 function BatchesSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
+  const rowNav = useRowNavigation();
+  const canOpenBatch = usePermission(PERM.batches.view);
   const { data: attached = [], isLoading } = useProgrammeBatches(programmeId);
   const { data: assignable = [], isLoading: loadingPick } =
     useAssignableBatches(programmeId, canManage);
@@ -795,8 +1142,16 @@ function BatchesSection({
               </tr>
             )}
             {attached.map((b) => (
-              <tr key={b.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>{b.name}</td>
+              <tr
+                key={b.id}
+                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+                {...(canOpenBatch ? rowNav(`/dashboard/batches/${b.id}`) : {})}
+              >
+                <td style={tdStyle}>
+                  <EntityLink href={`/dashboard/batches/${b.id}`} permissions={[PERM.batches.view]}>
+                    {b.name}
+                  </EntityLink>
+                </td>
                 <td style={tdStyle}>{b.school_name ?? "—"}</td>
                 <td style={tdStyle}>{b.course_count}</td>
                 <td style={tdStyle}>{b.status ?? "—"}</td>
@@ -833,7 +1188,7 @@ function DangerSection({
       <div style={{ ...cardStyle, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, color: "rgba(3,72,82,0.7)", maxWidth: 560, lineHeight: 1.6 }}>
           {archived
-            ? "Restoring makes the programme active again and restores every member's level."
+            ? "Restoring makes the programme active again and restores what membership grants."
             : "Archiving keeps the programme and its members on record, but immediately revokes what membership grants. Reversible."}
         </div>
         <button

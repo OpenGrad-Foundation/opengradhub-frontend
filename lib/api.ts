@@ -4765,8 +4765,6 @@ export async function getQuestionById(id: string): Promise<Question> {
 // ── programmes ─────────────────────────────────────────────────────────────
 
 
-export type ProgrammeLevel = "OWNER" | "EDITOR" | "VIEWER";
-
 export interface Programme {
   id: string;
   code: string;
@@ -4777,7 +4775,16 @@ export interface Programme {
   status: "ACTIVE" | "ARCHIVED";
   created_by: string | null;
   created_at: string;
-  my_level?: ProgrammeLevel | null;
+  /**
+   * Whether the caller is on this programme's member list.
+   *
+   * Replaces `my_level`. Membership is a fact; what a member may DO is a
+   * permission, and the two used to contradict each other on screen — the hub
+   * badge read OWNER above a Settings tab that refused the same person, because
+   * the badge came from programme_members.level and the gate came from PBAC.
+   * Backend migration 119 retired the column.
+   */
+  is_member?: boolean;
 }
 
 export interface ProgrammeMember {
@@ -4785,8 +4792,34 @@ export interface ProgrammeMember {
   name: string;
   email: string | null;
   role: string;
-  level: ProgrammeLevel;
   added_at: string;
+}
+
+export interface ProgrammeOverview {
+  students: number;
+  schools: number;
+  batches: number;
+  staff: number;
+  content: { courses: number; assignments: number; resources: number };
+  /** Read from the immutable programme stamp on each fact, not from the
+   *  student's current programme — so a transfer does not restate history. */
+  activity: {
+    attempts: number;
+    avg_score: number | null;
+    attendance_marks: number;
+    tracker_records: number;
+  };
+}
+
+export interface ProgrammeStudent {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  status: string;
+  /** How this programme reaches them: their own programme, or an owned batch. */
+  via: "PROGRAMME" | "BATCH";
 }
 
 export interface ProgrammeSchool {
@@ -4848,6 +4881,28 @@ export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]
   );
 }
 
+/** Counts for the hub's Analytics tab. */
+export async function getProgrammeOverview(id: string): Promise<ProgrammeOverview> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/overview`),
+    "Failed to load programme overview.",
+  );
+}
+
+/**
+ * The students this programme reaches.
+ *
+ * Reach is `users.programme_id` plus members of the programme's own batches —
+ * never the schools it hosts. A school can host two cohorts, so a school-based
+ * arm would return the other one's roster.
+ */
+export async function getProgrammeStudents(id: string): Promise<ProgrammeStudent[]> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students`),
+    "Failed to load students.",
+  );
+}
+
 /**
  * Staff this programme can still take on.
  *
@@ -4865,17 +4920,18 @@ export async function getEligibleProgrammeMembers(
   );
 }
 
-export async function setProgrammeMember(
+export async function addProgrammeMember(
   id: string,
   userId: string,
-  level: ProgrammeLevel,
-): Promise<{ level: ProgrammeLevel }> {
+): Promise<{ added: true }> {
+  // PUT, not POST: adding a member is idempotent on (programme, user). There is
+  // no body — the level that used to be in it is gone.
   const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ level }),
+    body: "{}",
   });
-  return programmeJson(r, "Failed to set member level.");
+  return programmeJson(r, "Failed to add member.");
 }
 
 export async function removeProgrammeMember(id: string, userId: string): Promise<void> {

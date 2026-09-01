@@ -31,10 +31,11 @@ describe('assessments-overview query key', () => {
 });
 
 describe('the monitor view decides programme mode from membership', () => {
-  it('filters the programme list on my_level rather than trusting visibility', () => {
+  it('filters the programme list on membership rather than trusting visibility', () => {
     // GET /programmes returns every programme to a PROGRAM_MANAGER, with
-    // my_level null on the ones they are not in.
-    expect(page).toMatch(/my_level != null/);
+    // is_member false on the ones they are not in. (Was my_level, which the
+    // backend retired with programme_members.level in migration 119.)
+    expect(page).toMatch(/p\.is_member/);
   });
 
   it('treats SUPER_ADMIN as the explicit exception, not as a member', () => {
