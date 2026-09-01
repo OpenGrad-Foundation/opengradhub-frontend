@@ -15,6 +15,7 @@ import {
   splitDiagnostics,
   type FixMode,
 } from "@/lib/quiz-import-diagnostics";
+import { QuizIssueTree } from "@/components/quiz-issue-tree";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1220,48 +1221,31 @@ export function QuizPreviewEditor({
                 Only questions with issues
               </label>
             </div>
-            {/* Every issue, clickable: opens the question; Apply when a one-click fix exists. */}
-            <div style={{ maxHeight: "220px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
-              {allDiags
-                .filter((d) => d.severity !== "info")
-                .map((d, i) => {
+            {/* Every issue as a collapsible tree: click opens the question; Apply where a one-click fix exists. */}
+            <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "10px", background: "#fff" }}>
+              <QuizIssueTree
+                quiz={data}
+                diagnostics={allDiags}
+                showLines={false}
+                dense
+                onItemClick={(d) => {
                   const w = d.where;
-                  const hasQ = typeof w === "object" && "q" in w;
+                  if (typeof w === "object" && "q" in w) setActiveQ({ sIdx: w.s, qIdx: w.q });
+                }}
+                onGroupClick={(g) => { if (g.address) setActiveQ({ sIdx: g.address.sIdx, qIdx: g.address.qIdx }); }}
+                itemAction={(d) => {
+                  if (d.fix?.field == null || d.fix.value == null) return null;
                   const isSyn = syntactic.includes(d);
-                  const canApply = d.fix?.field != null && d.fix.value != null;
-                  const applyIt = () => {
-                    if (isSyn) { resolveSyntactic(d, "apply"); return; }
-                    const next = applyDiagnosticFix(data, d, "apply");
-                    if (next) onChange(next); // semantic: the next validate clears it
+                  return {
+                    label: `Apply ${String(d.fix.field)} = ${String(d.fix.value)}`,
+                    onClick: () => {
+                      if (isSyn) { resolveSyntactic(d, "apply"); return; }
+                      const next = applyDiagnosticFix(data, d, "apply");
+                      if (next) onChange(next); // semantic: the next validate clears it
+                    },
                   };
-                  return (
-                    <div
-                      key={d.id ?? `d${i}`}
-                      onClick={() => { if (hasQ) setActiveQ({ sIdx: w.s, qIdx: w.q }); }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: "8px", fontSize: "12px",
-                        color: d.severity === "error" ? "#c53030" : "#956f00", fontWeight: 600,
-                        cursor: hasQ ? "pointer" : "default", padding: "3px 4px", borderRadius: "6px",
-                      }}
-                      title={hasQ ? "Open this question" : undefined}
-                    >
-                      <span aria-hidden>{d.severity === "error" ? "⛔" : "⚠️"}</span>
-                      <span style={{ flex: 1, minWidth: 0 }}>{d.message}</span>
-                      {canApply && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); applyIt(); }}
-                          style={{
-                            flexShrink: 0, padding: "3px 10px", borderRadius: "7px", fontSize: "11px", fontWeight: 700,
-                            border: "1.5px solid #0abe62", background: "#fff", color: "#0f6b58", cursor: "pointer",
-                          }}
-                        >
-                          ✓ Apply {String(d.fix!.field)} = {String(d.fix!.value)}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                }}
+              />
             </div>
           </div>
         )}
