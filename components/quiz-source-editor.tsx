@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ParsedBulkQuiz, ParsedQuestion, ParseDiagnostic } from "@/lib/api";
 import { countBySeverity, diagsForQuestion } from "@/lib/quiz-import-diagnostics";
 import { applySourceFix, diagnosticJumpLine, sourceFixLabel } from "@/lib/quiz-source-fixes";
+import { QuizIssueTree } from "@/components/quiz-issue-tree";
 
 /**
  * Full-screen repair workbench for a bulk-imported quiz's SOURCE — the
@@ -84,6 +85,7 @@ export function QuizSourceEditor({
   const [find, setFind] = useState("");
   const [replace, setReplace] = useState("");
   const [activeLine, setActiveLine] = useState<number | null>(null);
+  const [issuesFolded, setIssuesFolded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
@@ -296,58 +298,48 @@ export function QuizSourceEditor({
 
         {/* Right: issues + outline */}
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", minHeight: 0 }}>
-          <div style={{ ...S.card, flex: "0 1 42%", maxHeight: "42%" }}>
-            <div style={S.cardHead}>
+          <div style={{ ...S.card, flex: issuesFolded ? "0 0 auto" : "0 1 42%", maxHeight: issuesFolded ? undefined : "42%" }}>
+            <div
+              style={{ ...S.cardHead, cursor: "pointer", userSelect: "none" }}
+              onClick={() => setIssuesFolded((f) => !f)}
+              role="button"
+              aria-expanded={!issuesFolded}
+            >
+              <span aria-hidden style={{ fontSize: "10px", display: "inline-block", transform: issuesFolded ? "none" : "rotate(90deg)", transition: "transform 120ms" }}>▶</span>
               Issues
               <span style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "rgba(3,72,82,0.45)" }}>
-                {listed.length === 0 && !error ? "none" : `${listed.length}`}
+                {listed.length === 0 && !error ? "none" : `${errors} error${errors !== 1 ? "s" : ""} · ${warnings} warning${warnings !== 1 ? "s" : ""}`}
+              </span>
+              <span style={{ marginLeft: "auto", fontWeight: 500, textTransform: "none", letterSpacing: 0, color: "rgba(3,72,82,0.4)" }}>
+                {issuesFolded ? "show" : "hide"}
               </span>
             </div>
-            <div style={{ overflowY: "auto", minHeight: 0 }}>
-              {error && (
-                <div style={{ margin: "10px 12px", padding: "10px 12px", borderRadius: "10px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.25)", color: "#c53030", fontSize: "12px", fontWeight: 600 }}>
-                  ⛔ {error}
-                </div>
-              )}
-              {listed.length === 0 && !error && (
-                <div style={{ padding: "16px 14px", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
-                  No issues. Continue to the preview to review tags and save.
-                </div>
-              )}
-              {listed.map((d, i) => {
-                const label = sourceFixLabel(d);
-                const jumpLine = diagnosticJumpLine(d, quiz);
-                return (
-                  <div
-                    key={d.id ?? i}
-                    onClick={() => jumpTo(d)}
-                    style={{
-                      display: "flex", gap: "8px", alignItems: "flex-start", padding: "8px 12px",
-                      borderBottom: "1px solid rgba(3,72,82,0.06)", cursor: jumpLine != null ? "pointer" : "default",
-                      background: activeLine != null && jumpLine === activeLine ? "rgba(10,190,98,0.06)" : "transparent",
-                      fontSize: "12px",
-                    }}
-                  >
-                    <span aria-hidden style={{ flexShrink: 0 }}>{SEV_ICON[d.severity]}</span>
-                    {jumpLine != null && (
-                      <span style={{ fontWeight: 700, color: "rgba(3,72,82,0.45)", flexShrink: 0, fontFamily: MONO }}>
-                        L{jumpLine}
-                      </span>
-                    )}
-                    <span style={{ flex: 1, minWidth: 0 }}>{d.message}</span>
-                    {label && (
-                      <button
-                        type="button"
-                        style={{ ...S.miniBtn, borderColor: "#0abe62", color: "#0f6b58", flexShrink: 0 }}
-                        onClick={(e) => { e.stopPropagation(); fix(d); }}
-                      >
-                        ✓ {label}
-                      </button>
-                    )}
+            {!issuesFolded && (
+              <div style={{ overflowY: "auto", minHeight: 0 }}>
+                {error && (
+                  <div style={{ margin: "10px 12px", padding: "10px 12px", borderRadius: "10px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.25)", color: "#c53030", fontSize: "12px", fontWeight: 600 }}>
+                    ⛔ {error}
                   </div>
-                );
-              })}
-            </div>
+                )}
+                {listed.length === 0 && !error ? (
+                  <div style={{ padding: "16px 14px", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+                    No issues. Continue to the preview to review tags and save.
+                  </div>
+                ) : (
+                  <QuizIssueTree
+                    quiz={quiz}
+                    diagnostics={listed}
+                    activeLine={activeLine}
+                    onItemClick={jumpTo}
+                    onGroupClick={(g) => { if (g.line) focusLine(g.line); }}
+                    itemAction={(d) => {
+                      const label = sourceFixLabel(d);
+                      return label ? { label, onClick: () => fix(d) } : null;
+                    }}
+                  />
+                )}
+              </div>
+            )}
           </div>
 
           <div style={{ ...S.card, flex: 1 }}>
@@ -370,6 +362,12 @@ export function QuizSourceEditor({
 // ── Live outline of the parsed quiz ──────────────────────────────────────────
 
 const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
+/** Inline <img> tags the parser embedded from [IMAGE] lines (stem, options, solution). */
+const imageCount = (q: ParsedQuestion): number => {
+  const count = (t?: string) => (t?.match(/<img\b/gi) ?? []).length;
+  return count(q.content) + count(q.solution) + q.options.reduce((n, o) => n + count(o.text), 0);
+};
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   MCQ: { bg: "rgba(32,147,121,0.12)", color: "#209379" },
@@ -447,6 +445,11 @@ function OutlineQuestion({
           <Chip label="topic" value={q.topic} />
           <Chip label="difficulty" value={q.difficulty} />
           {q.tag && <Chip label="tag" value={q.tag} />}
+          {imageCount(q) > 0 && (
+            <span style={{ fontSize: "10px", fontWeight: 600, padding: "1px 8px", borderRadius: "100px", border: "1px solid rgba(3,72,82,0.15)", color: "rgba(3,72,82,0.7)" }}>
+              🖼 {imageCount(q)} image{imageCount(q) !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
       )}
       {q.question_type === "GROUP" && (

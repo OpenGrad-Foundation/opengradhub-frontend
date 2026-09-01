@@ -163,3 +163,104 @@ export function applyDiagnosticFix(
     return next;
   });
 }
+
+// ── Grouping (cascader / tree view) ─────────────────────────────────────────
+
+export type DiagGroup = {
+  key: string;
+  label: string;
+  /** Source line to jump to for the group header, when known. */
+  line?: number;
+  /** Address of the question this group stands for (for "open in panel"). */
+  address?: { sIdx: number; qIdx: number };
+  items: ParseDiagnostic[];
+  children: DiagGroup[];
+  counts: { errors: number; warnings: number };
+};
+
+const preview = (s: string | undefined, n = 42): string => {
+  const t = (s ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+};
+
+const tally = (g: DiagGroup): DiagGroup["counts"] => {
+  const own = countBySeverity(g.items);
+  const kids = g.children.map(tally);
+  g.counts = {
+    errors: own.errors + kids.reduce((a, c) => a + c.errors, 0),
+    warnings: own.warnings + kids.reduce((a, c) => a + c.warnings, 0),
+  };
+  return g.counts;
+};
+
+/**
+ * Arranges diagnostics as Quiz → Section → Question (→ child) so a long
+ * list can be folded. Groups with nothing in them are dropped; a diagnostic
+ * whose address no longer exists in `quiz` falls back to the quiz root.
+ */
+export function groupDiagnostics(quiz: ParsedBulkQuiz | null, diags: ParseDiagnostic[]): DiagGroup[] {
+  const root: DiagGroup = { key: "quiz", label: "Quiz", line: 1, items: [], children: [], counts: { errors: 0, warnings: 0 } };
+  const sections = new Map<number, DiagGroup>();
+  const questions = new Map<string, DiagGroup>();
+
+  const sectionGroup = (s: number): DiagGroup => {
+    let g = sections.get(s);
+    if (!g) {
+      const sec = quiz?.sections[s];
+      g = {
+        key: `s${s}`, label: sec ? `Section: ${sec.title}` : `Section ${s + 1}`, line: sec?.line,
+        items: [], children: [], counts: { errors: 0, warnings: 0 },
+      };
+      sections.set(s, g);
+    }
+    return g;
+  };
+  const questionGroup = (s: number, q: number): DiagGroup => {
+    const k = `s${s}q${q}`;
+    let g = questions.get(k);
+    if (!g) {
+      const qq = quiz?.sections[s]?.questions?.[q];
+      const label = !qq
+        ? `Question ${q + 1}`
+        : qq.question_type === "GROUP"
+          ? `Group: ${preview(qq.content) || "(passage)"}`
+          : `Q.${qq.number ?? q + 1} ${preview(qq.content)}`.trim();
+      g = { key: k, label, line: qq?.line, address: { sIdx: s, qIdx: q }, items: [], children: [], counts: { errors: 0, warnings: 0 } };
+      questions.set(k, g);
+      sectionGroup(s).children.push(g);
+    }
+    return g;
+  };
+  const childGroup = (s: number, q: number, c: number): DiagGroup => {
+    const parent = questionGroup(s, q);
+    const k = `s${s}q${q}c${c}`;
+    let g = parent.children.find((x) => x.key === k);
+    if (!g) {
+      const cq = quiz?.sections[s]?.questions?.[q]?.children?.[c];
+      g = {
+        key: k, label: cq ? `Q.${cq.number ?? c + 1} ${preview(cq.content)}`.trim() : `Child ${c + 1}`,
+        line: cq?.line, address: { sIdx: s, qIdx: q }, items: [], children: [], counts: { errors: 0, warnings: 0 },
+      };
+      parent.children.push(g);
+    }
+    return g;
+  };
+
+  for (const d of diags) {
+    const w = d.where;
+    if (w === "quiz") root.items.push(d);
+    else if (!("q" in w)) sectionGroup(w.s).items.push(d);
+    else if (w.child != null) childGroup(w.s, w.q, w.child).items.push(d);
+    else questionGroup(w.s, w.q).items.push(d);
+  }
+
+  const out: DiagGroup[] = [];
+  if (root.items.length) out.push(root);
+  for (const s of [...sections.keys()].sort((a, b) => a - b)) {
+    const g = sections.get(s)!;
+    g.children.sort((a, b) => (a.address?.qIdx ?? 0) - (b.address?.qIdx ?? 0));
+    out.push(g);
+  }
+  out.forEach(tally);
+  return out;
+}

@@ -3,6 +3,7 @@ import type { ParsedBulkQuiz, ParseDiagnostic } from '@/lib/api';
 import {
   applyDiagnosticFix,
   diagsForQuestion,
+  groupDiagnostics,
   hasStructuralIssue,
   splitDiagnostics,
   stripOccurrence,
@@ -125,5 +126,46 @@ describe('applyDiagnosticFix', () => {
       fix: { op: 'set', field: 'difficulty', value: 'Medium' },
     };
     expect(applyDiagnosticFix(quiz(), quarantined, 'discard')).toBeNull();
+  });
+});
+
+describe('groupDiagnostics', () => {
+  const q: ParsedBulkQuiz = {
+    title: 'T',
+    sections: [
+      { title: 'Alg', line: 1, questions: [
+        { content: 'Solve x', number: 1, line: 2, question_type: 'MCQ', options: [] },
+        { content: 'Passage here', line: 6, question_type: 'GROUP', options: [], children: [
+          { content: 'child one', number: 1, line: 8, question_type: 'MCQ', options: [] },
+        ] },
+      ] },
+      { title: 'Geo', line: 12, questions: [] },
+    ],
+  };
+  const list: ParseDiagnostic[] = [
+    { code: 'MISSING_TITLE', severity: 'error', message: 'no title', where: 'quiz' },
+    { code: 'UNKNOWN_TAG', severity: 'error', message: 'typo', where: { s: 0, q: 0 }, line: 4 },
+    { code: 'MISSING_SUBJECT', severity: 'warning', message: 'no subj', where: { s: 0, q: 0 } },
+    { code: 'MISSING_TOPIC', severity: 'warning', message: 'no topic', where: { s: 0, q: 1, child: 0 } },
+    { code: 'SECTION_EMPTY', severity: 'error', message: 'empty', where: { s: 1 } },
+  ];
+
+  it('nests quiz → section → question → child with rolled-up counts', () => {
+    const g = groupDiagnostics(q, list);
+    expect(g.map((x) => x.key)).toEqual(['quiz', 's0', 's1']);
+    const s0 = g[1];
+    expect(s0.label).toBe('Section: Alg');
+    expect(s0.counts).toEqual({ errors: 1, warnings: 2 });
+    expect(s0.children.map((c) => c.label)).toEqual(['Q.1 Solve x', 'Group: Passage here']);
+    expect(s0.children[1].children[0].label).toBe('Q.1 child one');
+    expect(s0.children[1].children[0].items).toHaveLength(1);
+    expect(g[2].items[0].code).toBe('SECTION_EMPTY');
+    expect(g[2].line).toBe(12);
+  });
+
+  it('falls back gracefully when the quiz is unavailable', () => {
+    const g = groupDiagnostics(null, list);
+    expect(g[1].label).toBe('Section 1');
+    expect(g[1].children[0].label).toBe('Question 1');
   });
 });
