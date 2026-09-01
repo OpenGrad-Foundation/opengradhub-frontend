@@ -11,7 +11,7 @@ import { useCreateProgramme } from "@/lib/mutations/programmes";
 import { ApiError } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
+  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
   noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "./styles";
 
@@ -69,8 +69,9 @@ export default function ProgrammesPage() {
         comes back.)
       */}
       <div style={noticeStyle}>
-        <strong>What membership grants.</strong> OWNERs and EDITORs can edit the courses and
-        assignments a programme owns; VIEWERs cannot. Owning content is not always enough to
+        <strong>What membership grants.</strong> Members can edit the courses and assignments
+        a programme owns, if their role carries that permission — membership says WHICH
+        programme, the permission says what they may do. Owning content is not always enough to
         edit it: if another programme&apos;s batch or students also use it, it stays read-only
         for everyone but its creator. Membership never grants student data — rosters,
         progress, attempts and scores stay with the school and batch hierarchy. It also never
@@ -91,7 +92,7 @@ export default function ProgrammesPage() {
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Kind</th>
               <th style={thStyle}>State</th>
-              <th style={thStyle}>Your level</th>
+              <th style={thStyle}>You</th>
               <th style={thStyle}>Status</th>
             </tr>
           </thead>
@@ -133,8 +134,8 @@ export default function ProgrammesPage() {
                 <td style={tdStyle}>{p.kind}</td>
                 <td style={tdStyle}>{p.state ?? "—"}</td>
                 <td style={tdStyle}>
-                  {p.my_level
-                    ? <span style={levelBadge(p.my_level)}>{p.my_level}</span>
+                  {p.is_member
+                    ? <span style={memberBadge()}>Member</span>
                     : <span style={{ color: "rgba(3,72,82,0.4)" }}>not a member</span>}
                 </td>
                 <td style={tdStyle}>

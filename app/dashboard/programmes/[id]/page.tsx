@@ -8,7 +8,7 @@ import { useCurrentUser } from "@/lib/queries/current-user";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getBatchImpact,
-  type BatchImpact, type ProgrammeContentKind, type ProgrammeLevel,
+  type BatchImpact, type ProgrammeContentKind,
   type ProgrammeOverview, type ProgrammeStudent, type SchoolOption,
 } from "@/lib/api";
 import {
@@ -19,18 +19,16 @@ import {
 import {
   useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
   useDetachProgrammeBatch, useDetachProgrammeSchool, useReleaseProgrammeContent,
-  useRemoveProgrammeMember, useSetProgrammeMember, useUpdateProgramme,
+  useAddProgrammeMember, useRemoveProgrammeMember, useUpdateProgramme,
 } from "@/lib/mutations/programmes";
 import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
+  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
   linkBtnStyle, noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "../styles";
 import { SearchMultiPicker } from "@/components/SearchMultiPicker";
 import { EntityLink } from "../_components/entity-link";
 import { useRowNavigation } from "../_components/use-row-navigation";
 import { STAFF_ANALYTICS_PERMISSIONS } from "@/lib/permissions";
-
-const LEVELS: ProgrammeLevel[] = ["OWNER", "EDITOR", "VIEWER"];
 
 /**
  * Not every message worth showing is a failure. Attaching content that another
@@ -42,19 +40,17 @@ type Banner = { text: string; tone: BannerTone };
 type Notify = (message: string | null, tone?: BannerTone) => void;
 
 /**
- * What each level means, stated in the UI so it is not folklore.
- * Mirrors the backend: level gates writes; VIEWER is deliberately read-only and
- * carries no roster PII or grades.
+ * What membership means, stated in the UI so it is not folklore.
+ *
+ * This used to be a level-by-level table — OWNER administers, EDITOR edits,
+ * VIEWER reads. Backend migration 119 retired those: adding someone puts them in
+ * the programme, and what they may do there is decided by their permissions.
+ * Saying so plainly is the point, because the old screen let an operator believe
+ * the dropdown was the authority when the permission always was.
  */
-const LEVEL_HELP: Record<ProgrammeLevel, string> = {
-  // OWNER is the only level that administers the programme itself — members,
-  // schools, batches, and which content the programme owns.
-  OWNER: "Manages members, schools, batches, and which content this programme owns.",
-  // EDITOR edits content but cannot decide what the programme owns. Saying
-  // "manages the programme's content" implied the latter, which it never had.
-  EDITOR: "Can edit the courses, assignments and resources this programme already owns.",
-  VIEWER: "Read-only. No student data.",
-};
+const MEMBERSHIP_HELP =
+  "Adds them to this programme. What they can do inside it comes from their role's " +
+  "permissions — membership decides WHICH programme those apply to, never what they are.";
 
 /**
  * The hub is a workspace, not a report, so it is tabbed rather than a single
@@ -106,19 +102,15 @@ export default function ProgrammeDetailPage() {
   const notify: Notify = (message, tone = "error") =>
     setBanner(message === null ? null : { text: message, tone });
 
-  // Only an OWNER (or a super admin, whom the API lets through) can actually
-  // write. Showing the controls to anyone else just produces 403s.
-  // Membership, not level.
+  // Membership plus the permission — the same two halves the server checks, so
+  // the controls shown match the writes that will be accepted.
   //
   // The badge used to say OWNER while the Settings tab refused the same person,
-  // because the two answered different questions: `my_level` is the legacy
-  // programme_members.level, and every gate below is PBAC. The backfill wrote
-  // OWNER for every member regardless of role, so a School In-Charge saw an
-  // OWNER badge and a refusal on the same screen.
-  //
-  // Authority is the permission; membership only says WHICH programme it applies
-  // to. That is the design's rule ("role is the level") applied on the read path.
-  const isMember = Boolean(programme?.my_level);
+  // because the two answered different questions: `my_level` was the legacy
+  // programme_members.level and every gate here is PBAC. Migration 119 retired
+  // that column, and `is_member` is what replaced it — a fact, with no authority
+  // of its own to contradict.
+  const isMember = Boolean(programme?.is_member);
   // `has("*")` was never a permission — it only ever returned true because
   // usePermissions short-circuited on the SUPER_ADMIN role code. With that
   // wildcard gone it would be permanently false, so the real permission is named
@@ -157,11 +149,11 @@ export default function ProgrammeDetailPage() {
             {programme.code}
           </div>
         </div>
-        {/* The caller's ROLE, which is what decides how far they see — not the
-            legacy membership level, which said OWNER for everyone the backfill
-            touched and contradicted the gates on the same page. */}
+        {/* The caller's ROLE, which is what decides how far they see. There is
+            no membership level to show any more, and showing one was the bug:
+            it said OWNER for everyone and contradicted the gates on this page. */}
         {isMember && me?.role?.code && (
-          <span style={levelBadge("OWNER")}>{roleLabel(me.role.code)}</span>
+          <span style={memberBadge()}>{roleLabel(me.role.code)}</span>
         )}
       </div>
 
@@ -242,12 +234,11 @@ function PeopleSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: members = [], isLoading } = useProgrammeMembers(programmeId);
-  const setMember = useSetProgrammeMember();
+  const addMember = useAddProgrammeMember();
   const removeMember = useRemoveProgrammeMember();
 
   const [adding, setAdding] = useState(false);
   const [picks, setPicks] = useState<string[]>([]);
-  const [level, setLevel] = useState<ProgrammeLevel>("EDITOR");
 
   // Gated on programme ownership, not on user_management.view. Using GET /users
   // here meant only a SUPER_ADMIN ever saw candidates: PROGRAM_MANAGER holds
@@ -315,26 +306,22 @@ function PeopleSection({
               </div>
             )}
           </div>
-          <div style={{ flex: "0 1 200px" }}>
-            <label style={formLabelStyle}>Level</label>
-            <select style={inputStyle} value={level} onChange={(e) => setLevel(e.target.value as ProgrammeLevel)}>
-              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 6 }}>
-              {LEVEL_HELP[level]}
+          <div style={{ flex: "0 1 260px" }}>
+            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 24 }}>
+              {MEMBERSHIP_HELP}
               {picks.length > 1 ? ` Applies to all ${picks.length} selected.` : ""}
             </div>
           </div>
           <button
-            style={{ ...primaryButton, opacity: picks.length === 0 || setMember.isPending ? 0.6 : 1 }}
-            disabled={picks.length === 0 || setMember.isPending}
+            style={{ ...primaryButton, opacity: picks.length === 0 || addMember.isPending ? 0.6 : 1 }}
+            disabled={picks.length === 0 || addMember.isPending}
             onClick={() => run(async () => {
               // Sequential on purpose: each add is its own authority check, and
               // a partial success must say exactly who failed.
               const failed: string[] = [];
               for (const userId of picks) {
                 try {
-                  await setMember.mutateAsync({ id: programmeId, userId, level });
+                  await addMember.mutateAsync({ id: programmeId, userId });
                 } catch {
                   const who = candidates.find((c) => c.user_id === userId);
                   failed.push(who?.name ?? userId);
@@ -350,7 +337,7 @@ function PeopleSection({
               setPicks([]); setAdding(false);
             })}
           >
-            {setMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
+            {addMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
           </button>
           <button style={secondaryButton} onClick={() => { setAdding(false); setPicks([]); }}>Cancel</button>
         </div>
@@ -362,7 +349,7 @@ function PeopleSection({
             <tr>
               <th style={thStyle}>Name</th>
               <th style={thStyle}>Role</th>
-              <th style={thStyle}>Level</th>
+
               {canManage && <th style={thStyle} />}
             </tr>
           </thead>
@@ -385,19 +372,6 @@ function PeopleSection({
                   {m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
                 </td>
                 <td style={tdStyle}>{roleLabel(m.role)}</td>
-                <td style={tdStyle}>
-                  {canManage ? (
-                    <select
-                      style={{ ...inputStyle, padding: "6px 10px", width: "auto" }}
-                      value={m.level}
-                      onChange={(e) => run(() => setMember.mutateAsync({
-                        id: programmeId, userId: m.user_id, level: e.target.value as ProgrammeLevel,
-                      }))}
-                    >
-                      {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-                    </select>
-                  ) : <span style={levelBadge(m.level)}>{m.level}</span>}
-                </td>
                 {canManage && (
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     <button
@@ -1214,7 +1188,7 @@ function DangerSection({
       <div style={{ ...cardStyle, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, color: "rgba(3,72,82,0.7)", maxWidth: 560, lineHeight: 1.6 }}>
           {archived
-            ? "Restoring makes the programme active again and restores every member's level."
+            ? "Restoring makes the programme active again and restores what membership grants."
             : "Archiving keeps the programme and its members on record, but immediately revokes what membership grants. Reversible."}
         </div>
         <button

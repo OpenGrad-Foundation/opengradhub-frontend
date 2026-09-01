@@ -4676,8 +4676,6 @@ export async function getQuestionById(id: string): Promise<Question> {
 // ── programmes ─────────────────────────────────────────────────────────────
 
 
-export type ProgrammeLevel = "OWNER" | "EDITOR" | "VIEWER";
-
 export interface Programme {
   id: string;
   code: string;
@@ -4688,7 +4686,16 @@ export interface Programme {
   status: "ACTIVE" | "ARCHIVED";
   created_by: string | null;
   created_at: string;
-  my_level?: ProgrammeLevel | null;
+  /**
+   * Whether the caller is on this programme's member list.
+   *
+   * Replaces `my_level`. Membership is a fact; what a member may DO is a
+   * permission, and the two used to contradict each other on screen — the hub
+   * badge read OWNER above a Settings tab that refused the same person, because
+   * the badge came from programme_members.level and the gate came from PBAC.
+   * Backend migration 119 retired the column.
+   */
+  is_member?: boolean;
 }
 
 export interface ProgrammeMember {
@@ -4696,7 +4703,6 @@ export interface ProgrammeMember {
   name: string;
   email: string | null;
   role: string;
-  level: ProgrammeLevel;
   added_at: string;
 }
 
@@ -4825,17 +4831,18 @@ export async function getEligibleProgrammeMembers(
   );
 }
 
-export async function setProgrammeMember(
+export async function addProgrammeMember(
   id: string,
   userId: string,
-  level: ProgrammeLevel,
-): Promise<{ level: ProgrammeLevel }> {
+): Promise<{ added: true }> {
+  // PUT, not POST: adding a member is idempotent on (programme, user). There is
+  // no body — the level that used to be in it is gone.
   const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ level }),
+    body: "{}",
   });
-  return programmeJson(r, "Failed to set member level.");
+  return programmeJson(r, "Failed to add member.");
 }
 
 export async function removeProgrammeMember(id: string, userId: string): Promise<void> {

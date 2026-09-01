@@ -149,7 +149,10 @@ describe('the list-page notice describes the grant that exists', () => {
   });
 
   it('states both halves — what it grants and what it never grants', () => {
-    expect(page).toMatch(/EDITOR/);
+    // The "what it grants" half no longer names a level: membership decides
+    // WHICH programme, the permission decides what. Pin the sentence that says
+    // so, or the notice can quietly drift back to promising authority.
+    expect(page).toMatch(/membership says WHICH\s+programme, the permission says what they may do/i);
     expect(page).toMatch(/never grants student data/i);
   });
 });
@@ -173,11 +176,15 @@ describe('the member picker does not need a permission its users lack', () => {
     expect(detail).toMatch(/staffError/);
   });
 
-  it('does not promise EDITORs control over what the programme owns', () => {
-    // EDITOR edits content; deciding WHICH content the programme owns is OWNER
-    // only. "Manages the programme's content" implied both.
-    expect(detail).not.toMatch(/EDITOR:\s*"Manages the programme's content\."/);
-    expect(detail).toMatch(/EDITOR:\s*"Can edit the courses, assignments and resources/);
+  it('does not promise the membership control it does not carry', () => {
+    // Was: "does not promise EDITORs control over what the programme owns" —
+    // EDITOR edited content, OWNER decided what the programme owned, and the
+    // copy had conflated the two. Migration 119 removed both levels, so the
+    // screen must not offer a level control at all, and the help text has to
+    // say where the authority actually comes from.
+    expect(detail).not.toMatch(/const LEVELS/);
+    expect(detail).not.toMatch(/LEVEL_HELP/);
+    expect(detail).toMatch(/comes from their role's\s*" \+\s*"permissions/);
   });
 
   it('tells an archived programme’s owner that they can undo it', () => {
