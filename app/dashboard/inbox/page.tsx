@@ -9,6 +9,7 @@ import { useInboxFeed, type InboxItem } from "@/lib/queries/inbox";
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
 import {
   useArchiveNotification,
+  useClearAll,
   useClearRead,
   useMarkNotificationRead,
 } from "@/lib/queries/notifications";
@@ -48,12 +49,26 @@ export default function InboxPage() {
   const markNotifRead = useMarkNotificationRead();
   const archiveNotif  = useArchiveNotification();
   const clearRead     = useClearRead();
+  const clearAll      = useClearAll();
   const invalidate    = useInvalidate();
 
   const hasUnread = items.some((i) => !i.is_read);
   const hasReadNotifications = items.some(
     (i) => i.source === "notification" && i.is_read,
   );
+  // Shown for announcements too: "Clear all" marks them read, which is the only
+  // dismiss a role-scoped broadcast has.
+  const hasAnything = items.length > 0;
+
+  /**
+   * Empty the inbox in one click — the escape hatch for a feed that filled
+   * faster than it could be read. Announcements have no per-user archive, so
+   * the strongest dismiss available for them is a read receipt.
+   */
+  async function handleClearAll() {
+    await Promise.all([clearAll.mutateAsync(), markAllAnnouncementsRead()]);
+    invalidate("notifications", "announcements");
+  }
 
   async function handleMarkAllRead() {
     await Promise.all([markAllNotificationsRead(), markAllAnnouncementsRead()]);
@@ -86,9 +101,7 @@ export default function InboxPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
         <div>
-          <p style={S.label}>Messages</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Inbox</h1>
-          <p style={{ ...S.subtitle, marginTop: "4px" }}>Your notifications and announcements</p>
           <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
             {hasUnread && (
               <button style={S.textButton} onClick={() => void handleMarkAllRead()}>
@@ -102,6 +115,16 @@ export default function InboxPage() {
                 title="Dismiss all read notifications"
               >
                 ✕ Clear read
+              </button>
+            )}
+            {hasAnything && (
+              <button
+                style={{ ...S.textButton, color: "#e53e3e" }}
+                onClick={() => void handleClearAll()}
+                disabled={clearAll.isPending}
+                title="Dismiss every notification, read or unread"
+              >
+                {clearAll.isPending ? "Clearing…" : "✕ Clear all"}
               </button>
             )}
           </div>

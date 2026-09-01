@@ -12,9 +12,9 @@ import {
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useInboxFeed, useInboxUnreadCount, type InboxItem } from "@/lib/queries/inbox";
 import { useMarkAnnouncementRead } from "@/lib/queries/announcements";
-import { useMarkNotificationRead } from "@/lib/queries/notifications";
+import { useClearAll, useMarkNotificationRead } from "@/lib/queries/notifications";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-import { computeInboxToasts, DROPDOWN_CAP } from "@/lib/inbox-toast";
+import { computeInboxToasts, latestTimestamp, DROPDOWN_CAP } from "@/lib/inbox-toast";
 import { notificationRoute } from "@/lib/notification-routes";
 import { usePush } from "@/lib/push/use-push";
 
@@ -42,6 +42,32 @@ function relativeTime(iso: string): string {
   return `${days}d ago`;
 }
 
+// ── Toast baseline persistence ─────────────────────────────────
+
+/**
+ * The baseline lives in sessionStorage, keyed by user, so it survives the topbar
+ * unmounting and remounting across routes. Without that, every remount started
+ * from a blank baseline and re-toasted whatever was already sitting unread —
+ * which is how a weeks-old "Welcome to OpenGrad LMS" reappeared at random.
+ *
+ * sessionStorage and not localStorage: a fresh browser session SHOULD re-baseline
+ * (the user is starting over), and the per-user key means a second person
+ * signing in on the same tab does not inherit the first one's baseline.
+ */
+function baselineKey(userId: string | undefined): string | null {
+  return userId ? `og:inbox-toast-baseline:${userId}` : null;
+}
+
+function readBaseline(key: string | null): string | null {
+  if (!key) return null;
+  try { return window.sessionStorage.getItem(key); } catch { return null; }
+}
+
+function writeBaseline(key: string | null, value: string): void {
+  if (!key) return;
+  try { window.sessionStorage.setItem(key, value); } catch { /* private mode — in-memory ref still works */ }
+}
+
 // ── Component ──────────────────────────────────────────────────
 
 export default function NotificationBell() {
@@ -55,9 +81,10 @@ export default function NotificationBell() {
   // produced "ghost" badges — a non-zero count with nothing unread to click.
   const { data: currentUser } = useCurrentUser();
   const roleCode = currentUser?.role?.code ?? "";
-  const { items, isLoading } = useInboxFeed({ role: roleCode });
+  const { items, isLoading, isSettled } = useInboxFeed({ role: roleCode });
   const markAnnRead   = useMarkAnnouncementRead();
   const markNotifRead = useMarkNotificationRead();
+  const clearAll      = useClearAll();
 
   const push = usePush();
   const [open, setOpen] = useState(false);
@@ -74,39 +101,70 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // Toast for new notifications
-  const latestItemId = items[0]?.id;
-  const previousLatestItemId = useRef(latestItemId);
-  const initialLoadRef = useRef(true);
+  // ── Toasts for genuinely new items ───────────────────────────
+  //
+  // Baseline = the newest created_at already accounted for. Anything at or older
+  // than it is backlog and never toasts, however it arrives: a late-resolving
+  // second query, a cache rehydration, a remount on another route. See
+  // lib/inbox-toast.ts for why the old id-based baseline could not do this.
+  const userId = currentUser?.user?.id;
+  const storeKey = baselineKey(userId);
+  const baselineRef = useRef<string | undefined>(undefined);
+
+  // A different user in the same tab must not inherit the previous baseline.
+  const baselineOwnerRef = useRef<string | undefined>(undefined);
+  if (baselineOwnerRef.current !== userId) {
+    baselineOwnerRef.current = userId;
+    baselineRef.current = undefined;
+  }
 
   useEffect(() => {
-    if (initialLoadRef.current) {
-      initialLoadRef.current = false;
-      previousLatestItemId.current = latestItemId;
-      return;
+    // Never baseline off a half-loaded feed — that is the whole bug.
+    if (!isSettled) return;
+
+    if (baselineRef.current === undefined) {
+      const stored = readBaseline(storeKey);
+      // First settle of this session: whatever is already here is backlog, not
+      // news. Record it and toast nothing.
+      baselineRef.current = stored ?? latestTimestamp(items) ?? new Date(0).toISOString();
+      if (!stored) {
+        writeBaseline(storeKey, baselineRef.current);
+        return;
+      }
     }
 
-    if (items.length > 0 && latestItemId !== previousLatestItemId.current) {
-      if (previousLatestItemId.current !== undefined) {
-        // Capped: one toast per item melts the browser when a refetch lands
-        // with a large backlog of unread (see lib/inbox-toast.ts).
-        const { toasts, overflow } = computeInboxToasts(items, previousLatestItemId.current);
-        toasts.forEach(item => {
-          toast(item.title, {
-            description: item.body,
-            icon: itemIcon(item),
-          });
-        });
-        if (overflow > 0) {
-          toast(`${overflow} more new notification${overflow === 1 ? "" : "s"}`, {
-            description: "Open your inbox to see all of them.",
-            icon: "🔔",
-          });
-        }
-      }
-      previousLatestItemId.current = latestItemId;
+    const { toasts, overflow } = computeInboxToasts(items, baselineRef.current);
+    const total = toasts.length + overflow;
+
+    toasts.forEach(item => {
+      toast(item.title, {
+        description: item.body,
+        icon: itemIcon(item),
+      });
+    });
+
+    // One control that clears the whole stack. A burst of four toasts is four
+    // dismiss clicks otherwise, and sonner has no built-in "close all".
+    if (total > 1) {
+      toast(
+        overflow > 0
+          ? `${overflow} more new notification${overflow === 1 ? "" : "s"}`
+          : `${total} new notifications`,
+        {
+          description: "Open your inbox to see all of them.",
+          icon: "🔔",
+          duration: 10_000,
+          action: { label: "Dismiss all", onClick: () => toast.dismiss() },
+        },
+      );
     }
-  }, [items, latestItemId]);
+
+    const newest = latestTimestamp(items);
+    if (newest && newest > baselineRef.current) {
+      baselineRef.current = newest;
+      writeBaseline(storeKey, newest);
+    }
+  }, [isSettled, items, storeKey]);
 
   function handleOpen() {
     setOpen(prev => {
@@ -129,6 +187,20 @@ export default function NotificationBell() {
       ]);
       invalidate("notifications", "announcements");
     } catch { /* ignore — next poll reconciles */ }
+  }
+
+  async function handleClearAll() {
+    // Announcements are role-scoped broadcasts with no per-user archive — the
+    // strongest "dismiss" they have is a read receipt, so clearing the inbox
+    // means: archive every notification, mark every announcement read.
+    try {
+      await Promise.all([
+        clearAll.mutateAsync(),
+        markAllAnnouncementsRead(),
+      ]);
+      invalidate("notifications", "announcements");
+      setOpen(false);
+    } catch { /* ignore — the list reconciles on the next fetch */ }
   }
 
   function handleItemClick(item: InboxItem) {
@@ -189,14 +261,30 @@ export default function NotificationBell() {
             <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#034852" }}>
               Notifications {count > 0 && <span style={{ fontSize: "11px", color: "#e53e3e", marginLeft: "4px" }}>({count} unread)</span>}
             </p>
-            {count > 0 && (
-              <button
-                onClick={() => void handleMarkAll()}
-                style={{ background: "none", border: "none", fontSize: "11px", color: "#209379", fontWeight: 700, cursor: "pointer", padding: 0 }}
-              >
-                Mark all read
-              </button>
-            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              {count > 0 && (
+                <button
+                  onClick={() => void handleMarkAll()}
+                  style={{ background: "none", border: "none", fontSize: "11px", color: "#209379", fontWeight: 700, cursor: "pointer", padding: 0 }}
+                >
+                  Mark all read
+                </button>
+              )}
+              {items.length > 0 && (
+                <button
+                  onClick={() => void handleClearAll()}
+                  disabled={clearAll.isPending}
+                  title="Dismiss every notification, read or unread"
+                  style={{
+                    background: "none", border: "none", fontSize: "11px",
+                    color: clearAll.isPending ? "rgba(3,72,82,0.35)" : "#e53e3e",
+                    fontWeight: 700, cursor: clearAll.isPending ? "default" : "pointer", padding: 0,
+                  }}
+                >
+                  {clearAll.isPending ? "Clearing…" : "Clear all"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List */}

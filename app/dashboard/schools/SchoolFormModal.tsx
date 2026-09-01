@@ -10,6 +10,7 @@ import {
   type FellowOption,
 } from "@/lib/api";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
+import { IN_CHARGE, IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, ZONE } from "@/lib/labels";
 import { normState, ALL_STATE } from "@/lib/geo";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
@@ -56,7 +57,7 @@ export function SchoolFormModal({
     if (!name.trim()) { setErr("Name is required."); return; }
     if (!state.trim()) { setErr("State is required."); return; }
     if (normState(state) !== ALL_STATE && !district.trim()) {
-      setErr("District is required (except for All-state schools).");
+      setErr(`${ZONE} is required (except for All-state schools).`);
       return;
     }
     const geo = parseGeo(latitude, longitude, radius);
@@ -124,7 +125,7 @@ export function SchoolFormModal({
               <input id="school-name" value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus />
             </div>
             <div>
-              <label style={formLabelStyle}>State &amp; District</label>
+              <label style={formLabelStyle}>State &amp; {ZONE}</label>
               <StateDistrictPicker
                 state={state}
                 district={district}
@@ -171,7 +172,7 @@ export function SchoolFormModal({
               </p>
             </div>
             <div>
-              <label style={formLabelStyle}>Assigned Fellow</label>
+              <label style={formLabelStyle}>Assigned {IN_CHARGE}</label>
               <FellowPicker
                 fellows={fellows}
                 value={fellowId}
@@ -252,7 +253,7 @@ function FellowPicker({
                 ? `Search… (current: ${selected.name})`
                 : (value && fallbackName)
                   ? `Search… (current: ${fallbackName})`
-                  : "Search fellows…"
+                  : `Search ${IN_CHARGE_LOWER_PLURAL}…`
             }
             style={{ flex: 1, padding: "12px 16px", border: "none", background: "transparent", outline: "none", fontFamily: "var(--font-body)", fontSize: "14px", color: "#034852" }}
           />
@@ -269,7 +270,7 @@ function FellowPicker({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); pick(""); }}
-            aria-label="Clear assigned fellow"
+            aria-label={`Clear assigned ${IN_CHARGE_LOWER}`}
             style={{ background: "none", border: "none", color: "rgba(3,72,82,0.5)", cursor: "pointer", padding: "0 8px", fontSize: "14px" }}
           >
             ✕

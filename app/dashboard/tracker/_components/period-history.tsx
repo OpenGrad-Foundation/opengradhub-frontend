@@ -19,15 +19,22 @@ import type { TrackerPeriodHistoryEntry } from "@/lib/tracker-api";
 export function PeriodHistory({
   recordId,
   recurring,
+  studentId,
 }: {
   recordId: string;
   /** One-time tasks have no earlier periods, so the section is absent entirely. */
   recurring: boolean;
+  /**
+   * Set when this is rendered on a student profile: the history is then read through
+   * the student-scoped route, so the whole page authorises on one question — may this
+   * caller see this student — rather than mixing in the tracker's doer-based rule.
+   */
+  studentId?: string;
 }) {
   // Cursors the user has explicitly asked for; each renders one more page.
   const [cursors, setCursors] = useState<string[]>([]);
 
-  const first = useRecordPeriodHistory(recordId, recurring);
+  const first = useRecordPeriodHistory(recordId, recurring, undefined, undefined, studentId);
   if (!recurring) return null;
 
   return (
@@ -48,13 +55,14 @@ export function PeriodHistory({
             <PeriodRow key={e.record_id} entry={e} />
           ))}
           {cursors.map((cursor) => (
-            <MorePage key={cursor} recordId={recordId} before={cursor} />
+            <MorePage key={cursor} recordId={recordId} before={cursor} studentId={studentId} />
           ))}
         </ol>
       )}
 
       <LoadMore
         recordId={recordId}
+        studentId={studentId}
         cursors={cursors}
         firstCursor={first.data?.next_cursor ?? null}
         onLoad={(c) => setCursors((prev) => (prev.includes(c) ? prev : [...prev, c]))}
@@ -64,8 +72,10 @@ export function PeriodHistory({
 }
 
 /** One additional page, mounted only once the user has asked for it. */
-function MorePage({ recordId, before }: { recordId: string; before: string }) {
-  const { data, isLoading } = useRecordPeriodHistory(recordId, true, before);
+function MorePage({ recordId, before, studentId }: {
+  recordId: string; before: string; studentId?: string;
+}) {
+  const { data, isLoading } = useRecordPeriodHistory(recordId, true, before, undefined, studentId);
   if (isLoading) {
     return (
       <li className="flex items-center gap-2 text-xs text-gray-500">
@@ -88,17 +98,21 @@ function MorePage({ recordId, before }: { recordId: string; before: string }) {
  */
 function LoadMore({
   recordId,
+  studentId,
   cursors,
   firstCursor,
   onLoad,
 }: {
   recordId: string;
+  studentId?: string;
   cursors: string[];
   firstCursor: string | null;
   onLoad: (cursor: string) => void;
 }) {
   const lastCursor = cursors.length ? cursors[cursors.length - 1] : null;
-  const tail = useRecordPeriodHistory(recordId, Boolean(lastCursor), lastCursor ?? undefined);
+  const tail = useRecordPeriodHistory(
+    recordId, Boolean(lastCursor), lastCursor ?? undefined, undefined, studentId,
+  );
   const next = lastCursor ? tail.data?.next_cursor ?? null : firstCursor;
   if (!next) return null;
   return (

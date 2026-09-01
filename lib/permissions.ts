@@ -101,10 +101,6 @@ export const PERM = {
     view: "student_export.view",
     run: "student_export.run",
   },
-  bulk_assign: {
-    view: "bulk_assign.view",
-    run: "bulk_assign.run",
-  },
   schools: {
     view: "schools.view",
     create: "schools.create",
@@ -150,6 +146,8 @@ export const PERM = {
     view: "tracker.view",
     author: "tracker.author",
     fill: "tracker.fill",
+    /** Fill a subordinate's row in their name — ZM/PM only (migration 103). */
+    fill_override: "tracker.fill.override",
     blocker_clear: "tracker.blocker.clear",
     admin: "tracker.admin",
     /** Accept an out-of-range school-visit verification (migration 097). */
@@ -161,6 +159,17 @@ export const PERM = {
 
 export const ANALYTICS_DASHBOARD_PERMISSIONS = [
   PERM.analytics.view,
+  PERM.analytics.view_admin,
+  PERM.analytics.view_manager,
+  PERM.analytics.view_fellow,
+] as const;
+
+/**
+ * Staff-only analytics permissions. Excludes `analytics.view` on purpose —
+ * students hold it for their own dashboards, and it must not unlock a page
+ * that shows another student's record.
+ */
+export const STAFF_ANALYTICS_PERMISSIONS = [
   PERM.analytics.view_admin,
   PERM.analytics.view_manager,
   PERM.analytics.view_fellow,
@@ -193,10 +202,10 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   analytics: ANALYTICS_DASHBOARD_PERMISSIONS,
   reports: REPORTS_ROUTE_PERMISSIONS,
   "student-export": PERM.student_export.view,
-  "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
   schools: PERM.schools.view,
   programmes: PERM.programmes.view,
+  students: STAFF_ANALYTICS_PERMISSIONS,
   batches: PERM.batches.view,
   "role-management": PERM.role_management.view,
   tracker: PERM.tracker.view,

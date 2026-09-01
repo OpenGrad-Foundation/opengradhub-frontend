@@ -1,4 +1,5 @@
 "use client";
+import { ZONE_LOWER } from "@/lib/labels";
 
 /**
  * School confirmations: a per-class public link a school opens to say "our
@@ -180,7 +181,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
               onChange={setAddingIds}
               disabledIds={linkedIds}
               isLoading={schoolsLoading}
-              placeholder="Add schools — search by name, code or district…"
+              placeholder={`Add schools — search by name, code or ${ZONE_LOWER}…`}
             />
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -297,7 +298,6 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
         const matches =
           kind === "course" ? c.course_id === id
           : kind === "batch" ? (c.batch_ids ?? []).includes(id)
-          : kind === "programme" ? c.programme_type === id
           : true;
         if (!matches) return false;
       }

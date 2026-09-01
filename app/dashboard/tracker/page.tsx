@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
@@ -27,10 +29,13 @@ import {
   useTrackerMineBlockers,
   useTrackerOverview,
   useTrackerQueueBlockers,
+  useTrackerTemplate,
   useTrackerTemplates,
 } from "@/lib/queries/tracker";
 import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTaskSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
-import { TrackerBuilder } from "./_components/tracker-builder";
+import { IN_CHARGE, roleLabel, TRACKER_NAME } from "@/lib/labels";
+import { getBackHref } from "@/lib/nav";
+import { TrackerBuilder, type TrackerAssignPrefill } from "./_components/tracker-builder";
 import { StudentFieldsManager } from "./_components/student-fields-manager";
 import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { StatusCards } from "./_components/status-cards";
@@ -39,7 +44,7 @@ import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
 import { TaskBreakdown } from "./_components/task-breakdown";
-import { ZmView } from "./_components/zm-view";
+import { ZmView, AssignTaskButton } from "./_components/zm-view";
 import { NudgeButton } from "./_components/nudge-button";
 import PushNudge from "@/components/PushNudge";
 import { HierarchicalStudentsPanel } from "./_components/hierarchical-students";
@@ -61,6 +66,7 @@ export default function TrackerPage() {
   const { has, isLoading: permLoading } = usePermissions();
   const canAuthor = has(PERM.tracker.author);
   const canFill = has(PERM.tracker.fill);
+  const canOverrideFill = has(PERM.tracker.fill_override);
   const canClear = has(PERM.tracker.blocker_clear);
   const canAdmin = has(PERM.tracker.admin);
   const isManagerView = canAuthor || canClear || canAdmin;
@@ -78,21 +84,46 @@ export default function TrackerPage() {
     return next;
   }, [canAuthor, canFill, isManagerView, isPmOrAdmin, roleCode]);
 
+  /**
+   * `?task=<templateId>` opens straight into that task's grid — the link a student
+   * profile (or any other page) uses to hand off to the tracker. It only seeds the
+   * initial state: once here, the tab and task are ordinary local state again, so
+   * navigating away from the task does not fight the URL.
+   */
+  const searchParams = useSearchParams();
+  const deepLinkTask = searchParams.get("task");
+  // Where the deep link came from, so "back" returns there instead of dropping the
+  // user in a tracker list they never chose. Validated against internal dashboard
+  // paths by getBackHref.
+  const deepLinkFrom = searchParams.get("from");
+
   const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
   const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
   // Manager overview: when a status card is clicked, show only the tasks in that state
   // (replacing the team roster) until cleared. Null = no filter, show the roster.
   const [overviewState, setOverviewState] = useState<TaskState | null>(null);
-  const [fillTemplateId, setFillTemplateId] = useState<string | null>(null);
+  const [fillTemplateId, setFillTemplateId] = useState<string | null>(deepLinkTask);
   // Set when a manager drills into a task from one fellow's list, so the grid scopes to that
   // fellow's rows instead of the manager's whole scope. Null = caller's own scope.
   const [fillFellowId, setFillFellowId] = useState<string | null>(null);
+  // Their name, carried alongside the id purely so the fill-on-behalf banner can say WHO the
+  // manager is writing as. Not every drill-in surface knows the id AND the name, so it is
+  // optional and the banner falls back to a generic phrase.
+  const [fillFellowName, setFillFellowName] = useState<string | null>(null);
   // The task whose org-tree drill-down is open on the All Tasks tab. Null = task list.
   const [drillTask, setDrillTask] = useState<TrackerTaskSummaryRow | null>(null);
+  // Set when "Assign task" is clicked on someone's task list: seeds the builder's audience with
+  // that person so the author lands on a form already pointed at them. Cleared on tab change so
+  // a later visit to the builder starts blank.
+  const [assignPrefill, setAssignPrefill] = useState<TrackerAssignPrefill | null>(null);
+  const assignTo = (person: { id: string; name: string }) => {
+    setAssignPrefill({ targetType: "fellow", ids: [person.id], label: person.name });
+    setActiveTab("builder");
+  };
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], error: templatesError } = useTrackerTemplates();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(deepLinkTask ?? "");
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? templates[0] ?? null;
   const templateId = selectedTemplate?.id;
 
@@ -109,20 +140,19 @@ export default function TrackerPage() {
       {isManagerView && <PushNudge />}
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Hub Module</p>
-          <h1 className="mt-2 text-3xl font-semibold text-gray-950">Tracker</h1>
+          <h1 className="mt-2 text-3xl font-semibold text-gray-950">{TRACKER_NAME}</h1>
           <p className="mt-2 text-sm text-gray-500">
-            {currentUser?.role.name ?? "Team"} workspace
+            {roleLabel(currentUser?.role.name, "Team")} workspace
           </p>
         </div>
       </header>
 
-      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label="Tracker sections">
+      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label={`${TRACKER_NAME} sections`}>
         {tabs.map((tab) => (
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => { setAssignPrefill(null); setActiveTab(tab); }}
             className={
               "flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors " +
               (safeActiveTab === tab
@@ -141,10 +171,16 @@ export default function TrackerPage() {
       ) : safeActiveTab === "allTasks" ? (
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
-            <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to task
-            </button>
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} />
+            <BackFromTask
+              from={deepLinkFrom}
+              /* Only while still on the task the link sent us to — once the user picks a
+                 different task inside the tracker, the origin is no longer where "back"
+                 means, and the normal in-tracker back applies. */
+              active={fillTemplateId === deepLinkTask}
+              label="Back to task"
+              onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
+            />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : drillTask ? (
           <TaskBreakdown
@@ -160,10 +196,16 @@ export default function TrackerPage() {
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
-            <button type="button" onClick={() => { setFillTemplateId(null); setFillFellowId(null); }} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to my tasks
-            </button>
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} />
+            <BackFromTask
+              from={deepLinkFrom}
+              /* Only while still on the task the link sent us to — once the user picks a
+                 different task inside the tracker, the origin is no longer where "back"
+                 means, and the normal in-tracker back applies. */
+              active={fillTemplateId === deepLinkTask}
+              label="Back to my tasks"
+              onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
+            />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -174,24 +216,24 @@ export default function TrackerPage() {
                 <OverviewFilteredTasks
                   state={overviewState}
                   onClear={() => setOverviewState(null)}
-                  onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); }}
+                  onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
                 />
               ) : isPmOrAdmin ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
-                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Fellow</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
                   </div>
                   {teamView === "zm"
-                    ? <ZmView onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
-                    : <TeamPanel onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />}
+                    ? <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                    : <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />}
                 </div>
               ) : (
-                <TeamPanel onOpen={(tid, fid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); }} />
+                <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
               )}
               </>
             ) : (
-              <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); }} />
+              <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }} />
             )}
           </div>
         )
@@ -213,7 +255,7 @@ export default function TrackerPage() {
       ) : safeActiveTab === "myStudents" ? (
         <HierarchicalStudentsPanel />
       ) : (
-        <NewTaskPanel canAuthor={canAuthor} canFill={canFill} canClear={canClear} />
+        <NewTaskPanel canAuthor={canAuthor} canFill={canFill} canClear={canClear} prefill={assignPrefill} />
       )}
     </div>
   );
@@ -288,7 +330,11 @@ function TasksPanel({
   );
 }
 
-function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) => void }) {
+function TeamPanel({ onOpen, onAssign }: {
+  onOpen: (templateId: string, fellowId: string, fellowName?: string) => void;
+  /** Jump to the task builder with this person pre-selected as the audience. */
+  onAssign?: (person: { id: string; name: string }) => void;
+}) {
   const { data: fellows = [], isLoading } = useTrackerFellows();
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
   const [q, setQ] = useState("");
@@ -301,8 +347,11 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
         <button type="button" onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to team
         </button>
-        <h3 className="text-sm font-semibold text-gray-950">{sel.name}&apos;s tasks</h3>
-        {tasks.isLoading ? <TrackerLoading /> : <TaskListView tasks={tasks.data ?? []} onOpen={(tid) => onOpen(tid, sel.id)} emptyTitle="No tasks" emptyDetail={`${sel.name} has no tasks yet.`} />}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-950">{sel.name}&apos;s tasks</h3>
+          {onAssign && <AssignTaskButton onClick={() => onAssign(sel)} />}
+        </div>
+        {tasks.isLoading ? <TrackerLoading /> : <TaskListView tasks={tasks.data ?? []} onOpen={(tid) => onOpen(tid, sel.id, sel.name)} emptyTitle="No tasks" emptyDetail={`${sel.name} has no tasks yet.`} />}
       </div>
     );
   }
@@ -317,7 +366,6 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-gray-950">Your team</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open a team member to see their tasks.</p>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search team…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
       </div>
@@ -367,8 +415,14 @@ function TeamPanel({ onOpen }: { onOpen: (templateId: string, fellowId: string) 
   );
 }
 
-function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; canFill: boolean; canClear: boolean }) {
-  const [mode, setMode] = useState<"template" | "scratch">("template");
+function NewTaskPanel({ canAuthor, canFill, canClear, prefill }: {
+  canAuthor: boolean;
+  canFill: boolean;
+  canClear: boolean;
+  /** Audience carried in from an "Assign task" click, which also opens the scratch builder. */
+  prefill?: TrackerAssignPrefill | null;
+}) {
+  const [mode, setMode] = useState<"template" | "scratch">(prefill ? "scratch" : "template");
   const [listView, setListView] = useState<"active" | "archived">("active");
   const { data: templates = [], isLoading } = useTrackerTemplates(listView === "archived" ? "archived" : undefined);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -388,10 +442,11 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
       </div>
     );
   }
-  if (detailId && templates.some((t) => t.id === detailId)) {
+  if (detailId) {
     return (
-      <TaskDetail
-        template={templates.find((t) => t.id === detailId)!}
+      <TaskDetailRoute
+        templateId={detailId}
+        fallback={templates.find((t) => t.id === detailId) ?? null}
         canAuthor={canAuthor}
         onBack={() => setDetailId(null)}
         onOpenGrid={() => setGridId(detailId)}
@@ -415,9 +470,51 @@ function NewTaskPanel({ canAuthor, canFill, canClear }: { canAuthor: boolean; ca
       </div>
       {mode === "template"
         ? <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={(id) => setDetailId(id)} />
-        : <TrackerBuilder canAuthor={canAuthor} />}
+        : (
+          <TrackerBuilder
+            // Remount when the pre-selected audience changes — the builder only reads it on mount.
+            key={prefill ? `prefill:${prefill.ids.join(",")}` : "blank"}
+            canAuthor={canAuthor}
+            prefill={prefill ?? undefined}
+            // Land the author on the task they just made instead of the list.
+            onCreated={(id) => { setListView("active"); setMode("template"); setDetailId(id); }}
+          />
+        )}
     </div>
   );
+}
+
+/** Opens one task by id. Resolving from the detail endpoint (not the cached list) means a
+ *  freshly-created task — including a draft — opens right away, before the list refetch lands. */
+function TaskDetailRoute({
+  templateId,
+  fallback,
+  canAuthor,
+  onBack,
+  onOpenGrid,
+}: {
+  templateId: string;
+  fallback: TrackerTemplate | null;
+  canAuthor: boolean;
+  onBack: () => void;
+  onOpenGrid: () => void;
+}) {
+  const { data, isLoading, error } = useTrackerTemplate(templateId);
+  const template = data?.template ?? fallback;
+
+  if (!template) {
+    if (isLoading) return <TrackerLoading />;
+    return (
+      <div className="flex flex-col gap-3">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
+        </button>
+        <ErrorPanel message={error instanceof Error ? error.message : "Could not open that task."} />
+      </div>
+    );
+  }
+
+  return <TaskDetail template={template} canAuthor={canAuthor} onBack={onBack} onOpenGrid={onOpenGrid} />;
 }
 
 /** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state.
@@ -489,6 +586,43 @@ function OverviewFilteredTasks({
   );
 }
 
+/**
+ * The back control above a task's grid.
+ *
+ * Arriving from another page (a student profile, say) and arriving from the tracker's
+ * own list are different journeys, so "back" cannot be one fixed destination: it either
+ * leaves for where the link came from, or clears the task and stays.
+ */
+function BackFromTask({
+  from,
+  active,
+  label,
+  onStay,
+}: {
+  from: string | null;
+  active: boolean;
+  label: string;
+  onStay: () => void;
+}) {
+  const className =
+    "inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900";
+  if (active && from) {
+    const href = getBackHref(from, "");
+    if (href) {
+      return (
+        <Link href={href} className={className}>
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back
+        </Link>
+      );
+    }
+  }
+  return (
+    <button type="button" onClick={onStay} className={className}>
+      <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {label}
+    </button>
+  );
+}
+
 function GridPanel({
   template,
   grid,
@@ -497,6 +631,8 @@ function GridPanel({
   canFill,
   canClear,
   viewingOther = false,
+  canOverrideFill = false,
+  owner = null,
 }: {
   template: TrackerTemplate | null;
   grid: TrackerGrid | undefined;
@@ -506,10 +642,18 @@ function GridPanel({
   canClear: boolean;
   /** Drilled into another person's rows (a manager reviewing a fellow). */
   viewingOther?: boolean;
+  /** May the viewer take those rows over and fill them in the owner's name? */
+  canOverrideFill?: boolean;
+  /** Who those rows belong to, for the fill-on-behalf banner. */
+  owner?: { id: string; name: string } | null;
 }) {
   const perms = usePermissions();
   const canOverrideGeo = perms.has(PERM.tracker.geo_override);
   const canGrantExtension = perms.has(PERM.tracker.extension_grant);
+  // Managers only. A doer already has the fill template download; the export is the
+  // reporting pull, and it carries every row plus its audit trail.
+  const canExport = perms.has(PERM.tracker.author) || perms.has(PERM.tracker.admin)
+    || perms.has(PERM.tracker.blocker_clear);
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
@@ -528,6 +672,9 @@ function GridPanel({
         viewingOther={viewingOther}
         canOverrideGeo={canOverrideGeo}
         canGrantExtension={canGrantExtension}
+        canOverrideFill={canOverrideFill}
+        canExport={canExport}
+        owner={owner}
       />
     </div>
   );
@@ -556,9 +703,9 @@ function BlockersPanel({
   return (
     <>
       <div className="grid items-start gap-5 lg:grid-cols-2">
-        <BlockerList title="Raised by me" subtitle="Blockers you flagged that are still open." blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} onOpen={setOpenId} />
+        <BlockerList title="Raised by me" blockers={mine} loading={mineLoading} error={mineError} canClear={canClear} onOpen={setOpenId} />
         {isManagerView && (
-          <BlockerList title="Needs my attention" subtitle="Blockers escalated up to you, awaiting a response." blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} onOpen={setOpenId} />
+          <BlockerList title="Needs my attention" blockers={queue} loading={queueLoading} error={queueError} canClear={canClear} onOpen={setOpenId} />
         )}
       </div>
       {openId && <BlockerDrawer blockerId={openId} canClear={canClear} onClose={() => setOpenId(null)} />}
@@ -568,7 +715,6 @@ function BlockersPanel({
 
 function BlockerList({
   title,
-  subtitle,
   blockers,
   loading,
   error,
@@ -576,7 +722,6 @@ function BlockerList({
   onOpen,
 }: {
   title: string;
-  subtitle: string;
   blockers: TrackerBlocker[];
   loading: boolean;
   error: unknown;
@@ -591,7 +736,6 @@ function BlockerList({
     <section className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h2 className="text-base font-semibold text-gray-950">{title}</h2>
-        <p className="mt-0.5 text-xs text-gray-500">{subtitle}</p>
       </div>
       {blockers.length === 0 ? (
         <p className="px-4 py-8 text-sm text-gray-500">No blockers.</p>
@@ -738,16 +882,10 @@ function describeBlockerEvent(ev: TrackerEvent): string {
   switch (ev.event_type) {
     case "blocker_raised": return `Flagged stuck: "${String(d.text ?? "")}"`;
     case "blocker_comment": return String(d.text ?? "");
-    case "blocker_escalated": return `Escalated to ${roleLabel(String(d.to_role ?? ""))}`;
+    case "blocker_escalated": return `Escalated to ${roleLabel(d.to_role as string | null, "manager")}`;
     case "blocker_cleared": return "Blocker cleared";
     default: return ev.event_type;
   }
-}
-
-function roleLabel(code: string): string {
-  if (code === "ZONAL_MANAGER") return "Zonal Manager";
-  if (code === "PROGRAM_MANAGER") return "Program Manager";
-  return code || "manager";
 }
 
 function TabIcon({ tab }: { tab: TrackerTab }) {

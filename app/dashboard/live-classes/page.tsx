@@ -136,7 +136,6 @@ function LiveClassesInner() {
     <div>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
         <div>
-          <p style={S.label}>Live Sessions</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Live Classes</h1>
           <p style={{ fontSize: "14px", color: MUTED, marginTop: "4px" }}>
             {classes.length} {isPast ? "past" : "upcoming"}
@@ -316,7 +315,6 @@ function ClassCard({
           </span>
           <span>· {cls.duration_minutes} min</span>
           {cls.course_title && <span className="font-semibold text-[var(--teal)]">· {cls.course_title}</span>}
-          {cls.programme_type && <span className="font-semibold text-[var(--teal)]">· {cls.programme_type}</span>}
         </div>
 
         {(onEdit || onDelete || (ended && onViewAttendance)) && (

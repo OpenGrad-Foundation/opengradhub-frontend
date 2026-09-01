@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { IN_CHARGE } from "@/lib/labels";
 import {
   fetchSchoolRosterDetail,
   getSchoolDetail,
@@ -164,7 +165,7 @@ export default function SchoolDetailPage() {
       {/* Fellow + stats cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <div style={cardStyle}>
-          <p style={cardLabelStyle}>Assigned Fellow</p>
+          <p style={cardLabelStyle}>Assigned {IN_CHARGE}</p>
           {school.fellow_name ? (
             <>
               <p style={cardValueStyle}>{school.fellow_name}</p>

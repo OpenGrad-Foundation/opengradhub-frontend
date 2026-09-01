@@ -35,10 +35,9 @@ export function useNextLiveClass(studentId: string) {
  */
 export function useAudiencePreview(t: {
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }) {
-  const enabled = !!t.course_id || !!t.programme_type || !!t.batch_ids?.length;
+  const enabled = !!t.course_id || !!t.batch_ids?.length;
   return useQuery({
     queryKey: qk.liveClassAudiencePreview(t as Record<string, unknown>),
     queryFn: () => getAudiencePreview(t),

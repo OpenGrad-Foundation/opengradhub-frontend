@@ -48,9 +48,7 @@ export default function NewCoursePage() {
   return (
     <PageShell>
       <div style={{ marginBottom: "28px" }}>
-        <p style={label}>Courses</p>
         <h1 style={{ ...title, fontSize: "28px", margin: 0 }}>New Course</h1>
-        <p style={subtitle}>Fill in the details below, then save as a draft.</p>
       </div>
       <CourseMetaForm onSave={handleSave} submitLabel="Save as Draft" />
     </PageShell>
@@ -93,10 +91,4 @@ const title: React.CSSProperties = {
   fontWeight: 700,
   color: "#034852",
   margin: 0,
-};
-
-const subtitle: React.CSSProperties = {
-  fontSize: "14px",
-  color: "rgba(3,72,82,0.6)",
-  marginTop: "4px",
 };

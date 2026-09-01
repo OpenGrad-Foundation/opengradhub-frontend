@@ -36,7 +36,9 @@ const LIST_PAGE_SIZE = 10;
 
 type ViewMode = "grid" | "list";
 type ProgrammeFilter = string; // "ALL" or any PROGRAMME_KINDS value
-type StatusFilter = "ALL" | "ACTIVE" | "DRAFT" | "ARCHIVED";
+// Every status has its own tab, so there is no status filter at all — the tab
+// is the status. ACTIVE / DRAFT / ARCHIVED map 1:1 onto the three tabs.
+type CourseTab = "PUBLISHED" | "DRAFTS" | "ARCHIVED";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
 
@@ -52,7 +54,9 @@ export default function CoursesPage() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState<ProgrammeFilter>("ALL");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [tab, setTab] = useState<CourseTab>("PUBLISHED");
+  const [draftCount, setDraftCount] = useState<number | null>(null);
+  const [archivedCount, setArchivedCount] = useState<number | null>(null);
   const [accessFilter, setAccessFilter] = useState<AccessFilter>("ALL");
   const [lockingFilter, setLockingFilter] = useState<LockingFilter>("ALL");
   const [tagsFilter, setTagsFilter] = useState<string[]>([]);
@@ -68,6 +72,18 @@ export default function CoursesPage() {
   // genuine identity distinction — a learner sees their own enrolments.
   const isStudent = roleCode === "STUDENT";
   const supportsFullStatusFilter = canManage;
+  // Only managers can see DRAFT/ARCHIVED rows at all (the API forces ACTIVE
+  // otherwise), so the extra tabs are hidden for everyone else.
+  const showStatusTabs = !isStudent && supportsFullStatusFilter;
+  const draftsTab = showStatusTabs && tab === "DRAFTS";
+  const archivedTab = showStatusTabs && tab === "ARCHIVED";
+  const effectiveStatus: string | undefined = !supportsFullStatusFilter
+    ? undefined
+    : draftsTab
+    ? "DRAFT"
+    : archivedTab
+    ? "ARCHIVED"
+    : "ACTIVE";
   const pageSize = viewMode === "grid" ? GRID_PAGE_SIZE : LIST_PAGE_SIZE;
 
   const {
@@ -87,8 +103,8 @@ export default function CoursesPage() {
     setPage(1);
   };
 
-  const handleStatusChange = (value: StatusFilter) => {
-    setStatusFilter(value);
+  const handleTabChange = (next: CourseTab) => {
+    setTab(next);
     setPage(1);
   };
 
@@ -127,8 +143,8 @@ export default function CoursesPage() {
         pageSize,
       };
 
-      if (supportsFullStatusFilter && statusFilter !== "ALL") {
-        params.status = statusFilter;
+      if (effectiveStatus) {
+        params.status = effectiveStatus;
       }
 
       const response = await getCoursesPage(params);
@@ -145,14 +161,13 @@ export default function CoursesPage() {
     accessFilter,
     canManage,
     deferredSearch,
+    effectiveStatus,
     isStudent,
     lockingFilter,
     tagsFilter,
     page,
     pageSize,
     programmeFilter,
-    statusFilter,
-    supportsFullStatusFilter,
     userId,
   ]);
 
@@ -162,12 +177,43 @@ export default function CoursesPage() {
     }
   }, [fetchCourses, userLoading]);
 
-  const subtitle = useMemo(() => {
-    if (isStudent) return "Your enrolled courses";
-    if (roleCode === "PROGRAM_MANAGER") return "Search and manage the full course catalogue";
-    if (roleCode === "SUPER_ADMIN") return "Search and manage the full OpenGrad course catalogue";
-    return "Browse the active course catalogue with cleaner search and filtering";
-  }, [isStudent, roleCode]);
+  // Unfiltered draft/archived totals for the tab badges. Deliberately cheap
+  // (page_size 1 — only `total` is used) and refreshed on tab switch rather
+  // than on every filter keystroke, so typing in search does not double the
+  // request count.
+  useEffect(() => {
+    if (!showStatusTabs || !userId) {
+      setDraftCount(null);
+      setArchivedCount(null);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const load = async (status: "DRAFT" | "ARCHIVED") => {
+        try {
+          const response = await getCoursesPage({
+            allStatuses: true,
+            status,
+            page: 1,
+            pageSize: 1,
+          });
+          return response.total;
+        } catch {
+          return null;
+        }
+      };
+
+      const [drafts, archived] = await Promise.all([load("DRAFT"), load("ARCHIVED")]);
+      if (cancelled) return;
+      setDraftCount(drafts);
+      setArchivedCount(archived);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [showStatusTabs, tab, userId]);
 
   const visibleStudentCourses = useMemo(() => {
     const term = deferredSearch.trim().toLowerCase();
@@ -183,7 +229,6 @@ export default function CoursesPage() {
   const activeFilterCount = useMemo(() => {
     return [
       programmeFilter !== "ALL",
-      supportsFullStatusFilter && statusFilter !== "ALL",
       accessFilter !== "ALL",
       lockingFilter !== "ALL",
       tagsFilter.length > 0,
@@ -195,14 +240,11 @@ export default function CoursesPage() {
     lockingFilter,
     tagsFilter,
     programmeFilter,
-    statusFilter,
-    supportsFullStatusFilter,
   ]);
 
   const resetFilters = () => {
     setSearchInput("");
     setProgrammeFilter("ALL");
-    setStatusFilter("ALL");
     setAccessFilter("ALL");
     setLockingFilter("ALL");
     setTagsFilter([]);
@@ -228,50 +270,76 @@ export default function CoursesPage() {
 
   return (
     <PageShell>
+      {/* Header sits bare on the page at 28px/700 in the heading face, exactly
+          like Batches, Schools and Doubts. It used to carry an eyebrow and the
+          display face, which made Courses read as a different product. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="max-w-3xl">
+          <h1
+            className="text-[28px] font-bold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)", margin: 0 }}
+          >
+            Courses
+          </h1>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {!isStudent && (
+            <div className="flex items-center gap-1.5 rounded-full border border-[rgba(3,72,82,0.1)] bg-white/90 p-1 shadow-sm">
+              <ViewToggleButton
+                active={viewMode === "grid"}
+                icon={<LayoutGrid size={14} />}
+                label="Grid"
+                onClick={() => handleViewModeChange("grid")}
+              />
+              <ViewToggleButton
+                active={viewMode === "list"}
+                icon={<List size={14} />}
+                label="List"
+                onClick={() => handleViewModeChange("list")}
+              />
+            </div>
+          )}
+
+          {canCreate && (
+            <Link
+              href="/dashboard/courses/new"
+              className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--green),var(--teal))] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(10,190,98,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(10,190,98,0.32)]"
+            >
+              <Plus size={16} />
+              New Course
+            </Link>
+          )}
+        </div>
+      </div>
+
       <section className="rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white px-4 py-5 shadow-sm sm:px-6">
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-[0.65rem] font-bold uppercase tracking-[0.32em] text-[var(--light-teal)]">
-                {isStudent ? "Learning" : "Course Management"}
-              </p>
-              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-[var(--dark-teal)]">
-                Courses
-              </h1>
-              <p className="mt-1 max-w-2xl text-xs leading-5 text-[rgba(3,72,82,0.7)]">
-                {subtitle}
-              </p>
+          {showStatusTabs && (
+            <div
+              role="tablist"
+              aria-label="Course status"
+              className="flex w-full items-center gap-1 overflow-x-auto border-b border-[rgba(3,72,82,0.1)]"
+            >
+              <CourseTabButton
+                active={tab === "PUBLISHED"}
+                label="Courses"
+                onClick={() => handleTabChange("PUBLISHED")}
+              />
+              <CourseTabButton
+                active={tab === "DRAFTS"}
+                label="Course Drafts"
+                count={draftCount}
+                onClick={() => handleTabChange("DRAFTS")}
+              />
+              <CourseTabButton
+                active={tab === "ARCHIVED"}
+                label="Archived"
+                count={archivedCount}
+                onClick={() => handleTabChange("ARCHIVED")}
+              />
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {!isStudent && (
-                <div className="flex items-center gap-1.5 rounded-full border border-[rgba(3,72,82,0.1)] bg-white/90 p-1 shadow-sm">
-                  <ViewToggleButton
-                    active={viewMode === "grid"}
-                    icon={<LayoutGrid size={14} />}
-                    label="Grid"
-                    onClick={() => handleViewModeChange("grid")}
-                  />
-                  <ViewToggleButton
-                    active={viewMode === "list"}
-                    icon={<List size={14} />}
-                    label="List"
-                    onClick={() => handleViewModeChange("list")}
-                  />
-                </div>
-              )}
-
-              {canCreate && (
-                <Link
-                  href="/dashboard/courses/new"
-                  className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--green),var(--teal))] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(10,190,98,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(10,190,98,0.32)]"
-                >
-                  <Plus size={16} />
-                  New Course
-                </Link>
-              )}
-            </div>
-          </div>
+          )}
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="group flex flex-1 items-center gap-2 rounded-xl border border-[rgba(3,72,82,0.12)] bg-white/90 px-3 py-2 shadow-sm transition focus-within:border-[rgba(10,190,98,0.35)]">
@@ -307,22 +375,6 @@ export default function CoursesPage() {
                 value={programmeFilter}
                 onChange={(value) => handleProgrammeChange(value as ProgrammeFilter)}
                 options={[{ value: "ALL", label: "All programmes" }, ...PROGRAMME_KINDS]}
-              />
-              <FilterSelect
-                label="Status"
-                value={supportsFullStatusFilter ? statusFilter : "ACTIVE"}
-                disabled={!supportsFullStatusFilter}
-                onChange={(value) => handleStatusChange(value as StatusFilter)}
-                options={
-                  supportsFullStatusFilter
-                    ? [
-                        { value: "ALL", label: "All statuses" },
-                        { value: "ACTIVE", label: "Active" },
-                        { value: "DRAFT", label: "Draft" },
-                        { value: "ARCHIVED", label: "Archived" },
-                      ]
-                    : [{ value: "ACTIVE", label: "Active only" }]
-                }
               />
               <FilterSelect
                 label="Access"
@@ -421,11 +473,27 @@ export default function CoursesPage() {
       ) : managementCourses.length === 0 ? (
         <section className="mt-6">
           <StateCard
-            eyebrow="No Courses"
-            title={activeFilterCount > 0 ? "No courses match the current filters." : "No courses found."}
+            eyebrow={draftsTab ? "No Drafts" : archivedTab ? "Nothing Archived" : "No Courses"}
+            title={
+              activeFilterCount > 0
+                ? draftsTab
+                  ? "No drafts match the current filters."
+                  : archivedTab
+                  ? "No archived courses match the current filters."
+                  : "No courses match the current filters."
+                : draftsTab
+                ? "No draft courses."
+                : archivedTab
+                ? "No archived courses."
+                : "No courses found."
+            }
             description={
               activeFilterCount > 0
                 ? "Try widening the filters or clearing the search."
+                : draftsTab
+                ? "Courses stay here until they are published. Drafts are not visible to students."
+                : archivedTab
+                ? "Archive a course from its management page to retire it without deleting it."
                 : canCreate
                 ? 'Create your first course from "New Course" to start managing content here.'
                 : "Check back soon for available courses."
@@ -844,6 +912,45 @@ function ViewToggleButton({
     >
       {icon}
       {label}
+    </button>
+  );
+}
+
+function CourseTabButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count?: number | null;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={`-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition ${
+        active
+          ? "border-[var(--teal)] text-[var(--dark-teal)]"
+          : "border-transparent text-[rgba(3,72,82,0.6)] hover:text-[var(--dark-teal)]"
+      }`}
+    >
+      {label}
+      {typeof count === "number" && count > 0 && (
+        <span
+          className={`inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+            active
+              ? "bg-[rgba(10,190,98,0.14)] text-[var(--dark-teal)]"
+              : "bg-[rgba(3,72,82,0.07)] text-[rgba(3,72,82,0.7)]"
+          }`}
+        >
+          {count}
+        </span>
+      )}
     </button>
   );
 }

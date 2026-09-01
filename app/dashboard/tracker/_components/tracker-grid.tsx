@@ -1,25 +1,32 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
-import { Check, Clock, Download, FileUp, Loader2, Save, UserCog, X } from "lucide-react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Clock, Download, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
   useRecordGeoVerification,
   useSaveTrackerBatch,
+  useSaveTrackerBatchOnBehalf,
   useTemplateGeoVerifications,
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
+import { fetchTaskExport } from "@/lib/tracker-api";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
+import { IN_CHARGE, roleLabel } from "@/lib/labels";
 import { RecordProofs } from "./record-proofs";
 import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
-import { SchoolGeoPanel } from "./school-geo-panel";
+import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
+import { displayCellValue as display } from "@/lib/tracker-value";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
+
+const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg";
+const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
 
 export function TrackerEditableGrid({
   template,
@@ -31,6 +38,9 @@ export function TrackerEditableGrid({
   viewingOther = false,
   canOverrideGeo = false,
   canGrantExtension = false,
+  canOverrideFill = false,
+  canExport = false,
+  owner = null,
 }: {
   template: TrackerTemplate;
   grid: TrackerGrid;
@@ -46,19 +56,67 @@ export function TrackerEditableGrid({
   canOverrideGeo?: boolean;
   /** May the viewer reopen an overdue row with a dated extension? */
   canGrantExtension?: boolean;
+  /** May the viewer fill these rows in the doer's name? (tracker.fill.override, and the
+   *  doer must be below them — the server checks both again.) */
+  canOverrideFill?: boolean;
+  /** May the viewer download the whole task as a file? Managers only: it is the one
+   *  control here that hands over every row at once rather than a screenful. */
+  canExport?: boolean;
+  /** The person whose rows these are, when drilled in. Names the banner and resets
+   *  override mode when the manager switches to someone else. */
+  owner?: { id: string; name: string } | null;
 }) {
   const save = useSaveTrackerBatch();
+  const saveOnBehalf = useSaveTrackerBatchOnBehalf();
   const raise = useRaiseTrackerBlocker();
   const clear = useClearTrackerBlocker();
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
+  // Filling in someone else's name is a deliberate mode, never the default: a manager
+  // drills in to LOOK far more often than to write, and a stray keystroke must not
+  // silently become a completion in a fellow's name. Holding the reason here also means
+  // one prompt per session rather than one per row.
+  const [onBehalf, setOnBehalf] = useState<{ reason: string } | null>(null);
+  const [reasonPrompt, setReasonPrompt] = useState<string | null>(null);
   const [blockerText, setBlockerText] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null);
   // Open the "Additional Student Details" form for a student-target row.
   const [detailsStudent, setDetailsStudent] = useState<{ id: string; name: string } | null>(null);
   const isStudentTarget = template.target_type === "student";
+  const onBehalfMode = Boolean(onBehalf);
+  const doneStatus = template.completion_style === "workflow" ? (template.done_status ?? "done") : "done";
+
+  // An override FILLS outstanding work; the server refuses a row that is already complete.
+  // Both of these read the SERVER status, never the draft — otherwise ticking a row in an
+  // on-behalf session would immediately lock the control the manager just used.
+  const rowComplete = (row: TrackerGridRow) => row.status === doneStatus;
+  // Nothing outstanding anywhere in the task means there is nothing to fill on behalf of,
+  // so the session must not be enterable at all rather than dead-ending at Save.
+  const overridableCount = grid.rows.filter((r) => !rowComplete(r)).length;
+
+  // `canFill` is the permission, not the answer. The server accepts an ordinary fill only
+  // from the DOER, so drilled into someone else's rows the ordinary controls must be off —
+  // offering them just produced an "out of scope" error. Override mode turns the ROW EDITS
+  // back on and nothing else: proofs, blockers, student details and bulk upload all call
+  // endpoints that stay doer-only, and bulk upload in particular posts to the ordinary
+  // batch route, which would be refused mid-upload.
+  const canFillOwn = canFill && !viewingOther;
+  /** Per row, because an on-behalf session may only touch rows that are still outstanding. */
+  const canEditRow = (row: TrackerGridRow) => (onBehalfMode ? !rowComplete(row) : canFillOwn);
+  const canManageEvidence = canFillOwn;
+  const canRaiseBlocker = canFillOwn;
+  const canEditStudentDetails = canFillOwn;
+  const canBulkUpload = canFillOwn;
+
+  // Switching to another person or another task ends the session: its reason described the
+  // rows that were on screen when it was given, and must not follow the manager elsewhere.
+  useEffect(() => {
+    setOnBehalf(null);
+    setReasonPrompt(null);
+    setDrafts({});
+  }, [template.id, owner?.id]);
   const canOpenDetails = (row: TrackerGridRow): row is TrackerGridRow & { target_id: string } =>
-    canFill && isStudentTarget && Boolean(row.target_id);
+    canEditStudentDetails && isStudentTarget && Boolean(row.target_id);
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
   // Shared school-visit verification: ONE per school, consumed by every row for that
@@ -71,9 +129,25 @@ export function TrackerEditableGrid({
     for (const v of geoQuery.data ?? []) if (v.accepted) accepted.add(v.school_id);
     return accepted;
   }, [geoQuery.data]);
+  // The verification dialog: opened from the toolbar chip (browse/replace a photo) or
+  // by the gate itself, when a row cannot reach done without its school verified.
+  const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
   const [schoolFilter, setSchoolFilter] = useState("");
   const [search, setSearch] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [exporting, setExporting] = useState<"records" | "history" | null>(null);
+  // One open menu at a time, and one wrapper to detect a click outside either of them.
+  const [menu, setMenu] = useState<"export" | "bulk" | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onPointerDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [menu]);
 
   const editableKeys = useMemo(
     () => new Set(grid.columns.filter((c) => c.source !== "profile").map((c) => c.field_key)),
@@ -87,7 +161,7 @@ export function TrackerEditableGrid({
   const hasSchool = schools.length > 0;
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
-  const nameHeader = template.target_type === "fellow" ? "Fellow" : "Student";
+  const nameHeader = template.target_type === "fellow" ? IN_CHARGE : "Student";
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return grid.rows.filter((r) =>
@@ -113,11 +187,26 @@ export function TrackerEditableGrid({
       .map(([record_id, d]) => ({ record_id, values: d.values, status: d.status }));
     if (edits.length === 0) return;
     try {
-      await save.mutateAsync(edits);
+      if (onBehalf) await saveOnBehalf.mutateAsync({ reason: onBehalf.reason, edits });
+      else await save.mutateAsync(edits);
       setDrafts({});
     } catch (err) {
+      // Drafts are kept on failure — the manager's typing is the only copy.
       setError(err instanceof Error ? err.message : "Save failed.");
     }
+  }
+
+  function startOnBehalf(reason: string) {
+    const text = reason.trim();
+    if (!text) return;
+    setOnBehalf({ reason: text });
+    setReasonPrompt(null);
+  }
+
+  function exitOnBehalf() {
+    setOnBehalf(null);
+    setDrafts({});
+    setError(null);
   }
 
   async function onDownloadTemplate(format: "csv" | "xlsx") {
@@ -127,6 +216,29 @@ export function TrackerEditableGrid({
       await downloadGridTemplate(template.name, grid.columns, visibleRows, format);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not build the file.");
+    }
+  }
+
+  // The server builds this file from the same scope that produced the grid, so what
+  // lands on disk is exactly what is loaded here — including the rows the on-screen
+  // filters are hiding, which is what a manager chasing stragglers actually wants.
+  async function onExport(history: boolean) {
+    setError(null);
+    setExporting(history ? "history" : "records");
+    try {
+      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not export this task.");
+    } finally {
+      setExporting(null);
     }
   }
 
@@ -154,7 +266,6 @@ export function TrackerEditableGrid({
   const inputClass = "h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100";
 
   // Shared cell renderers, reused by the desktop table and the mobile card list.
-  const doneStatus = template.completion_style === "workflow" ? (template.done_status ?? "done") : "done";
   const proofHint = template.require_photo && template.require_location ? "Add a photo and capture your location first"
     : template.require_photo ? "Add a photo first" : "Capture your location first";
   const onProofReady = (recordId: string) => (ready: boolean) =>
@@ -184,14 +295,39 @@ export function TrackerEditableGrid({
     const blockedHint = overdue
       ? "Overdue — ask your ZM or PM for an extension"
       : geoUnmet ? geoHint(row) : proofHint;
-    const blocked = overdue || proofUnmet || geoUnmet;
+    // A missing visit verification is the one blocker the fellow can clear from here, so
+    // it does NOT disable the control: reaching for done opens the verification dialog
+    // instead of dead-ending on a greyed-out checkbox. Overdue and a school-less row keep
+    // disabling it — no photo can fix either.
+    const gateable = canManageEvidence && geoUnmet && !overdue && !proofUnmet && Boolean(row.school_id);
+    // What WOULD stop an ordinary fill. In an on-behalf session the server waives all of it,
+    // so the control must not stay locked and the hint must not tell the very manager who can
+    // now complete the row to go ask a manager for an extension.
+    const gated = overdue || proofUnmet || (geoUnmet && !gateable);
+    const blocked = gated && !onBehalfMode;
+    const waiving = gated && onBehalfMode;
+    const openGate = () => setGeoModal({ schoolId: row.school_id ?? null, blocking: true });
+    const lockedComplete = onBehalfMode && rowComplete(row);
+    const hint = lockedComplete
+      ? "Already complete — an override fills outstanding work, it does not rewrite finished work"
+      : waiving
+        ? "Completing this waives its requirements — recorded in the history"
+        : blockedHint;
     if (template.completion_style === "workflow") {
       return (
         <div className="flex flex-col gap-1">
-          <select value={currentStatus} disabled={!canFill} onChange={(e) => setStatus(row.record_id, e.target.value)} className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}>
+          <select
+            value={currentStatus}
+            disabled={!canEditRow(row)}
+            onChange={(e) => {
+              if (gateable && e.target.value === doneStatus) { openGate(); return; }
+              setStatus(row.record_id, e.target.value);
+            }}
+            className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}
+          >
             {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={blocked && s === doneStatus}>{s}</option>)}
           </select>
-          {blocked && <p className="text-xs text-amber-700">{blockedHint}</p>}
+          {(blocked || waiving || gateable || lockedComplete) && <p className="text-xs text-amber-700">{hint}</p>}
         </div>
       );
     }
@@ -202,19 +338,30 @@ export function TrackerEditableGrid({
         <div className="flex flex-col gap-1">
           <button
             type="button"
-            disabled={!canFill || proofBlocking}
-            onClick={() => setStatus(row.record_id, done ? "not_started" : "done")}
+            disabled={!canEditRow(row) || proofBlocking}
+            onClick={() => {
+              if (gateable) { openGate(); return; }
+              setStatus(row.record_id, done ? "not_started" : "done");
+            }}
             className={"flex h-12 w-full items-center justify-center gap-2 rounded-lg text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-gray-300 text-gray-700")}
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
-          {proofBlocking && <p className="text-center text-xs text-amber-700">{blockedHint}</p>}
+          {(proofBlocking || waiving || gateable || lockedComplete) && <p className="text-center text-xs text-amber-700">{hint}</p>}
         </div>
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking ? blockedHint : undefined}>
-        <input type="checkbox" disabled={!canFill || proofBlocking} checked={done} onChange={(e) => setStatus(row.record_id, e.target.checked ? "done" : "not_started")} />
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking || waiving || gateable || lockedComplete ? hint : undefined}>
+        <input
+          type="checkbox"
+          disabled={!canEditRow(row) || proofBlocking}
+          checked={done}
+          onChange={(e) => {
+            if (gateable) { openGate(); return; }
+            setStatus(row.record_id, e.target.checked ? "done" : "not_started");
+          }}
+        />
         {done ? "Done" : "Open"}
       </label>
     );
@@ -223,7 +370,7 @@ export function TrackerEditableGrid({
   const fieldControl = (row: TrackerGridRow, col: TrackerGrid["columns"][number]) => {
     const draft = drafts[row.record_id];
     const cell = row.cells.find((c) => c.field_key === col.field_key);
-    const editable = canFill && editableKeys.has(col.field_key);
+    const editable = canEditRow(row) && editableKeys.has(col.field_key);
     const draftVal = draft?.values[col.field_key];
     const value = draftVal !== undefined ? draftVal : cell?.value;
     if (!editable) {
@@ -267,7 +414,7 @@ export function TrackerEditableGrid({
         </div>
       );
     }
-    if (!canFill) return <span className="text-gray-400">—</span>;
+    if (!canRaiseBlocker) return <span className="text-gray-400">—</span>;
     return (
       <div className="flex items-center gap-1">
         <input
@@ -310,22 +457,11 @@ export function TrackerEditableGrid({
       </button>
     ) : null;
 
-  const geoPanel = (
-    <SchoolGeoPanel
-      template={template}
-      // Every school of the task, not just the filtered subset — the panel must show
-      // each school's state, while the shared filter decides which one is being uploaded for.
-      rows={grid.rows}
-      schoolFilter={schoolFilter}
-      onSchoolFilterChange={setSchoolFilter}
-      canFill={canFill && !viewingOther}
-      readOnly={viewingOther}
-      canOverride={canOverrideGeo}
-    />
-  );
-
+  // The card must NOT clip its own overflow: the toolbar menus are absolutely positioned
+  // and an overflow-hidden here cuts them off at the card's edge, whatever their z-index.
+  // The two row containers below round their own bottom corners instead.
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+    <section className="rounded-lg border border-gray-200 bg-white">
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
@@ -340,56 +476,171 @@ export function TrackerEditableGrid({
               {schools.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           )}
+          <GeoStatusChip
+            template={template}
+            // Every school of the task, not just the filtered subset: the count must
+            // reflect what still blocks the task, not what is on screen.
+            rows={grid.rows}
+            onOpen={() => setGeoModal({ schoolId: null, blocking: false })}
+          />
         </div>
-        {canFill && (
-          <div className="flex items-center gap-2">
-            {/* Downloads exactly the rows on screen, so the filters above decide what goes in
-                the file. Unsaved edits are excluded, so it is disabled until they are saved. */}
-            <div className="flex items-center rounded-md border border-gray-300">
+        {!onBehalfMode && canOverrideFill && viewingOther && (
+          <button
+            type="button"
+            onClick={() => setReasonPrompt("")}
+            disabled={overridableCount === 0}
+            title={overridableCount === 0
+              ? "Every row here is already complete — there is nothing to fill on their behalf"
+              : `Fill ${overridableCount} outstanding row${overridableCount === 1 ? "" : "s"} in their name`}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+            Fill on behalf
+          </button>
+        )}
+        {/* Both files are downloads and neither is the other's format, so each hides behind
+            its own menu rather than sitting in the toolbar as a pair of look-alike CSV
+            buttons: Export is the manager's report, Bulk fill is the doer's round-trip. */}
+        <div ref={menuRef} className="flex shrink-0 items-center gap-2">
+          {canExport && (
+            <div className="relative">
               <button
                 type="button"
-                onClick={() => void onDownloadTemplate("csv")}
-                disabled={dirtyCount > 0 || visibleRows.length === 0}
-                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as CSV`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => setMenu((m) => (m === "export" ? null : "export"))}
+                disabled={exporting !== null}
+                aria-haspopup="menu"
+                aria-expanded={menu === "export"}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Download className="h-3.5 w-3.5" aria-hidden="true" /> CSV
+                {exporting
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
+                Export
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
               </button>
-              <span className="h-4 w-px bg-gray-300" aria-hidden="true" />
-              <button
-                type="button"
-                onClick={() => void onDownloadTemplate("xlsx")}
-                disabled={dirtyCount > 0 || visibleRows.length === 0}
-                title={dirtyCount > 0 ? "Save your changes first" : `Download ${visibleRows.length} rows as Excel`}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Excel
-              </button>
+              {menu === "export" && (
+                <div role="menu" className={menuClass}>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenu(null); void onExport(false); }}
+                    className={menuItemClass}
+                  >
+                    <span className="font-medium text-gray-800">Records only (.csv)</span>
+                    <span className="text-[11px] text-gray-500">All {grid.rows.length} rows with status, evidence and last update</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenu(null); void onExport(true); }}
+                    className={menuItemClass}
+                  >
+                    <span className="font-medium text-gray-800">Records + history (.zip)</span>
+                    <span className="text-[11px] text-gray-500">Adds the full event log, one row per change</span>
+                  </button>
+                </div>
+              )}
             </div>
-            {/* Also blocked while there are unsaved edits: those drafts stay in the form, and
-                saving them afterwards would write over whatever the upload just brought in. */}
-            <button
-              type="button"
-              onClick={() => setBulkOpen(true)}
-              disabled={dirtyCount > 0}
-              title={dirtyCount > 0 ? "Save your changes first" : "Upload a filled-in spreadsheet"}
-              className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <FileUp className="h-3.5 w-3.5" aria-hidden="true" /> Bulk upload
-            </button>
+          )}
+          {(canFillOwn || onBehalfMode) && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenu((m) => (m === "bulk" ? null : "bulk"))}
+                aria-haspopup="menu"
+                aria-expanded={menu === "bulk"}
+                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+              >
+                <FileUp className="h-3.5 w-3.5" aria-hidden="true" /> Bulk fill
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+              </button>
+              {menu === "bulk" && (
+                <div role="menu" className={menuClass}>
+                  {/* Carries exactly the rows on screen, so the filters above decide what goes
+                      in the file. Unsaved edits are excluded, so it waits until they are saved. */}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenu(null); void onDownloadTemplate("csv"); }}
+                    disabled={dirtyCount > 0 || visibleRows.length === 0}
+                    title={dirtyCount > 0 ? "Save your changes first" : undefined}
+                    className={menuItemClass}
+                  >
+                    <span className="font-medium text-gray-800">Download template (CSV)</span>
+                    <span className="text-[11px] text-gray-500">{visibleRows.length} rows, ready to fill in</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenu(null); void onDownloadTemplate("xlsx"); }}
+                    disabled={dirtyCount > 0 || visibleRows.length === 0}
+                    title={dirtyCount > 0 ? "Save your changes first" : undefined}
+                    className={menuItemClass}
+                  >
+                    <span className="font-medium text-gray-800">Download template (Excel)</span>
+                    <span className="text-[11px] text-gray-500">Same rows as an .xlsx workbook</span>
+                  </button>
+                  {canBulkUpload && (
+                    <>
+                      <span className="my-1 block h-px bg-gray-100" aria-hidden="true" />
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setMenu(null); setBulkOpen(true); }}
+                        disabled={dirtyCount > 0}
+                        title={dirtyCount > 0 ? "Save your changes first" : undefined}
+                        className={menuItemClass}
+                      >
+                        <span className="font-medium text-gray-800">Upload filled file…</span>
+                        <span className="text-[11px] text-gray-500">Check it against these rows, then save</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {(canFillOwn || onBehalfMode) && (
             <button
               type="button"
               onClick={onSave}
-              disabled={save.isPending || dirtyCount === 0}
+              disabled={save.isPending || saveOnBehalf.isPending || dirtyCount === 0}
               className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-              Save{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
+              {save.isPending || saveOnBehalf.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              {onBehalfMode ? "Save on behalf" : "Save"}{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-      {geoPanel}
+      {onBehalfMode && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5">
+          <ShieldAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+          <p className="min-w-0 flex-1 text-xs text-amber-900">
+            <span className="font-semibold">
+              Filling as {owner?.name ?? "this team member"}
+            </span>
+            {" — recorded in this task's history with your name and reason."}
+            <span className="mt-0.5 block text-amber-800">&ldquo;{onBehalf?.reason}&rdquo;</span>
+          </p>
+          <button
+            type="button"
+            onClick={exitOnBehalf}
+            className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+          >
+            {dirtyCount > 0 ? `Exit (discards ${dirtyCount})` : "Exit"}
+          </button>
+        </div>
+      )}
+      {reasonPrompt !== null && (
+        <ReasonPrompt
+          ownerName={owner?.name ?? "this team member"}
+          value={reasonPrompt}
+          onChange={setReasonPrompt}
+          onCancel={() => setReasonPrompt(null)}
+          onConfirm={() => startOnBehalf(reasonPrompt)}
+        />
+      )}
       {bulkOpen && (
         <TrackerBulkUploadPanel
           template={template}
@@ -399,7 +650,7 @@ export function TrackerEditableGrid({
         />
       )}
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
-      <div className="hidden overflow-x-auto md:block">
+      <div className="hidden overflow-x-auto rounded-b-lg md:block">
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -431,7 +682,7 @@ export function TrackerEditableGrid({
                     </div>
                   </td>
                 </tr>
-                {canFill && requiresProof && (
+                {canManageEvidence && requiresProof && (
                   <tr className="border-t border-gray-50">
                     <td colSpan={99} className="px-3 pb-3">{proofsFor(row)}</td>
                   </tr>
@@ -443,7 +694,7 @@ export function TrackerEditableGrid({
       </div>
 
       {/* Mobile: one card per row — big tap targets, stacked fields, no horizontal scroll. */}
-      <div className="flex flex-col gap-3 p-3 md:hidden">
+      <div className="flex flex-col gap-3 overflow-hidden rounded-b-lg p-3 md:hidden">
         {visibleRows.map((row) => (
           <div key={row.record_id} className="rounded-lg border border-gray-200 p-3">
             <div className="mb-2 flex items-start justify-between gap-2">
@@ -464,7 +715,7 @@ export function TrackerEditableGrid({
                 </label>
               ))}
             </div>
-            {canFill && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
+            {canManageEvidence && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
             <div className="mt-3">{statusControl(row, true)}</div>
             <div className="mt-3 border-t border-gray-100 pt-3">{blockerControl(row)}</div>
           </div>
@@ -484,6 +735,19 @@ export function TrackerEditableGrid({
         />
       )}
 
+      {geoModal && (
+        <GeoVerificationModal
+          template={template}
+          rows={grid.rows}
+          initialSchoolId={geoModal.schoolId}
+          blocking={geoModal.blocking}
+          canFill={canManageEvidence}
+          readOnly={viewingOther}
+          canOverride={canOverrideGeo}
+          onClose={() => setGeoModal(null)}
+        />
+      )}
+
       {detailsStudent && (
         <StudentDetailsForm
           studentId={detailsStudent.id}
@@ -492,6 +756,63 @@ export function TrackerEditableGrid({
         />
       )}
     </section>
+  );
+}
+
+/** One reason for the whole session. Asked before anything becomes editable, so the manager
+ *  states why BEFORE they write rather than justifying afterwards. */
+function ReasonPrompt({
+  ownerName,
+  value,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  ownerName: string;
+  value: string;
+  onChange: (v: string) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-950">Fill on behalf of {ownerName}</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          You are about to fill these rows in their name. It is recorded in the task history with
+          your name and this reason, and {ownerName} is notified — along with their manager, if
+          that is not you.
+        </p>
+        <label className="mt-4 block text-xs font-medium text-gray-700">
+          Why are you filling for them?
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            rows={3}
+            maxLength={2000}
+            placeholder="e.g. On emergency leave; visit confirmed by phone with the head teacher."
+            className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm outline-none focus:border-teal-500"
+          />
+        </label>
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!value.trim()}
+            className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Start filling
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -576,22 +897,42 @@ function describeEvent(ev: TrackerEvent): string {
     case "blocker_cleared":
       return "Blocker cleared";
     case "blocker_escalated":
-      return `Escalated to ${roleLabel(String(d.to_role ?? ""))}`;
+      return `Escalated to ${roleLabel(d.to_role as string | null, "manager")}`;
     case "proof_photo_added":
       return "Photo added";
     case "proof_photo_removed":
       return "Photo removed";
     case "proof_location_captured":
       return "Location captured";
+    case "filled_on_behalf": {
+      const who = String(d.doer_name ?? "a team member");
+      const skipped = Array.isArray(d.gates_skipped) ? (d.gates_skipped as string[]) : [];
+      const status = d.status as { from?: string; to?: string } | undefined;
+      const changed = Object.keys((d.changed ?? {}) as Record<string, unknown>);
+      const what = [
+        status?.to ? `status → ${status.to}` : null,
+        changed.length ? `updated ${changed.join(", ")}` : null,
+      ].filter(Boolean).join("; ");
+      return [
+        `Filled on behalf of ${who}`,
+        what ? ` (${what})` : "",
+        ` — "${String(d.reason ?? "")}"`,
+        skipped.length ? ` · skipped: ${skipped.map(gateLabel).join(", ")}` : "",
+      ].join("");
+    }
     default:
       return ev.event_type;
   }
 }
 
-function roleLabel(code: string): string {
-  if (code === "ZONAL_MANAGER") return "Zonal Manager";
-  if (code === "PROGRAM_MANAGER") return "Program Manager";
-  return code || "manager";
+/** The completion gates an override may waive, in wording a manager reads rather than
+ *  the enum the server stores. */
+function gateLabel(gate: string): string {
+  if (gate === "overdue") return "overdue deadline";
+  if (gate === "photo") return "photo proof";
+  if (gate === "location") return "location proof";
+  if (gate === "geo") return "visit verification";
+  return gate;
 }
 
 function formatDateTime(value: string): string {
@@ -648,13 +989,6 @@ function EditableCell({
     default:
       return <input type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />;
   }
-}
-
-function display(value: unknown): string {
-  if (value == null || value === "") return "-";
-  if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  return String(value);
 }
 
 /** Why a row is blocked by the shared school-visit verification. */

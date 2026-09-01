@@ -10,12 +10,13 @@ import {
   isClerkMode,
   persistAuthToken,
 } from "@/lib/auth-session";
+import { IN_CHARGE } from "@/lib/labels";
 
 const roleOptions = [
   { value: "SUPER_ADMIN", label: "Super Admin" },
   { value: "PROGRAM_MANAGER", label: "Program Manager" },
   { value: "ZONAL_MANAGER", label: "Zonal Manager" },
-  { value: "FELLOW", label: "Fellow" },
+  { value: "FELLOW", label: IN_CHARGE },
   { value: "STUDENT", label: "Student" },
   { value: "GOVERNMENT", label: "Government" },
   { value: "FUNDING_PARTNER", label: "Funding Partner" },

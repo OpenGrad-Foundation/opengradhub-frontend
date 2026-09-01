@@ -1,4 +1,5 @@
 "use client";
+import { ZONE, ZONE_LOWER } from "@/lib/labels";
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -523,7 +524,7 @@ function SchoolsSection({
               }))}
               value={picks}
               onChange={setPicks}
-              placeholder="Search schools by name, code or district…"
+              placeholder={`Search schools by name, code or ${ZONE_LOWER}…`}
               emptyText="No schools left to attach."
             />
           </div>
@@ -558,7 +559,7 @@ function SchoolsSection({
           <thead style={{ background: "rgba(3,72,82,0.03)" }}>
             <tr>
               <th style={thStyle}>School</th>
-              <th style={thStyle}>District</th>
+              <th style={thStyle}>{ZONE}</th>
               <th style={thStyle}>State</th>
               {canManage && <th style={thStyle} />}
             </tr>

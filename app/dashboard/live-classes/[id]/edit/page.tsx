@@ -11,7 +11,6 @@ import { updateLiveClass, getCourses, type Course } from "@/lib/api";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { BatchMultiPicker } from "@/components/BatchMultiPicker";
-import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { useAudiencePreview } from "@/lib/queries/live-classes";
 import { AudienceCount } from "@/components/AudienceCount";
 
@@ -37,7 +36,6 @@ export default function EditLiveClassPage() {
   const [duration,   setDuration]   = useState("60");
   const [meetUrl,    setMeetUrl]    = useState("");
   const [courseId,   setCourseId]   = useState("");
-  const [progType,   setProgType]   = useState("UG");
   const [batchIds,   setBatchIds]   = useState<string[]>([]);
   const [courses,    setCourses]    = useState<Course[]>([]);
   const [ready,      setReady]      = useState(false);
@@ -55,7 +53,6 @@ export default function EditLiveClassPage() {
     // Load every target the class actually carries. Guessing a single "kind"
     // and hydrating only that one silently dropped the others on save.
     setCourseId(cls.course_id ?? "");
-    setProgType(cls.programme_type ?? "");
     setBatchIds(cls.batch_ids ?? []);
     setReady(true);
   }, [cls, ready]);
@@ -71,7 +68,6 @@ export default function EditLiveClassPage() {
   // on every render.
   const preview = useAudiencePreview({
     course_id: courseId || undefined,
-    programme_type: progType || undefined,
     batch_ids: batchIds.length ? batchIds : undefined,
   });
 
@@ -112,8 +108,8 @@ export default function EditLiveClassPage() {
     if (!title.trim())   { setError("Title is required."); return; }
     if (!datetime)       { setError("Date & time is required."); return; }
     if (!meetUrl.trim()) { setError("Meeting URL is required."); return; }
-    if (!courseId && !progType && batchIds.length === 0) {
-      setError("Pick at least one of course, programme or batches.");
+    if (!courseId && batchIds.length === 0) {
+      setError("Pick a course, batches, or both.");
       return;
     }
     setSubmitting(true);
@@ -133,7 +129,6 @@ export default function EditLiveClassPage() {
         // Explicit nulls for what is NOT set: PATCH leaves omitted fields alone,
         // so clearing a filter has to be said out loud.
         course_id:        courseId || null,
-        programme_type:   progType || null,
         batch_ids:        batchIds,
       });
       // A class can be scheduled even when some targeted students are in no
@@ -159,7 +154,6 @@ export default function EditLiveClassPage() {
   // this is the opposite: each filter removes students.
   const parts: string[] = [];
   if (courseId) parts.push(`enrolled in ${courses.find(c => c.id === courseId)?.title ?? "the course"}`);
-  if (progType) parts.push(`in the ${progType} programme`);
   if (batchIds.length) parts.push(`in ${batchIds.length} selected batch${batchIds.length === 1 ? "" : "es"}`);
   const audienceSummary = parts.length === 0
     ? "nobody yet — pick at least one"
@@ -169,7 +163,6 @@ export default function EditLiveClassPage() {
     <div style={{ maxWidth: "640px" }}>
       <Link href="/dashboard/live-classes" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>← Live Classes</Link>
       <div style={{ marginTop: "14px", marginBottom: "24px" }}>
-        <p style={S.label}>Edit</p>
         <h1 style={{ ...S.heading, fontSize: "26px", margin: "4px 0 0" }}>Edit Live Class</h1>
       </div>
 
@@ -210,15 +203,6 @@ export default function EditLiveClassPage() {
                   <option value="">Any course</option>
                   {courses.map(c => (
                     <option key={c.id} value={c.id}>{c.title} ({c.programme_type})</option>
-                  ))}
-                </select>
-              </Field>
-
-              <Field label="Programme (optional)">
-                <select value={progType} onChange={e => setProgType(e.target.value)} style={S.input}>
-                  <option value="">Any programme</option>
-                  {PROGRAMME_KINDS.map((k) => (
-                    <option key={k.value} value={k.value}>{k.label}</option>
                   ))}
                 </select>
               </Field>

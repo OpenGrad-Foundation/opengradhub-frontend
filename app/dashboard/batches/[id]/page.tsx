@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import {
@@ -39,6 +40,8 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
 import { normState } from "@/lib/geo";
 import { useBatch } from "@/lib/queries/batches";
+import { Tabs, type TabDef } from "@/app/dashboard/_components/Tabs";
+import { BatchForm } from "../BatchForm";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -66,6 +69,8 @@ export default function BatchDetailPage() {
 
   const canEnrol = has(PERM.batches.enrol);
   const canAssign = has(PERM.batches.assign_content);
+  const canEdit = has(PERM.batches.edit);
+  const canDelete = has(PERM.batches.delete);
   const archived = batch?.status === "ARCHIVED";
 
   async function handleDelete() {
@@ -110,6 +115,161 @@ export default function BatchDetailPage() {
     );
   }
 
+  // Panels are declared up front so the conditional Settings tab stays typed;
+  // <Tabs> renders only the active one.
+  const tabs: TabDef[] = [
+    {
+      key: "students",
+      label: "Students",
+      panel: (
+        <Section
+          title="Students in this Batch"
+          action={canEnrol && !archived ? (
+            <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
+          ) : undefined}
+        >
+          <MemberTable
+            batchId={batchId}
+            members={batch.members}
+            canRemove={canEnrol && !archived}
+            onChanged={() => { void refetch(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "courses",
+      label: "Courses",
+      panel: (
+        <Section
+          title="Courses"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
+          ) : undefined}
+        >
+          {batch.courses.length === 0 ? (
+            <EmptyHint text="No courses assigned yet." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {batch.courses.map((c) => (
+                <ContentRow
+                  key={c.id}
+                  title={c.title}
+                  meta={`${c.programme_type} · ${c.status}`}
+                  badge={!c.is_direct && c.via_bundles.length > 0
+                    ? `via ${c.via_bundles.join(", ")}`
+                    : undefined}
+                  // Bundle-derived courses are detached by removing the bundle,
+                  // so they carry no per-course remove control.
+                  onRemove={canAssign && !archived && c.is_direct ? async () => {
+                    if (!confirm(`Remove "${c.title}" from this batch? Members lose access unless granted elsewhere.`)) return;
+                    try {
+                      await removeCourseFromBatch(batchId, c.id);
+                      invalidate('batches');
+                      void refetch();
+                    } catch (e) {
+                      setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
+                    }
+                  } : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      ),
+    },
+    {
+      key: "bundles",
+      label: "Bundles",
+      panel: (
+        <Section
+          title="Bundles"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
+          ) : undefined}
+        >
+          {batch.bundles.length === 0 ? (
+            <EmptyHint text="No bundles assigned yet." />
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {batch.bundles.map((b) => (
+                <ContentRow
+                  key={b.id}
+                  title={b.name}
+                  meta={`${b.course_count} course${b.course_count !== 1 ? "s" : ""}`}
+                  href={withFrom(`/dashboard/bundles/${b.id}`, currentUrl)}
+                  onRemove={canAssign && !archived ? async () => {
+                    if (!confirm(`Remove bundle "${b.name}" from this batch? Members lose its courses unless granted elsewhere.`)) return;
+                    try {
+                      await removeBundleFromBatch(batchId, b.id);
+                      invalidate('batches', 'bundles');
+                      void refetch();
+                    } catch (e) {
+                      setGlobalError(e instanceof Error ? e.message : "Failed to remove bundle.");
+                    }
+                  } : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      ),
+    },
+    {
+      key: "quizzes",
+      label: "Quizzes",
+      panel: (
+        <Section
+          title="Quizzes"
+          action={canAssign && !archived ? (
+            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
+          ) : undefined}
+        >
+          <TestList
+            batchId={batchId}
+            tests={batch.tests}
+            canManage={canAssign && !archived}
+            onChanged={() => { void refetch(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+  ];
+
+  if (canEdit) {
+    tabs.push({
+      key: "settings",
+      label: "Settings",
+      panel: (
+        <>
+          <Section title="Batch Details">
+            {/* Remounts when the saved record changes so the fields never show
+                a stale draft after a refetch. */}
+            <BatchForm
+              key={[batch.id, batch.name, batch.status, batch.school_id ?? "", batch.programme_type ?? "", batch.starts_on ?? "", batch.ends_on ?? ""].join("|")}
+              mode="edit"
+              batch={batch}
+              submitLabel="Save settings"
+              onSaved={() => { void refetch(); showToast("Batch updated."); }}
+            />
+          </Section>
+          {canDelete && (
+            <Section title="Danger Zone">
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+                Deleting a batch is permanent. It only works while no students are enrolled &mdash; clear the cohort from the Students tab first.
+              </p>
+              <button onClick={() => void handleDelete()} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
+                {deleting ? "Deleting…" : "Delete Batch"}
+              </button>
+            </Section>
+          )}
+        </>
+      ),
+    });
+  }
+
   return (
     <Shell>
       <BackLink fallback="/dashboard/batches" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
@@ -136,115 +296,11 @@ export default function BatchDetailPage() {
             <Chip icon="📝" value={batch.tests.length} label="quiz" plural="quizzes" />
           </div>
         </div>
-        {has(PERM.batches.delete) && (
-          <button onClick={() => void handleDelete()} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? "Deleting…" : "Delete Batch"}
-          </button>
-        )}
       </div>
 
       {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
-      {/* ── Section 1: Members ───────────────────────────────── */}
-      <Section
-        title="Students in this Batch"
-        subtitle="Students automatically receive every course, bundle, and quiz assigned to the batch."
-        action={canEnrol && !archived ? (
-          <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
-        ) : undefined}
-      >
-        <MemberTable
-          batchId={batchId}
-          members={batch.members}
-          canRemove={canEnrol && !archived}
-          onChanged={() => { void refetch(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 2: Courses ───────────────────────────────── */}
-      <Section
-        title="Courses"
-        subtitle="Assigned directly to the batch. Removing a course revokes it from members unless another batch, bundle, or direct enrolment still grants it."
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
-        ) : undefined}
-      >
-        {batch.courses.length === 0 ? (
-          <EmptyHint text="No courses assigned yet." />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {batch.courses.map((c) => (
-              <ContentRow
-                key={c.id}
-                title={c.title}
-                meta={`${c.programme_type} · ${c.status}`}
-                onRemove={canAssign && !archived ? async () => {
-                  if (!confirm(`Remove "${c.title}" from this batch? Members lose access unless granted elsewhere.`)) return;
-                  try {
-                    await removeCourseFromBatch(batchId, c.id);
-                    invalidate('batches');
-                    void refetch();
-                  } catch (e) {
-                    setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
-                  }
-                } : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* ── Section 3: Bundles ───────────────────────────────── */}
-      <Section
-        title="Bundles"
-        subtitle="Members are enrolled in the bundle and all of its courses."
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
-        ) : undefined}
-      >
-        {batch.bundles.length === 0 ? (
-          <EmptyHint text="No bundles assigned yet." />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {batch.bundles.map((b) => (
-              <ContentRow
-                key={b.id}
-                title={b.name}
-                meta={`${b.course_count} course${b.course_count !== 1 ? "s" : ""}`}
-                href={withFrom(`/dashboard/bundles/${b.id}`, currentUrl)}
-                onRemove={canAssign && !archived ? async () => {
-                  if (!confirm(`Remove bundle "${b.name}" from this batch? Members lose its courses unless granted elsewhere.`)) return;
-                  try {
-                    await removeBundleFromBatch(batchId, b.id);
-                    invalidate('batches', 'bundles');
-                    void refetch();
-                  } catch (e) {
-                    setGlobalError(e instanceof Error ? e.message : "Failed to remove bundle.");
-                  }
-                } : undefined}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* ── Section 4: Tests ─────────────────────────────────── */}
-      <Section
-        title="Quizzes"
-        subtitle="Standalone global quizzes with an optional availability window per batch."
-        action={canAssign && !archived ? (
-          <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
-        ) : undefined}
-      >
-        <TestList
-          batchId={batchId}
-          tests={batch.tests}
-          canManage={canAssign && !archived}
-          onChanged={() => { void refetch(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
+      <Tabs tabs={tabs} ariaLabel="Batch sections" />
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addMembersOpen && (
@@ -258,7 +314,7 @@ export default function BatchDetailPage() {
       {addCourseOpen && (
         <AddCourseModal
           batchId={batchId}
-          existingCourseIds={batch.courses.map((c) => c.id)}
+          existingCourseIds={batch.courses.filter((c) => c.is_direct).map((c) => c.id)}
           memberCount={batch.members.length}
           onClose={() => setAddCourseOpen(false)}
           onAdded={(msg) => { setAddCourseOpen(false); invalidate('batches', 'enrolment'); void refetch(); showToast(msg); }}
@@ -333,7 +389,7 @@ function MemberTable({
       setSelectedIds(new Set());
       onChanged();
     } catch (e) {
-      setGlobalError(e instanceof Error ? e.message : "Failed to set batch fellow.");
+      setGlobalError(e instanceof Error ? e.message : `Failed to set batch ${IN_CHARGE_LOWER}.`);
     } finally {
       setAssigning(false);
     }
@@ -414,10 +470,10 @@ function MemberTable({
                 value={fellowChoice}
                 onChange={(e) => setFellowChoice(e.target.value)}
                 disabled={assigning}
-                aria-label="Fellow to assign"
+                aria-label={`${IN_CHARGE} to assign`}
                 style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", fontSize: "12px" }}
               >
-                <option value="">Choose fellow…</option>
+                <option value="">Choose {IN_CHARGE_LOWER}…</option>
                 {fellows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
               </select>
               <button
@@ -438,11 +494,6 @@ function MemberTable({
           )}
         </div>
       )}
-      {canRemove && (
-        <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: "0 0 10px" }}>
-          Batch fellows own Tracker tasks assigned to this batch. Student doubts still route to the school fellow.
-        </p>
-      )}
       <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
           <thead>
@@ -458,7 +509,7 @@ function MemberTable({
                   />
                 </th>
               )}
-              {["Name", "Roll Number", "Email", "Fellow", "Joined"].map((h) => (
+              {["Name", "Roll Number", "Email", IN_CHARGE, "Joined"].map((h) => (
                 <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
               ))}
             </tr>
@@ -646,6 +697,8 @@ function AddMembersModal({
   onAdded: (msg: string) => void;
 }) {
   const [students, setStudents] = useState<StudentRosterItem[]>([]);
+  const [rosterTotal, setRosterTotal] = useState(0);
+  const [rosterTruncated, setRosterTruncated] = useState(false);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -658,7 +711,11 @@ function AddMembersModal({
 
   useEffect(() => {
     getStudentsList()
-      .then((data) => setStudents(data.filter((u) => !existingMemberIds.includes(u.id))))
+      .then((page) => {
+        setStudents(page.items.filter((u) => !existingMemberIds.includes(u.id)));
+        setRosterTotal(page.total);
+        setRosterTruncated(page.truncated);
+      })
       .catch((e) => { setError(e instanceof Error ? e.message : "Failed to load students."); setStudents([]); })
       .finally(() => setLoading(false));
   }, [existingMemberIds]);
@@ -768,13 +825,21 @@ function AddMembersModal({
           ))}
         </select>
       </div>
+      {rosterTruncated && (
+        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.25)", fontSize: "12px", fontWeight: 600, color: "#9b2c2c" }}>
+          Showing {students.length} of {rosterTotal} students. The rest are not
+          loaded and cannot be found by searching — narrow by state, district or
+          school, or add the remainder in a second pass. &ldquo;Select all&rdquo;
+          is disabled while the list is incomplete.
+        </p>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length && !rosterTruncated ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length && !rosterTruncated ? "#034852" : "rgba(3,72,82,0.4)" }}>
           <input
             type="checkbox"
             checked={allFilteredSelected}
             onChange={toggleAllFiltered}
-            disabled={filtered.length === 0}
+            disabled={filtered.length === 0 || rosterTruncated}
             style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
           />
           Select all{filtered.length ? ` (${filtered.length})` : ""}
@@ -1096,8 +1161,9 @@ function ModalActions({ onClose, onConfirm, disabled, label }: {
   );
 }
 
-function ContentRow({ title, meta, href, onRemove }: {
-  title: string; meta: string; href?: string; onRemove?: () => Promise<void> | void;
+function ContentRow({ title, meta, href, badge, onRemove }: {
+  title: string; meta: string; href?: string; badge?: string;
+  onRemove?: () => Promise<void> | void;
 }) {
   return (
     <div style={{
@@ -1117,6 +1183,15 @@ function ContentRow({ title, meta, href, onRemove }: {
         )}
         <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>{meta}</p>
       </div>
+      {badge && (
+        <span style={{
+          flexShrink: 0, padding: "3px 9px", borderRadius: "100px",
+          background: "rgba(32,147,121,0.1)", color: "#209379",
+          fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap",
+        }}>
+          {badge}
+        </span>
+      )}
       {onRemove && (
         <button
           onClick={() => void onRemove()}
@@ -1138,18 +1213,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode;
+function Section({ title, action, children }: {
+  title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ ...glassCard, marginBottom: "24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: subtitle ? "4px" : "20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
         <h2 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h2>
         {action}
       </div>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: "0 0 18px" }}>{subtitle}</p>
-      )}
       {children}
     </div>
   );

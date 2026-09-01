@@ -13,6 +13,7 @@ import {
   useTrackerZms,
 } from "@/lib/queries/tracker";
 import { StudentDetailsForm } from "./student-details-form";
+import { IN_CHARGE_PLURAL } from "@/lib/labels";
 
 type Level = "pm" | "zm" | "fellow" | "school" | "student";
 type Crumb = { level: Level; id: string; name: string };
@@ -31,7 +32,7 @@ function getHomeLabel(startLevel: Level): string {
   switch (startLevel) {
     case "pm": return "Program Managers";
     case "zm": return "Zonal Managers";
-    case "fellow": return "Fellows";
+    case "fellow": return IN_CHARGE_PLURAL;
     case "school": return "Schools";
     default: return "Students";
   }
@@ -41,7 +42,7 @@ function getListTitle(level: Level, parentName?: string): string {
   if (parentName) {
     switch (level) {
       case "zm": return `Zonal Managers under ${parentName}`;
-      case "fellow": return `Fellows under ${parentName}`;
+      case "fellow": return `${IN_CHARGE_PLURAL} under ${parentName}`;
       case "school": return `Schools assigned to ${parentName}`;
       case "student": return `Students in ${parentName}`;
     }
@@ -49,7 +50,7 @@ function getListTitle(level: Level, parentName?: string): string {
   switch (level) {
     case "pm": return "Program Managers";
     case "zm": return "Your Zonal Managers";
-    case "fellow": return "Your Fellows";
+    case "fellow": return `Your ${IN_CHARGE_PLURAL}`;
     case "school": return "Your Schools";
     default: return "Students";
   }
@@ -191,7 +192,7 @@ function LevelRenderer({
     getProps = (z) => ({
       id: z.id,
       name: z.name,
-      subtitle: `${z.fellow_count} Fellows`,
+      subtitle: `${z.fellow_count} ${IN_CHARGE_PLURAL}`,
     });
   } else if (level === "fellow") {
     const qNode = parentId ? zmFellowsQuery : fellowsQuery;
@@ -263,7 +264,6 @@ function LevelRenderer({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
         <div>
           <h3 className="text-base font-semibold text-gray-950">{getListTitle(level, parentName)}</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Select an entry to drill down or view details.</p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />

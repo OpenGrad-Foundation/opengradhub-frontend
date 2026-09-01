@@ -6,10 +6,11 @@ import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, u
 import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
+import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 
 const TARGET_LABEL: Record<string, string> = {
   student: "One row per student",
-  fellow: "One task per fellow",
+  fellow: `One task per ${IN_CHARGE_LOWER}`,
   school: "One task per school",
 };
 
@@ -155,14 +156,13 @@ export function TaskDetail({
         </div>
       )}
 
-      {canAuthor && !editing && <TaskSummary templateId={template.id} targetType={template.target_type} />}
+      {canAuthor && !editing && <TaskSummary templateId={template.id} />}
 
       {canAuthor && !editing && <AssignSection template={template} canAuthor={canAuthor} />}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-4 py-3">
           <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
-          <p className="mt-0.5 text-xs text-gray-500">The columns this task collects. The assignee fills these in on the task itself; “Auto-filled” ones come from the record.</p>
         </div>
         {isLoading ? (
           <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -254,11 +254,12 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
   );
 }
 
-function TaskSummary({ templateId, targetType }: { templateId: string; targetType: TrackerTargetType }) {
+function TaskSummary({ templateId }: { templateId: string }) {
   const { data: rows = [], isLoading } = useTrackerSummary(templateId);
-  // For a user-doer (fellow) task the row IS the assignee (a fellow or a delegated manager);
-  // for student/school tasks the row is the fellow who owns that school.
-  const ownerHeader = targetType === "fellow" ? "Fellow" : "Fellow";
+  // Either way the row is a school in-charge: on a user-doer task it IS the
+  // assignee (or a delegated manager), on student/school tasks it is the
+  // in-charge who owns that school.
+  const ownerHeader = IN_CHARGE;
   const totals = rows.reduce(
     (a, r) => ({ done: a.done + r.done, pending: a.pending + r.pending, blocked: a.blocked + r.blocked, overdue: a.overdue + r.overdue }),
     { done: 0, pending: 0, blocked: 0, overdue: 0 },
@@ -267,7 +268,6 @@ function TaskSummary({ templateId, targetType }: { templateId: string; targetTyp
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
         <h3 className="text-base font-semibold text-gray-950">Progress</h3>
-        <p className="mt-0.5 text-xs text-gray-500">How your team is doing on this task.</p>
       </div>
       {isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>

@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useManagerAnalytics } from "@/lib/queries/analytics";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend,
 } from "chart.js";
@@ -33,6 +36,7 @@ export default function ManagerDrill({
   courseId, courseTitle, onBack,
 }: { courseId: string; courseTitle?: string; onBack: () => void }) {
   const { data, isPending, error } = useManagerAnalytics(courseId);
+  const currentUrl = useCurrentUrl();
 
   return (
     <div>
@@ -90,7 +94,14 @@ export default function ManagerDrill({
                   <tbody>
                     {data.students.map((s) => (
                       <tr key={s.id}>
-                        <td style={{ ...td, fontWeight: 600 }}>{s.name}</td>
+                        <td style={{ ...td, fontWeight: 600 }}>
+                          <Link
+                            href={withFrom(`/dashboard/students/${s.id}`, currentUrl)}
+                            style={{ color: BRAND.dark, textDecoration: "none" }}
+                          >
+                            {s.name}
+                          </Link>
+                        </td>
                         <td style={{ ...td, textAlign: "right" }}>{s.completion_pct}%</td>
                         <td style={{ ...td, textAlign: "right" }}>
                           {s.best_score != null ? `${s.best_score}%` : "—"}

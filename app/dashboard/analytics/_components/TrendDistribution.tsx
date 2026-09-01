@@ -1,6 +1,7 @@
 "use client";
 
 import { InsightsResponse } from "@/lib/api";
+import { ZONE_LOWER } from "@/lib/labels";
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend,
 } from "chart.js";
@@ -16,7 +17,7 @@ const card: React.CSSProperties = {
 };
 
 const entityLabel: Record<InsightsResponse["distribution"]["entity"], string> = {
-  district: "Top districts by enrolment",
+  district: `Top ${ZONE_LOWER}s by enrolment`,
   school:   "Schools — lowest avg score first",
   course:   "Courses — lowest avg score first",
 };

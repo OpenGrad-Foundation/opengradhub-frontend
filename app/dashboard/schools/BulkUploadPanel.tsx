@@ -5,6 +5,7 @@ import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
 import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { ZONE } from "@/lib/labels";
 import { labelStyle, closeBtnStyle, formLabelStyle, inputStyle } from "./styles";
 
 // Mirrors SCHOOL_CSV_COLUMNS in the backend schools service. The three geo columns
@@ -13,7 +14,7 @@ const HEADERS = [
   "name", "district", "state", "code", "latitude", "longitude", "verification_radius_m",
 ] as const;
 const HEADER_LABELS: Record<string, string> = {
-  name: "Name", district: "District", state: "State", code: "Code",
+  name: "Name", district: ZONE, state: "State", code: "Code",
   latitude: "Latitude", longitude: "Longitude", verification_radius_m: "Radius (m)",
 };
 
@@ -68,7 +69,9 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
         if (parsed.errors?.length) { setParseError(parsed.errors[0].message || "Invalid CSV format."); return; }
         const data = (parsed.data ?? []).filter((r) => r && Object.keys(r).length > 0);
         setRows(data.map((r) => ({
-          name: r.name ?? "", district: r.district ?? "", state: r.state ?? "", code: r.code ?? "",
+          // "zone" is what the column is called on screen; older templates and the
+          // backend still say "district", so accept either spelling on the way in.
+          name: r.name ?? "", district: r.district ?? r.zone ?? "", state: r.state ?? "", code: r.code ?? "",
           latitude: r.latitude ?? "", longitude: r.longitude ?? "",
           verification_radius_m: r.verification_radius_m ?? "",
         })));
@@ -98,7 +101,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     const errs: string[] = [];
     if (!r.name?.trim()) errs.push("Name");
     if (!r.state?.trim()) errs.push("State");
-    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push("District");
+    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push(ZONE);
     const c = (r.code ?? "").trim().toLowerCase();
     if (c && (codeCounts.get(c) ?? 0) > 1) errs.push("Duplicate code");
     errs.push(...geoRowErrors(r));
@@ -114,7 +117,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       warns.push("Unknown state");
     } else if (st && di && !isValidDistrictForState(st, di)) {
       const label = STATES.find((s) => s.value === normState(st))?.label ?? st;
-      warns.push(`District not in ${label}`);
+      warns.push(`${ZONE} not in ${label}`);
     }
     return warns;
   }

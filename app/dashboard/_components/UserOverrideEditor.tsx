@@ -153,9 +153,6 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "0 0 12px" }}>
-        Toggles grant explicit access for this user. Use Deny to block a role default.
-      </p>
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", overflow: "hidden", minHeight: "320px" }}>
         <div style={isMobile
           ? { display: "flex", flexDirection: "row", overflowX: "auto", flexShrink: 0, padding: "6px 6px", borderBottom: "1px solid rgba(3,72,82,0.08)", gap: "4px" }

@@ -1,4 +1,5 @@
 "use client";
+import { IN_CHARGE_LOWER } from "@/lib/labels";
 
 import React from "react";
 import GenericActivity from "../_GenericActivity";
@@ -13,7 +14,7 @@ export default function ZMActivity({ userId }: { userId: string }) {
       isLoading={isLoading}
       error={error}
       refetch={refetch}
-      emptyHelper="No fellow updates or zonal escalations"
+      emptyHelper={`No ${IN_CHARGE_LOWER} updates or zonal escalations`}
     />
   );
 }

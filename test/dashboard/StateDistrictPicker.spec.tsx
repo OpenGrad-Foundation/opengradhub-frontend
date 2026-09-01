@@ -18,17 +18,17 @@ describe('StateDistrictPicker', () => {
 
   it('district select is disabled when no state chosen', () => {
     render(<StateDistrictPicker state="" district="" onStateChange={() => {}} onDistrictChange={() => {}} />);
-    expect((screen.getByLabelText('District') as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Zone') as HTMLSelectElement).disabled).toBe(true);
   });
 
   it('district select is disabled when state is ALL', () => {
     render(<StateDistrictPicker state="ALL" district="" onStateChange={() => {}} onDistrictChange={() => {}} />);
-    expect((screen.getByLabelText('District') as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Zone') as HTMLSelectElement).disabled).toBe(true);
   });
 
   it('shows districts for the chosen state', () => {
     render(<StateDistrictPicker state="KERALA" district="" onStateChange={() => {}} onDistrictChange={() => {}} />);
-    expect((screen.getByLabelText('District') as HTMLSelectElement).disabled).toBe(false);
+    expect((screen.getByLabelText('Zone') as HTMLSelectElement).disabled).toBe(false);
     expect(screen.getByRole('option', { name: 'Ernakulam' })).toBeTruthy();
   });
 
@@ -44,7 +44,7 @@ describe('StateDistrictPicker', () => {
   it('changing district fires onDistrictChange', () => {
     const onDistrict = vi.fn();
     render(<StateDistrictPicker state="KERALA" district="" onStateChange={() => {}} onDistrictChange={onDistrict} />);
-    fireEvent.change(screen.getByLabelText('District'), { target: { value: 'Ernakulam' } });
+    fireEvent.change(screen.getByLabelText('Zone'), { target: { value: 'Ernakulam' } });
     expect(onDistrict).toHaveBeenCalledWith('Ernakulam');
   });
 });

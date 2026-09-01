@@ -1,3 +1,5 @@
+import { IN_CHARGE } from "./labels";
+
 export const mockUser = {
   // Only the `id` field matters — name and role are fetched from the DB.
   // Change this UUID to switch users. See schema/seed_test_users.sql for all IDs:
@@ -9,7 +11,7 @@ export const mockUser = {
 
   // Vestigial — these are overridden by the API response from getMe().
   // Kept for backward compatibility if USE_MOCK is turned off.
-  name: "Demo Fellow",
+  name: `Demo ${IN_CHARGE}`,
   role: "FELLOW" as const,
   programme_type: null as string | null,
 };

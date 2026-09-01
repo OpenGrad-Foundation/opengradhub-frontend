@@ -284,7 +284,6 @@ export default function PracticePage() {
               border: "1px solid rgba(229,62,62,0.2)",
             }}
           >
-            <p style={eyebrow}>Practice unavailable</p>
             <h1 style={heading}>Practice is not available for this quiz</h1>
             <p style={{ fontSize: "15px", color: "rgba(3,72,82,0.7)", margin: "12px 0 24px", lineHeight: 1.6 }}>
               {state.message}

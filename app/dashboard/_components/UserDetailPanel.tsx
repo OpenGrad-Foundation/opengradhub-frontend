@@ -1,4 +1,5 @@
 "use client";
+import { ZONE, ZONE_LOWER } from "@/lib/labels";
 
 import { useState, useEffect } from "react";
 import type { SafeUser, ManagerOption, SchoolOption, FellowSchoolAssignment } from "@/lib/api";
@@ -507,7 +508,7 @@ export function UserDetailPanel({
                       </select>
                     </PanelField>
                   </div>
-                  <PanelField label="District">
+                  <PanelField label={ZONE}>
                     <select
                       value={draft.district}
                       onChange={(e) => set("district", e.target.value)}
@@ -515,7 +516,7 @@ export function UserDetailPanel({
                       disabled={districtDisabled(draft.state)}
                     >
                       <option value="">
-                        {districtDisabled(draft.state) ? "—" : "Select district…"}
+                        {districtDisabled(draft.state) ? "—" : `Select ${ZONE_LOWER}…`}
                       </option>
                       {districtsForState(draft.state).map((d) => (
                         <option key={d} value={d}>{d}</option>
@@ -620,9 +621,6 @@ export function UserDetailPanel({
           {isStudent && (
             <div style={{ padding: `${padV} ${padH}`, borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
               <p style={{ ...S.label, marginBottom: "6px" }}>Courses & Bundles</p>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "0 0 12px" }}>
-                Assign learning content to this student.
-              </p>
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
                   onClick={() => onAssignCourse(user)}

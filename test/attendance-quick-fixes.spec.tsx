@@ -164,15 +164,17 @@ describe("the audience picker admits when it could not load", () => {
 });
 
 describe("a new live class targets nobody until asked to", () => {
-  it("does not pre-select a programme", () => {
+  it("offers no programme target at all", () => {
     const src = fs.readFileSync(
       path.join(process.cwd(), "app/dashboard/live-classes/new/page.tsx"),
       "utf-8",
     );
-    // A default here silently ANDs a programme into every class the user
-    // schedules, dropping students in the batch they actually chose.
-    expect(src).toContain('const [progType, setProgType] = useState("")');
-    expect(src).not.toContain('useState("UG")');
+    // This used to guard against a PRE-SELECTED programme, which silently ANDed
+    // itself into every class and dropped students in the batch the user
+    // actually chose. The field is gone entirely now, so the stronger property
+    // is that nothing can send a programme target from this form.
+    expect(src).not.toContain("progType");
+    expect(src).not.toContain("programme_type:");
   });
 });
 

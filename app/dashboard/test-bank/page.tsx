@@ -251,10 +251,9 @@ function TestBankPageContent() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Quizzes</p>
           <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
           <p style={{ ...mutedStyle, marginTop: "4px" }}>
-            Reusable questions not yet attached to any quiz · {questions.length} question{questions.length !== 1 ? "s" : ""}
+            {questions.length} question{questions.length !== 1 ? "s" : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">

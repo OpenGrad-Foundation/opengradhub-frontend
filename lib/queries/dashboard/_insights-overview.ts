@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 import type { OverviewWidgets } from "@/lib/queries/dashboard/_shared";
+import { ZONE_LOWER, ZONE_PLURAL } from "@/lib/labels";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const FIVE_MIN = 5 * 60_000;
@@ -24,7 +25,7 @@ const EMPTY: OverviewWidgets = {
   stats: [
     { key: "students", label: "Students Reached", value: 0, helper: "No students yet" },
     { key: "avg", label: "Avg Score %", value: 0, helper: "No scores yet" },
-    { key: "districts", label: "Districts Covered", value: 0, helper: "No districts yet" },
+    { key: "districts", label: `${ZONE_PLURAL} Covered`, value: 0, helper: `No ${ZONE_LOWER}s yet` },
     { key: "ug", label: "UG Students", value: 0, helper: "No UG students" },
   ],
   chart: {
@@ -42,7 +43,7 @@ function toWidgets(r: InsightsResponse): OverviewWidgets {
     stats: [
       { key: "students", label: "Students Reached", value: k.students_reached.value, helper: "No students yet" },
       { key: "avg", label: "Avg Score %", value: Math.round(k.avg_score.value), helper: "No scores yet" },
-      { key: "districts", label: "Districts Covered", value: k.districts_covered.value, helper: "No districts yet" },
+      { key: "districts", label: `${ZONE_PLURAL} Covered`, value: k.districts_covered.value, helper: `No ${ZONE_LOWER}s yet` },
       { key: "ug", label: "UG Students", value: k.ug_pg_split.ug, helper: "No UG students" },
     ],
     chart: {

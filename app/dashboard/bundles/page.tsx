@@ -23,9 +23,7 @@ export default function BundlesPage() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "32px", gap: "16px" }}>
         <div>
-          <p style={label}>Curriculum</p>
           <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>Bundles</h1>
-          <p style={sub}>Group courses and quizzes together and assign them to students in one action.</p>
         </div>
         {canCreate && (
           <Link href="/dashboard/bundles/new" style={primaryBtn}>
