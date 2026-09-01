@@ -4,6 +4,7 @@ import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permission";
+import { useCurrentUser } from "@/lib/queries/current-user";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getBatchImpact,
@@ -92,6 +93,7 @@ export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { has, isSuperAdmin } = usePermissions();
+  const { data: me } = useCurrentUser();
   const canEdit = has(PERM.programmes.edit);
   const canManageMembers = has(PERM.programmes.manage_members);
 
@@ -103,12 +105,22 @@ export default function ProgrammeDetailPage() {
 
   // Only an OWNER (or a super admin, whom the API lets through) can actually
   // write. Showing the controls to anyone else just produces 403s.
-  const isOwner = programme?.my_level === "OWNER";
+  // Membership, not level.
+  //
+  // The badge used to say OWNER while the Settings tab refused the same person,
+  // because the two answered different questions: `my_level` is the legacy
+  // programme_members.level, and every gate below is PBAC. The backfill wrote
+  // OWNER for every member regardless of role, so a School In-Charge saw an
+  // OWNER badge and a refusal on the same screen.
+  //
+  // Authority is the permission; membership only says WHICH programme it applies
+  // to. That is the design's rule ("role is the level") applied on the read path.
+  const isMember = Boolean(programme?.my_level);
   // `has("*")` was never a permission — it only ever returned true because
   // usePermissions short-circuited on the SUPER_ADMIN role code. With that
   // wildcard gone it would be permanently false, so the real permission is named
   // instead. A super admin holds it explicitly, so nothing changes for them.
-  const mayAdminister = canEdit && (isOwner || isSuperAdmin);
+  const mayAdminister = canEdit && (isMember || isSuperAdmin);
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !programme) {
@@ -142,7 +154,12 @@ export default function ProgrammeDetailPage() {
             {programme.code}
           </div>
         </div>
-        {programme.my_level && <span style={levelBadge(programme.my_level)}>{programme.my_level}</span>}
+        {/* The caller's ROLE, which is what decides how far they see — not the
+            legacy membership level, which said OWNER for everyone the backfill
+            touched and contradicted the gates on the same page. */}
+        {isMember && me?.role?.code && (
+          <span style={levelBadge("OWNER")}>{roleLabel(me.role.code)}</span>
+        )}
       </div>
 
       {programme.status === "ARCHIVED" && (
@@ -176,7 +193,7 @@ export default function ProgrammeDetailPage() {
       {tab === "people" && (
         <PeopleSection
           programmeId={id}
-          canManage={canManageMembers && (isOwner || isSuperAdmin)}
+          canManage={canManageMembers && (isMember || isSuperAdmin)}
           onError={notify}
         />
       )}
@@ -188,7 +205,13 @@ export default function ProgrammeDetailPage() {
       {tab === "settings" && (
         mayAdminister
           ? <DangerSection programmeId={id} status={programme.status} onError={notify} />
-          : <div style={noticeStyle}>Only an owner of this programme can change its settings.</div>
+          : (
+            <div style={noticeStyle}>
+              Changing a programme&rsquo;s settings needs the{" "}
+              <strong>Create and Edit Programmes</strong> permission, which your role does
+              not hold. You can still see everything on the other tabs.
+            </div>
+          )
       )}
     </div>
   );
