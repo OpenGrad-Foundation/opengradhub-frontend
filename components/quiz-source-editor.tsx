@@ -86,6 +86,11 @@ export function QuizSourceEditor({
   const [replace, setReplace] = useState("");
   const [activeLine, setActiveLine] = useState<number | null>(null);
   const [issuesFolded, setIssuesFolded] = useState(false);
+  // Fixes already applied to the DRAFT text. Until the reparse round-trips,
+  // the stale diagnostic is still in the list — without this, a second click
+  // on "Add [SUBJECT] line" would insert a second line. Cleared whenever a
+  // fresh parse result replaces the diagnostics.
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(() => new Set());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +112,8 @@ export function QuizSourceEditor({
     // onReparse is stable enough for this purpose; re-arming per text change is the point.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text]);
+
+  useEffect(() => { setAppliedIds(new Set()); }, [diagnostics]);
 
   const listed = useMemo(() => diagnostics.filter((d) => d.severity !== "info"), [diagnostics]);
   const { errors, warnings } = countBySeverity(listed);
@@ -143,10 +150,12 @@ export function QuizSourceEditor({
   }
 
   function fix(d: ParseDiagnostic) {
+    if (d.id != null && appliedIds.has(d.id)) return; // already applied this round
     const r = applySourceFix(text, d, quiz);
     if (!r) { jumpTo(d); return; }
     pendingFocus.current = { line: r.cursorLine, caretAtEnd: !!r.needsInput };
     setText(r.text);
+    if (d.id != null) setAppliedIds((prev) => new Set(prev).add(d.id!));
   }
 
   function replaceAll() {
@@ -330,6 +339,7 @@ export function QuizSourceEditor({
                     quiz={quiz}
                     diagnostics={listed}
                     activeLine={activeLine}
+                    appliedIds={appliedIds}
                     onItemClick={jumpTo}
                     onGroupClick={(g) => { if (g.line) focusLine(g.line); }}
                     itemAction={(d) => {

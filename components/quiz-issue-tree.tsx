@@ -26,6 +26,7 @@ export function QuizIssueTree({
   itemAction,
   onGroupClick,
   activeLine,
+  appliedIds,
   showLines = true,
   dense = false,
 }: {
@@ -38,6 +39,8 @@ export function QuizIssueTree({
   onGroupClick?: (g: DiagGroup) => void;
   /** Highlights items/groups anchored at this line. */
   activeLine?: number | null;
+  /** Diagnostics whose fix was applied to the draft; awaiting reparse. */
+  appliedIds?: Set<string>;
   showLines?: boolean;
   dense?: boolean;
 }) {
@@ -102,6 +105,7 @@ export function QuizIssueTree({
           itemAction={itemAction}
           onGroupClick={onGroupClick}
           activeLine={activeLine ?? null}
+          appliedIds={appliedIds}
           showLines={showLines}
           dense={dense}
         />
@@ -133,7 +137,7 @@ function Counts({ counts }: { counts: DiagGroup["counts"] }) {
 }
 
 function GroupNode({
-  group, depth, isOpen, toggle, onItemClick, itemAction, onGroupClick, activeLine, showLines, dense,
+  group, depth, isOpen, toggle, onItemClick, itemAction, onGroupClick, activeLine, appliedIds, showLines, dense,
 }: {
   group: DiagGroup;
   depth: number;
@@ -143,6 +147,7 @@ function GroupNode({
   itemAction?: (d: ParseDiagnostic) => IssueAction | null;
   onGroupClick?: (g: DiagGroup) => void;
   activeLine: number | null;
+  appliedIds?: Set<string>;
   showLines: boolean;
   dense: boolean;
 }) {
@@ -181,7 +186,8 @@ function GroupNode({
       {open && (
         <div>
           {group.items.map((d, i) => {
-            const action = itemAction?.(d) ?? null;
+            const applied = d.id != null && (appliedIds?.has(d.id) ?? false);
+            const action = applied ? null : itemAction?.(d) ?? null;
             const active = activeLine != null && d.line === activeLine;
             return (
               <div
@@ -194,13 +200,19 @@ function GroupNode({
                   cursor: onItemClick ? "pointer" : "default",
                   background: active ? "rgba(10,190,98,0.07)" : "transparent",
                   color: d.severity === "error" ? "#c53030" : "#956f00", fontWeight: 600,
+                  opacity: applied ? 0.45 : 1,
                 }}
               >
-                <span aria-hidden style={{ flexShrink: 0 }}>{SEV_ICON[d.severity]}</span>
+                <span aria-hidden style={{ flexShrink: 0 }}>{applied ? "✓" : SEV_ICON[d.severity]}</span>
                 {showLines && d.line != null && (
                   <span style={{ fontFamily: MONO, fontSize: "10px", color: "rgba(3,72,82,0.45)", flexShrink: 0, paddingTop: "2px" }}>L{d.line}</span>
                 )}
                 <span style={{ flex: 1, minWidth: 0, color: "#034852", fontWeight: 500 }}>{d.message}</span>
+                {applied && (
+                  <span style={{ flexShrink: 0, fontSize: "10px", fontWeight: 700, color: "#0f6b58" }}>
+                    applied — reparsing…
+                  </span>
+                )}
                 {action && (
                   <button
                     type="button"
@@ -227,6 +239,7 @@ function GroupNode({
               itemAction={itemAction}
               onGroupClick={onGroupClick}
               activeLine={activeLine}
+              appliedIds={appliedIds}
               showLines={showLines}
               dense={dense}
             />
