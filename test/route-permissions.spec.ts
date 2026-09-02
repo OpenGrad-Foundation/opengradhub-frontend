@@ -40,6 +40,11 @@ describe('dashboard route permissions', () => {
     expect(PERM.tracker).toEqual({
       view: 'tracker.view',
       author: 'tracker.author',
+      // Sharing outside the organisation, split out of `author` in migration 124.
+      // `author` includes Zonal Managers; publishing a task's proof photographs
+      // and GPS coordinates to a funder is a different decision, so it needed a
+      // permission of its own rather than riding on the one that writes tasks.
+      share_external: 'tracker.share_external',
       fill: 'tracker.fill',
       fill_override: 'tracker.fill.override',
       blocker_clear: 'tracker.blocker.clear',

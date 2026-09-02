@@ -145,6 +145,10 @@ export const PERM = {
   tracker: {
     view: "tracker.view",
     author: "tracker.author",
+    // Sharing a task outside the organisation. Separate from `author` because
+    // that one includes Zonal Managers, and publishing proof photographs to a
+    // funder is not the same decision as writing a task. See migration 124.
+    share_external: "tracker.share_external",
     fill: "tracker.fill",
     /** Fill a subordinate's row in their name — ZM/PM only (migration 103). */
     fill_override: "tracker.fill.override",

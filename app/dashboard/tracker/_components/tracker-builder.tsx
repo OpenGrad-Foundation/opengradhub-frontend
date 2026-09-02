@@ -75,10 +75,25 @@ export type TrackerAssignPrefill = {
 
 export function TrackerBuilder({
   canAuthor,
+  canShareExternally = false,
   onCreated,
   prefill,
 }: {
   canAuthor: boolean;
+  /**
+   * May this author share a task outside the organisation? A permission of its
+   * own (tracker.share_external, migration 124) because tracker.author includes
+   * Zonal Managers, and authoring a task is not the same decision as publishing
+   * its proof photographs to a funder.
+   *
+   * Passed in rather than read from a hook here: this component is rendered bare
+   * in tests, and reaching for auth inside it would drag Clerk into every one of
+   * them. The page above already knows.
+   *
+   * Defaults to false — if a caller forgets to pass it, the control that shares
+   * data outside the building is the one that stays hidden.
+   */
+  canShareExternally?: boolean;
   /** Called with the new task's id once it is created (and assigned) so the caller can
    *  open that task instead of leaving the author on an empty form. */
   onCreated?: (templateId: string) => void;
@@ -97,6 +112,7 @@ export function TrackerBuilder({
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [requireGeo, setRequireGeo] = useState(false);
   const [partnerVisible, setPartnerVisible] = useState(false);
+
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
@@ -232,7 +248,8 @@ export function TrackerBuilder({
       // a value it has not derived yet. Doing it second means the refusal, when it
       // comes, is accurate and lands in the catch below with the server's own
       // wording rather than a generic failure.
-      if (partnerVisible) await updateTrackerTemplate(id, { partner_visible: true });
+      if (partnerVisible && canShareExternally)
+        await updateTrackerTemplate(id, { partner_visible: true });
 
       const targetIds = Array.from(selectedIds);
       let assigned = 0;
@@ -366,6 +383,7 @@ export function TrackerBuilder({
             copy names exactly what a partner would receive — the same list the
             server exposes — since "share with partners" reads as a summary and
             this is not something to summarise. */}
+        {canShareExternally && (
         <div className="flex flex-col gap-2 sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
           <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
           <label className="flex items-start gap-2 text-sm text-amber-900">
@@ -389,6 +407,7 @@ export function TrackerBuilder({
             </p>
           )}
         </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
