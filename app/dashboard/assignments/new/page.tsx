@@ -79,7 +79,6 @@ export default function NewAssignmentPage() {
       <Link href="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>← Assignments</Link>
 
       <div style={{ marginTop: "14px", marginBottom: "24px" }}>
-        <p style={S.label}>New Assignment</p>
         <h1 style={{ ...S.heading, fontSize: "26px", margin: "4px 0 0" }}>Create Assignment</h1>
       </div>
 

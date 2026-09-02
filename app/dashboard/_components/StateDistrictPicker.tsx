@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { STATES, districtsForState, districtDisabled, normState } from "@/lib/geo";
+import { ZONE, ZONE_LOWER } from "@/lib/labels";
 
 type Props = {
   state: string;
@@ -79,14 +80,14 @@ export function StateDistrictPicker({
 
       <select
         id={districtId}
-        aria-label="District"
+        aria-label={ZONE}
         value={district}
         onChange={(e) => onDistrictChange(e.target.value)}
         style={style}
         disabled={districtOff}
       >
         <option value="">
-          {districtOff ? "—" : "Select district…"}
+          {districtOff ? "—" : `Select ${ZONE_LOWER}…`}
         </option>
         {districts.map((d) => (
           <option key={d} value={d}>{d}</option>

@@ -851,9 +851,6 @@ function SectionsView({
             <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 8px" }}>
               Add Section
             </p>
-            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "0 0 20px" }}>
-              Each section groups its own questions (e.g., Aptitude, Logical, Math).
-            </p>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>
               Section Title
             </label>

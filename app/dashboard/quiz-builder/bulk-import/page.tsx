@@ -11,9 +11,12 @@ import {
   getCourseModules,
   type BulkParseJobStatus,
   type ParsedBulkQuiz,
+  type ParseDiagnostic,
   type QuizDestination,
 } from "@/lib/api";
 import { QuizPreviewEditor } from "@/components/quiz-preview-editor";
+import { QuizSourceEditor } from "@/components/quiz-source-editor";
+import { hasStructuralIssue } from "@/lib/quiz-import-diagnostics";
 import { withFrom } from "@/lib/nav";
 
 // PDF parsing runs as a background job on the server; the page polls its
@@ -120,6 +123,14 @@ export default function BulkImportQuizPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewData, setPreviewData] = useState<ParsedBulkQuiz | null>(null);
+  // The editable SOURCE: the uploaded text for .md/.txt, the extracted text
+  // for a PDF. Structural problems (a lost Q.n / [SECTION] / [GROUP END]) are
+  // fixed here and reparsed — the structured preview cannot split questions.
+  const [sourceText, setSourceText] = useState<string | null>(null);
+  const [showSource, setShowSource] = useState(false);
+  // Bumped per successful parse: remounts the preview editor so its
+  // diagnostics buckets re-seed from the fresh parse result.
+  const [parseSeq, setParseSeq] = useState(0);
   // Storage keys of images uploaded during a PDF parse. Kept outside
   // previewData so edits to the preview can't lose track of them; sent to the
   // cleanup endpoint if the preview is abandoned.
@@ -212,10 +223,33 @@ export default function BulkImportQuizPage() {
     );
     if (!done) return;
 
-    const { image_keys, ...parsed } =
-      (done.result ?? {}) as ParsedBulkQuiz & { image_keys?: string[] };
-    setPreviewData(parsed as ParsedBulkQuiz);
+    const { image_keys, source_text, source_truncated: _st, parse_error, ...parsed } =
+      (done.result ?? {}) as ParsedBulkQuiz & {
+        image_keys?: string[]; source_text?: string; source_truncated?: boolean;
+        parse_error?: string;
+      };
     setImageKeys(image_keys ?? []);
+    setSourceText(source_text ?? null);
+
+    if (parse_error) {
+      // Extraction worked, parsing didn't — a repairable state, not a dead
+      // end: land in the source step with the extracted text and the error.
+      // (Text beyond the transfer cap can't be edited here — say so instead
+      // of failing silently back to the upload form.)
+      setPreviewData(null);
+      setShowSource(source_text != null);
+      setError(
+        source_text != null
+          ? parse_error
+          : `${parse_error} The extracted text was too large to edit in the browser — fix the original document and upload again.`,
+      );
+      return;
+    }
+
+    setPreviewData(parsed as ParsedBulkQuiz);
+    setParseSeq((n) => n + 1);
+    // Structural problems can only be fixed in the source — land there first.
+    setShowSource(source_text != null && hasStructuralIssue(parsed.diagnostics ?? []));
     setToast("PDF parsed successfully!");
   }
 
@@ -230,8 +264,20 @@ export default function BulkImportQuizPage() {
       if (file.type === "application/pdf") {
         await parsePdfInBackground(file);
       } else {
-        setPreviewData(await bulkParseQuiz(await file.text()));
+        const text = await file.text();
+        setSourceText(text);
         setImageKeys([]);
+        try {
+          const parsed = await bulkParseQuiz(text);
+          setPreviewData(parsed);
+          setParseSeq((n) => n + 1);
+          setShowSource(hasStructuralIssue(parsed.diagnostics ?? []));
+        } catch (parseErr: unknown) {
+          // A hard parse failure (e.g. an unterminated [START]) used to be a
+          // dead end; the source step turns it into something fixable.
+          setShowSource(true);
+          throw parseErr;
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to parse file");
@@ -241,16 +287,40 @@ export default function BulkImportQuizPage() {
     }
   }
 
+  /** Reparse edited source (both .md text and PDF-extracted text). */
+  async function handleReparse(nextSource: string) {
+    setParsing(true);
+    setError(null);
+    try {
+      const parsed = await bulkParseQuiz(nextSource);
+      setSourceText(nextSource);
+      setPreviewData(parsed);
+      setParseSeq((n) => n + 1);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to parse the edited source");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function handleEditSource() {
+    if (sourceText == null) return;
+    if (!window.confirm(
+      "Edit the source? Changes made in this preview will be discarded when you reparse — the source becomes the truth again.",
+    )) return;
+    setShowSource(true);
+  }
+
   // ── Step 2: save the (possibly edited) parsed data ────────────────────────
 
-  async function handleSave() {
+  async function handleSave(unresolved: ParseDiagnostic[]) {
     if (!previewData) return;
 
     setSaving(true);
     setError(null);
 
     try {
-      const result = await bulkSaveQuiz(previewData, destination);
+      const result = await bulkSaveQuiz(previewData, destination, unresolved);
       // The saved quiz now references the images — they must not be cleaned up.
       setImageKeys([]);
       setToast("Saving quiz in the background…");
@@ -291,6 +361,8 @@ export default function BulkImportQuizPage() {
       setImageKeys([]);
     }
     setPreviewData(null);
+    setSourceText(null);
+    setShowSource(false);
     setError(null);
   }
 
@@ -314,17 +386,75 @@ export default function BulkImportQuizPage() {
             </span>
           </div>
 
-          {previewData === null ? (
+          {showSource && sourceText != null ? (
+            // ── Step 1.5: Repair the source (full-screen workbench) ─────────
+            <QuizSourceEditor
+              source={sourceText}
+              quiz={previewData}
+              diagnostics={previewData?.diagnostics ?? []}
+              parsing={parsing}
+              error={error}
+              onReparse={(next) => { void handleReparse(next); }}
+              onContinue={() => { if (previewData) setShowSource(false); }}
+              onCancel={handleDiscardPreview}
+            />
+          ) : previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
               <h1 style={S.heading}>Upload Entire Quiz</h1>
               {/* The destination banner above (S.banner) states this on every step,
                   so the module-only notice that used to sit here was duplicate. */}
-              <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "24px" }}>
+              <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "12px" }}>
                 Upload a markdown (.md, .txt) or PDF file following the OpenGrad Quiz format.
                 After uploading you can review and edit the parsed data before saving.
                 PDFs must be typed (not scanned).
               </p>
+
+              <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", marginBottom: "16px" }}>
+                <a
+                  href="/templates/opengrad-quiz-template.md"
+                  download="opengrad-quiz-template.md"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: "6px",
+                    padding: "9px 18px", borderRadius: "10px", textDecoration: "none",
+                    background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)",
+                    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "12px",
+                  }}
+                >
+                  ↓ Download template (.md)
+                </a>
+              </div>
+
+              <details style={{ marginBottom: "20px", fontSize: "13px", color: "#034852" }}>
+                <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: "13px", color: "#0f6b58" }}>
+                  Format cheat-sheet
+                </summary>
+                <div style={{ overflowX: "auto", marginTop: "10px" }}>
+                  <table style={{ borderCollapse: "collapse", fontSize: "12px", minWidth: "540px" }}>
+                    <tbody>
+                      {([
+                        ["[TEST TITLE] / [TEST INSTRUCTION] / [TEST DURATION] / [TEST MAXIMUM MARKS]", "Quiz header (title is required)"],
+                        ["[SECTION] name · [SECTION DURATION] · [SECTION MARKS]", "Starts a section"],
+                        ["Q.1) question text", "Starts a question (numbering restarts per section)"],
+                        ["*[A] correct · [B] wrong — or *[1] / [2]", "MCQ options; * marks the correct one"],
+                        ["[QUESTION TYPE] Multi_Choice / Numerical / Fill / Essay", "Defaults to MCQ"],
+                        ["[A] 9.8  or  [A] 9.7_9.9", "Answer for Numerical/Fill (range = value with tolerance)"],
+                        ["[MARKS] · [NEGATIVE MARKS] · [ANSWER TIME]", "Per-question numbers"],
+                        ["[SUBJECT] · [TOPIC] · [DIFFICULTY] EASY/MEDIUM/HARD · [TAG]", "Tags — used by analytics, filters and report cards"],
+                        ["[SOLUTION] · [IMAGE] url", "Explanation shown after submission; inline image"],
+                        ["[START] … [END]", "Wraps any multi-line block, keeping its line breaks"],
+                        ["[GROUP START] … [GROUP END]", "A passage with child questions"],
+                        ["i.1-3) shared instruction", "Stamps an instruction on the next 3 questions"],
+                      ] as const).map(([syntax, meaning]) => (
+                        <tr key={syntax} style={{ borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+                          <td style={{ padding: "6px 12px 6px 0", whiteSpace: "nowrap" }}><code>{syntax}</code></td>
+                          <td style={{ padding: "6px 0", color: "rgba(3,72,82,0.65)" }}>{meaning}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
 
               <form
                 onSubmit={(e) => { void handleParse(e); }}
@@ -422,10 +552,14 @@ export default function BulkImportQuizPage() {
             <>
               <h1 style={{ ...S.heading, margin: "0 0 24px 0" }}>Review Parsed Quiz</h1>
               <QuizPreviewEditor
+                // Remount per parse so the diagnostics buckets re-seed.
+                key={parseSeq}
                 data={previewData}
                 onChange={setPreviewData}
-                onConfirm={() => { void handleSave(); }}
+                onConfirm={(unresolved) => { void handleSave(unresolved); }}
                 onBack={handleDiscardPreview}
+                initialDiagnostics={previewData.diagnostics}
+                onEditSource={sourceText != null ? handleEditSource : undefined}
                 saving={saving}
                 error={error}
               />

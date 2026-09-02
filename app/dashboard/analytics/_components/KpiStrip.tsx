@@ -43,9 +43,6 @@ function Sparkline({ data }: { data: number[] | null }) {
 }
 
 export function KpiStrip({ kpis }: { kpis: InsightsResponse["kpis"] }) {
-  const totalSplit = kpis.ug_pg_split.ug + kpis.ug_pg_split.pg || 1;
-  const ugPct = Math.round((kpis.ug_pg_split.ug / totalSplit) * 100);
-
   return (
     <div
       style={{
@@ -62,26 +59,6 @@ export function KpiStrip({ kpis }: { kpis: InsightsResponse["kpis"] }) {
           <Delta pct={kpis.students_reached.delta_pct} />
         </div>
         <Sparkline data={kpis.students_reached.sparkline} />
-      </div>
-
-      <div style={card}>
-        <div style={labelStyle}>Districts covered</div>
-        <div style={{ fontSize: "30px", fontWeight: 700, color: "#034852", marginTop: "4px" }}>
-          {kpis.districts_covered.value}
-          <Delta pct={kpis.districts_covered.delta_pct} />
-        </div>
-        <Sparkline data={kpis.districts_covered.sparkline} />
-      </div>
-
-      <div style={card}>
-        <div style={labelStyle}>UG vs PG</div>
-        <div style={{ fontSize: "16px", fontWeight: 600, color: "#034852", marginTop: "8px" }}>
-          UG {kpis.ug_pg_split.ug.toLocaleString()} · PG {kpis.ug_pg_split.pg.toLocaleString()}
-        </div>
-        <div style={{ marginTop: "10px", display: "flex", height: "8px", borderRadius: "4px", overflow: "hidden", background: "rgba(3,72,82,0.08)" }}>
-          <div style={{ width: `${ugPct}%`, background: "#0abe62" }} />
-          <div style={{ width: `${100 - ugPct}%`, background: "#ffde00" }} />
-        </div>
       </div>
 
       <div style={card}>

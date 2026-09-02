@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { getCourses, type Course } from "@/lib/api";
 import { useBatches } from "@/lib/queries/batches";
-import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import type { ClassFilterState } from "./useClassFilters";
 
 /**
@@ -113,9 +112,6 @@ function AudiencePicker({ value, onChange }: { value: string; onChange: (v: stri
       </optgroup>
       <optgroup label="Batches">
         {(batches.data ?? []).map((b) => <option key={b.id} value={`batch:${b.id}`}>{b.name}</option>)}
-      </optgroup>
-      <optgroup label="Programmes">
-        {PROGRAMME_KINDS.map((k) => <option key={k.value} value={`programme:${k.value}`}>{k.label}</option>)}
       </optgroup>
     </select>
   );

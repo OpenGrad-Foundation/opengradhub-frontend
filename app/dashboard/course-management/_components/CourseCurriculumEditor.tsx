@@ -80,7 +80,6 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
       )}
 
       <div style={{ marginBottom: "18px" }}>
-        <p style={labelSt}>Curriculum</p>
         <h3 style={{ ...headingSt, fontSize: "20px", marginTop: "4px" }}>Modules and lessons</h3>
         <p style={subSt}>Reorder modules, edit lessons, and manage module quizzes inside the course workspace.</p>
       </div>

@@ -5,6 +5,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search } f
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, type TaskState } from "@/lib/tracker-status";
+import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 
 const LEVELS: TrackerDrillLevel[] = ["zm", "fellow", "school", "student"];
@@ -21,10 +22,10 @@ function nextLevel(level: TrackerDrillLevel): TrackerDrillLevel | null {
 }
 
 const LEVEL_LABEL: Record<TrackerDrillLevel, string> = {
-  zm: "Zonal Managers", fellow: "Fellows", school: "Schools", student: "Students",
+  zm: "Zonal Managers", fellow: IN_CHARGE_PLURAL, school: "Schools", student: "Students",
 };
 const CHILD_NOUN: Record<TrackerDrillLevel, string> = {
-  zm: "fellow", fellow: "school", school: "student", student: "",
+  zm: IN_CHARGE_LOWER, fellow: "school", school: "student", student: "",
 };
 
 type Crumb = { level: TrackerDrillLevel; id: string; name: string };
@@ -133,9 +134,6 @@ function LevelList({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
         <div>
           <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {isLeafLevel ? "Each row shows its status for the task." : "Open a row to drill into its completion."}
-          </p>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />

@@ -1,3 +1,4 @@
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL } from "./labels";
 import type {
   CurrentUserResponse,
   SignInPayload,
@@ -203,7 +204,7 @@ export async function getFellows(): Promise<FellowOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/users/fellows`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch fellows.", response.status);
+    throw new ApiError(`Failed to fetch ${IN_CHARGE_LOWER_PLURAL}.`, response.status);
   }
 
   return (await response.json()) as FellowOption[];
@@ -221,16 +222,28 @@ export type StudentRosterItem = {
   district: string | null;
 };
 
+export type StudentRosterPage = {
+  items: StudentRosterItem[];
+  /** Full match count, independent of the row cap. */
+  total: number;
+  /** True when the row cap bit and `items` is only a prefix of `total`. */
+  truncated: boolean;
+};
+
 /**
  * Fetch the student roster via GET /users/students, which Program Managers
  * can access (analytics.view_manager) unlike GET /users (user_management.view).
+ *
+ * The whole roster comes back in one request so callers can filter locally.
+ * Callers rendering a picker must surface `truncated` — a silent prefix reads
+ * as a complete list and gets acted on as one.
  */
-export async function getStudentsList(): Promise<StudentRosterItem[]> {
+export async function getStudentsList(): Promise<StudentRosterPage> {
   const response = await apiFetch(`${API_BASE_URL}/users/students`);
   if (!response.ok) {
     throw new ApiError("Failed to fetch students.", response.status);
   }
-  return (await response.json()) as StudentRosterItem[];
+  return (await response.json()) as StudentRosterPage;
 }
 
 /**
@@ -1182,7 +1195,6 @@ export type LiveClass = {
   meeting_url: string;
   course_id: string | null;
   course_title: string | null;
-  programme_type: string | null;
   batch_ids: string[] | null;
   created_by: string | null;
   created_at: string;
@@ -1205,7 +1217,7 @@ export type LiveClassFilters = {
   /** 'upcoming' includes a class that is running right now. */
   view?: "upcoming" | "past";
   q?: string;
-  audience_type?: "course" | "batch" | "programme";
+  audience_type?: "course" | "batch";
   audience_id?: string;
   include_archived?: boolean;
 };
@@ -1244,12 +1256,10 @@ export type AudiencePreview = {
  */
 export async function getAudiencePreview(t: {
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }): Promise<AudiencePreview> {
   const params = new URLSearchParams();
   if (t.course_id) params.set("course_id", t.course_id);
-  if (t.programme_type) params.set("programme_type", t.programme_type);
   if (t.batch_ids?.length) params.set("batch_ids", t.batch_ids.join(","));
   const r = await apiFetch(`${API_BASE_URL}/live-classes/audience-preview?${params.toString()}`);
   if (!r.ok) throw new ApiError("Failed to preview the audience.", r.status);
@@ -1289,7 +1299,6 @@ export async function createLiveClass(payload: {
   duration_minutes: number;
   meeting_url: string;
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }): Promise<LiveClass> {
   const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
@@ -1319,7 +1328,6 @@ export async function updateLiveClass(
      * null the modes it is leaving, or the class keeps both audiences.
      */
     course_id?: string | null;
-    programme_type?: string | null;
     batch_ids?: string[];
   },
 ): Promise<LiveClass> {
@@ -1357,6 +1365,8 @@ export type Notification = {
   body: string;
   channel: "IN_APP" | "EMAIL" | "WHATSAPP";
   is_read: boolean;
+  /** NULL for one-shot rows; N for a roll-up row standing in for N events. */
+  rollup_count?: number | null;
   triggered_at: string;
   link: string | null;
 };
@@ -1431,6 +1441,22 @@ export async function clearReadNotifications(): Promise<void> {
     method: "PATCH",
     cache: "no-store",
   });
+}
+
+/**
+ * Dismiss EVERY notification, read or unread, in one call. The escape hatch for
+ * an inbox that filled faster than the user could read it. Unread rows are
+ * marked read server-side too, so the badge clears with the list.
+ */
+export async function clearAllNotifications(): Promise<{ archived: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/notifications/clear-all`, {
+    method: "PATCH",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to clear notifications.", response.status);
+  }
+  return (await response.json()) as { archived: number };
 }
 
 // ── Assignments API ────────────────────────────────────────────
@@ -2050,6 +2076,10 @@ export interface ParsedOption {
 
 export interface ParsedQuestion {
   instruction?: string;
+  /** The author's own question number (the n in `Q.n)`), for UI labels. */
+  number?: number;
+  /** 1-based source line where this question (or group) starts. */
+  line?: number;
   content: string;
   question_type: "MCQ" | "NUMERICAL" | "FILL" | "ESSAY" | "GROUP";
   options: ParsedOption[];
@@ -2070,6 +2100,8 @@ export interface ParsedQuestion {
 
 export interface ParsedSection {
   title: string;
+  /** 1-based source line of the [SECTION] tag. */
+  line?: number;
   duration_minutes?: number;
   marks?: number;
   questions: ParsedQuestion[];
@@ -2081,6 +2113,72 @@ export interface ParsedBulkQuiz {
   duration_minutes?: number;
   max_marks?: number;
   sections: ParsedSection[];
+  /** Parser + validator issues found at parse time. */
+  diagnostics?: ParseDiagnostic[];
+}
+
+// ── Import diagnostics (mirror of backend ParseDiagnostic) ───────────────────
+
+export type ParseDiagnosticWhere =
+  | "quiz"
+  | { s: number }
+  | { s: number; q: number; child?: number };
+
+export interface ParseDiagnosticFix {
+  op: "set" | "move" | "discard";
+  field?: keyof ParsedQuestion;
+  value?: string | number;
+  from?: keyof ParsedQuestion;
+  occurrence?: number;
+}
+
+export interface ParseDiagnostic {
+  id?: string;
+  code: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+  where: ParseDiagnosticWhere;
+  field?: keyof ParsedQuestion;
+  line?: number;
+  raw?: string;
+  /** The known tag this line most likely meant, for source-level repair. */
+  suggestedTag?: string;
+  fix?: ParseDiagnosticFix;
+}
+
+/**
+ * Re-runs the backend's SEMANTIC validation rules over an edited quiz — the
+ * single source of truth the preview calls after every edit, so the rule set
+ * is never mirrored client-side. Syntactic (line-anchored) diagnostics exist
+ * only on the original parse result.
+ */
+export async function bulkValidateQuiz(quiz: ParsedBulkQuiz): Promise<ParseDiagnostic[]> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ quiz }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to validate quiz.", r.status);
+  }
+  return ((await r.json()) as { diagnostics: ParseDiagnostic[] }).diagnostics ?? [];
+}
+
+// ── Question-bank facets (suggestion datalists) ──────────────────────────────
+
+export interface QuestionFacets {
+  subjects: Array<{ value: string; count: number }>;
+  topics: Array<{ value: string; subject: string | null; count: number }>;
+  tags: Array<{ value: string; count: number }>;
+}
+
+/** Distinct subject/topic/tag values already in the question bank. */
+export async function getQuestionFacets(): Promise<QuestionFacets> {
+  const r = await apiFetch(`${API_BASE_URL}/questions/facets`, { cache: "no-store" });
+  if (!r.ok) throw new ApiError("Failed to load suggestions.", r.status);
+  return (await r.json()) as QuestionFacets;
 }
 
 export async function bulkParseQuiz(fileContent: string): Promise<ParsedBulkQuiz> {
@@ -2110,7 +2208,16 @@ export interface BulkParseJobStatus {
   status: "waiting" | "active" | "delayed" | "completed" | "failed" | string;
   progress: number;
   /** ParsedBulkQuiz for parse jobs; { quiz_id, ... } for import jobs. */
-  result?: (ParsedBulkQuiz & { image_keys?: string[] }) | { quiz_id: string; sections: number; questions: number };
+  result?:
+    | (ParsedBulkQuiz & {
+        image_keys?: string[];
+        /** Extracted PDF text — the "source" the repair step edits. */
+        source_text?: string;
+        source_truncated?: boolean;
+        /** Extraction worked but the text failed to parse — repair the source. */
+        parse_error?: string;
+      })
+    | { quiz_id: string; sections: number; questions: number };
   error?: string;
 }
 
@@ -2172,11 +2279,19 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
 export async function bulkSaveQuiz(
   parsedData: ParsedBulkQuiz,
   destination: QuizDestination,
+  /**
+   * The client's still-unresolved syntactic diagnostics (quarantined typo-tag
+   * lines). The server cannot reconstruct these from the parsed structure, so
+   * it refuses the save if any error-severity item is still in here.
+   */
+  unresolved: ParseDiagnostic[] = [],
 ): Promise<{ jobId: string }> {
+  // diagnostics are derived data — never round-trip them inside the payload.
+  const { diagnostics: _diagnostics, ...quiz } = parsedData;
   const r = await apiFetch(`${API_BASE_URL}/quizzes/bulk-save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ quiz: parsedData, destination }),
+    body: JSON.stringify({ quiz, destination, unresolved }),
     cache: "no-store",
   });
   if (!r.ok) {
@@ -2707,6 +2822,50 @@ export type TopicStrengthRow = {
   accuracy_pct: number;
 };
 
+export type StudentProfileCourse = {
+  id: string;
+  title: string;
+  lessons_total: number;
+  lessons_done: number;
+  completion_pct: number;
+  avg_score: number | null;
+};
+
+export type StudentProfile = {
+  student: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    roll_number: string | null;
+    programme: string | null;
+    status: string;
+    school_id: string | null;
+    school_name: string | null;
+    district: string | null;
+    state: string | null;
+    batches: { id: string; name: string }[];
+  };
+  kpis: {
+    completion_pct: number;
+    avg_score: number | null;
+    attempts: number;
+    last_activity_at: string | null;
+    at_risk: boolean;
+  };
+  courses: StudentProfileCourse[];
+};
+
+/** Staff view of one student. Backend asserts the caller's org scope. */
+export async function getStudentProfile(studentId: string): Promise<StudentProfile> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/profile`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load student profile.", r.status);
+  }
+  return (await r.json()) as StudentProfile;
+}
+
 export async function getTopicStrength(studentId: string): Promise<TopicStrengthRow[]> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`);
   if (!r.ok) {
@@ -3074,7 +3233,7 @@ export async function setSchoolFellow(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update fellow.", response.status);
+    throw new ApiError(errorBody?.message ?? `Failed to update ${IN_CHARGE_LOWER}.`, response.status);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -3795,7 +3954,12 @@ export async function getAvailableQuizzes(): Promise<AvailableQuiz[]> {
   return (await r.json()) as AvailableQuiz[];
 }
 
-// ── Bulk Assign API ────────────────────────────────────────────
+// ── Bulk enrolment API ─────────────────────────────────────────
+//
+// What is left of the retired Bulk Assign module: the User Management
+// "Bulk Assign" panel filters students and enrols them in courses/bundles in
+// one call. The standalone /dashboard/bulk-manage page and its unenrol +
+// enrolled-items endpoints are gone; enrolment at scale belongs to Batches.
 
 export type StudentForBulk = {
   id: string;
@@ -3831,43 +3995,6 @@ export async function getStudentsForBulk(
     throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
   }
   return (await r.json()) as StudentForBulk[];
-}
-
-export type EnrolledItems = {
-  courses: { id: string; title: string; programme_type: string; lesson_count: number }[];
-  bundles: { id: string; name: string; course_count: number }[];
-};
-
-export async function getEnrolledItemsForStudents(
-  studentIds: string[],
-): Promise<EnrolledItems> {
-  if (!studentIds.length) return { courses: [], bundles: [] };
-  const url = new URL(`${API_BASE_URL}/enrolments/enrolled-items`);
-  url.searchParams.set("student_ids", studentIds.join(","));
-  const r = await apiFetch(url.toString());
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch enrolled items.", r.status);
-  }
-  return (await r.json()) as EnrolledItems;
-}
-
-export async function bulkRemove(payload: {
-  student_ids: string[];
-  course_ids?: string[];
-  bundle_ids?: string[];
-}): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
-  const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  });
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to bulk remove.", r.status);
-  }
-  return (await r.json()) as { removed_courses: number; removed_bundles: number; not_enrolled: number };
 }
 
 export async function bulkEnrol(payload: {
@@ -4089,6 +4216,8 @@ export type AssessmentsOverviewItem = {
   course_title: string | null;
   bundle_title: string | null;
   duration_minutes: number | null;
+  /** The owning programme, when the row was reached through the caller's own. */
+  programme_name: string | null;
   max_attempts: number | null;
   attempts_count: number;
   students_attempted: number;
@@ -4109,6 +4238,7 @@ export type AssessmentsOverviewFilters = {
   course_id?: string;
   bundle_id?: string;
   batch_id?: string;
+  programme_id?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -4192,6 +4322,10 @@ export type BatchCourseEntry = {
   title: string;
   programme_type: string;
   status: string;
+  /** true when pinned directly on the batch; false when it only comes from a bundle. */
+  is_direct: boolean;
+  /** names of the batch's bundles that supply this course. */
+  via_bundles: string[];
 };
 
 export type BatchBundleEntry = {
@@ -4329,7 +4463,7 @@ export async function setBatchMembersFellow(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to set batch fellow.", r.status);
+    throw new ApiError(err?.message ?? `Failed to set batch ${IN_CHARGE_LOWER}.`, r.status);
   }
   return (await r.json()) as { updated: number; reassigned: number };
 }

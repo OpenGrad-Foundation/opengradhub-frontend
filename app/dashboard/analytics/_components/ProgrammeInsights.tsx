@@ -10,6 +10,7 @@ import {
 import { KpiStrip } from "./KpiStrip";
 import { TrendDistribution } from "./TrendDistribution";
 import { NeedsAttention } from "./NeedsAttention";
+import { ZONE_LOWER } from "@/lib/labels";
 import { ScopeChip } from "./ScopeChip";
 import { SearchableSelect } from "./SearchableSelect";
 import SchoolDetail from "./SchoolDetail";
@@ -102,7 +103,7 @@ export default function ProgrammeInsights() {
                 options={(statesQ.data ?? []).map((s) => ({ value: s, label: s }))}
               />
               <SearchableSelect
-                placeholder="All districts"
+                placeholder={`All ${ZONE_LOWER}s`}
                 value={district}
                 onChange={(v) => {
                   setDistrict(v);

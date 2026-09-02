@@ -31,7 +31,10 @@ export const QUESTION_TYPES = [
   { value: "ESSAY",     label: "Essay (Manual Grading)" },
 ] as const;
 
-export const DIFFICULTIES = ["EASY", "MEDIUM", "HARD"] as const;
+// Shared source of truth (mirrored to the backend); re-exported so existing
+// imports from this file keep working.
+import { QUESTION_DIFFICULTIES } from "@/lib/question-difficulties";
+export const DIFFICULTIES = QUESTION_DIFFICULTIES;
 
 export type QType = "MCQ" | "FILL" | "NUMERICAL" | "GROUP" | "ESSAY";
 

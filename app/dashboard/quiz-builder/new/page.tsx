@@ -97,9 +97,6 @@ export default function NewQuizPage() {
         </a>
         <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
         <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
-        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-          Set up the quiz — you can add questions after saving.
-        </p>
 
         {/* The other way in: skip the form and let a markdown/PDF file define
             the whole quiz, questions included. Points at bulkImportHref — same
@@ -109,10 +106,6 @@ export default function NewQuizPage() {
           <div>
             <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
               Already have the quiz in a file?
-            </p>
-            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
-              Upload a markdown or PDF and we&apos;ll build the whole quiz — settings and questions —
-              for you to review.
             </p>
           </div>
           <Link href={bulkImportHref} style={uploadCalloutBtn}>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, Loader2, Plus } from "lucide-react";
 import { useTrackerZms, useTrackerZmFellows, useTrackerFellowTasks } from "@/lib/queries/tracker";
 import { TaskListView } from "./my-tasks";
+import { IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -12,12 +13,16 @@ function Loading() {
   return <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
 }
 
-export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: string) => void }) {
+export function ZmView({ onOpen, onAssign }: {
+  onOpen: (templateId: string, ownerId: string, ownerName?: string) => void;
+  /** Jump to the task builder with this person pre-selected as the audience. */
+  onAssign?: (person: { id: string; name: string }) => void;
+}) {
   const { data: zms = [], isLoading } = useTrackerZms();
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
   const [q, setQ] = useState("");
 
-  if (sel) return <ZmDetail zm={sel} onBack={() => setSel(null)} onOpen={onOpen} />;
+  if (sel) return <ZmDetail zm={sel} onBack={() => setSel(null)} onOpen={onOpen} onAssign={onAssign} />;
   if (isLoading) return <Loading />;
   if (zms.length === 0) {
     return (
@@ -34,7 +39,6 @@ export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: strin
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div>
           <h3 className="text-base font-semibold text-gray-950">Your zonal managers</h3>
-          <p className="mt-0.5 text-xs text-gray-500">Open a ZM to see their own tasks and their fellows.</p>
         </div>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search ZMs…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
       </div>
@@ -54,7 +58,7 @@ export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: strin
                 </span>
                 <span className="flex shrink-0 items-center gap-3">
                   <span className="hidden items-center gap-2 text-xs sm:flex">
-                    <span className="text-gray-500">{z.fellow_count} fellows</span>
+                    <span className="text-gray-500">{z.fellow_count} {IN_CHARGE_LOWER_PLURAL}</span>
                     <span className="text-gray-300">·</span>
                     <span className="font-semibold text-emerald-700">{z.own_done} done</span>
                     <span className="text-gray-300">·</span>
@@ -73,12 +77,17 @@ export function ZmView({ onOpen }: { onOpen: (templateId: string, ownerId: strin
   );
 }
 
-function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; onBack: () => void; onOpen: (templateId: string, ownerId: string) => void }) {
+function ZmDetail({ zm, onBack, onOpen, onAssign }: {
+  zm: { id: string; name: string };
+  onBack: () => void;
+  onOpen: (templateId: string, ownerId: string, ownerName?: string) => void;
+  onAssign?: (person: { id: string; name: string }) => void;
+}) {
   const own = useTrackerFellowTasks(zm.id);
   const fellows = useTrackerZmFellows(zm.id);
   const [fellow, setFellow] = useState<{ id: string; name: string } | null>(null);
   const fellowTasks = useTrackerFellowTasks(fellow?.id);
-  const canNudge = usePermissions().has(PERM.tracker.author);
+  const canAuthor = usePermissions().has(PERM.tracker.author);
 
   if (fellow) {
     return (
@@ -86,8 +95,11 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
         <button type="button" onClick={() => setFellow(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to {zm.name}
         </button>
-        <h3 className="text-sm font-semibold text-gray-950">{fellow.name}&apos;s tasks</h3>
-        {fellowTasks.isLoading ? <Loading /> : <TaskListView tasks={fellowTasks.data ?? []} onOpen={(tid) => onOpen(tid, fellow.id)} emptyTitle="No tasks" emptyDetail={`${fellow.name} has no tasks yet.`} />}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-950">{fellow.name}&apos;s tasks</h3>
+          {canAuthor && onAssign && <AssignTaskButton onClick={() => onAssign(fellow)} />}
+        </div>
+        {fellowTasks.isLoading ? <Loading /> : <TaskListView tasks={fellowTasks.data ?? []} onOpen={(tid) => onOpen(tid, fellow.id, fellow.name)} emptyTitle="No tasks" emptyDetail={`${fellow.name} has no tasks yet.`} />}
       </div>
     );
   }
@@ -100,13 +112,13 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
 
       <div>
         <h3 className="mb-2 text-sm font-semibold text-gray-950">{zm.name}&apos;s own tasks</h3>
-        {own.isLoading ? <Loading /> : <TaskListView tasks={own.data ?? []} onOpen={(tid) => onOpen(tid, zm.id)} emptyTitle="No tasks" emptyDetail={`${zm.name} has no tasks assigned directly.`} />}
+        {own.isLoading ? <Loading /> : <TaskListView tasks={own.data ?? []} onOpen={(tid) => onOpen(tid, zm.id, zm.name)} emptyTitle="No tasks" emptyDetail={`${zm.name} has no tasks assigned directly.`} />}
       </div>
 
       <div>
-        <h3 className="mb-2 text-sm font-semibold text-gray-950">Fellows under {zm.name}</h3>
+        <h3 className="mb-2 text-sm font-semibold text-gray-950">{IN_CHARGE_PLURAL} under {zm.name}</h3>
         {fellows.isLoading ? <Loading /> : (fellows.data ?? []).length === 0 ? (
-          <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">No fellows under this ZM.</p>
+          <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">No {IN_CHARGE_LOWER_PLURAL} under this ZM.</p>
         ) : (
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <ul className="divide-y divide-gray-100">
@@ -124,7 +136,7 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
                       <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
                     </span>
                   </button>
-                  {canNudge && f.pending > 0 && (
+                  {canAuthor && f.pending > 0 && (
                     <NudgeButton doerId={f.id} lastNudgedAt={f.last_nudged_all_at} label="Nudge all" />
                   )}
                 </li>
@@ -134,5 +146,19 @@ function ZmDetail({ zm, onBack, onOpen }: { zm: { id: string; name: string }; on
         )}
       </div>
     </div>
+  );
+}
+
+/** "Assign task" affordance shown above a person's task list — hands the caller off to the
+ *  builder with that person already picked, so an empty list is a starting point, not a wall. */
+export function AssignTaskButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+    >
+      <Plus className="h-4 w-4" aria-hidden="true" /> Assign task
+    </button>
   );
 }

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
-import { type Batch } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useBatches } from "@/lib/queries/batches";
@@ -21,7 +20,6 @@ export default function BatchesPage() {
   const { data: batches = [], isLoading, error, refetch } = useBatches(statusFilter);
 
   const [showAdd, setShowAdd] = useState(false);
-  const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const [query, setQuery] = useState("");
 
   const q = query.trim().toLowerCase();
@@ -35,7 +33,6 @@ export default function BatchesPage() {
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
         <div>
-          <p style={labelStyle}>Cohorts</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Batches</h1>
         </div>
         {canCreate && (
@@ -50,15 +47,6 @@ export default function BatchesPage() {
           mode="create"
           onClose={() => setShowAdd(false)}
           onSaved={() => { setShowAdd(false); void refetch(); }}
-        />
-      )}
-
-      {editBatch && (
-        <BatchFormModal
-          mode="edit"
-          batch={editBatch}
-          onClose={() => setEditBatch(null)}
-          onSaved={() => { setEditBatch(null); void refetch(); }}
         />
       )}
 
@@ -147,7 +135,15 @@ export default function BatchesPage() {
                     </td>
                     {canEdit && (
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button onClick={(e) => { e.stopPropagation(); setEditBatch(b); }} style={linkBtnStyle}>Edit</button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(withFrom(`/dashboard/batches/${b.id}?tab=settings`, currentUrl));
+                          }}
+                          style={linkBtnStyle}
+                        >
+                          Edit
+                        </button>
                       </td>
                     )}
                   </tr>
@@ -161,7 +157,6 @@ export default function BatchesPage() {
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
 const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
 const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" };

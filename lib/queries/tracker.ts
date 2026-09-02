@@ -33,6 +33,7 @@ import {
   getTrackerTemplates,
   raiseTrackerBlocker,
   saveTrackerBatch,
+  saveTrackerBatchOnBehalf,
   updateTrackerTemplate,
   updateTrackerField,
   deleteTrackerField,
@@ -65,6 +66,7 @@ import {
   getRecordExtensions,
   grantExtension,
   getRecordPeriodHistory,
+  getStudentTrackerTasks,
   getTemplateGeoVerifications,
   getRecordGeoVerification,
   uploadGeoVerification,
@@ -303,6 +305,15 @@ export function useSaveTrackerBatch() {
   });
 }
 
+export function useSaveTrackerBatchOnBehalf() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ reason, edits }: { reason: string; edits: TrackerBatchEdit[] }) =>
+      saveTrackerBatchOnBehalf(reason, edits),
+    onSuccess: () => invalidate('tracker'),
+  });
+}
+
 export function useRaiseTrackerBlocker() {
   const invalidate = useInvalidate();
   return useMutation({
@@ -508,12 +519,29 @@ export function useRecordPeriodHistory(
   enabled = true,
   before?: string,
   limit = 5,
+  /** Set on a student profile: reads the same history through the student-scoped route. */
+  studentId?: string,
 ) {
   return useQuery({
-    queryKey: qk.trackerPeriods(recordId ?? '', before ?? 'latest'),
-    queryFn: () => getRecordPeriodHistory(recordId as string, limit, before),
+    queryKey: qk.trackerPeriods(recordId ?? '', before ?? 'latest', studentId ?? 'record'),
+    queryFn: () => getRecordPeriodHistory(recordId as string, limit, before, studentId),
     enabled: Boolean(recordId) && enabled,
     staleTime: 30_000,
+  });
+}
+
+/** Every tracker row recorded about one student — the student-profile cut of the tracker. */
+export function useStudentTrackerTasks(studentId: string | undefined) {
+  return useQuery({
+    queryKey: qk.trackerStudentTasks(studentId ?? ''),
+    queryFn: () => getStudentTrackerTasks(studentId as string),
+    enabled: Boolean(studentId),
+    staleTime: 30_000,
+    // A profile viewer without tracker.view gets a 403, and no amount of retrying
+    // will grant it — but a network blip or a 5xx deserves the normal retries, so
+    // only the permission answer short-circuits.
+    retry: (failureCount, error) =>
+      (error as { status?: number } | null)?.status === 403 ? false : failureCount < 3,
   });
 }
 

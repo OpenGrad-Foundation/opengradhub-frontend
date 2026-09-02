@@ -4,19 +4,14 @@ import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
 import type { TrackerAssignable, TrackerTargetType } from "@/lib/tracker-api";
+import { ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
 
 function prettyState(s: string | null): string {
   if (!s) return "";
   return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  FELLOW: "Fellow",
-  ZONAL_MANAGER: "Zonal Manager",
-  PROGRAM_MANAGER: "Program Manager",
-  SUPER_ADMIN: "Super Admin",
-};
-const prettyRole = (r?: string | null) => (r ? ROLE_LABEL[r] ?? prettyState(r) : "");
+const prettyRole = (r?: string | null) => (r ? ROLE_LABELS[r] ?? prettyState(r) : "");
 
 /** Cascading audience filters (State → District → School → Programme) over the caller's
  *  assignable targets, plus a checkbox list + Select-all. Reused by the scratch builder
@@ -82,7 +77,6 @@ export function AudiencePicker({
 
   return (
     <div>
-      <p className="mb-3 text-xs text-gray-500">Narrow by area, then pick all matching {targetWord} at once.</p>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {roleOpts.length > 1 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Role
@@ -101,7 +95,7 @@ export function AudiencePicker({
           </label>
         )}
         {districtOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">District
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">{ZONE}
             <select value={districtFilter} onChange={(e) => onDistrict(e.target.value)} className={filterClass}>
               <option value="">All districts</option>
               {districtOpts.map((d) => <option key={d} value={d}>{d}</option>)}

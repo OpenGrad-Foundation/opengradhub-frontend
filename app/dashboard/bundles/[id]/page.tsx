@@ -85,7 +85,9 @@ export default function BundleDetailPage() {
     setDeleting(true);
     try {
       await deleteBundle(bundleId);
-      invalidate('bundles');
+      // batch_bundles rows cascade away via FK — every batch that held this
+      // bundle loses it and its derived courses.
+      invalidate('bundles', 'batches');
       await queryClient.invalidateQueries({ queryKey: ["og", "bundles"] });
       router.push("/dashboard/bundles");
     } catch (e) {
@@ -142,7 +144,6 @@ export default function BundleDetailPage() {
       {/* ── Section 1: Courses ───────────────────────────────── */}
       <Section
         title="Courses in this Bundle"
-        subtitle="Drag to reorder. Students enrolled in this bundle are automatically given access to all courses here."
         action={
           <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
             + Add Course
@@ -162,7 +163,6 @@ export default function BundleDetailPage() {
       {/* ── Section 2: Students ──────────────────────────────── */}
       <Section
         title="Students Enrolled"
-        subtitle="All students enrolled in this bundle have access to every course listed above."
         action={
           <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
             + Assign to Student
@@ -180,7 +180,6 @@ export default function BundleDetailPage() {
       {/* ── Section 3: Tests ─────────────────────────────────── */}
       <Section
         title="Quizzes in this Bundle"
-        subtitle="Published global quizzes attached to this bundle. Enrolled students can see and take these from their Quizzes page."
         action={
           <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
             + Add Quiz
@@ -284,7 +283,9 @@ function CourseList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nStudents already enrolled will keep their individual course access.`)) return;
     try {
       await removeCourseFromBundle(bundleId, courseId);
-      invalidate('bundles');
+      // Enrolments survive by design, but batches reaching this course only via
+      // the bundle lose it from their derived course list.
+      invalidate('bundles', 'batches');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
@@ -495,7 +496,10 @@ function AddCourseModal({
         const result = await addCourseToBundle(bundleId, c.id);
         totalStudentsEnrolled += result.students_enrolled;
       }
-      invalidate('bundles');
+      // Back-end back-fills course_enrolments for every bundle subscriber and
+      // the course joins the derived course list of every batch holding this
+      // bundle — so the student/course views and batch views both go stale.
+      invalidate('bundles', 'enrolment', 'batches');
       const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
       const msg = totalStudentsEnrolled > 0
         ? `${noun} added and ${totalStudentsEnrolled} student${totalStudentsEnrolled !== 1 ? "s" : ""} enrolled.`
@@ -733,7 +737,7 @@ function TestList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
       await removeTestFromBundle(bundleId, quizId);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove quiz.");
@@ -840,7 +844,7 @@ function AddTestModal({
     setError(null);
     try {
       await addTestToBundle(bundleId, selected.id);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add quiz.");
@@ -913,18 +917,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode;
+function Section({ title, action, children }: {
+  title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ ...glassCard, marginBottom: "24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: subtitle ? "4px" : "20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
         <h2 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h2>
         {action}
       </div>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: "0 0 18px" }}>{subtitle}</p>
-      )}
       {children}
     </div>
   );

@@ -7,7 +7,7 @@ import type { LiveClassFilters } from "@/lib/api";
 export type ClassFilterState = {
   view: "upcoming" | "past";
   q: string;
-  /** `course:<id>` | `batch:<id>` | `programme:<kind>`, or "" for no filter. */
+  /** `course:<id>` | `batch:<id>`, or "" for no filter. */
   audience: string;
   archived: boolean;
 };
@@ -67,7 +67,7 @@ export function useClassFilters() {
     return {
       view: state.view,
       q: state.q.trim() || undefined,
-      ...(type && id ? { audience_type: type as "course" | "batch" | "programme", audience_id: id } : {}),
+      ...(type && id ? { audience_type: type as "course" | "batch", audience_id: id } : {}),
       include_archived: state.archived,
     };
   }, [state]);

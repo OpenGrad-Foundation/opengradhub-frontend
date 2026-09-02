@@ -1,4 +1,6 @@
 import { API_BASE_URL, ApiError, apiFetch } from "./api";
+import { ZONE } from "./labels";
+import type { RecordLifecycle } from "./tracker-status";
 
 export type TrackerFieldType = "text" | "number" | "date" | "select" | "multiselect" | "boolean" | "url";
 export type TrackerFieldSource = "profile" | "identity" | "input";
@@ -8,7 +10,7 @@ export type TrackerTargetType = "student" | "school" | "fellow";
 export const PROFILE_PATH_LABELS: Record<string, string> = {
   "student.name": "Student name",
   "student.category": "Student category",
-  "student.district": "District",
+  "student.district": ZONE,
   "student.contact": "Student contact",
   "school.name": "School name",
   "school.code": "School code",
@@ -242,6 +244,12 @@ export function getTrackerGrid(templateId: string, fellowId?: string) {
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
   return trackerJson<{ saved: number }>("/tracker/records/batch", jsonInit("POST", { edits }));
+}
+
+/** Fill someone else's rows in their name. A separate endpoint, not a flag: the server
+ *  guards it with tracker.fill.override and records the reason in the row's history. */
+export function saveTrackerBatchOnBehalf(reason: string, edits: TrackerBatchEdit[]) {
+  return trackerJson<{ saved: number }>("/tracker/records/batch/override", jsonInit("POST", { reason, edits }));
 }
 
 export type TrackerProofPhoto = { id: string; url: string; created_at: string; created_by: string };
@@ -493,7 +501,14 @@ export type TrackerEventType =
   | "blocker_comment"
   | "proof_photo_added"
   | "proof_photo_removed"
-  | "proof_location_captured";
+  | "proof_location_captured"
+  // Mirrors tracker-events.ts on the server. These three and extension_granted were already
+  // being emitted and simply fell through describeEvent's default, showing the raw code.
+  | "geo_verification_recorded"
+  | "geo_verification_rejected"
+  | "geo_verification_overridden"
+  | "extension_granted"
+  | "filled_on_behalf";
 
 export type TrackerEvent = {
   id: string;
@@ -806,13 +821,65 @@ export type TrackerPeriodHistoryPage = {
   next_cursor: string | null;
 };
 
-export function getRecordPeriodHistory(recordId: string, limit?: number, before?: string) {
+/**
+ * `studentId` switches to the student-profile route. Same payload, different gate:
+ * the tracker route authorises against the record's doer, the profile route against
+ * the student, which is the question a profile page is actually asking.
+ */
+export function getRecordPeriodHistory(
+  recordId: string,
+  limit?: number,
+  before?: string,
+  studentId?: string,
+) {
   const qs = new URLSearchParams();
   if (limit) qs.set("limit", String(limit));
   if (before) qs.set("before", before);
   const suffix = qs.toString() ? `?${qs}` : "";
-  return trackerJson<TrackerPeriodHistoryPage>(
-    `/tracker/records/${encodeURIComponent(recordId)}/periods${suffix}`,
+  const path = studentId
+    ? `/tracker/students/${encodeURIComponent(studentId)}/records/${encodeURIComponent(recordId)}/periods`
+    : `/tracker/records/${encodeURIComponent(recordId)}/periods`;
+  return trackerJson<TrackerPeriodHistoryPage>(`${path}${suffix}`);
+}
+
+// ── The tracker, read from one student's side ─────────────────────────────────
+// Everything recorded ABOUT a student, for their profile page. The tracker's own
+// surfaces cut the same data by who DOES the work.
+
+export type TrackerStudentTask = {
+  template_id: string;
+  template_name: string;
+  description: string | null;
+  priority: string;
+  completion_style: "checklist" | "workflow";
+  /** Ordered workflow steps, so the UI can show "step 2 of 3". Null for checklists. */
+  workflow_statuses: string[] | null;
+  done_status: string | null;
+  deadline: string | null;
+  recurrence_frequency: "daily" | "weekly" | "monthly" | null;
+  record_id: string;
+  period_key: string;
+  /** Raw record status: a workflow step name, or not_started/in_progress/done. */
+  status: string;
+  lifecycle: RecordLifecycle;
+  /** Null for a directly-assigned row; set when the row came from a batch. */
+  batch_id: string | null;
+  batch_name: string | null;
+  updated_at: string | null;
+  updated_by_name: string | null;
+  blocker: { text: string; raised_at: string } | null;
+  /** What was filled in for this student. Profile-derived cells are excluded server-side. */
+  cells: TrackerCell[];
+};
+
+export type TrackerStudentTasksResponse = {
+  student_id: string;
+  tasks: TrackerStudentTask[];
+};
+
+export function getStudentTrackerTasks(studentId: string) {
+  return trackerJson<TrackerStudentTasksResponse>(
+    `/tracker/students/${encodeURIComponent(studentId)}/tasks`,
   );
 }
 
@@ -844,4 +911,30 @@ export function grantExtension(recordId: string, extendedTo: string, reason: str
     `/tracker/records/${encodeURIComponent(recordId)}/extension`,
     jsonInit("POST", { extended_to: extendedTo, reason }),
   );
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+// A manager's download of one task: every record they can see, its filled values, the
+// evidence attached to it and a rollup of its audit trail. `history` adds the full
+// event-by-event log, which arrives as a zip because that is a second file.
+
+export type TaskExportFile = { blob: Blob; filename: string };
+
+export async function fetchTaskExport(
+  templateId: string,
+  opts: { history?: boolean; ownerId?: string },
+): Promise<TaskExportFile> {
+  const url = new URL(`${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/export`);
+  if (opts.history) url.searchParams.set("history", "1");
+  if (opts.ownerId) url.searchParams.set("ownerId", opts.ownerId);
+
+  const r = await apiFetch(url.toString());
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Could not export this task.", r.status);
+  }
+  const disposition = r.headers.get("content-disposition");
+  const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
+  const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
+  return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
 }

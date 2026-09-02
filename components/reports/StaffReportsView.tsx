@@ -235,13 +235,9 @@ export function StaffReportsView() {
   return (
     <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <div style={{ marginBottom: "24px" }}>
-        <p style={labelStyle}>Reports</p>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
           Student Reports
         </h1>
-        <p style={{ ...subtitleStyle, marginTop: "6px" }}>
-          Download per-student course, monthly, and full report PDFs.
-        </p>
       </div>
 
       {schools.length > 0 && (

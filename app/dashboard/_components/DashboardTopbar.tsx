@@ -6,6 +6,7 @@ import { useClerk } from "@clerk/nextjs";
 import { LogOut, Menu } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
+import { roleLabel } from "@/lib/labels";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { registerServiceWorker } from "@/lib/push/register-sw";
 import NotificationBell from "@/components/NotificationBell";
@@ -33,7 +34,7 @@ export default function DashboardTopbar({
 
   const userId   = data?.user?.id      ?? "";
   const userName = data?.user?.fullName ?? "";
-  const roleName = data?.role?.name    ?? "";
+  const roleName = roleLabel(data?.role?.name);
 
   // One SSE stream per authenticated user: pushes notification/announcement
   // change signals → invalidates the relevant React Query caches (replaces 30s

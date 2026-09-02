@@ -400,9 +400,6 @@ export default function CourseManagementPage() {
           </BackLink>
           <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
           <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
-          <p style={subtitle}>
-            Manage students, curriculum, analytics, and settings without leaving the staff workspace.
-          </p>
         </div>
 
         <div className="course-mgmt-header-buttons" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -490,9 +487,7 @@ export default function CourseManagementPage() {
           <div className="course-mgmt-card" style={card}>
             <div className="course-mgmt-filters-row" style={{ display: "flex", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
               <div>
-                <p style={eyebrow}>Students</p>
                 <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Roster and progress</h3>
-                <p style={subtitle}>Track enrolled students, progress, marks, assignment state, and recent activity.</p>
               </div>
               <div className="course-mgmt-filters-box" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <input
@@ -673,9 +668,7 @@ export default function CourseManagementPage() {
       {activeTab === "settings" && currentCourse && (
         <div className="course-mgmt-card" style={card}>
           <div style={{ marginBottom: "18px" }}>
-            <p style={eyebrow}>Settings</p>
             <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Course details and publishing</h3>
-            <p style={subtitle}>Update metadata here while keeping learner preview and curriculum editing separate.</p>
           </div>
           <CourseMetaForm
             key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.tags?.join(",") ?? ""}-${currentCourse.cover_image_url ?? ""}`}
@@ -716,7 +709,6 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
 
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Recent activity</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>What happened lately</h3>
           <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
             {summary.recent_activity.length === 0 && (
@@ -739,7 +731,6 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
         </div>
 
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Modules</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Module progress</h3>
           <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
             {summary.module_progress.map((module) => (
@@ -770,7 +761,6 @@ function AnalyticsTab({ analytics }: { analytics: CourseManagementAnalytics }) {
     <div style={{ display: "grid", gap: "16px" }}>
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Enrollment trend</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Enrollment over time</h3>
           <div style={{ display: "grid", gap: "10px", marginTop: "18px" }}>
             {analytics.enrollment_trend.length === 0 && (
