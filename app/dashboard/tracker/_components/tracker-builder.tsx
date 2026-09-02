@@ -7,6 +7,7 @@ import {
   addTrackerFields,
   assignTrackerTargets,
   createTrackerTemplate,
+  updateTrackerTemplate,
   type TrackerCompletionStyle,
   type TrackerField,
   type TrackerFieldSource,
@@ -95,6 +96,7 @@ export function TrackerBuilder({
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [requireGeo, setRequireGeo] = useState(false);
+  const [partnerVisible, setPartnerVisible] = useState(false);
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
@@ -222,6 +224,16 @@ export function TrackerBuilder({
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
 
+      // Sharing is a PATCH after the fact, not part of the create.
+      //
+      // The server decides the task's programme during create — from the author's
+      // membership — and refuses to share a task that has no programme. Sending
+      // partner_visible in the same call would ask it to enforce that rule against
+      // a value it has not derived yet. Doing it second means the refusal, when it
+      // comes, is accurate and lands in the catch below with the server's own
+      // wording rather than a generic failure.
+      if (partnerVisible) await updateTrackerTemplate(id, { partner_visible: true });
+
       const targetIds = Array.from(selectedIds);
       let assigned = 0;
       if (targetIds.length > 0)
@@ -229,9 +241,11 @@ export function TrackerBuilder({
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
-      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility;
+      const shared = partnerVisible ? " Shared with this programme's government and funding officials." : "";
+      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
+      setPartnerVisible(false);
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
       if (onCreated) {
@@ -343,6 +357,36 @@ export function TrackerBuilder({
                 physical presence.
               </p>
             </>
+          )}
+        </div>
+
+        {/* Sharing outside the organisation.
+            Its own block, phrased as a warning rather than a setting, because it
+            is the only control on this page whose effect leaves the building. The
+            copy names exactly what a partner would receive — the same list the
+            server exposes — since "share with partners" reads as a summary and
+            this is not something to summarise. */}
+        <div className="flex flex-col gap-2 sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
+          <label className="flex items-start gap-2 text-sm text-amber-900">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={partnerVisible}
+              onChange={(e) => setPartnerVisible(e.target.checked)}
+            />
+            <span>
+              Let government and funding officials seated in this programme follow this task
+            </span>
+          </label>
+          {partnerVisible && (
+            <p className="ml-6 text-xs text-amber-800">
+              They will see every record of this task: the school, the {IN_CHARGE_LOWER} who
+              completed it, what they filled in, and — where this task requires them — the
+              proof photographs and their GPS coordinates. Only officials already seated in
+              this programme, and only this task. You can switch it off again, but anything
+              already downloaded stays downloaded.
+            </p>
           )}
         </div>
       </section>

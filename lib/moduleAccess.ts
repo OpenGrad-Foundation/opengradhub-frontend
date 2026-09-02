@@ -41,6 +41,7 @@ export type ModuleKey =
   | "schools"
   | "batches"
   | "tracker"
+  | "shared_tracker"
   | "attendance";
 
 export type ModuleMeta = { label: string; href: string };
@@ -66,6 +67,11 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
   tracker:          { label: TRACKER_NAME,      href: "/dashboard/tracker" },
+  // Its own module, not a view of the tracker's. The nav is built from effective
+  // MODULES, so filing the partner permission under `tracker` would have shown a
+  // funding official "Task Tracker" — a link to the internal page their
+  // permissions refuse. One module, one link, somewhere they can actually read.
+  shared_tracker:   { label: "Shared Progress",  href: "/dashboard/shared-tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 

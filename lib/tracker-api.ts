@@ -93,6 +93,15 @@ export type TrackerGridRow = {
    *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
    *  Optional for backward-compatibility while the grid projection is updated to emit it. */
   target_id?: string | null;
+  /** The row's geography, taken from its school. Null on a fellow-target grid, which
+   *  has no school — the geography filters are not offered there. */
+  state?: string | null;
+  district?: string | null;
+  /** Evidence the row actually holds. What the template REQUIRES lives on the template,
+   *  so "missing proof" is the two read together. Optional for the same
+   *  independent-deploy reason as school_id above. */
+  has_photo_proof?: boolean;
+  has_location_proof?: boolean;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -143,6 +152,8 @@ export type CreateTrackerTemplateInput = {
   require_photo?: boolean;
   require_location?: boolean;
   require_geo_verification?: boolean;
+  /** Which programme owns this task type. Omitted = derived from the author. */
+  programme_id?: string | null;
   status?: "draft" | "active" | "archived";
 };
 
@@ -155,6 +166,11 @@ export type TrackerTemplatePatch = {
   require_photo?: boolean;
   require_location?: boolean;
   require_geo_verification?: boolean;
+  /**
+   * Share this task type with the government and funding officials seated in its
+   * programme. The server refuses `true` on a task type that has no programme.
+   */
+  partner_visible?: boolean;
 };
 
 export type TrackerFieldPatch = {
@@ -349,6 +365,15 @@ export type TrackerMyTask = {
   status: string;
   blocked: boolean;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+  /** Filtering matches on id, never on a school NAME — names are not unique.
+   *  Optional, like the grid's own school_id: the frontend and backend deploy
+   *  independently (Netlify / Railway), so a browser can be talking to a server
+   *  that predates these fields. Absent must read as "unknown", not crash. */
+  school_id?: string | null;
+  require_photo?: boolean;
+  require_location?: boolean;
+  has_photo_proof?: boolean;
+  has_location_proof?: boolean;
 };
 
 export function getTrackerMyTasks() {
@@ -446,6 +471,13 @@ export type TrackerTaskState = "done" | "pending" | "overdue" | "blocked";
 
 export type TrackerTaskSummaryFilters = {
   q?: string; priority?: TrackerPriority; status?: TrackerTaskState;
+  /** Geography of the record's school. `district` is what the UI calls a Zone. */
+  state?: string; district?: string;
+  /** Org position of the record's doer. */
+  zmId?: string; fellowId?: string; schoolId?: string;
+  dueFrom?: string; dueTo?: string;
+  issuedFrom?: string; issuedTo?: string;
+  noProof?: boolean;
   page?: number; limit?: number;
 };
 
@@ -468,6 +500,20 @@ export function getTrackerTaskSummary(f: TrackerTaskSummaryFilters) {
   return trackerJson<TrackerTaskSummaryPage>(`/tracker/all-tasks/summary${qs ? `?${qs}` : ""}`);
 }
 
+/** Filter dropdown options for the caller's scope, in one request. */
+export type TrackerFacet = { value: string; label: string };
+export type TrackerFacets = {
+  states: TrackerFacet[];
+  zones: TrackerFacet[];
+  zms: TrackerFacet[];
+  incharges: TrackerFacet[];
+  schools: TrackerFacet[];
+};
+
+export function getTrackerFacets() {
+  return trackerJson<TrackerFacets>("/tracker/facets");
+}
+
 export type TrackerDrillLevel = "zm" | "fellow" | "school" | "student";
 
 export type TrackerBreakdownRow = {
@@ -482,7 +528,10 @@ export type TrackerBreakdownPage = {
 
 export function getTrackerTaskBreakdown(
   templateId: string,
-  params: { level: TrackerDrillLevel; parentId?: string; q?: string; page?: number; limit?: number },
+  params: {
+    level: TrackerDrillLevel; parentId?: string; q?: string;
+    status?: TrackerTaskState; page?: number; limit?: number;
+  },
 ) {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") p.set(k, String(v));
@@ -937,4 +986,56 @@ export async function fetchTaskExport(
   const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
   const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
   return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
+}
+
+// ── the partner view ─────────────────────────────────────────────────────────
+// What a government or funding official sees. Two gates decide it, both on the
+// server: they must be seated in the programme, and the task type must have been
+// opted in. Nothing here can widen that — these are read-only projections.
+
+export type PartnerProgramme = {
+  id: string; code: string; name: string;
+  kind: string; state: string | null; cohort_label: string | null;
+  shared_task_types: number;
+};
+
+export type PartnerTask = {
+  id: string; code: string; name: string; description: string | null;
+  target_type: TrackerTargetType; priority: TrackerPriority;
+  deadline: string | null; recurrence_frequency: TrackerRecurrence | null;
+  require_photo: boolean; require_location: boolean; require_geo_verification: boolean;
+  total: number; done: number;
+};
+
+export type PartnerRecord = {
+  id: string; status: string; period_key: string | null; updated_at: string;
+  values: Record<string, unknown> | null;
+  school_name: string | null; school_district: string | null; school_state: string | null;
+  student_name: string | null; completed_by: string | null;
+  photo_count: number; geo_count: number;
+};
+
+export type PartnerProof = {
+  id: string; kind: string; object_key: string;
+  lat: number | null; lng: number | null; accuracy_m: number | null;
+  captured_at: string | null;
+};
+
+export function listPartnerProgrammes() {
+  return trackerJson<PartnerProgramme[]>("/tracker/partner/programmes");
+}
+
+export function listPartnerTasks(programmeId: string) {
+  return trackerJson<PartnerTask[]>(
+    `/tracker/partner/programmes/${encodeURIComponent(programmeId)}/tasks`);
+}
+
+export function listPartnerRecords(templateId: string) {
+  return trackerJson<PartnerRecord[]>(
+    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/records`);
+}
+
+export function listPartnerProofs(recordId: string) {
+  return trackerJson<PartnerProof[]>(
+    `/tracker/partner/records/${encodeURIComponent(recordId)}/proofs`);
 }
