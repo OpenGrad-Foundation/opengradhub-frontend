@@ -470,10 +470,11 @@ export function TrackerBuilder({
           {partnerVisible && effectiveProgrammeId && (
             <p className="ml-6 text-xs text-amber-800">
               They will see every record of this task: the school, the {IN_CHARGE_LOWER} who
-              completed it, what they filled in, and — where this task requires them — the
-              proof photographs and their GPS coordinates. Only officials already seated in
-              this programme, and only this task. You can switch it off again, but anything
-              already downloaded stays downloaded.
+              last updated it, what they filled in, whether it is late or blocked, and —
+              where this task requires them — the proof photographs and their GPS
+              coordinates. Only officials already seated in this programme, and only this
+              task. You can switch it off again, but anything already downloaded stays
+              downloaded.
             </p>
           )}
         </div>

@@ -6,7 +6,7 @@
 // human label and href — keyed by the DB `modules.code`. There is no role→module
 // table here any more; that lived in the old RBAC world.
 
-import { TRACKER_NAME } from "./labels";
+import { TRACKER_NAME, PARTNER_TRACKER_NAME } from "./labels";
 
 export type RoleCode =
   | "SUPER_ADMIN"
@@ -71,7 +71,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   // MODULES, so filing the partner permission under `tracker` would have shown a
   // funding official "Task Tracker" — a link to the internal page their
   // permissions refuse. One module, one link, somewhere they can actually read.
-  shared_tracker:   { label: "Shared Progress",  href: "/dashboard/shared-tracker" },
+  shared_tracker:   { label: PARTNER_TRACKER_NAME, href: "/dashboard/shared-tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 

@@ -1006,53 +1006,113 @@ export async function fetchTaskExport(
 }
 
 // ── the partner view ─────────────────────────────────────────────────────────
-// What a government or funding official sees. Two gates decide it, both on the
-// server: they must be seated in the programme, and the task type must have been
-// opted in. Nothing here can widen that — these are read-only projections.
+//
+// A separate, deliberately small client for the surface government and funding
+// officials read. It mirrors the internal tracker's shapes — a paginated page with
+// stateCounts, a facets call, a task-scoped drill — because the two surfaces are
+// read the same way, and diverging would mean maintaining two mental models.
 
-export type PartnerProgramme = {
-  id: string; code: string; name: string;
-  kind: string; state: string | null; cohort_label: string | null;
-  shared_task_types: number;
+export type PartnerLifecycle = "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+
+/** Where records with no school live. Staff tasks are about a person, not a place. */
+export const PARTNER_NO_PLACE = "__no_place__";
+
+export type PartnerFacets = {
+  programmes: TrackerFacetOption[];
+  states: TrackerFacetOption[];
+  zones: TrackerFacetOption[];
+  schools: TrackerFacetOption[];
+  periods: TrackerFacetOption[];
+};
+export type TrackerFacetOption = { value: string; label: string };
+
+export type PartnerTaskRow = {
+  template_id: string;
+  name: string;
+  description: string | null;
+  target_type: TrackerTargetType;
+  programme_id: string;
+  programme_name: string;
+  deadline: string | null;
+  priority: TrackerPriority;
+  total: number; done: number; blocked: number; overdue: number;
+  not_started: number; in_progress: number;
+  photo_count: number;
+  rolled_state: PartnerLifecycle;
 };
 
-export type PartnerTask = {
-  id: string; code: string; name: string; description: string | null;
-  target_type: TrackerTargetType; priority: TrackerPriority;
-  deadline: string | null; recurrence_frequency: TrackerRecurrence | null;
-  require_photo: boolean; require_location: boolean; require_geo_verification: boolean;
-  total: number; done: number;
+export type PartnerTasksPage = {
+  rows: PartnerTaskRow[];
+  total: number; page: number; limit: number;
+  stateCounts: Record<PartnerLifecycle, number>;
+};
+
+export type PartnerBreakdownRow = {
+  key: string; label: string;
+  total: number; done: number; blocked: number; overdue: number;
 };
 
 export type PartnerRecord = {
-  id: string; status: string; period_key: string | null; updated_at: string;
-  values: Record<string, unknown> | null;
-  school_name: string | null; school_district: string | null; school_state: string | null;
-  student_name: string | null; completed_by: string | null;
-  photo_count: number; geo_count: number;
+  id: string;
+  status: string;
+  lifecycle: PartnerLifecycle;
+  period_key: string | null;
+  school_name: string | null;
+  school_district: string | null;
+  school_state: string | null;
+  student_name: string | null;
+  /** NOT "completed by": tracker_records has no completion columns, only updated_by. */
+  last_updated_by: string | null;
+  updated_at: string;
+  photo_count: number;
+  geo_count: number;
+};
+
+export type PartnerRecordsPage = {
+  rows: PartnerRecord[]; total: number; page: number; limit: number;
 };
 
 export type PartnerProof = {
-  id: string; kind: string; object_key: string;
+  id: string;
+  kind: string;
+  /** A short-lived signed URL, or null for a location-only proof. */
+  url: string | null;
   lat: number | null; lng: number | null; accuracy_m: number | null;
   captured_at: string | null;
 };
 
-export function listPartnerProgrammes() {
-  return trackerJson<PartnerProgramme[]>("/tracker/partner/programmes");
+function partnerQs(params: Record<string, unknown>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    q.set(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
 }
 
-export function listPartnerTasks(programmeId: string) {
-  return trackerJson<PartnerTask[]>(
-    `/tracker/partner/programmes/${encodeURIComponent(programmeId)}/tasks`);
+export function getPartnerTasks(params: Record<string, unknown> = {}) {
+  return trackerJson<PartnerTasksPage>(`/tracker/partner/tasks${partnerQs(params)}`);
 }
 
-export function listPartnerRecords(templateId: string) {
-  return trackerJson<PartnerRecord[]>(
-    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/records`);
+export function getPartnerFacets() {
+  return trackerJson<PartnerFacets>("/tracker/partner/facets");
 }
 
-export function listPartnerProofs(recordId: string) {
+export function getPartnerBreakdown(
+  templateId: string,
+  params: { level: string; state?: string; district?: string; schoolId?: string },
+) {
+  return trackerJson<PartnerBreakdownRow[]>(
+    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/breakdown${partnerQs(params)}`);
+}
+
+export function getPartnerRecords(templateId: string, params: Record<string, unknown> = {}) {
+  return trackerJson<PartnerRecordsPage>(
+    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/records${partnerQs(params)}`);
+}
+
+export function getPartnerProofs(recordId: string) {
   return trackerJson<PartnerProof[]>(
     `/tracker/partner/records/${encodeURIComponent(recordId)}/proofs`);
 }

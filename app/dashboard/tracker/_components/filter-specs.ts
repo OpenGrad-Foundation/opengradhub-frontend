@@ -1,6 +1,6 @@
 import type { FilterDef } from "@/lib/filters";
 import { fieldFilterDefs } from "@/lib/filters/field-spec";
-import type { TrackerFacets, TrackerField, TrackerGridRow, TrackerMyTask } from "@/lib/tracker-api";
+import type { PartnerFacets, TrackerFacets, TrackerField, TrackerGridRow, TrackerMyTask } from "@/lib/tracker-api";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
 import { TASK_STATE_META, TASK_STATE_ORDER } from "@/lib/tracker-status";
 
@@ -20,6 +20,21 @@ const PRIORITY_OPTIONS = [
 ];
 
 const STATUS_OPTIONS = TASK_STATE_ORDER.map((s) => ({ value: s, label: TASK_STATE_META[s].label }));
+
+/**
+ * The partner surface's five states.
+ *
+ * The wire values are the backend's own lifecycle vocabulary, which is finer than
+ * the internal 4-state task rollup — the partner list rolls a task up to exactly
+ * one of these, so the control has to offer all five.
+ */
+const PARTNER_STATUS_OPTIONS = [
+  { value: "done", label: "Done" },
+  { value: "in_progress", label: "In progress" },
+  { value: "not_started", label: "Not started" },
+  { value: "overdue", label: "Overdue" },
+  { value: "blocked", label: "Blocked" },
+];
 
 const EMPTY_FACETS: TrackerFacets = { states: [], zones: [], zms: [], incharges: [], schools: [] };
 
@@ -46,6 +61,33 @@ export function allTasksFilterSpec(facets: TrackerFacets = EMPTY_FACETS): Filter
     { key: "due", urlKey: "due", apiKey: "due", label: "Due", kind: "daterange" },
     { key: "issued", urlKey: "issued", apiKey: "issued", label: "Issued", kind: "daterange" },
     { key: "noproof", urlKey: "noproof", apiKey: "noProof", label: "Missing photo/location proof", kind: "toggle" },
+  ];
+}
+
+/**
+ * Fellow Tracker (the partner surface): executed on the SERVER, like All Tasks.
+ *
+ * Deliberately NOT the same list as the internal one. There is no Zonal Manager or
+ * School In-Charge control, because an outside official drills by place rather than
+ * by staff member — a funder does not need the management hierarchy to answer "how
+ * is this district doing", and publishing it to everyone ever seated in a programme
+ * is not a thing that can be taken back.
+ *
+ * `Period` is here and not on the internal list: the partner view shows ALL history,
+ * so an official needs a way to ask about one month.
+ */
+export function partnerFilterSpec(facets: PartnerFacets | undefined): FilterDef<never>[] {
+  const f = facets ?? { programmes: [], states: [], zones: [], schools: [], periods: [] };
+  return [
+    { key: "q", urlKey: "q", apiKey: "q", label: "Search", kind: "text" },
+    { key: "programme", urlKey: "programme", apiKey: "programmeId", label: "Programme", kind: "select", options: f.programmes },
+    { key: "status", urlKey: "status", apiKey: "status", label: "Status", kind: "select", options: PARTNER_STATUS_OPTIONS },
+    { key: "state", urlKey: "state", apiKey: "state", label: "State", kind: "select", options: f.states },
+    { key: "zone", urlKey: "zone", apiKey: "district", label: ZONE, kind: "select", options: f.zones },
+    { key: "school", urlKey: "school", apiKey: "schoolId", label: "School", kind: "select", options: f.schools },
+    { key: "period", urlKey: "period", apiKey: "period", label: "Period", kind: "select", options: f.periods },
+    { key: "issued", urlKey: "issued", apiKey: "issued", label: "Issued", kind: "daterange" },
+    { key: "evidence", urlKey: "evidence", apiKey: "hasEvidence", label: "Has photo or location", kind: "toggle" },
   ];
 }
 

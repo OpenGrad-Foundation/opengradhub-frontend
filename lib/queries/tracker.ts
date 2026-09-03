@@ -10,6 +10,11 @@ import {
   getTrackerQueueBlockers,
   getTrackerAssignable,
   getTrackerMyProgrammes,
+  getPartnerTasks,
+  getPartnerFacets,
+  getPartnerBreakdown,
+  getPartnerRecords,
+  getPartnerProofs,
   addBlockerComment,
   getBlockerThread,
   getTrackerFellows,
@@ -264,6 +269,65 @@ export function useTrackerMyProgrammes(enabled = true) {
     queryFn: getTrackerMyProgrammes,
     enabled,
     staleTime: 5 * 60_000,
+  });
+}
+
+// ── the partner surface ──────────────────────────────────────────────────────
+// Keyed on the serialised filter set so each distinct view caches separately,
+// rather than one key thrashing as an official narrows their filters.
+
+export function usePartnerTasks(params: Record<string, unknown>) {
+  return useQuery({
+    queryKey: qk.partnerTasks(JSON.stringify(params)),
+    queryFn: () => getPartnerTasks(params),
+    staleTime: 30_000,
+    // An official paging through history should not see the table blank between
+    // pages; the previous page stays until the next resolves.
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function usePartnerFacets() {
+  return useQuery({
+    queryKey: qk.partnerFacets(),
+    queryFn: getPartnerFacets,
+    // Dropdown options change when someone shares a task or attaches a school,
+    // neither of which happens while an official is reading.
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function usePartnerBreakdown(
+  templateId: string | null,
+  params: { level: string; state?: string; district?: string; schoolId?: string },
+) {
+  return useQuery({
+    queryKey: qk.partnerBreakdown(templateId ?? "", JSON.stringify(params)),
+    queryFn: () => getPartnerBreakdown(templateId as string, params),
+    enabled: Boolean(templateId),
+    staleTime: 30_000,
+  });
+}
+
+export function usePartnerRecords(templateId: string | null, params: Record<string, unknown>) {
+  return useQuery({
+    queryKey: qk.partnerRecords(templateId ?? "", JSON.stringify(params)),
+    queryFn: () => getPartnerRecords(templateId as string, params),
+    enabled: Boolean(templateId),
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export function usePartnerProofs(recordId: string | null) {
+  return useQuery({
+    queryKey: qk.partnerProofs(recordId ?? ""),
+    queryFn: () => getPartnerProofs(recordId as string),
+    enabled: Boolean(recordId),
+    // Presigned URLs expire. Caching them past that would show an official a
+    // broken image and no reason for it, so this refetches rather than reuses.
+    staleTime: 0,
+    gcTime: 60_000,
   });
 }
 
