@@ -19,7 +19,7 @@ const STATE_TONE: Record<string, string> = {
 /** Records of one shared task, paginated — all-history makes this the long list. */
 export function PartnerRecords({ task, scope, filters }: {
   task: PartnerTaskRow;
-  scope: { state?: string; district?: string; schoolId?: string };
+  scope: { state?: string; district?: string; schoolId?: string; studentId?: string };
   filters: Record<string, unknown>;
 }) {
   const [page, setPage] = useState(1);

@@ -1101,7 +1101,7 @@ export function getPartnerFacets() {
 
 export function getPartnerBreakdown(
   templateId: string,
-  params: { level: string; state?: string; district?: string; schoolId?: string },
+  params: Record<string, unknown> & { level: string },
 ) {
   return trackerJson<PartnerBreakdownRow[]>(
     `/tracker/partner/tasks/${encodeURIComponent(templateId)}/breakdown${partnerQs(params)}`);

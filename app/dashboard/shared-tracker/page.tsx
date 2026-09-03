@@ -42,7 +42,7 @@ export default function SharedTrackerPage() {
   const [page, setPage] = useState(1);
   const [openTask, setOpenTask] = useState<PartnerTaskRow | null>(null);
   const [recordScope, setRecordScope] =
-    useState<{ state?: string; district?: string; schoolId?: string } | null>(null);
+    useState<{ state?: string; district?: string; schoolId?: string; studentId?: string } | null>(null);
 
   // The filter kit writes every keystroke straight to the URL, which would put a
   // request on the wire per character. Debounced here rather than inside the kit so
@@ -158,7 +158,7 @@ export default function SharedTrackerPage() {
                   {open && (
                     <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-4">
                       {recordScope === null ? (
-                        <PartnerDrill task={t} onOpenRecords={setRecordScope} />
+                        <PartnerDrill task={t} filters={debounced} onOpenRecords={setRecordScope} />
                       ) : (
                         <>
                           <button

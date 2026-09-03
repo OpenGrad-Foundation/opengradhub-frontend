@@ -36,9 +36,15 @@ const LEVEL_TITLE: Record<Level, string> = {
 
 type Crumb = { level: Level; key: string; label: string };
 
-export function PartnerDrill({ task, onOpenRecords }: {
+export function PartnerDrill({ task, filters, onOpenRecords }: {
   task: PartnerTaskRow;
-  onOpenRecords: (scope: { state?: string; district?: string; schoolId?: string }) => void;
+  /** The page's own filter bar. Carried through so the breakdown counts the same
+   *  records the task card above it does; without it the two disagree on screen
+   *  and nothing says which is right. */
+  filters: Record<string, unknown>;
+  onOpenRecords: (scope: {
+    state?: string; district?: string; schoolId?: string; studentId?: string;
+  }) => void;
 }) {
   // A staff task has no geography at all, so the drill would be one bucket deep.
   // Sending the official straight to the records is more honest than a level that
@@ -55,7 +61,7 @@ export function PartnerDrill({ task, onOpenRecords }: {
   };
 
   const { data: rows, isLoading } = usePartnerBreakdown(
-    geographic ? task.template_id : null, { level, ...scope },
+    geographic ? task.template_id : null, { ...filters, level, ...scope },
   );
 
   if (!geographic) {
@@ -113,12 +119,22 @@ export function PartnerDrill({ task, onOpenRecords }: {
           {rows.map((r) => {
             const pct = r.total === 0 ? 0 : Math.round((r.done / r.total) * 100);
             // The last level opens the records; everything above it goes deeper.
-            const go = () => (atLeaf
-              ? onOpenRecords({
-                ...scope,
-                ...(level === "school" ? { schoolId: r.key } : {}),
-              })
-              : setPath([...path, { level, key: r.key, label: r.label }]));
+            // At the leaf the clicked row IS the scope, so its own key has to go
+            // in: without it, clicking one student opened every record for the
+            // school, and clicking one school every record in the zone.
+            // The no-place bucket has no geography to drill THROUGH — its state and
+            // zone are null — so going deeper would ask the server to match a
+            // sentinel against a real column and return nothing. It goes straight to
+            // its records instead, at whatever level it appears.
+            const go = () => (r.key === PARTNER_NO_PLACE
+              ? onOpenRecords({ schoolId: PARTNER_NO_PLACE })
+              : atLeaf
+                ? onOpenRecords({
+                  ...scope,
+                  ...(level === "school" ? { schoolId: r.key } : {}),
+                  ...(level === "student" ? { studentId: r.key } : {}),
+                })
+                : setPath([...path, { level, key: r.key, label: r.label }]));
             return (
               <li key={r.key}>
                 <button onClick={go} className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-gray-50">

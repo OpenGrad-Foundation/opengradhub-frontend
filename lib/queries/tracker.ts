@@ -299,7 +299,7 @@ export function usePartnerFacets() {
 
 export function usePartnerBreakdown(
   templateId: string | null,
-  params: { level: string; state?: string; district?: string; schoolId?: string },
+  params: Record<string, unknown> & { level: string },
 ) {
   return useQuery({
     queryKey: qk.partnerBreakdown(templateId ?? "", JSON.stringify(params)),
