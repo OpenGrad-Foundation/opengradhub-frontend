@@ -39,8 +39,11 @@ export default function NewQuizPage() {
   // form rather than inside the question builder. Carrying module_id/course_id
   // through is what keeps the import scoped to this module instead of the
   // global test bank.
+  // `from` rides along so the import lands the author back where they started
+  // instead of on the quiz it just created.
   const bulkImportQuery = new URLSearchParams(
-    Object.entries({ course_id: courseId, module_id: moduleId }).filter(([, v]) => v),
+    Object.entries({ course_id: courseId, module_id: moduleId, from: params.get("from") ?? backHref })
+      .filter(([, v]) => v) as [string, string][],
   ).toString();
   const bulkImportHref = `/dashboard/quiz-builder/bulk-import${bulkImportQuery ? `?${bulkImportQuery}` : ""}`;
 
