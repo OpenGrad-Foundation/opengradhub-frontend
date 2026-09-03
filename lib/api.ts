@@ -1750,6 +1750,12 @@ export type Quiz = {
   // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
   due_at: string | null;
   archived_at: string | null;
+  // ── Programme ownership (migration 128) ──
+  // Present on list rows. For a module quiz these describe its COURSE's
+  // programme, which is where a module quiz's ownership actually lives.
+  owner_programme_id?: string | null;
+  owner_programme_name?: string | null;
+  effective_scope_mode?: "LEGACY" | "PROGRAMME" | "GLOBAL";
 };
 
 export type CreateQuizPayload = {
@@ -1761,6 +1767,12 @@ export type CreateQuizPayload = {
   shuffle_questions?: boolean;
   show_answers_after?: boolean;
   quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
+  /**
+   * Owning programme, for a GLOBAL_TEST. Omit when you belong to exactly one —
+   * the server fills it in. A module quiz ignores this: it belongs to whichever
+   * programme owns its course.
+   */
+  programme_id?: string | null;
   // No created_by: the server takes authorship from the access token.
   is_sectioned?: boolean;
   sequential_sections?: boolean;
@@ -1770,6 +1782,52 @@ export type CreateQuizPayload = {
   correct_marks?: number;
   wrong_marks?: number;
 };
+
+/**
+ * Copy a quiz into a programme you belong to.
+ *
+ * The sanctioned way to use another programme's material: a quiz belongs to one
+ * programme, so you take a copy rather than sharing theirs. The copy reuses the
+ * same question rows — the question bank is global — and starts unpublished
+ * with no batch or bundle assignments.
+ */
+export async function duplicateQuiz(
+  quizId: string,
+  programmeId?: string | null,
+): Promise<Quiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/duplicate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId ?? null }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    // The server's message is the useful one here — it names why the copy was
+    // refused (not a member of that programme, quiz not visible).
+    throw new ApiError(e?.message ?? "Failed to duplicate quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+/**
+ * Give an UNOWNED quiz to a programme. Assign, not reassign — a quiz another
+ * programme already owns has to be duplicated instead.
+ */
+export async function assignQuizProgramme(
+  quizId: string,
+  programmeId: string | null,
+): Promise<Quiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/programme`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to assign quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
 
 export async function getQuizzes(
   params: { module_id?: string; quiz_type?: string; archived?: boolean } = {},
