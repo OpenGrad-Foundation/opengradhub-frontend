@@ -4,6 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useState, type React
 import Link from "next/link";
 import {
   BookOpen,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FilterX,
@@ -873,18 +874,25 @@ function FilterSelect({
       <span className="font-semibold text-[rgba(3,72,82,0.5)]">
         {label}:
       </span>
-      <select
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="bg-transparent font-medium text-[var(--dark-teal)] outline-none cursor-pointer disabled:cursor-not-allowed disabled:text-[rgba(3,72,82,0.45)]"
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <span className="relative inline-flex items-center">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          className="appearance-none bg-transparent pr-4 font-medium text-[var(--dark-teal)] outline-none cursor-pointer disabled:cursor-not-allowed disabled:text-[rgba(3,72,82,0.45)]"
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDown
+          size={12}
+          aria-hidden
+          className="pointer-events-none absolute right-0 text-[rgba(3,72,82,0.45)]"
+        />
+      </span>
     </label>
   );
 }
