@@ -243,7 +243,23 @@ export async function getStudentsList(): Promise<StudentRosterPage> {
   if (!response.ok) {
     throw new ApiError("Failed to fetch students.", response.status);
   }
-  return (await response.json()) as StudentRosterPage;
+  return toRosterPage(await response.json());
+}
+
+/**
+ * GET /users/students pages its response; older backends answer with a bare
+ * array. Normalise both so a shape mismatch degrades into a missing row cap
+ * warning rather than a crash on `page.items.filter`.
+ */
+function toRosterPage(body: unknown): StudentRosterPage {
+  if (Array.isArray(body)) {
+    const items = body as StudentRosterItem[];
+    return { items, total: items.length, truncated: false };
+  }
+  const page = (body ?? {}) as Partial<StudentRosterPage>;
+  const items = page.items ?? [];
+  const total = page.total ?? items.length;
+  return { items, total, truncated: page.truncated ?? total > items.length };
 }
 
 /**
@@ -3994,7 +4010,8 @@ export async function getStudentsForBulk(
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
   }
-  return (await r.json()) as StudentForBulk[];
+  // Same paged endpoint as getStudentsList; this caller only needs the rows.
+  return toRosterPage(await r.json()).items;
 }
 
 export async function bulkEnrol(payload: {

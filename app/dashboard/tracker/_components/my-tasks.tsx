@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { useTrackerMyTasks } from "@/lib/queries/tracker";
 import type { TrackerMyTask } from "@/lib/tracker-api";
-import { rollupFromLifecycles, TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } from "@/lib/tracker-status";
+import { rollupFromLifecycles, TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
+import { applyFilters, type FilterDef, type FilterState } from "@/lib/filters";
 import { StatusCards } from "./status-cards";
+import { FilterBar } from "./filter-bar";
+import { myTasksGroupFilterSpec, myTasksRecordFilterSpec } from "./filter-specs";
 
 const TARGET_NOUN: Record<TrackerMyTask["target_type"], string> = {
   student: "students",
@@ -27,7 +30,6 @@ type GroupedTask = {
   doneCount: number;
   state: TaskState; // rolled-up 4-state task status (the record grid keeps the 5-state lifecycle)
   target_name: string | null; // shown only when the task has a single target
-  schools: string[]; // distinct school names across the task's records (for filtering)
 };
 
 function groupTasksByTemplate(tasks: TrackerMyTask[]): GroupedTask[] {
@@ -53,13 +55,17 @@ function groupTasksByTemplate(tasks: TrackerMyTask[]): GroupedTask[] {
       doneCount,
       state: rollupFromLifecycles(recs.map((r) => r.lifecycle)),
       target_name: count === 1 ? first.target_name : null,
-      schools: Array.from(new Set(recs.map((r) => r.school_name).filter(Boolean) as string[])),
     });
   }
   return out;
 }
 
-export function MyTasksList({ onOpen }: { onOpen: (templateId: string) => void }) {
+export function MyTasksList({
+  onOpen, filters,
+}: {
+  onOpen: (templateId: string) => void;
+  filters?: FilterControls;
+}) {
   const { data = [], isLoading, error } = useTrackerMyTasks();
   if (isLoading) {
     return <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
@@ -72,24 +78,85 @@ export function MyTasksList({ onOpen }: { onOpen: (templateId: string) => void }
       </div>
     );
   }
-  return <TaskListView tasks={data} onOpen={onOpen} emptyTitle="You're all caught up" emptyDetail="Tasks assigned to you will show up here." />;
+  return <TaskListView tasks={data} onOpen={onOpen} filters={filters} emptyTitle="You're all caught up" emptyDetail="Tasks assigned to you will show up here." />;
+}
+
+/** Filter state plus its setters. Supplied by the page (URL-backed) for the main
+ *  My Tasks tab; the component falls back to local state where a list is embedded
+ *  in another view and does not own the URL. */
+export type FilterControls = {
+  state: FilterState;
+  set: (patch: FilterState) => void;
+  clear: () => void;
+  activeCount: number;
+};
+
+function useLocalFilters(): FilterControls {
+  const [state, setState] = useState<FilterState>({});
+  return {
+    state,
+    set: (patch) => setState((prev) => ({ ...prev, ...patch })),
+    clear: () => setState({}),
+    activeCount: Object.values(state).filter((v) =>
+      typeof v === "string" ? v.trim() !== "" : typeof v === "boolean" ? v : Boolean(v?.from || v?.to)).length,
+  };
 }
 
 export function TaskListView({
   tasks,
   onOpen,
+  filters,
   emptyTitle = "No tasks",
   emptyDetail = "Nothing here yet.",
 }: {
   tasks: TrackerMyTask[];
   onOpen: (templateId: string) => void;
+  filters?: FilterControls;
   emptyTitle?: string;
   emptyDetail?: string;
 }) {
-  const [priorityF, setPriorityF] = useState("");
-  const [statusF, setStatusF] = useState("");
-  const [schoolF, setSchoolF] = useState("");
+  const local = useLocalFilters();
+  const f = filters ?? local;
   const [sort, setSort] = useState<"priority" | "deadline" | "newest" | "oldest">("priority");
+
+  // School options come from the rows themselves, keyed by ID: two schools may share
+  // a name, and filtering by name would silently merge them.
+  const schoolOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const t of tasks) if (t.school_id) byId.set(t.school_id, t.school_name ?? t.school_id);
+    return [...byId].map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [tasks]);
+
+  const recordSpec = useMemo<FilterDef<TrackerMyTask>[]>(
+    () => myTasksRecordFilterSpec.map((d) => (d.key === "school" ? { ...d, options: schoolOptions } : d)),
+    [schoolOptions],
+  );
+  // One bar, both stages: the split is about WHEN each filter runs, not what the
+  // user sees. School is dropped when there is nothing to choose between.
+  const barSpec = useMemo(
+    () => [...myTasksGroupFilterSpec, ...recordSpec.filter((d) => d.key !== "school" || schoolOptions.length > 1)],
+    [recordSpec, schoolOptions.length],
+  ) as FilterDef<never>[];
+
+  const { groups, filtered, counts } = useMemo(() => {
+    // Stage 1 — record-level filters, BEFORE grouping. School, issue date and proof
+    // all describe a record; applying them after the rollup would ask "is this task
+    // in that school" of a task spanning five.
+    const records = applyFilters(tasks, recordSpec, f.state);
+    const grouped = groupTasksByTemplate(records);
+
+    // Stage 2 — task-level filters, against the rolled-up state.
+    const shown = applyFilters(grouped, myTasksGroupFilterSpec, f.state);
+
+    // The cards count everything the OTHER filters admit, with the status filter
+    // itself removed — so every card shows a number you can actually reach, and
+    // picking one narrows the list without changing its neighbours.
+    const forCounts = applyFilters(grouped, myTasksGroupFilterSpec, { ...f.state, status: undefined });
+    const tally: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
+    for (const g of forCounts) tally[g.state] += 1;
+    return { groups: grouped, filtered: shown, counts: tally };
+  }, [tasks, recordSpec, f.state]);
 
   if (tasks.length === 0) {
     return (
@@ -100,58 +167,41 @@ export function TaskListView({
     );
   }
 
-  const groups = groupTasksByTemplate(tasks);
-  const counts: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
-  for (const g of groups) counts[g.state] += 1;
-  const schools = Array.from(new Set(tasks.map((t) => t.school_name).filter(Boolean) as string[])).sort();
   const prank = { high: 0, medium: 1, low: 2 } as const;
-  const filtered = groups
-    .filter((g) => (!priorityF || g.priority === priorityF) && (!statusF || g.state === statusF) && (!schoolF || g.schools.includes(schoolF)))
-    .sort((a, b) => {
-      if (sort === "priority") return prank[a.priority] - prank[b.priority] || (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
-      if (sort === "deadline") return (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
-      if (sort === "newest") return (b.issued_at ?? "").localeCompare(a.issued_at ?? "");
-      return (a.issued_at ?? "").localeCompare(b.issued_at ?? "");
-    });
+  const ordered = [...filtered].sort((a, b) => {
+    if (sort === "priority") return prank[a.priority] - prank[b.priority] || (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
+    if (sort === "deadline") return (a.deadline ?? "9999").localeCompare(b.deadline ?? "9999");
+    if (sort === "newest") return (b.issued_at ?? "").localeCompare(a.issued_at ?? "");
+    return (a.issued_at ?? "").localeCompare(b.issued_at ?? "");
+  });
+  void groups;
 
+  const activeStatus = (f.state.status ?? null) as TaskState | null;
   const selCls = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500";
 
   return (
     <div className="flex flex-col gap-3">
       <StatusCards
         counts={counts}
-        activeState={(statusF || null) as TaskState | null}
-        onSelect={(s) => setStatusF((prev) => (prev === s ? "" : s))}
+        activeState={activeStatus}
+        onSelect={(s) => f.set({ status: activeStatus === s ? undefined : s })}
       />
-      <div className="flex flex-wrap gap-2">
-        <select value={priorityF} onChange={(e) => setPriorityF(e.target.value)} className={selCls}>
-          <option value="">All priorities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selCls}>
-          <option value="">All statuses</option>
-          {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
-        </select>
-        {schools.length > 1 && (
-          <select value={schoolF} onChange={(e) => setSchoolF(e.target.value)} className={selCls}>
-            <option value="">All schools</option>
-            {schools.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-        )}
+      <FilterBar
+        spec={barSpec} state={f.state} set={f.set} clear={f.clear} activeCount={f.activeCount}
+        primaryKeys={["priority", "status"]}
+      >
         <select value={sort} onChange={(e) => setSort(e.target.value as typeof sort)} className={selCls + " ml-auto"}>
           <option value="priority">Sort: Priority</option>
           <option value="deadline">Sort: Deadline</option>
           <option value="newest">Sort: Newest</option>
           <option value="oldest">Sort: Oldest</option>
         </select>
-      </div>
-      {filtered.length === 0 ? (
+      </FilterBar>
+      {ordered.length === 0 ? (
         <p className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500">No tasks match these filters.</p>
       ) : (
       <ul className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      {filtered.map((task) => {
+      {ordered.map((task) => {
         const meta = TASK_STATE_META[task.state];
         return (
           <li key={task.template_id}>

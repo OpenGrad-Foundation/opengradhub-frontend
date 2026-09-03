@@ -16,7 +16,9 @@ import {
   getTrackerAllTasks,
   getTrackerTaskSummary,
   getTrackerTaskBreakdown,
+  getTrackerFacets,
   type TrackerTaskSummaryFilters,
+  type TrackerTaskState,
   type TrackerDrillLevel,
   getTrackerZms,
   getTrackerZmFellows,
@@ -160,12 +162,27 @@ export function useTrackerTaskBreakdown(
   parentId: string | undefined,
   q: string,
   page: number,
+  status?: TrackerTaskState,
 ) {
   return useQuery({
-    queryKey: qk.trackerTaskBreakdown(templateId ?? '', level, parentId ?? '', q, page),
-    queryFn: () => getTrackerTaskBreakdown(templateId as string, { level, parentId, q: q || undefined, page }),
+    // `status` belongs in the key: without it, switching status would serve the
+    // previous status's rows out of cache.
+    queryKey: qk.trackerTaskBreakdown(templateId ?? '', level, parentId ?? '', q, status ?? '', page),
+    queryFn: () => getTrackerTaskBreakdown(templateId as string, {
+      level, parentId, q: q || undefined, status, page,
+    }),
     enabled: Boolean(templateId),
     staleTime: 30_000,
+  });
+}
+
+/** Filter dropdown options for the caller's scope. Rarely changes, so cached longer. */
+export function useTrackerFacets(enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerFacets(),
+    queryFn: getTrackerFacets,
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }
 

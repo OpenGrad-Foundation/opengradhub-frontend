@@ -135,8 +135,10 @@ export const qk = {
   trackerFellowTasks: (fellowId: string) => ['og', 'tracker', 'fellow-tasks', fellowId] as const,
   trackerAllTasks: (f: Record<string, unknown>) => ['og', 'tracker', 'all-tasks', f] as const,
   trackerTaskSummary: (f: Record<string, unknown>) => ['og', 'tracker', 'task-summary', f] as const,
-  trackerTaskBreakdown: (templateId: string, level: string, parentId: string, q: string, page: number) =>
-    ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, page] as const,
+  trackerTaskBreakdown: (
+    templateId: string, level: string, parentId: string, q: string, status: string, page: number,
+  ) => ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, status, page] as const,
+  trackerFacets: () => ['og', 'tracker', 'facets'] as const,
   trackerZms: () => ['og', 'tracker', 'zms'] as const,
   trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
   trackerFellowSchools: (fellowId: string) => ['og', 'tracker', 'fellow-schools', fellowId] as const,

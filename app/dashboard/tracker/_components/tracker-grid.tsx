@@ -35,6 +35,8 @@ export function TrackerEditableGrid({
   canClear,
   statusFilter = "",
   onStatusFilterChange,
+  visibleRows: visibleRowsProp,
+  filterBar,
   viewingOther = false,
   canOverrideGeo = false,
   canGrantExtension = false,
@@ -49,6 +51,14 @@ export function TrackerEditableGrid({
   /** 4-state status filter shared with the card strip above the grid. */
   statusFilter?: TaskState | "";
   onStatusFilterChange?: (state: TaskState | "") => void;
+  /** The rows the active filters admit. `grid.rows` stays the WHOLE set: the
+   *  school-verification map, the override count and the full export all describe
+   *  the task, not the current view, and quietly narrowing them would understate
+   *  how much work is really there. */
+  visibleRows?: TrackerGridRow[];
+  /** The filter row itself, owned by the panel above so the status cards can count
+   *  the same set the table shows. */
+  filterBar?: React.ReactNode;
   /** True when a manager is drilled into someone else's rows: the visit panel is
    *  then read-only, since only the doer can supply their own visit photo. */
   viewingOther?: boolean;
@@ -66,6 +76,8 @@ export function TrackerEditableGrid({
    *  override mode when the manager switches to someone else. */
   owner?: { id: string; name: string } | null;
 }) {
+  // Unfiltered by default: a grid rendered without a filter set shows all its rows.
+  const visibleRows = visibleRowsProp ?? grid.rows;
   const save = useSaveTrackerBatch();
   const saveOnBehalf = useSaveTrackerBatchOnBehalf();
   const raise = useRaiseTrackerBlocker();
@@ -132,8 +144,6 @@ export function TrackerEditableGrid({
   // The verification dialog: opened from the toolbar chip (browse/replace a photo) or
   // by the gate itself, when a row cannot reach done without its school verified.
   const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
-  const [schoolFilter, setSchoolFilter] = useState("");
-  const [search, setSearch] = useState("");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [exporting, setExporting] = useState<"records" | "history" | null>(null);
   // One open menu at a time, and one wrapper to detect a click outside either of them.
@@ -154,23 +164,10 @@ export function TrackerEditableGrid({
     [grid.columns],
   );
 
-  const schools = useMemo(
-    () => Array.from(new Set(grid.rows.map((r) => r.school_name).filter(Boolean) as string[])).sort(),
-    [grid.rows],
-  );
-  const hasSchool = schools.length > 0;
+  const hasSchool = grid.rows.some((r) => r.school_name);
   // For student/fellow rows, show WHO the row is about (the school column already covers schools).
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
   const nameHeader = template.target_type === "fellow" ? IN_CHARGE : "Student";
-  const visibleRows = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return grid.rows.filter((r) =>
-      (!schoolFilter || r.school_name === schoolFilter) &&
-      (!statusFilter || taskStateFromLifecycle(r.lifecycle) === statusFilter) &&
-      (!q || (r.target_name ?? "").toLowerCase().includes(q) || (r.school_name ?? "").toLowerCase().includes(q)
-        || r.cells.some((c) => String(c.value ?? "").toLowerCase().includes(q))));
-  }, [grid.rows, schoolFilter, statusFilter, search]);
-
   const dirtyCount = Object.values(drafts).filter((d) => Object.keys(d.values).length > 0 || d.status !== undefined).length;
 
   function setCell(recordId: string, key: string, value: unknown) {
@@ -462,20 +459,14 @@ export function TrackerEditableGrid({
   // The two row containers below round their own bottom corners instead.
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
+      {filterBar ? <div className="border-b border-gray-100 px-4 py-3">{filterBar}</div> : null}
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rows…" className="h-8 w-40 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500" />
           <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
             <option value="">All statuses</option>
             {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
-          {schools.length > 1 && (
-            <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
-              <option value="">All schools</option>
-              {schools.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          )}
           <GeoStatusChip
             template={template}
             // Every school of the task, not just the filtered subset: the count must
