@@ -64,9 +64,9 @@ const MEMBERSHIP_HELP =
  * is opened.
  */
 const TABS = [
+  { key: "overview", label: "Overview" },
   { key: "people",   label: "People" },
   { key: "students", label: "Students" },
-  { key: "analytics", label: "Analytics" },
   { key: "schools",  label: "Schools" },
   { key: "batches",  label: "Batches" },
   { key: "content",  label: "Content" },
@@ -98,7 +98,11 @@ export default function ProgrammeDetailPage() {
   const canManageMembers = has(PERM.programmes.manage_members);
 
   const { data: programme, isLoading, error } = useProgramme(id);
-  const [tab, setTab] = useState<TabKey>("people");
+  // Overview lands first. People was the default because it was the only tab
+  // when this page was a membership editor; the hub now answers "how is this
+  // programme doing" before "who is on it", and the numbers are the cheapest
+  // thing here to fetch.
+  const [tab, setTab] = useState<TabKey>("overview");
   const [banner, setBanner] = useState<Banner | null>(null);
   const notify: Notify = (message, tone = "error") =>
     setBanner(message === null ? null : { text: message, tone });
@@ -194,7 +198,7 @@ export default function ProgrammeDetailPage() {
         />
       )}
       {tab === "students" && <StudentsSection programmeId={id} />}
-      {tab === "analytics" && <AnalyticsSection programmeId={id} />}
+      {tab === "overview" && <OverviewSection programmeId={id} />}
       {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "content" && <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />}
@@ -488,7 +492,7 @@ function statCard(label: string, value: string, hint?: string) {
  * someone transfers. Said on screen, because a number nobody can interpret is
  * worse than no number.
  */
-function AnalyticsSection({ programmeId }: { programmeId: string }) {
+function OverviewSection({ programmeId }: { programmeId: string }) {
   const { data, isLoading, error } = useProgrammeOverview(programmeId);
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
@@ -499,7 +503,7 @@ function AnalyticsSection({ programmeId }: { programmeId: string }) {
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>Analytics</h2>
+      <h2 style={{ ...titleStyle, fontSize: 17 }}>Overview</h2>
 
       <div>
         <div style={{ ...labelStyle, marginBottom: 8 }}>Reach</div>
@@ -541,11 +545,35 @@ function AnalyticsSection({ programmeId }: { programmeId: string }) {
           {statCard("Attendance marks", String(o.activity.attendance_marks))}
           {statCard("Tracker records", String(o.activity.tracker_records))}
         </div>
-        <div style={{ ...noticeStyle, marginTop: 10 }}>
-          Activity counts what happened <strong>in this programme</strong>, recorded at the
-          time. A student who transfers takes their future work with them and leaves their
-          history here, so these figures do not change retrospectively.
+      </div>
+
+      <div>
+        <div style={{ ...labelStyle, marginBottom: 8 }}>Doubts</div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {/* Read through optional access, because during a rolling deploy this
+              page is served by the new frontend while some requests still land
+              on an instance of the old API that has never heard of `doubts`.
+              Dereferencing it flat would take the whole Overview tab down with a
+              TypeError for the length of the rollout. */}
+          {statCard("Open", String(o.doubts?.open ?? 0))}
+          {statCard("Answered", String(o.doubts?.answered ?? 0))}
         </div>
+        {/* Said plainly, because the number will otherwise look broken. A doubt
+            is stamped with its author's programme at submission, and nothing in
+            the app assigns a student a programme yet — so on real data almost
+            every doubt is unstamped and these read zero while the Doubts page is
+            full. Counting the unstamped ones here would be worse than a zero:
+            they belong to no programme, so putting them under this one would be
+            inventing the figure. Their visibility does not depend on the stamp —
+            the school's in-charge and their managers see them either way. */}
+        {(o.doubts?.open ?? 0) + (o.doubts?.answered ?? 0) === 0 && (
+          <div style={{ ...noticeStyle, marginTop: 10 }}>
+            No doubts carry this programme&rsquo;s stamp yet. A doubt is filed under the
+            programme its author is assigned to, so until students are assigned one, doubts
+            stay visible and answerable on the <strong>Doubts</strong> page without counting
+            here.
+          </div>
+        )}
       </div>
     </section>
   );

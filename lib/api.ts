@@ -3658,8 +3658,9 @@ export type Doubt = {
   body: string;
   status: "OPEN" | "ANSWERED";
   answer: string | null;
-  escalated_to_zm_at: string | null;
-  escalated_to_pm_at: string | null;
+  /** The cohort this doubt was asked in, frozen at submission. NULL whenever
+   *  the student's affiliation is unknown, which today is most of them. */
+  programme_id: string | null;
   answered_by_user_id: string | null;
   answered_at: string | null;
   created_at: string;
@@ -4851,6 +4852,13 @@ export interface ProgrammeOverview {
     attendance_marks: number;
     tracker_records: number;
   };
+  /** Doubts carrying this programme's stamp. Unstamped doubts belong to no
+   *  programme and are deliberately absent from both counts.
+   *
+   *  Optional because an API instance from before this field existed can still
+   *  serve a request during a rolling deploy — the type says what the consumer
+   *  must actually handle, rather than what the current backend happens to send. */
+  doubts?: { open: number; answered: number };
 }
 
 export type ProgrammeReachVia = "PROGRAMME" | "BATCH" | "SCHOOL";

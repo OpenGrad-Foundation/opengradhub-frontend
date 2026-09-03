@@ -113,7 +113,7 @@ export default function DoubtsPage() {
 
 // ── Staff View ─────────────────────────────────────────────────
 
-type StaffFilter = 'ALL' | 'OPEN' | 'ESCALATED' | 'ANSWERED' | 'ORPHAN';
+type StaffFilter = 'ALL' | 'OPEN' | 'ANSWERED';
 
 function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId }: {
   doubts: Doubt[];
@@ -125,7 +125,7 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   focusId: string | null;
 }) {
   // When deep-linked to a specific doubt, show ALL so it isn't hidden by the
-  // default OPEN filter (it may already be answered/escalated).
+  // default OPEN filter (it may already be answered).
   const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : 'OPEN');
   const [answering, setAnswering] = useState<Doubt | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -160,9 +160,7 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   const filtered = doubts.filter((d) => {
     switch (filter) {
       case 'OPEN':      return d.status === 'OPEN';
-      case 'ESCALATED': return d.status === 'OPEN' && (d.escalated_to_zm_at || d.escalated_to_pm_at);
       case 'ANSWERED':  return d.status === 'ANSWERED';
-      case 'ORPHAN':    return d.school_name == null;
       default:          return true;
     }
   });
@@ -174,7 +172,7 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        {(["ALL", "OPEN", "ESCALATED", "ANSWERED", "ORPHAN"] as StaffFilter[]).map((f) => (
+        {(["ALL", "OPEN", "ANSWERED"] as StaffFilter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -231,11 +229,19 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
   deleting: boolean;
 }) {
   const daysOpen = Math.floor((Date.now() - new Date(doubt.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  // Age, stated directly, where the escalation tier used to be.
+  //
+  // The badge always meant "how neglected is this" — it just said so through
+  // the ladder, because the ladder was the only thing that measured neglect.
+  // With escalation gone the in-charge, their ZM and their PM all see a doubt
+  // from the moment it is asked, so the colour reads off the age instead. The
+  // old thresholds are kept: 3 days was when it used to reach a ZM, 6 a PM.
   const tier =
-    doubt.status === "ANSWERED"    ? { label: "Answered",         color: "#0abe62", bg: "rgba(10,190,98,0.1)" } :
-    doubt.escalated_to_pm_at       ? { label: "Escalated to PM",  color: "#c53030", bg: "rgba(229,62,62,0.1)" } :
-    doubt.escalated_to_zm_at       ? { label: "Escalated to ZM",  color: "#d97706", bg: "rgba(217,119,6,0.1)" } :
-                                     { label: `Open · ${daysOpen}d`, color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
+    doubt.status === "ANSWERED" ? { label: "Answered",             color: "#0abe62",           bg: "rgba(10,190,98,0.1)" } :
+    daysOpen >= 6               ? { label: `Open · ${daysOpen}d`,  color: "#c53030",           bg: "rgba(229,62,62,0.1)" } :
+    daysOpen >= 3               ? { label: `Open · ${daysOpen}d`,  color: "#d97706",           bg: "rgba(217,119,6,0.1)" } :
+                                  { label: `Open · ${daysOpen}d`,  color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
 
   return (
     <div id={`doubt-${doubt.id}`} style={{
@@ -246,7 +252,7 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
-            {doubt.student_name ?? "—"}{doubt.school_name ? ` · ${doubt.school_name}` : " · (orphan)"}
+            {doubt.student_name ?? "—"}{doubt.school_name ? ` · ${doubt.school_name}` : " · no school"}
           </p>
           <h3 style={{ margin: "3px 0 6px", fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 700, color: "#034852" }}>
             {doubt.subject}
