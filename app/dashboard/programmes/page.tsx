@@ -12,7 +12,7 @@ import { ApiError } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
-  noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
+  primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "./styles";
 
 /** Slug a display name into the A-Z0-9_ shape the API requires. */
@@ -58,24 +58,6 @@ export default function ProgrammesPage() {
             </button>
           )}
         </div>
-      </div>
-
-      {/*
-        This notice used to say membership granted nothing. That stopped being
-        true when the content-edit resolver shipped, and a banner that
-        understates a grant is worse than none: someone adds a fellow to
-        "UG Kerala" believing it is bookkeeping. State exactly what it does and
-        does not hand over. (programmes-wiring.spec.ts fails if the old wording
-        comes back.)
-      */}
-      <div style={noticeStyle}>
-        <strong>What membership grants.</strong> Members can edit the courses and assignments
-        a programme owns, if their role carries that permission — membership says WHICH
-        programme, the permission says what they may do. Owning content is not always enough to
-        edit it: if another programme&apos;s batch or students also use it, it stays read-only
-        for everyone but its creator. Membership never grants student data — rosters,
-        progress, attempts and scores stay with the school and batch hierarchy. It also never
-        grants a permission the member&apos;s role lacks.
       </div>
 
       {error && (

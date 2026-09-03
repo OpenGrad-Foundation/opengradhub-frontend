@@ -135,25 +135,18 @@ describe('content writes invalidate outside the programme family', () => {
   });
 });
 
-describe('the list-page notice describes the grant that exists', () => {
+describe('the list page makes no claim about what membership grants', () => {
   const page = fs.readFileSync(
     path.join(__dirname, '..', 'app', 'dashboard', 'programmes', 'page.tsx'),
     'utf-8',
   );
 
-  it('no longer claims membership grants nothing', () => {
-    // It said "Not wired to access yet" for one release after the content-edit
-    // resolver shipped. A banner that understates a grant is worse than none.
+  it('carries no grant-explanation notice', () => {
+    // The notice was removed on request. If one comes back it must not
+    // understate the grant the way the pre-resolver wording did.
     expect(page).not.toMatch(/not wired to access/i);
     expect(page).not.toMatch(/does not currently grant/i);
-  });
-
-  it('states both halves — what it grants and what it never grants', () => {
-    // The "what it grants" half no longer names a level: membership decides
-    // WHICH programme, the permission decides what. Pin the sentence that says
-    // so, or the notice can quietly drift back to promising authority.
-    expect(page).toMatch(/membership says WHICH\s+programme, the permission says what they may do/i);
-    expect(page).toMatch(/never grants student data/i);
+    expect(page).not.toMatch(/What membership grants/i);
   });
 });
 
