@@ -112,6 +112,7 @@ export const qk = {
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
   trackerAssignable: (targetType: string) => ['og', 'tracker', 'assignable', targetType] as const,
+  trackerMyProgrammes: () => ['og', 'tracker', 'my-programmes'] as const,
   trackerMyTasks: () => ['og', 'tracker', 'my-tasks'] as const,
   trackerRecordHistory: (recordId: string) => ['og', 'tracker', 'history', 'record', recordId] as const,
   trackerProofs: (recordId: string) => ['og', 'tracker', 'proofs', recordId] as const,

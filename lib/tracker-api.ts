@@ -216,6 +216,13 @@ export function getTrackerTemplate(id: string) {
   return trackerJson<TrackerTemplateDetail>(`/tracker/templates/${encodeURIComponent(id)}`);
 }
 
+/** The programmes the caller may attach a new task type to. Empty means they are
+ *  seated in none — the builder then shows no picker and the task type is created
+ *  without a programme, which is a valid state. */
+export function getTrackerMyProgrammes() {
+  return trackerJson<TrackerTargetProgramme[]>("/tracker/my-programmes");
+}
+
 export function createTrackerTemplate(input: CreateTrackerTemplateInput) {
   return trackerJson<{ id: string }>("/tracker/templates", jsonInit("POST", input));
 }
@@ -342,10 +349,20 @@ export type TrackerAssignable = {
    *  picker group and label ZMs vs fellows. Absent for school / student targets. */
   role?: string | null;
   district?: string | null;
-  programme?: string | null;
+  /**
+   * The ACTIVE programmes this target belongs to.
+   *
+   * The real entity, not the old `programme` string — that was `users.programme`,
+   * the legacy free-text UG/PG track, which is NULL for most staff and so fed a
+   * filter that never rendered. A staff member or school can be in several; a
+   * student has at most one. Always an array, never absent.
+   */
+  programmes: TrackerTargetProgramme[];
   school_id?: string | null;
   school_name?: string | null;
 };
+
+export type TrackerTargetProgramme = { id: string; name: string };
 
 export function getTrackerAssignable(targetType: TrackerTargetType, batchId?: string) {
   const q = `targetType=${encodeURIComponent(targetType)}${batchId ? `&batchId=${encodeURIComponent(batchId)}` : ""}`;

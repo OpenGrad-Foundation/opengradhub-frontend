@@ -9,6 +9,7 @@ import {
   getTrackerMineBlockers,
   getTrackerQueueBlockers,
   getTrackerAssignable,
+  getTrackerMyProgrammes,
   addBlockerComment,
   getBlockerThread,
   getTrackerFellows,
@@ -252,6 +253,17 @@ export function useTrackerAssignable(targetType: TrackerTargetType, enabled = tr
     queryFn: () => getTrackerAssignable(targetType, batchId || undefined),
     enabled,
     staleTime: 60_000,
+  });
+}
+
+/** The programmes this author may attach a new task type to. Long stale time: a
+ *  programme roster changes far less often than a task type is authored. */
+export function useTrackerMyProgrammes(enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerMyProgrammes(),
+    queryFn: getTrackerMyProgrammes,
+    enabled,
+    staleTime: 5 * 60_000,
   });
 }
 
