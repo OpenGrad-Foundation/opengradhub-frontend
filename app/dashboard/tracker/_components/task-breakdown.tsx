@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search } from "lucide-react";
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
-import { TASK_STATE_META, type TaskState } from "@/lib/tracker-status";
+import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 
@@ -119,8 +119,11 @@ function LevelList({
   onDrill: (row: TrackerBreakdownRow) => void;
 }) {
   const [q, setQ] = useState("");
+  const [status, setStatus] = useState<TaskState | "">("");
   const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useTrackerTaskBreakdown(templateId, level, parentId, q, page);
+  const { data, isLoading, error } = useTrackerTaskBreakdown(
+    templateId, level, parentId, q, page, status || undefined,
+  );
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -135,14 +138,25 @@ function LevelList({
         <div>
           <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-          <input
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
-            placeholder="Search…"
-            className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={status}
+            aria-label="Status"
+            onChange={(e) => { setStatus(e.target.value as TaskState | ""); setPage(1); }}
+            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500"
+          >
+            <option value="">All statuses</option>
+            {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
+          </select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+            <input
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              placeholder="Search…"
+              className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+            />
+          </div>
         </div>
       </div>
 
