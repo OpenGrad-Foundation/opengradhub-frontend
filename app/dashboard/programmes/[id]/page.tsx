@@ -10,6 +10,7 @@ import {
   ApiError, fetchSchools, getBatchImpact,
   type BatchImpact, type ProgrammeContentKind,
   type ProgrammeOverview, type ProgrammeStudent, type SchoolOption,
+  type ProgrammeReachVia, type ProgrammeSchool, type ProgrammeMember,
 } from "@/lib/api";
 import {
   useAssignableBatches, useAssignableContent, useEligibleProgrammeMembers, useProgramme,
@@ -261,13 +262,24 @@ function PeopleSection({
     }
   }
 
-  // Grouped by role, broadest first, names alphabetical inside each group.
-  const grouped = useMemo(() => {
-    const by = new Map<string, typeof members>();
-    for (const m of members) by.set(m.role, [...(by.get(m.role) ?? []), m]);
-    return [...by.entries()]
-      .sort(([a], [b]) => roleRank(a) - roleRank(b) || a.localeCompare(b))
-      .map(([role, rows]) => [role, [...rows].sort((x, y) => x.name.localeCompare(y.name))] as const);
+  // Two sections, then roles inside each. The split is the point: a seated
+  // member is a `programme_members` row and can be removed here; a derived one
+  // is reached because a school they run was attached, grants no authority at
+  // all, and cannot be removed from this page — you detach the school instead.
+  const sections = useMemo(() => {
+    const bySource = (src: ProgrammeMember["source"]) => {
+      const by = new Map<string, ProgrammeMember[]>();
+      for (const m of members.filter((x: ProgrammeMember) => x.source === src)) {
+        by.set(m.role, [...(by.get(m.role) ?? []), m]);
+      }
+      return [...by.entries()]
+        .sort(([a], [b]) => roleRank(a) - roleRank(b) || a.localeCompare(b))
+        .map(([role, rows]) => [role, [...rows].sort((x, y) => x.name.localeCompare(y.name))] as const);
+    };
+    return [
+      { src: "MEMBER" as const, label: "Seated in this programme", groups: bySource("MEMBER") },
+      { src: "SCHOOL" as const, label: "Reached through a school", groups: bySource("SCHOOL") },
+    ];
   }, [members]);
 
   return (
@@ -358,32 +370,85 @@ function PeopleSection({
             {!isLoading && members.length === 0 && (
               <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No one is on this programme yet.</td></tr>
             )}
-            {grouped.map(([role, rows]) => (
-              <Fragment key={role}>
-                <tr style={{ background: "rgba(3,72,82,0.03)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                  <td style={{ ...tdStyle, ...labelStyle, paddingTop: 10, paddingBottom: 10 }} colSpan={canManage ? 4 : 3}>
-                    {roleLabel(role)} · {rows.length}
-                  </td>
-                </tr>
-                {rows.map((m) => (
-              <tr key={m.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>
-                  {m.name}
-                  {m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
-                </td>
-                <td style={tdStyle}>{roleLabel(m.role)}</td>
-                {canManage && (
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
-                    <button
-                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
-                      onClick={() => run(() => removeMember.mutateAsync({ id: programmeId, userId: m.user_id }))}
-                    >
-                      Remove
-                    </button>
-                  </td>
+            {sections.map((section) => section.groups.length === 0 ? null : (
+              <Fragment key={section.src}>
+                {/* Only the derived section announces itself. "Seated in this
+                    programme" named the default — every members table in the app
+                    lists members — and cost a row of vertical space to say so. The
+                    school banner has to stay: those rows carry no membership, no
+                    Remove button, and disappear when the school is detached, none
+                    of which is visible from the row itself. */}
+                {section.src === "SCHOOL" && (
+                  <tr style={{ background: "rgba(3,72,82,0.06)", borderTop: "2px solid rgba(3,72,82,0.10)" }}>
+                    <td style={{ ...tdStyle, ...labelStyle, paddingTop: 12, paddingBottom: 12 }} colSpan={canManage ? 4 : 3}>
+                      {section.label}
+                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 8, color: "rgba(3,72,82,0.55)" }}>
+                        — they can see their part of this programme. They cannot administer it
+                        or edit its content, and they are removed by detaching the school.
+                      </span>
+                    </td>
+                  </tr>
                 )}
-              </tr>
-            ))}
+                {section.groups.map(([role, rows]) => (
+                  <Fragment key={`${section.src}-${role}`}>
+                    <tr style={{ background: "rgba(3,72,82,0.03)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                      <td style={{ ...tdStyle, ...labelStyle, paddingTop: 10, paddingBottom: 10 }} colSpan={canManage ? 4 : 3}>
+                        {roleLabel(role)} · {rows.length}
+                      </td>
+                    </tr>
+                    {rows.map((m) => (
+                      <tr key={m.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                        <td style={tdStyle}>
+                          {m.name}
+                          {m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
+                          {m.via_schools.length > 0 && (
+                            <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                              {m.via_schools.map((v) => (
+                                <span
+                                  key={v.school_id}
+                                  style={{
+                                    fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+                                    background: "rgba(59,130,246,0.10)", color: "#1d4ed8",
+                                  }}
+                                  title={
+                                    v.cause === "IN_CHARGE"
+                                      ? "They are the in-charge of this attached school."
+                                      : "They manage the in-charge of this attached school."
+                                  }
+                                >
+                                  via {v.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td style={tdStyle}>{roleLabel(m.role)}</td>
+                        {canManage && (
+                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                            {/* No Remove on a derived row: there is no membership
+                                to delete, and offering the button would promise an
+                                effect the endpoint cannot deliver. */}
+                            {m.source === "MEMBER" ? (
+                              <button
+                                style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                                onClick={() => run(() => removeMember.mutateAsync({ id: programmeId, userId: m.user_id }))}
+                                title={
+                                  m.via_schools.length > 0
+                                    ? "Removing their seat leaves them reachable through their school."
+                                    : undefined
+                                }
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: 12, color: "rgba(3,72,82,0.4)" }}>via school</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
               </Fragment>
             ))}
           </tbody>
@@ -439,7 +504,13 @@ function AnalyticsSection({ programmeId }: { programmeId: string }) {
       <div>
         <div style={{ ...labelStyle, marginBottom: 8 }}>Reach</div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {statCard("Students", String(o.students))}
+          {/* Two student measures, because one would now be a lie: `activity`
+              below is read from the immutable programme stamped on each fact,
+              while reach is current. With the school arm on, a student assigned
+              elsewhere who attends a hosted school enters the first number and
+              never the second. */}
+          {statCard("Students reached", String(o.reachable_students))}
+          {statCard("Assigned to programme", String(o.assigned_students))}
           {statCard("Schools", String(o.schools))}
           {statCard("Batches", String(o.batches))}
           {statCard("Staff", String(o.staff))}
@@ -498,46 +569,104 @@ function AnalyticsSection({ programmeId }: { programmeId: string }) {
 function StudentsSection({ programmeId }: { programmeId: string }) {
   const rowNav = useRowNavigation();
   const canOpenStudent = useAnyPermission(...STAFF_ANALYTICS_PERMISSIONS);
-  const { data: students = [], isLoading, error } = useProgrammeStudents(programmeId);
+  const { data: schools = [] } = useProgrammeSchools(programmeId);
+
   const [q, setQ] = useState("");
+  const [schoolId, setSchoolId] = useState("");
+  const [via, setVia] = useState<"" | ProgrammeReachVia>("");
+  const [page, setPage] = useState(0);
+  const PAGE = 200;
 
-  const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return students;
-    return students.filter(
-      (s: ProgrammeStudent) =>
-        s.name.toLowerCase().includes(needle) ||
-        (s.roll_number ?? "").toLowerCase().includes(needle) ||
-        (s.school_name ?? "").toLowerCase().includes(needle),
-    );
-  }, [students, q]);
+  // Debounced, because every keystroke is now a request rather than an
+  // in-memory filter.
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => { setDebounced(q); setPage(0); }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
 
-  const viaBatch = students.filter((s: ProgrammeStudent) => s.via === "BATCH").length;
+  const { data, isLoading, error, isPlaceholderData } = useProgrammeStudents(
+    programmeId,
+    true,
+    {
+      q: debounced || undefined,
+      school_id: schoolId || undefined,
+      via: via || undefined,
+      limit: PAGE,
+      offset: page * PAGE,
+    },
+  );
+  const students = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const filtering = Boolean(debounced || schoolId || via);
+
+  const viaBadge = (v: ProgrammeReachVia) => {
+    const style: React.CSSProperties = {
+      fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
+      background:
+        v === "PROGRAMME" ? "rgba(10,190,98,0.12)"
+        : v === "SCHOOL" ? "rgba(59,130,246,0.12)"
+        : "rgba(3,72,82,0.07)",
+      color:
+        v === "PROGRAMME" ? "#046b45"
+        : v === "SCHOOL" ? "#1d4ed8"
+        : "rgba(3,72,82,0.7)",
+    };
+    const title =
+      v === "PROGRAMME" ? "Assigned to this programme directly."
+      : v === "SCHOOL" ? "Attends a school attached to this programme. Detaching the school ends it."
+      : "Enrolled in one of this programme's batches. Moving that batch would end it.";
+    const label = v === "PROGRAMME" ? "Programme" : v === "SCHOOL" ? "School" : "Batch";
+    return <span key={v} style={style} title={title}>{label}</span>;
+  };
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h2 style={{ ...titleStyle, fontSize: 17 }}>Students</h2>
-        {students.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
-            style={{ ...inputStyle, width: 260 }}
+            style={{ ...inputStyle, width: 240 }}
             placeholder="Search name, roll number or school"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-        )}
+          <select
+            style={{ ...inputStyle, width: 200 }}
+            value={schoolId}
+            onChange={(e) => { setSchoolId(e.target.value); setPage(0); }}
+          >
+            <option value="">All schools</option>
+            {schools.map((sc: ProgrammeSchool) => (
+              <option key={sc.school_id} value={sc.school_id}>{sc.name}</option>
+            ))}
+          </select>
+          <select
+            style={{ ...inputStyle, width: 170 }}
+            value={via}
+            onChange={(e) => { setVia(e.target.value as "" | ProgrammeReachVia); setPage(0); }}
+          >
+            <option value="">Reached any way</option>
+            <option value="PROGRAMME">Assigned to programme</option>
+            <option value="BATCH">Through a batch</option>
+            <option value="SCHOOL">Through a school</option>
+          </select>
+        </div>
       </div>
 
       {error && <div style={errorStyle}>Failed to load students.</div>}
 
-      {!isLoading && students.length > 0 && (
+      {!isLoading && total > 0 && (
         <div style={noticeStyle}>
-          {students.length} student{students.length === 1 ? "" : "s"}
-          {viaBatch > 0 && <> · {viaBatch} reached through a batch rather than being assigned to this programme</>}
+          {filtering
+            ? `${total} matching student${total === 1 ? "" : "s"}`
+            : `${total} student${total === 1 ? "" : "s"}`}
+          {total > PAGE && <> · showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)}</>}
+          {" · a student can be reached more than one way, and every reason is shown"}
         </div>
       )}
 
-      <div style={cardStyle}>
+      <div style={{ ...cardStyle, opacity: isPlaceholderData ? 0.6 : 1 }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "rgba(3,72,82,0.03)" }}>
             <tr>
@@ -549,18 +678,19 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
           </thead>
           <tbody>
             {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
-            {!isLoading && students.length === 0 && (
+            {!isLoading && total === 0 && !filtering && (
               <tr>
                 <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>
                   No students yet. A student joins by being assigned to this programme in
-                  User management, or by being enrolled in one of its batches.
+                  User management, by being enrolled in one of its batches, or by attending
+                  one of its attached schools.
                 </td>
               </tr>
             )}
-            {!isLoading && students.length > 0 && filtered.length === 0 && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No student matches “{q}”.</td></tr>
+            {!isLoading && total === 0 && filtering && (
+              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No student matches these filters.</td></tr>
             )}
-            {filtered.map((s: ProgrammeStudent) => (
+            {students.map((s: ProgrammeStudent) => (
               <tr
                 key={s.user_id}
                 style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
@@ -582,19 +712,8 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
                 <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{s.roll_number ?? "—"}</td>
                 <td style={tdStyle}>{s.school_name ?? "—"}</td>
                 <td style={tdStyle}>
-                  <span
-                    style={{
-                      fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
-                      background: s.via === "PROGRAMME" ? "rgba(10,190,98,0.12)" : "rgba(3,72,82,0.07)",
-                      color: s.via === "PROGRAMME" ? "#046b45" : "rgba(3,72,82,0.7)",
-                    }}
-                    title={
-                      s.via === "PROGRAMME"
-                        ? "Assigned to this programme directly."
-                        : "Reached through one of this programme's batches. Moving that batch would end it."
-                    }
-                  >
-                    {s.via === "PROGRAMME" ? "Programme" : "Batch"}
+                  <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                    {s.via.map(viaBadge)}
                   </span>
                 </td>
               </tr>
@@ -602,11 +721,24 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
           </tbody>
         </table>
       </div>
+
+      {total > PAGE && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
+          <button style={secondaryButton} disabled={page === 0} onClick={() => setPage((n) => n - 1)}>
+            Previous
+          </button>
+          <button
+            style={secondaryButton}
+            disabled={(page + 1) * PAGE >= total}
+            onClick={() => setPage((n) => n + 1)}
+          >
+            Next
+          </button>
+        </div>
+      )}
     </section>
   );
 }
-
-// ── content ──────────────────────────────────────────────────────────────────
 
 const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row: string }> = [
   { key: "courses", label: "Courses", one: "course", row: "Course" },

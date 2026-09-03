@@ -4804,16 +4804,41 @@ export interface Programme {
   is_member?: boolean;
 }
 
+export interface ProgrammeMemberViaSchool {
+  school_id: string;
+  name: string;
+  /** IN_CHARGE = the school's own in-charge; MANAGER = someone above them. */
+  cause: "IN_CHARGE" | "MANAGER";
+}
+
 export interface ProgrammeMember {
   user_id: string;
   name: string;
+  /** Null on a derived row unless you administer this programme. */
   email: string | null;
   role: string;
-  added_at: string;
+  /** Null on a derived row — nobody added them, a school attachment did. */
+  added_at: string | null;
+  /**
+   * MEMBER = seated in the programme, and the only kind that can be removed
+   * here. SCHOOL = reached because a school they run was attached; grants no
+   * authority whatsoever.
+   */
+  source: "MEMBER" | "SCHOOL";
+  /** Populated on seated members too, where it answers "if I remove them, do
+   *  they actually go away?" — when a school still justifies them, they do not. */
+  via_schools: ProgrammeMemberViaSchool[];
 }
 
 export interface ProgrammeOverview {
-  students: number;
+  /**
+   * Everyone the programme currently reaches, including — when the school arm
+   * is on — students assigned elsewhere who attend a school it hosts.
+   */
+  reachable_students: number;
+  /** Students whose profile says this programme. The only student measure that
+   *  shares a denominator with `activity`, which is read from immutable stamps. */
+  assigned_students: number;
   schools: number;
   batches: number;
   staff: number;
@@ -4828,6 +4853,8 @@ export interface ProgrammeOverview {
   };
 }
 
+export type ProgrammeReachVia = "PROGRAMME" | "BATCH" | "SCHOOL";
+
 export interface ProgrammeStudent {
   user_id: string;
   name: string;
@@ -4835,8 +4862,26 @@ export interface ProgrammeStudent {
   school_id: string | null;
   school_name: string | null;
   status: string;
-  /** How this programme reaches them: their own programme, or an owned batch. */
-  via: "PROGRAMME" | "BATCH";
+  /**
+   * EVERY reason this programme reaches them, not just the strongest one — a
+   * student can belong to the programme, sit in one of its batches AND attend a
+   * school it hosts, and the tab exists to explain which.
+   */
+  via: ProgrammeReachVia[];
+}
+
+export interface ProgrammeStudentPage {
+  rows: ProgrammeStudent[];
+  /** Matching rows before the page limit — the roster is now server-filtered. */
+  total: number;
+}
+
+export interface ProgrammeStudentQuery {
+  q?: string;
+  school_id?: string;
+  via?: ProgrammeReachVia;
+  limit?: number;
+  offset?: number;
 }
 
 export interface ProgrammeSchool {
@@ -4913,9 +4958,21 @@ export async function getProgrammeOverview(id: string): Promise<ProgrammeOvervie
  * never the schools it hosts. A school can host two cohorts, so a school-based
  * arm would return the other one's roster.
  */
-export async function getProgrammeStudents(id: string): Promise<ProgrammeStudent[]> {
+export async function getProgrammeStudents(
+  id: string,
+  query: ProgrammeStudentQuery = {},
+): Promise<ProgrammeStudentPage> {
+  // Filtering and search moved to the server when the school arm made this
+  // roster large enough that the browser could no longer hold all of it.
+  const qs = new URLSearchParams();
+  if (query.q?.trim()) qs.set("q", query.q.trim());
+  if (query.school_id) qs.set("school_id", query.school_id);
+  if (query.via) qs.set("via", query.via);
+  if (query.limit !== undefined) qs.set("limit", String(query.limit));
+  if (query.offset !== undefined) qs.set("offset", String(query.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return programmeJson(
-    await apiFetch(`${API_BASE_URL}/programmes/${id}/students`),
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students${suffix}`),
     "Failed to load students.",
   );
 }
