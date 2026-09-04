@@ -20,10 +20,17 @@ export default function DoubtsPage() {
   // Deep-link target from the dashboard tasks/activity bar (?focus=<doubtId>).
   // Read from window to avoid the useSearchParams Suspense requirement.
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Which status the caller wants pre-selected (?status=OPEN|ANSWERED|ALL),
+  // sent by the doubts stat cards elsewhere in the dashboard so the count you
+  // clicked is the list you land on.
+  const [statusParam, setStatusParam] = useState<StaffFilter | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const f = new URLSearchParams(window.location.search).get("focus");
+    const q = new URLSearchParams(window.location.search);
+    const f = q.get("focus");
     if (f) setFocusId(f);
+    const s = (q.get("status") ?? "").toUpperCase();
+    if (s === "OPEN" || s === "ANSWERED" || s === "ALL") setStatusParam(s);
   }, []);
 
   // PBAC view gate:
@@ -60,6 +67,7 @@ export default function DoubtsPage() {
         canRespond={canRespond}
         canDelete={canDelete}
         focusId={focusId}
+        statusParam={statusParam}
       />
     );
   }
@@ -115,7 +123,7 @@ export default function DoubtsPage() {
 
 type StaffFilter = 'ALL' | 'OPEN' | 'ANSWERED';
 
-function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId }: {
+function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId, statusParam }: {
   doubts: Doubt[];
   loading: boolean;
   error: string | null;
@@ -123,10 +131,20 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   canRespond: boolean;
   canDelete: boolean;
   focusId: string | null;
+  statusParam: StaffFilter | null;
 }) {
   // When deep-linked to a specific doubt, show ALL so it isn't hidden by the
-  // default OPEN filter (it may already be answered).
-  const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : 'OPEN');
+  // default OPEN filter (it may already be answered). An explicit ?status wins
+  // over the default but not over a focused doubt, which would otherwise be
+  // filtered out of the very list it asked to scroll to.
+  const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : (statusParam ?? 'OPEN'));
+
+  // The params are read in an effect one tick after mount, so the initial state
+  // above misses them on the first render. Adopt them when they arrive.
+  useEffect(() => {
+    if (focusId) { setFilter('ALL'); return; }
+    if (statusParam) setFilter(statusParam);
+  }, [focusId, statusParam]);
   const [answering, setAnswering] = useState<Doubt | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const invalidate = useInvalidate();

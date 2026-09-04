@@ -2,6 +2,7 @@
 import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions, usePermission, useAnyPermission } from "@/hooks/use-permission";
 import { useCurrentUser } from "@/lib/queries/current-user";
@@ -464,16 +465,34 @@ function PeopleSection({
 
 // ── analytics ────────────────────────────────────────────────────────────────
 
-function statCard(label: string, value: string, hint?: string) {
-  return (
-    <div key={label} style={{ ...cardStyle, padding: "16px 18px", minWidth: 150, flex: "1 1 150px" }}>
+function statCard(label: string, value: string, hint?: string, href?: string) {
+  const body = (
+    <>
       <div style={{ ...labelStyle, marginBottom: 6 }}>{label}</div>
       <div style={{ fontFamily: "var(--font-heading)", fontSize: 26, fontWeight: 700, color: "#034852" }}>
         {value}
       </div>
       {hint && <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>{hint}</div>}
-    </div>
+    </>
   );
+  const box: React.CSSProperties = { ...cardStyle, padding: "16px 18px", minWidth: 150, flex: "1 1 150px" };
+
+  // A number that names a list people can act on is a link to that list. The
+  // ones with nowhere useful to go stay inert rather than growing a fake affordance.
+  if (href) {
+    return (
+      <Link
+        key={label}
+        href={href}
+        style={{ ...box, display: "block", textDecoration: "none", color: "inherit", cursor: "pointer" }}
+        aria-label={`${label}: ${value} — open list`}
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return <div key={label} style={box}>{body}</div>;
 }
 
 /**
@@ -550,8 +569,8 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
               on an instance of the old API that has never heard of `doubts`.
               Dereferencing it flat would take the whole Overview tab down with a
               TypeError for the length of the rollout. */}
-          {statCard("Open", String(o.doubts?.open ?? 0))}
-          {statCard("Answered", String(o.doubts?.answered ?? 0))}
+          {statCard("Open", String(o.doubts?.open ?? 0), undefined, "/dashboard/doubts?status=OPEN")}
+          {statCard("Answered", String(o.doubts?.answered ?? 0), undefined, "/dashboard/doubts?status=ANSWERED")}
         </div>
       </div>
     </section>
