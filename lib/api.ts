@@ -4901,7 +4901,7 @@ export interface ProgrammeOverview {
   schools: number;
   batches: number;
   staff: number;
-  content: { courses: number; assignments: number; resources: number };
+  content: { courses: number; assignments: number; resources: number; quizzes: number };
   /** Read from the immutable programme stamp on each fact, not from the
    *  student's current programme — so a transfer does not restate history. */
   activity: {
@@ -5161,7 +5161,7 @@ export async function detachProgrammeBatch(id: string, batchId: string): Promise
 // quizzes and bundles, but nothing reads it there, so offering to assign them
 // would report a grant that does not exist.
 
-export type ProgrammeContentKind = "courses" | "assignments" | "resources";
+export type ProgrammeContentKind = "courses" | "assignments" | "resources" | "quizzes";
 
 export interface ProgrammeContentItem {
   kind: ProgrammeContentKind;
@@ -5183,7 +5183,7 @@ export async function getAssignableContent(
   id: string,
   kind: ProgrammeContentKind,
   q?: string,
-): Promise<Array<{ id: string; title: string }>> {
+): Promise<Array<{ id: string; title: string; suggested?: boolean; why?: string }>> {
   const url = new URL(`${API_BASE_URL}/programmes/${id}/content/assignable`);
   url.searchParams.set("kind", kind);
   if (q?.trim()) url.searchParams.set("q", q.trim());

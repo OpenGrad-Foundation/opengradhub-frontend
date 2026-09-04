@@ -1,7 +1,7 @@
 "use client";
 import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { usePermissions, usePermission, useAnyPermission } from "@/hooks/use-permission";
 import { useCurrentUser } from "@/lib/queries/current-user";
@@ -493,7 +493,8 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
   if (error || !data) return <div style={errorStyle}>Failed to load programme overview.</div>;
 
   const o: ProgrammeOverview = data;
-  const contentTotal = o.content.courses + o.content.assignments + o.content.resources;
+  const contentTotal =
+    o.content.courses + o.content.assignments + o.content.resources + o.content.quizzes;
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -521,6 +522,7 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
           {statCard("Courses", String(o.content.courses))}
           {statCard("Assignments", String(o.content.assignments))}
           {statCard("Resources", String(o.content.resources))}
+          {statCard("Quizzes", String(o.content.quizzes))}
         </div>
         {contentTotal === 0 && (
           <div style={{ ...noticeStyle, marginTop: 10 }}>
@@ -748,6 +750,10 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row:
   { key: "courses", label: "Courses", one: "course", row: "Course" },
   { key: "assignments", label: "Assignments", one: "assignment", row: "Assignment" },
   { key: "resources", label: "Resources", one: "resource", row: "Resource" },
+  // Quizzes joined in migration 129. Only standalone ones appear: a module quiz
+  // belongs to whoever owns its course, so it is assigned by assigning the
+  // course, and offering a second way here is how the two start to disagree.
+  { key: "quizzes", label: "Quizzes", one: "quiz", row: "Quiz" },
 ];
 
 /**
@@ -802,6 +808,23 @@ function ContentSection({
   const { data: assignable = [], isLoading: loadingPick } =
     useAssignableContent(programmeId, kind, search, canManage);
 
+  // AUTO-POPULATE. Anything the server marks `suggested` is already used by
+  // this programme — taught on its batches, or carried by its bundles — so it
+  // is pre-ticked and the admin only has to press Add.
+  //
+  // Seeded ONCE per kind, and never while a search is narrowing the list:
+  // re-seeding would tick boxes again after somebody deliberately unticked
+  // them, which is the difference between a helpful default and a control that
+  // fights you. Suggesting is not claiming — the write still needs the click.
+  const seeded = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${programmeId}:${kind}`;
+    if (seeded.current === key || search.trim() || assignable.length === 0) return;
+    const suggested = assignable.filter((c) => c.suggested).map((c) => c.id);
+    seeded.current = key;
+    if (suggested.length > 0) setPicks(suggested);
+  }, [programmeId, kind, search, assignable]);
+
   async function run(fn: () => Promise<unknown>) {
     onError(null);
     try { await fn(); } catch (e) {
@@ -832,13 +855,17 @@ function ContentSection({
                 server caps at 50), and picks made under one query survive the
                 next — the picker caches every option it has seen. */}
             <SearchMultiPicker
-              options={assignable.map((c) => ({ id: c.id, label: c.title }))}
+              options={assignable.map((c) => ({ id: c.id, label: c.title, sublabel: c.why }))}
               value={picks}
               onChange={setPicks}
               onQueryChange={setSearch}
               isLoading={loadingPick}
               placeholder={`Search ${kind} by title…`}
-              emptyText={`Nothing available to add. Only unassigned ${kind} you created or were invited to manage are offered.`}
+              emptyText={
+                kind === "quizzes"
+                  ? "Nothing available to add. Only standalone quizzes no programme owns are offered — a module quiz is assigned by assigning its course."
+                  : `Nothing available to add. Only unassigned ${kind} you created or were invited to manage are offered.`
+              }
             />
           </div>
           <button
