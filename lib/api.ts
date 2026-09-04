@@ -2949,6 +2949,61 @@ export async function getStudentProfile(studentId: string): Promise<StudentProfi
   return (await r.json()) as StudentProfile;
 }
 
+export type Opt = { id: string; name: string };
+
+export type DirectoryStudent = {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  in_charge_id: string | null;
+  in_charge_name: string | null;
+  state: string | null;
+  district: string | null;
+  programme_id: string | null;
+  programme_name: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export type StudentDirectoryFilters = {
+  q?: string; programme_id?: string; school_id?: string; state?: string;
+  district?: string; batch_id?: string; in_charge_id?: string;
+  limit?: number; offset?: number;
+};
+
+export type StudentFacets = {
+  programmes: Opt[]; schools: Opt[]; batches: Opt[]; inCharges: Opt[];
+};
+
+/** The scope-bounded student directory. The backend decides who is in it. */
+export async function getStudentsDirectory(
+  f: StudentDirectoryFilters,
+): Promise<{ total: number; rows: DirectoryStudent[] }> {
+  const url = new URL(`${API_BASE_URL}/students`);
+  for (const [k, v] of Object.entries(f)) {
+    if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+  }
+  const r = await apiFetch(url.toString());
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load students.", r.status);
+  }
+  return (await r.json()) as { total: number; rows: DirectoryStudent[] };
+}
+
+/** Filter options the caller may ask for. Prevents offering a filter the
+ *  endpoint would reject with a 400. */
+export async function getStudentFacets(): Promise<StudentFacets> {
+  const r = await apiFetch(`${API_BASE_URL}/students/facets`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load student filters.", r.status);
+  }
+  return (await r.json()) as StudentFacets;
+}
+
 export async function getTopicStrength(studentId: string): Promise<TopicStrengthRow[]> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`);
   if (!r.ok) {

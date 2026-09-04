@@ -35,6 +35,7 @@ export type ModuleKey =
   | "analytics"
   | "reports"
   | "student_export"
+  | "students"
   | "user_management"
   | "role_management"
   | "programmes"
@@ -61,6 +62,7 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   analytics:        { label: "Analytics",       href: "/dashboard/analytics" },
   reports:          { label: "Reports",         href: "/dashboard/reports" },
   student_export:   { label: "Student Export",  href: "/dashboard/student-export" },
+  students:         { label: "Students",        href: "/dashboard/students" },
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
   programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
@@ -143,6 +145,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Management",
     storageKey: "sidebar.management.open",
     members: new Set<ModuleKey>([
+      "students",
       "user_management",
       "role_management",
       "programmes",
