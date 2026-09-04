@@ -12,7 +12,6 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError,
-  duplicateCourse,
   getCourseById,
   getCourseManagementAnalytics,
   getCourseManagementCurriculum,
@@ -50,9 +49,7 @@ export default function CourseManagementPage() {
   const requestedTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
   const canAccess = has(PERM.courses.edit);
   const canEnrol = has(PERM.courses.enrol);
-  const canCreate = has(PERM.courses.create);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
-  const [duplicating, setDuplicating] = useState(false);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
   // Set when the caller may edit this course's content but not see its students.
@@ -211,23 +208,9 @@ export default function CourseManagementPage() {
     return "No students matched the current filters.";
   }, [studentsLoading, studentsRows.length]);
 
-  // Duplicate → jump into the copy's workspace. The caller is the copy's
-  // creator, so they land in the FULL workspace even when the source only
-  // granted them the content-only view; the copy is a LEGACY draft assignable
-  // to any programme — the release valve for programme-owned courses.
-  async function handleDuplicate() {
-    if (!currentCourse) return;
-    setDuplicating(true);
-    setError(null);
-    try {
-      const copy = await duplicateCourse(currentCourse.id);
-      invalidate("courses");
-      router.push(`/dashboard/course-management/${copy.id}?tab=settings`);
-    } catch (duplicateError) {
-      setError(duplicateError instanceof Error ? duplicateError.message : "Failed to duplicate course.");
-      setDuplicating(false);
-    }
-  }
+  // Duplicate lives in the browse-to-duplicate flow now
+  // (/dashboard/courses/duplicate → preview?mode=duplicate), not here: a course
+  // you can already manage is not the one you need a copy of.
 
   async function handleStatusToggle() {
     if (!currentCourse) return;
@@ -408,11 +391,6 @@ export default function CourseManagementPage() {
               <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} style={ghostLinkBtn}>
                 Preview as student
               </Link>
-              {canCreate && (
-                <button onClick={() => void handleDuplicate()} disabled={duplicating} style={{ ...ghostLinkBtn, opacity: duplicating ? 0.7 : 1 }}>
-                  {duplicating ? "Duplicating…" : "Duplicate"}
-                </button>
-              )}
               <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
                 {actionLoading ? "Updating…" : currentCourse.status === "ACTIVE" ? "Archive course" : "Publish course"}
               </button>

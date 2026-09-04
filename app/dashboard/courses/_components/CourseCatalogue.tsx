@@ -43,7 +43,9 @@ type CourseTab = "PUBLISHED" | "DRAFTS" | "ARCHIVED";
 type AccessFilter = "ALL" | "FREE" | "PAID";
 type LockingFilter = "ALL" | "OPEN" | "SEQUENTIAL";
 
-export default function CoursesPage() {
+export type CourseCatalogueMode = "manage" | "duplicate";
+
+export default function CourseCatalogue({ mode }: { mode: CourseCatalogueMode }) {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
 
@@ -69,16 +71,22 @@ export default function CoursesPage() {
   const userId = data?.user?.id ?? null;
   const canCreate = has(PERM.courses.create);
   const canManage = has(PERM.courses.edit);
+  // Browse-to-duplicate: every programme's ACTIVE courses, read-only, one
+  // button at the end of the road. The catalogue chrome is the same; the
+  // status tabs, the New button and the manage links are not.
+  const isDuplicateMode = mode === "duplicate";
   // "Student view" (enrolled courses) vs "management view" (catalogue) is a
   // genuine identity distinction — a learner sees their own enrolments.
   const isStudent = roleCode === "STUDENT";
   const supportsFullStatusFilter = canManage;
   // Only managers can see DRAFT/ARCHIVED rows at all (the API forces ACTIVE
   // otherwise), so the extra tabs are hidden for everyone else.
-  const showStatusTabs = !isStudent && supportsFullStatusFilter;
+  const showStatusTabs = !isStudent && supportsFullStatusFilter && !isDuplicateMode;
   const draftsTab = showStatusTabs && tab === "DRAFTS";
   const archivedTab = showStatusTabs && tab === "ARCHIVED";
-  const effectiveStatus: string | undefined = !supportsFullStatusFilter
+  const effectiveStatus: string | undefined = isDuplicateMode
+    ? "ACTIVE"
+    : !supportsFullStatusFilter
     ? undefined
     : draftsTab
     ? "DRAFT"
@@ -135,7 +143,9 @@ export default function CoursesPage() {
         programmeType: programmeFilter === "ALL" ? undefined : programmeFilter,
         // PBAC: anyone who can manage courses (courses.edit) sees the full
         // catalogue across all statuses — not just courses they authored.
-        allStatuses: canManage,
+        // Browse mode is ACTIVE-only and cross-programme instead.
+        allStatuses: canManage && !isDuplicateMode,
+        scope: isDuplicateMode ? "all" : undefined,
         search: deferredSearch.trim() || undefined,
         accessType: accessFilter === "ALL" ? undefined : accessFilter,
         lockingMode: lockingFilter === "ALL" ? undefined : lockingFilter,
@@ -163,6 +173,7 @@ export default function CoursesPage() {
     canManage,
     deferredSearch,
     effectiveStatus,
+    isDuplicateMode,
     isStudent,
     lockingFilter,
     tagsFilter,
@@ -280,8 +291,13 @@ export default function CoursesPage() {
             className="text-[28px] font-bold text-[var(--dark-teal)]"
             style={{ fontFamily: "var(--font-heading)", margin: 0 }}
           >
-            Courses
+            {isDuplicateMode ? "Duplicate a course" : "Courses"}
           </h1>
+          {isDuplicateMode && (
+            <p className="mt-2 text-sm text-[rgba(3,72,82,0.7)]">
+              Browse every programme&apos;s published courses. Open one to review it, then duplicate it into your programme.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -302,7 +318,7 @@ export default function CoursesPage() {
             </div>
           )}
 
-          {canCreate && (
+          {canCreate && !isDuplicateMode && (
             <Link
               href="/dashboard/courses/new"
               className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--green),var(--teal))] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(10,190,98,0.25)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(10,190,98,0.32)]"
@@ -474,9 +490,11 @@ export default function CoursesPage() {
       ) : managementCourses.length === 0 ? (
         <section className="mt-6">
           <StateCard
-            eyebrow={draftsTab ? "No Drafts" : archivedTab ? "Nothing Archived" : "No Courses"}
+            eyebrow={isDuplicateMode ? "Nothing to duplicate" : draftsTab ? "No Drafts" : archivedTab ? "Nothing Archived" : "No Courses"}
             title={
-              activeFilterCount > 0
+              isDuplicateMode
+                ? "No published courses match."
+                : activeFilterCount > 0
                 ? draftsTab
                   ? "No drafts match the current filters."
                   : archivedTab
@@ -489,7 +507,9 @@ export default function CoursesPage() {
                 : "No courses found."
             }
             description={
-              activeFilterCount > 0
+              isDuplicateMode
+                ? "Try widening the filters."
+                : activeFilterCount > 0
                 ? "Try widening the filters or clearing the search."
                 : draftsTab
                 ? "Courses stay here until they are published. Drafts are not visible to students."
@@ -511,6 +531,7 @@ export default function CoursesPage() {
                   course={course}
                   canManage={canManage}
                   callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+                  mode={mode}
                 />
               ))}
             </div>
@@ -519,6 +540,7 @@ export default function CoursesPage() {
               courses={managementCourses}
               canManage={canManage}
               callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+              mode={mode}
             />
           )}
         </section>
@@ -559,14 +581,23 @@ function StudentCoursesSection({
   );
 }
 
+/** Owner-programme badge: "Global" for platform-wide rows, nothing for LEGACY. */
+function OwnerBadge({ course }: { course: Course }) {
+  if (course.effective_scope_mode === "GLOBAL") return <Badge tone="mint">Global</Badge>;
+  if (course.owner_programme_name) return <Badge tone="mint">{course.owner_programme_name}</Badge>;
+  return null;
+}
+
 function ManagerCourseCard({
   course,
   canManage,
   callerId,
+  mode,
 }: {
   course: Course;
   canManage: boolean;
   callerId: string | null;
+  mode: CourseCatalogueMode;
 }) {
   const currentUrl = useCurrentUrl();
   // Per-course authority. Both flags are present only in the management list
@@ -579,6 +610,13 @@ function ManagerCourseCard({
   const manageable = canManage && course.can_manage !== false;
   const editableContent = canManage && course.can_edit_content !== false;
   const isShared = Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId;
+  const isDuplicateMode = mode === "duplicate";
+  // Browse mode always lands on the read-only preview, flagged so it grows
+  // the Duplicate button; authority badges are meaningless there.
+  const href = isDuplicateMode
+    ? withFrom(`/dashboard/courses/${course.id}?mode=duplicate`, currentUrl)
+    : withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl);
+  const cta = isDuplicateMode ? "Review" : manageable ? "Manage" : editableContent ? "Edit content" : "Open";
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_12px_28px_rgba(3,72,82,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_36px_rgba(3,72,82,0.08)]">
       <div className="border-b border-[rgba(3,72,82,0.08)] bg-(--dark-teal) px-4 py-4 text-white">
@@ -587,11 +625,12 @@ function ManagerCourseCard({
             <div className="flex flex-wrap gap-1.5">
               <Badge tone="dark">{course.programme_type}</Badge>
               <Badge tone={course.access_type === "PAID" ? "sun" : "mint"}>{course.access_type}</Badge>
-              {isShared && <Badge tone="mint">Shared</Badge>}
-              {canManage && !manageable && editableContent && (
+              <OwnerBadge course={course} />
+              {!isDuplicateMode && isShared && <Badge tone="mint">Shared</Badge>}
+              {!isDuplicateMode && canManage && !manageable && editableContent && (
                 <Badge tone="mint">Content edit</Badge>
               )}
-              {canManage && !manageable && !editableContent && (
+              {!isDuplicateMode && canManage && !manageable && !editableContent && (
                 <Badge tone="gray">View only</Badge>
               )}
             </div>
@@ -625,14 +664,14 @@ function ManagerCourseCard({
 
         <div className="mt-4 flex flex-wrap gap-1.5">
           <Link
-            href={withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+            href={href}
             className={`inline-flex w-full items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-              manageable || editableContent
+              isDuplicateMode || manageable || editableContent
                 ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(10,190,98,0.22)]"
                 : "border border-[rgba(3,72,82,0.16)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.3)] hover:bg-[rgba(3,72,82,0.03)]"
             }`}
           >
-            {manageable ? "Manage" : editableContent ? "Edit content" : "Open"}
+            {cta}
           </Link>
         </div>
       </div>
@@ -644,12 +683,15 @@ function CourseTable({
   courses,
   canManage,
   callerId,
+  mode,
 }: {
   courses: Course[];
   canManage: boolean;
   callerId: string | null;
+  mode: CourseCatalogueMode;
 }) {
   const currentUrl = useCurrentUrl();
+  const isDuplicateMode = mode === "duplicate";
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_18px_40px_rgba(3,72,82,0.06)]">
       <div className="overflow-x-auto">
@@ -670,6 +712,10 @@ function CourseTable({
             {courses.map((course) => {
               const manageable = canManage && course.can_manage !== false;
               const editableContent = canManage && course.can_edit_content !== false;
+              const href = isDuplicateMode
+                ? withFrom(`/dashboard/courses/${course.id}?mode=duplicate`, currentUrl)
+                : withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl);
+              const cta = isDuplicateMode ? "Review" : manageable ? "Manage" : editableContent ? "Edit content" : "Open";
               return (
               <tr key={course.id} className="border-t border-[rgba(3,72,82,0.08)] align-top text-sm text-[var(--dark-teal)]">
                 <td className="px-5 py-4">
@@ -690,16 +736,19 @@ function CourseTable({
                   </div>
                 </td>
                 <td className="px-5 py-4">
-                  <Badge tone="teal">{course.programme_type}</Badge>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge tone="teal">{course.programme_type}</Badge>
+                    <OwnerBadge course={course} />
+                  </div>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-1.5">
                     <Badge tone={statusTone(course.status)}>{course.status}</Badge>
-                    {Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId && (
+                    {!isDuplicateMode && Boolean(course.can_manage) && callerId !== null && course.created_by !== callerId && (
                       <Badge tone="mint">Shared</Badge>
                     )}
-                    {canManage && !manageable && editableContent && <Badge tone="mint">Content edit</Badge>}
-                    {canManage && !manageable && !editableContent && <Badge tone="gray">View only</Badge>}
+                    {!isDuplicateMode && canManage && !manageable && editableContent && <Badge tone="mint">Content edit</Badge>}
+                    {!isDuplicateMode && canManage && !manageable && !editableContent && <Badge tone="gray">View only</Badge>}
                   </div>
                 </td>
                 <td className="px-5 py-4 text-[rgba(3,72,82,0.72)]">{course.access_type}</td>
@@ -709,14 +758,14 @@ function CourseTable({
                 <td className="px-5 py-4">
                   <div className="flex flex-wrap gap-2">
                     <Link
-                      href={withFrom(manageable || editableContent ? `/dashboard/course-management/${course.id}` : `/dashboard/courses/${course.id}`, currentUrl)}
+                      href={href}
                       className={`inline-flex items-center justify-center rounded-full px-3 py-2 text-xs font-semibold transition ${
-                        manageable || editableContent
+                        isDuplicateMode || manageable || editableContent
                           ? "bg-[linear-gradient(135deg,var(--green),var(--teal))] text-white hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(10,190,98,0.18)]"
                           : "border border-[rgba(3,72,82,0.14)] text-[var(--dark-teal)] hover:border-[rgba(3,72,82,0.28)] hover:bg-[rgba(3,72,82,0.03)]"
                       }`}
                     >
-                      {manageable ? "Manage" : editableContent ? "Edit content" : "Open"}
+                      {cta}
                     </Link>
                   </div>
                 </td>

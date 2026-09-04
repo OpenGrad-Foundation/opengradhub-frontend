@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -49,6 +50,16 @@ export default function NewCoursePage() {
     <PageShell>
       <div style={{ marginBottom: "28px" }}>
         <h1 style={{ ...title, fontSize: "28px", margin: 0 }}>New Course</h1>
+        {/* The other way in: start from a course another programme already
+            built. Browse is read-only; the copy lands in your programme. */}
+        <div style={callout}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+            Already exists in another programme?
+          </p>
+          <Link href="/dashboard/courses/duplicate" style={calloutBtn}>
+            Duplicate a course →
+          </Link>
+        </div>
       </div>
       <CourseMetaForm onSave={handleSave} submitLabel="Save as Draft" />
     </PageShell>
@@ -91,4 +102,15 @@ const title: React.CSSProperties = {
   fontWeight: 700,
   color: "#034852",
   margin: 0,
+};
+
+const callout: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
+  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
+  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
+};
+const calloutBtn: React.CSSProperties = {
+  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
+  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
+  fontSize: "13px", fontWeight: 700, textDecoration: "none",
 };
