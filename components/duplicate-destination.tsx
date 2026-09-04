@@ -21,17 +21,29 @@ export type DuplicateDestinationState = {
   loading: boolean;
   /** What to send as programme_id. "" → null (server picks / GLOBAL for SA). */
   bodyValue: string | null;
+  /** True when duplicating cannot succeed — no destination exists, or the list failed. */
+  blocked: boolean;
+  /** Why it is blocked, for the caller to render. Null when it is not. */
+  blockedReason: string | null;
 };
 
 export function useDuplicateDestination(): DuplicateDestinationState {
-  const { data } = useCurrentUser();
+  const { data, isLoading: userLoading } = useCurrentUser();
   const isSuperAdmin = (data?.role?.code ?? "") === "SUPER_ADMIN";
   const [programmes, setProgrammes] = useState<Programme[]>([]);
   const [selected, setSelected] = useState("");
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    // Wait for identity. isSuperAdmin starts false while the user loads, so
+    // fetching early filters the list by `is_member` for a super admin and then
+    // refetches — briefly offering a destination set that is not theirs.
+    if (userLoading) return;
     let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    setSelected("");
     void getProgrammes()
       .then((list) => {
         if (cancelled) return;
@@ -41,12 +53,22 @@ export function useDuplicateDestination(): DuplicateDestinationState {
         setProgrammes(mine);
         if (!isSuperAdmin && mine.length === 1) setSelected(mine[0].id);
       })
-      .catch(() => { /* the server still decides; a failed list must not block the flow */ })
+      .catch(() => { if (!cancelled) setFailed(true); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [isSuperAdmin]);
+  }, [isSuperAdmin, userLoading]);
 
   const needsChoice = isSuperAdmin ? programmes.length > 0 : programmes.length > 1;
+  // A super admin always has a destination — "no programme" means GLOBAL. For
+  // anyone else, an empty list is a dead end the server would only report after
+  // the click, and a failed fetch is indistinguishable from it unless we say so.
+  const blocked = !loading && !isSuperAdmin && (failed || programmes.length === 0);
+  const blockedReason = !blocked
+    ? null
+    : failed
+    ? "Could not load your programmes. Reload the page and try again."
+    : "You do not belong to any programme, so a copy has nowhere to live. Ask an administrator to add you to one.";
+
   return {
     programmes,
     selected,
@@ -55,6 +77,8 @@ export function useDuplicateDestination(): DuplicateDestinationState {
     isSuperAdmin,
     loading,
     bodyValue: selected || null,
+    blocked,
+    blockedReason,
   };
 }
 

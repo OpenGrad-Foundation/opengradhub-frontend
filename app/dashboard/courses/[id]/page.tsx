@@ -140,11 +140,16 @@ export default function CourseOverviewPage() {
                   <button
                     type="button"
                     onClick={() => void handleDuplicate()}
-                    disabled={duplicating || destination.loading}
-                    style={{ ...S.primaryBtn, opacity: duplicating ? 0.7 : 1 }}
+                    disabled={duplicating || destination.loading || destination.blocked}
+                    style={{ ...S.primaryBtn, opacity: duplicating || destination.blocked ? 0.6 : 1 }}
                   >
                     {duplicating ? "Duplicating…" : "Duplicate this course"}
                   </button>
+                  {/* A caller with no programme cannot land a copy anywhere. Say
+                      it here rather than letting the server refuse after a click. */}
+                  {destination.blockedReason && (
+                    <p style={{ margin: 0, fontSize: "12px", color: "#a16207" }}>{destination.blockedReason}</p>
+                  )}
                   {dupError && <p style={{ margin: 0, fontSize: "12px", color: "#e53e3e" }}>{dupError}</p>}
                 </>
               )}

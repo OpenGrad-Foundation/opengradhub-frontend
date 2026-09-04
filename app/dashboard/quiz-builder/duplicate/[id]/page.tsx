@@ -8,6 +8,7 @@ import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { getQuizById, duplicateQuiz, type Quiz, type Question } from "@/lib/api";
 import { QuizStudentPreview } from "@/components/quiz-student-preview";
+import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { useDuplicateDestination, DestinationPicker } from "@/components/duplicate-destination";
 
 /**
@@ -78,6 +79,10 @@ export default function DuplicateQuizDetailPage() {
   }
 
   const questions: Question[] = quiz.is_sectioned ? quiz.sections.flatMap((s) => s.questions) : quiz.questions;
+  // An archived quiz is retired. The browse list never offers one, but this page
+  // is reachable by id, and the server refuses the copy — so say so up front
+  // rather than presenting a button that cannot work.
+  const isArchived = quiz.archived_at != null;
 
   return (
     <div style={{ maxWidth: "960px" }}>
@@ -101,15 +106,24 @@ export default function DuplicateQuizDetailPage() {
           </dl>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "stretch", minWidth: "220px" }}>
-          <DestinationPicker state={destination} />
-          <button
-            type="button"
-            onClick={() => void handleDuplicate()}
-            disabled={duplicating || destination.loading}
-            style={{ ...primaryBtn, opacity: duplicating ? 0.7 : 1 }}
-          >
-            {duplicating ? "Duplicating…" : "Duplicate this quiz"}
-          </button>
+          {!isArchived && <DestinationPicker state={destination} />}
+          {isArchived ? (
+            <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#a16207" }}>
+              This quiz is archived. Restore it before duplicating.
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleDuplicate()}
+              disabled={duplicating || destination.loading || destination.blocked}
+              style={{ ...primaryBtn, opacity: duplicating || destination.blocked ? 0.6 : 1 }}
+            >
+              {duplicating ? "Duplicating…" : "Duplicate this quiz"}
+            </button>
+          )}
+          {destination.blockedReason && (
+            <p style={{ margin: 0, fontSize: "12px", color: "#a16207" }}>{destination.blockedReason}</p>
+          )}
           <button type="button" onClick={() => setPreviewOpen(true)} style={outlineBtn}>
             Preview as student
           </button>
@@ -145,12 +159,17 @@ function QuestionBody({ question, index }: { question: Question; index?: number 
       <p style={{ ...muted, fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}>
         {index != null ? `Q${index + 1} · ` : ""}{question.question_type}{question.marks != null ? ` · ${question.marks} marks` : ""}
       </p>
-      <div style={{ fontSize: "14px", color: "#034852", marginTop: "6px" }} dangerouslySetInnerHTML={{ __html: question.content_html }} />
+      {/* MathContent sanitizes (lib/purify) and renders KaTeX. Raw
+          dangerouslySetInnerHTML here would both trust stored HTML from another
+          programme and print LaTeX as literal $x^2$ on the one screen whose job
+          is reading the questions. */}
+      <MathContent html={question.content_html} style={{ fontSize: "14px", color: "#034852", marginTop: "6px" }} />
       {question.options.length > 0 && (
         <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", display: "flex", flexDirection: "column", gap: "6px" }}>
           {question.options.map((o) => (
             <li key={o.id} style={{ fontSize: "13px", color: o.is_correct ? "#0abe62" : "rgba(3,72,82,0.75)", fontWeight: o.is_correct ? 700 : 400 }}>
-              {o.is_correct ? "✓ " : "○ "}{o.option_text}
+              {o.is_correct ? "✓ " : "○ "}
+              <MathContent html={o.option_text} inline style={{ display: "inline" }} />
             </li>
           ))}
         </ul>
