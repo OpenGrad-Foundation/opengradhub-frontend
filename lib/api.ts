@@ -224,42 +224,91 @@ export type StudentRosterItem = {
 
 export type StudentRosterPage = {
   items: StudentRosterItem[];
-  /** Full match count, independent of the row cap. */
+  /** Full match count for the filters sent, independent of the page size. */
   total: number;
-  /** True when the row cap bit and `items` is only a prefix of `total`. */
+  limit: number;
+  offset: number;
+  /** More rows match than this page carries. */
+  has_more: boolean;
+  /** Legacy alias of `has_more`. */
   truncated: boolean;
+  /** The caller's view is bounded by their scope — lets an empty list explain itself. */
+  scope_limited: boolean;
 };
 
+export type StudentRosterQuery = {
+  state?: string;
+  district?: string;
+  /** A school UUID, or the literal "none" for students with no school. */
+  school_id?: string;
+  /** School NAME substring. */
+  school_name?: string;
+  programme_type?: string;
+  search?: string;
+  /** Drop students already enrolled in this batch, so the counts stay honest. */
+  exclude_batch_id?: string;
+  limit?: number;
+  offset?: number;
+};
+
+function rosterUrl(q: StudentRosterQuery): string {
+  const url = new URL(`${API_BASE_URL}/users/students`);
+  for (const [key, value] of Object.entries(q)) {
+    if (value === undefined || value === null || value === "") continue;
+    url.searchParams.set(key, String(value));
+  }
+  return url.toString();
+}
+
 /**
- * Fetch the student roster via GET /users/students, which Program Managers
- * can access (analytics.view_manager) unlike GET /users (user_management.view).
+ * Fetch a page of the student roster via GET /users/students, which Program
+ * Managers can access (analytics.view_manager) unlike GET /users
+ * (user_management.view).
  *
- * The whole roster comes back in one request so callers can filter locally.
- * Callers rendering a picker must surface `truncated` — a silent prefix reads
- * as a complete list and gets acted on as one.
+ * FILTERING IS THE SERVER'S JOB. This used to fetch one unfiltered page and let
+ * callers filter it in the browser, so every student sorting after the server's
+ * row cap was invisible and unsearchable — the picker's own "narrow it down"
+ * advice could not work, because the filters never left the browser.
+ *
+ * Per-caller PII at a constant URL: never cached.
  */
-export async function getStudentsList(): Promise<StudentRosterPage> {
-  const response = await apiFetch(`${API_BASE_URL}/users/students`);
+export async function getStudentRoster(q: StudentRosterQuery = {}): Promise<StudentRosterPage> {
+  const response = await apiFetch(rosterUrl(q), { cache: "no-store" });
   if (!response.ok) {
-    throw new ApiError("Failed to fetch students.", response.status);
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch students.", response.status);
   }
   return toRosterPage(await response.json());
 }
 
 /**
  * GET /users/students pages its response; older backends answer with a bare
- * array. Normalise both so a shape mismatch degrades into a missing row cap
- * warning rather than a crash on `page.items.filter`.
+ * array, and backends between the two answer without `has_more`. Normalise all
+ * three so a shape mismatch degrades into a missing row cap warning rather than
+ * a crash on `page.items.filter`.
  */
 function toRosterPage(body: unknown): StudentRosterPage {
   if (Array.isArray(body)) {
     const items = body as StudentRosterItem[];
-    return { items, total: items.length, truncated: false };
+    return {
+      items, total: items.length, limit: items.length, offset: 0,
+      has_more: false, truncated: false, scope_limited: false,
+    };
   }
   const page = (body ?? {}) as Partial<StudentRosterPage>;
   const items = page.items ?? [];
   const total = page.total ?? items.length;
-  return { items, total, truncated: page.truncated ?? total > items.length };
+  const offset = page.offset ?? 0;
+  const hasMore = page.has_more ?? page.truncated ?? offset + items.length < total;
+  return {
+    items,
+    total,
+    limit: page.limit ?? items.length,
+    offset,
+    has_more: hasMore,
+    truncated: hasMore,
+    scope_limited: page.scope_limited ?? false,
+  };
 }
 
 /**
@@ -4118,23 +4167,24 @@ export type StudentFilters = {
   search?: string;
 };
 
+/**
+ * Returns the PAGE, not a bare array: callers were dropping `truncated` on the
+ * floor and rendering a silent prefix of the matches as if it were all of them.
+ *
+ * `school_name` rather than `school_id` — this caller has always sent free text
+ * from a "School name" input, which the server used to interpret as a name
+ * substring under the `school_id` parameter name.
+ */
 export async function getStudentsForBulk(
   filters: StudentFilters,
-): Promise<StudentForBulk[]> {
-  const url = new URL(`${API_BASE_URL}/users/students`);
-  if (filters.state)          url.searchParams.set("state",          filters.state);
-  if (filters.district)       url.searchParams.set("district",       filters.district);
-  if (filters.school_id)      url.searchParams.set("school_id",      filters.school_id);
-  if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
-  if (filters.search)         url.searchParams.set("search",         filters.search);
-
-  const r = await apiFetch(url.toString());
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
-  }
-  // Same paged endpoint as getStudentsList; this caller only needs the rows.
-  return toRosterPage(await r.json()).items;
+): Promise<StudentRosterPage> {
+  return getStudentRoster({
+    state:          filters.state,
+    district:       filters.district,
+    school_name:    filters.school_id,
+    programme_type: filters.programme_type,
+    search:         filters.search,
+  });
 }
 
 export async function bulkEnrol(payload: {
