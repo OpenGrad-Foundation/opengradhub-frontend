@@ -458,12 +458,6 @@ function PeopleSection({
           </tbody>
         </table>
       </div>
-      {canManage && (
-        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.55)" }}>
-          A programme always keeps at least one OWNER — removing the last one is refused.
-          Students cannot be members; they belong to a programme through their profile.
-        </div>
-      )}
     </section>
   );
 }
@@ -530,8 +524,7 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
         </div>
         {contentTotal === 0 && (
           <div style={{ ...noticeStyle, marginTop: 10 }}>
-            This programme owns no content yet. Until it does, its members see an empty
-            Quizzes tab — assign courses on the Content tab.
+            No content yet.
           </div>
         )}
       </div>
@@ -558,22 +551,6 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
           {statCard("Open", String(o.doubts?.open ?? 0))}
           {statCard("Answered", String(o.doubts?.answered ?? 0))}
         </div>
-        {/* Said plainly, because the number will otherwise look broken. A doubt
-            is stamped with its author's programme at submission, and nothing in
-            the app assigns a student a programme yet — so on real data almost
-            every doubt is unstamped and these read zero while the Doubts page is
-            full. Counting the unstamped ones here would be worse than a zero:
-            they belong to no programme, so putting them under this one would be
-            inventing the figure. Their visibility does not depend on the stamp —
-            the school's in-charge and their managers see them either way. */}
-        {(o.doubts?.open ?? 0) + (o.doubts?.answered ?? 0) === 0 && (
-          <div style={{ ...noticeStyle, marginTop: 10 }}>
-            No doubts carry this programme&rsquo;s stamp yet. A doubt is filed under the
-            programme its author is assigned to, so until students are assigned one, doubts
-            stay visible and answerable on the <strong>Doubts</strong> page without counting
-            here.
-          </div>
-        )}
       </div>
     </section>
   );
@@ -690,7 +667,6 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
             ? `${total} matching student${total === 1 ? "" : "s"}`
             : `${total} student${total === 1 ? "" : "s"}`}
           {total > PAGE && <> · showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)}</>}
-          {" · a student can be reached more than one way, and every reason is shown"}
         </div>
       )}
 
@@ -838,11 +814,6 @@ function ContentSection({
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 style={{ ...titleStyle, fontSize: 17 }}>Content</h2>
-      <div style={{ fontSize: 13, color: "rgba(3,72,82,0.6)", marginTop: -6 }}>
-        Courses, assignments and resources this programme owns. OWNERs and EDITORs can edit them;
-        student data is never included.
-      </div>
-
       {canManage && (
         <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "0 0 150px" }}>
@@ -1094,12 +1065,6 @@ function SchoolsSection({
           </tbody>
         </table>
       </div>
-      {canManage && (
-        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.55)" }}>
-          A school can host several programmes. Attaching one does not make its students
-          members — detaching is refused while batches here still belong to this programme.
-        </div>
-      )}
     </section>
   );
 }
@@ -1177,11 +1142,6 @@ function BatchesSection({
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 style={{ ...titleStyle, fontSize: 17 }}>Batches</h2>
-      <div style={{ fontSize: 13, color: "rgba(3,72,82,0.6)", marginTop: -6 }}>
-        Batches belonging to this programme. Only batches at a school this programme hosts
-        can be added — attach the school first.
-      </div>
-
       {canManage && (
         <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -1345,12 +1305,7 @@ function DangerSection({
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
       <h2 style={{ ...titleStyle, fontSize: 17 }}>{archived ? "Restore" : "Archive"}</h2>
-      <div style={{ ...cardStyle, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, color: "rgba(3,72,82,0.7)", maxWidth: 560, lineHeight: 1.6 }}>
-          {archived
-            ? "Restoring makes the programme active again and restores what membership grants."
-            : "Archiving keeps the programme and its members on record, but immediately revokes what membership grants. Reversible."}
-        </div>
+      <div style={{ ...cardStyle, padding: 16, display: "flex", justifyContent: "flex-start", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
         <button
           style={archived ? primaryButton : { ...secondaryButton, color: "#b91c1c", borderColor: "rgba(185,28,28,0.3)" }}
           disabled={update.isPending}
