@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount, duplicateQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useQuery } from "@tanstack/react-query";
@@ -72,37 +72,10 @@ function TestBankPageContent() {
   const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
-  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
-  /**
-   * Copy a quiz into your own programme.
-   *
-   * No programme picker here: the server picks when you belong to exactly one,
-   * and returns a message naming the problem when you belong to several or
-   * none. That keeps the common case one click, which is the case this button
-   * exists for — a quiz you can see but cannot edit, because it is another
-   * programme's.
-   */
-  const handleDuplicateQuiz = async (quiz: Omit<Quiz, "questions">) => {
-    if (!confirm(
-      `Duplicate "${quiz.title}" into your programme?\n\n` +
-      "The copy uses the same questions and starts as an unpublished draft. " +
-      "Editing a question still changes it everywhere it is used.",
-    )) return;
-    setDuplicatingId(quiz.id);
-    try {
-      const copy = await duplicateQuiz(quiz.id);
-      invalidate("quizzes");
-      await fetchGlobalTests();
-      if (confirm(`Created "${copy.title}". Open it now?`)) {
-        window.location.href = `/dashboard/quiz-builder/${copy.id}`;
-      }
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to duplicate quiz.");
-    } finally {
-      setDuplicatingId(null);
-    }
-  };
+  // Duplicate lives in the browse-to-duplicate flow now
+  // (/dashboard/quiz-builder/duplicate), not on these rows: the quiz you need a
+  // copy of is another programme's, so it is not a row here to begin with.
 
   const handleArchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
     setArchiveBusy(quiz.id);
@@ -387,8 +360,6 @@ function TestBankPageContent() {
               onUnarchive={() => handleUnarchiveQuiz(t)}
               busy={archiveBusy === t.id}
               onMove={() => setQuizToMove({ id: t.id, title: t.title })}
-              onDuplicate={() => void handleDuplicateQuiz(t)}
-              duplicating={duplicatingId === t.id}
             />
           ))}
           {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
@@ -549,7 +520,7 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate, duplicating }: {
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove }: {
   quiz: Omit<Quiz, "questions">;
   isLast: boolean;
   onDelete: () => void;
@@ -557,8 +528,6 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
   onUnarchive: () => void;
   busy: boolean;
   onMove: () => void;
-  onDuplicate: () => void;
-  duplicating: boolean;
 }) {
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const created = fmt(quiz.created_at);
@@ -626,14 +595,6 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
         {!isArchived && (
           <button onClick={onMove} style={outlineBtn}>
             Move to Module
-          </button>
-        )}
-        {/* The sanctioned way to use another programme's quiz: take a copy.
-            The copy reuses the same questions and starts as an unpublished
-            draft in your programme. */}
-        {!isArchived && (
-          <button onClick={onDuplicate} disabled={duplicating} style={{ ...outlineBtn, opacity: duplicating ? 0.5 : 1 }}>
-            {duplicating ? "…" : "Duplicate"}
           </button>
         )}
         {isArchived ? (

@@ -137,6 +137,22 @@ export default function NewQuizPage() {
             ⬆ Upload Entire Quiz
           </Link>
         </div>
+
+        {/* The third way in: start from a quiz another programme already built.
+            Module quizzes are course content and travel with their course, so
+            this is offered for standalone quizzes only. */}
+        {quizType === "GLOBAL_TEST" && (
+          <div style={uploadCallout}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+                Already exists in another programme?
+              </p>
+            </div>
+            <Link href="/dashboard/quiz-builder/duplicate" style={uploadCalloutBtn}>
+              Duplicate a quiz →
+            </Link>
+          </div>
+        )}
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>
