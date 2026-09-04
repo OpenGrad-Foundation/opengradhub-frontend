@@ -596,6 +596,10 @@ export type Course = {
    * deliberately do NOT get the management view (student PII).
    */
   can_edit_content?: boolean;
+  /** Staff listings only: which programme owns this course. */
+  owner_programme_id?: string | null;
+  owner_programme_name?: string | null;
+  effective_scope_mode?: "LEGACY" | "PROGRAMME" | "GLOBAL";
 };
 
 export type CourseListParams = {
@@ -603,6 +607,8 @@ export type CourseListParams = {
   studentId?: string;
   createdBy?: string;
   allStatuses?: boolean;
+  /** "all" = browse-to-duplicate: every programme's ACTIVE courses (needs courses.create). */
+  scope?: "all";
   search?: string;
   status?: string;
   accessType?: string;
@@ -634,6 +640,7 @@ function appendCourseListParams(url: URL, params: CourseListParams, paginate = f
   if (params.tags) {
     params.tags.forEach(tag => url.searchParams.append("tags", tag));
   }
+  if (params.scope) url.searchParams.set("scope", params.scope);
   if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
   if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
   if (paginate) url.searchParams.set("paginate", "true");
@@ -1830,13 +1837,15 @@ export async function assignQuizProgramme(
 }
 
 export async function getQuizzes(
-  params: { module_id?: string; quiz_type?: string; archived?: boolean } = {},
+  params: { module_id?: string; quiz_type?: string; archived?: boolean; scope?: "all" } = {},
 ): Promise<Omit<Quiz, "questions">[]> {
   const url = new URL(`${API_BASE_URL}/quizzes`);
   if (params.module_id) url.searchParams.set("module_id", params.module_id);
   if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
   // Default (omitted) lists live quizzes only; archived=true shows the archive.
   if (params.archived) url.searchParams.set("archived", "true");
+  // scope=all is the browse-to-duplicate window: every programme's quizzes.
+  if (params.scope) url.searchParams.set("scope", params.scope);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
@@ -5213,14 +5222,17 @@ export async function releaseProgrammeContent(
 }
 
 /**
- * Duplicate a course: fresh LEGACY draft owned by the caller, curriculum
- * copied, nothing student-facing. The release valve for programme-owned
- * courses — the copy can be assigned to any programme.
+ * Duplicate a course: fresh draft owned by the caller AND the chosen programme,
+ * curriculum copied, nothing student-facing. The release valve for
+ * programme-owned courses. `programmeId` omitted/null = the server picks the
+ * caller's sole programme, or replies with a message asking which.
  */
-export async function duplicateCourse(id: string): Promise<Course> {
+export async function duplicateCourse(id: string, programmeId?: string | null): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
     method: "POST",
     cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId ?? null }),
   });
 
   if (!response.ok) {
