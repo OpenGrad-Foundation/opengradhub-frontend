@@ -1454,6 +1454,8 @@ function BulkAssignPanel({
   const [searching,   setSearching]   = useState(false);
   const [searchErr,   setSearchErr]   = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  /** Matches the server did NOT return because the page was capped. */
+  const [omitted,     setOmitted]     = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Step 2 — multi-select courses + bundles
@@ -1486,14 +1488,17 @@ function BulkAssignPanel({
     setSearchErr(null);
     setSelectedIds(new Set());
     try {
-      const results = await getStudentsForBulk({
+      const page = await getStudentsForBulk({
         state:          filterState    || undefined,
         district:       filterDistrict || undefined,
         school_id:      filterSchool   || undefined,
         programme_type: filterProg     || undefined,
         search:         filterSearch   || undefined,
       });
-      setStudents(results);
+      setStudents(page.items);
+      // A silent prefix of the matches reads as the whole result set and gets
+      // bulk-enrolled as one.
+      setOmitted(page.has_more ? page.total - page.items.length : 0);
       setHasSearched(true);
     } catch (e) {
       setSearchErr(e instanceof Error ? e.message : "Search failed.");
@@ -1667,6 +1672,11 @@ function BulkAssignPanel({
                 {students.length === 0 ? "No students found" : `${selectedCount} of ${students.length} selected`}
               </span>
             </label>
+            {omitted > 0 && (
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#9b2c2c" }}>
+                {omitted} more match but were not loaded — narrow the filters.
+              </span>
+            )}
           </div>
 
           {students.length > 0 && (
