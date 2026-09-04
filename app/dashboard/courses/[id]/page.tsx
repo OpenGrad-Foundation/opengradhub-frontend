@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { useInvalidate } from "@/lib/mutations/invalidation";
+import { duplicateCourse, getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
 import type { RoleCode } from "@/lib/moduleAccess";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { useDuplicateDestination, DestinationPicker } from "@/components/duplicate-destination";
 
 // ── Page ───────────────────────────────────────────────────────
 
@@ -25,6 +29,35 @@ export default function CourseOverviewPage() {
   const [modules, setModules] = useState<ModuleWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
+  const { has } = usePermissions();
+  const invalidate = useInvalidate();
+  // Browse-to-duplicate: same read-only preview, plus the one button the flow
+  // exists for. Requires the create permission — the browse list is gated on
+  // it too, but a pasted URL must not bypass that.
+  const isDuplicateMode = searchParams.get("mode") === "duplicate" && has(PERM.courses.create);
+  const destination = useDuplicateDestination();
+  const [duplicating, setDuplicating] = useState(false);
+  const [dupError, setDupError] = useState<string | null>(null);
+
+  async function handleDuplicate() {
+    if (!course) return;
+    if (destination.needsChoice && !destination.isSuperAdmin && !destination.selected) {
+      setDupError("Choose which programme this copy belongs to.");
+      return;
+    }
+    setDuplicating(true);
+    setDupError(null);
+    try {
+      const copy = await duplicateCourse(course.id, destination.bodyValue);
+      invalidate("courses");
+      router.push(`/dashboard/course-management/${copy.id}?tab=settings`);
+    } catch (e) {
+      setDupError(e instanceof Error ? e.message : "Failed to duplicate course.");
+      setDuplicating(false);
+    }
+  }
 
   useEffect(() => {
     if (userLoading || !studentId) return;
@@ -63,7 +96,7 @@ export default function CourseOverviewPage() {
     <div>
       {/* ── Back link ─────────────────────────────────────── */}
       <BackLink fallback={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        {fromManagement ? "← Course Management" : isPreview ? "← Courses" : "← My Courses"}
+        {fromManagement ? "← Course Management" : isDuplicateMode ? "← Duplicate a course" : isPreview ? "← Courses" : "← My Courses"}
       </BackLink>
 
       {/* ── Course header ─────────────────────────────────── */}
@@ -90,15 +123,31 @@ export default function CourseOverviewPage() {
 
           {/* Progress summary (students) / preview badge (staff) */}
           {isPreview ? (
-            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
+            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
               <span style={{
                 display: "inline-block", padding: "4px 12px", borderRadius: "100px",
                 fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
                 background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.6)",
               }}>
-                STAFF PREVIEW
+                {isDuplicateMode ? "READ ONLY" : "STAFF PREVIEW"}
               </span>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "8px 0 0" }}>{totalLessons} lessons</p>
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>{totalLessons} lessons</p>
+              {/* The end of the browse-to-duplicate road: the copy lands in the
+                  chosen programme and opens in its own management workspace. */}
+              {isDuplicateMode && (
+                <>
+                  <DestinationPicker state={destination} />
+                  <button
+                    type="button"
+                    onClick={() => void handleDuplicate()}
+                    disabled={duplicating || destination.loading}
+                    style={{ ...S.primaryBtn, opacity: duplicating ? 0.7 : 1 }}
+                  >
+                    {duplicating ? "Duplicating…" : "Duplicate this course"}
+                  </button>
+                  {dupError && <p style={{ margin: 0, fontSize: "12px", color: "#e53e3e" }}>{dupError}</p>}
+                </>
+              )}
             </div>
           ) : (
             <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
