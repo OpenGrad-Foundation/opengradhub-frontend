@@ -482,10 +482,13 @@ export async function getManagerAnalytics(
 // ── Programme Insights ─────────────────────────────────────────────────────
 
 export type InsightsScope = {
-  kind: "global" | "programme" | "zone" | "school";
+  kind: "global" | "partner" | "programme" | "zone" | "school";
   label: string;
   school_ids?: string[];
+  /** Present only for kind === "partner". [] means seated in nothing. */
+  programme_ids?: string[];
   programme_filter: string | null;
+  programme_filter_id: string | null;
 };
 
 export type InsightsResponse = {
@@ -516,6 +519,8 @@ export type InsightsResponse = {
 
 export type ProgrammeInsightsFilters = {
   programme?: string;
+  /** A programme ENTITY id (partner callers). Mutually exclusive with `programme`. */
+  programmeId?: string;
   state?: string;
   district?: string;
   schoolId?: string;
@@ -525,7 +530,8 @@ export async function getProgrammeInsights(
   filters: ProgrammeInsightsFilters = {},
 ): Promise<InsightsResponse> {
   const qs = new URLSearchParams();
-  if (filters.programme) qs.set("programme", filters.programme);
+  if (filters.programme)   qs.set("programme", filters.programme);
+  if (filters.programmeId) qs.set("programme_id", filters.programmeId);
   if (filters.state)     qs.set("state", filters.state);
   if (filters.district)  qs.set("district", filters.district);
   if (filters.schoolId)  qs.set("school_id", filters.schoolId);
@@ -533,6 +539,12 @@ export async function getProgrammeInsights(
   const res = await apiFetch(`${API_BASE_URL}/analytics/insights${path}`);
   if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
   return (await res.json()) as InsightsResponse;
+}
+
+export async function getAnalyticsFilterProgrammes(): Promise<Array<{ id: string; name: string }>> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/programmes`);
+  if (!res.ok) throw new ApiError("Failed to fetch programmes.", res.status);
+  return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
 export async function getAnalyticsFilterStates(): Promise<string[]> {

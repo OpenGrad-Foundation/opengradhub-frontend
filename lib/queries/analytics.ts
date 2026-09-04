@@ -10,6 +10,7 @@ import {
   getAnalyticsFilterStates,
   getAnalyticsFilterDistricts,
   getAnalyticsFilterSchools,
+  getAnalyticsFilterProgrammes,
   type AnalyticsStudentFilters,
   type ProgrammeInsightsFilters,
 } from '../api';
@@ -52,9 +53,17 @@ export function useTopicStrength(studentId: string) {
 
 export function useProgrammeInsights(filters: ProgrammeInsightsFilters = {}) {
   return useQuery({
-    queryKey: ["analytics", "insights", filters.programme ?? "all", filters.state ?? "all", filters.district ?? "all", filters.schoolId ?? "all"],
+    queryKey: ["analytics", "insights", filters.programme ?? "all", filters.programmeId ?? "all", filters.state ?? "all", filters.district ?? "all", filters.schoolId ?? "all"],
     queryFn: () => getProgrammeInsights(filters),
     staleTime: 60_000,  // 1 min client-side cache; server caches 15 min
+  });
+}
+
+export function useAnalyticsFilterProgrammes() {
+  return useQuery({
+    queryKey: ["analytics", "filters", "programmes"],
+    queryFn: getAnalyticsFilterProgrammes,
+    staleTime: 5 * 60_000,
   });
 }
 
