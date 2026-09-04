@@ -44,6 +44,9 @@ export const qk = {
     ['og', 'analytics', 'students', filters] as const,
   studentProfile: (studentId: string) =>
     ['og', 'student', studentId, 'profile'] as const,
+  studentsDirectory: (params: Record<string, unknown>) =>
+    ['og', 'students', 'directory', params] as const,
+  studentFacets: () => ['og', 'students', 'facets'] as const,
   topicStrength: (studentId: string) =>
     ['og', 'student', studentId, 'topics'] as const,
   quizAttempts: (quizId: string, studentId?: string) =>

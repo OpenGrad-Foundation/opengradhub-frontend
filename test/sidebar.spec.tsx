@@ -190,4 +190,16 @@ describe("Sidebar Management group", () => {
     expect(screen.queryByRole("button", { name: /management/i })).toBeNull();
     expect(screen.getByRole("link", { name: /schools/i })).toBeTruthy();
   });
+
+  it("shows Students in the Management group when the module is granted", () => {
+    mockModules = [{ code: "dashboard" }, { code: "students" }];
+    render(<Sidebar />);
+    expect(screen.getByText("Students")).toBeTruthy();
+  });
+
+  it("hides Students when the module is not granted", () => {
+    mockModules = [{ code: "dashboard" }];
+    render(<Sidebar />);
+    expect(screen.queryByText("Students")).toBeNull();
+  });
 });
