@@ -6,6 +6,7 @@ import {
   useAnalyticsFilterStates,
   useAnalyticsFilterDistricts,
   useAnalyticsFilterSchools,
+  useAnalyticsFilterProgrammes,
 } from "@/lib/queries/analytics";
 import { KpiStrip } from "./KpiStrip";
 import { TrendDistribution } from "./TrendDistribution";
@@ -22,17 +23,22 @@ export default function ProgrammeInsights() {
   // the two literals is what forced the `as` cast below, and the cast is what
   // let the domain widen without a single type error anywhere.
   const [programme, setProgramme] = useState<string>("");
+  // A programme ENTITY id, for a partner. The two filters are different axes and
+  // the client never sends both: the backend rejects that pair with a 400.
+  const [programmeId, setProgrammeId] = useState<string>("");
   const [state, setState] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
   const [schoolId, setSchoolId] = useState<string>("");
   const [drilledSchoolId, setDrilledSchoolId] = useState<string | null>(null);
   const [drilledCourse, setDrilledCourse] = useState<{ id: string; title: string } | null>(null);
   const { data, isPending, error } = useProgrammeInsights({
-    programme: programme || undefined,
-    state:     state     || undefined,
-    district:  district  || undefined,
-    schoolId:  schoolId  || undefined,
+    programme:   programme   || undefined,
+    programmeId: programmeId || undefined,
+    state:       state       || undefined,
+    district:    district    || undefined,
+    schoolId:    schoolId    || undefined,
   });
+  const programmesQ = useAnalyticsFilterProgrammes();
   const statesQ    = useAnalyticsFilterStates();
   const districtsQ = useAnalyticsFilterDistricts(state || undefined);
   const schoolsQ   = useAnalyticsFilterSchools(state || undefined, district || undefined);
@@ -59,7 +65,11 @@ export default function ProgrammeInsights() {
   if (error)     return <Err msg={(error as Error).message} />;
   if (!data)     return null;
 
-  const showFilter = data.scope.kind === "global";
+  // A partner keeps the filter bar. Without this arm, the moment their scope
+  // stopped being 'global' they lost every control on the page.
+  const isPartner = data.scope.kind === "partner";
+  const showFilter = data.scope.kind === "global" || isPartner;
+  const noSeats = isPartner && (data.scope.programme_ids?.length ?? 0) === 0;
 
   return (
     <div>
@@ -88,9 +98,16 @@ export default function ProgrammeInsights() {
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <SearchableSelect
                 placeholder="All programmes"
-                value={programme}
-                onChange={(v) => setProgramme(v)}
-                options={PROGRAMME_KINDS}
+                value={isPartner ? programmeId : programme}
+                onChange={(v) => {
+                  if (isPartner) setProgrammeId(v); else setProgramme(v);
+                  setState(""); setDistrict(""); setSchoolId("");
+                }}
+                options={
+                  isPartner
+                    ? (programmesQ.data ?? []).map((p) => ({ value: p.id, label: p.name }))
+                    : PROGRAMME_KINDS
+                }
               />
               <SearchableSelect
                 placeholder="All states"
@@ -122,6 +139,16 @@ export default function ProgrammeInsights() {
         </div>
       </div>
 
+      {noSeats && (
+        <div style={{
+          background: "#ffffff", borderRadius: "24px", padding: "32px",
+          marginBottom: "24px", textAlign: "center", color: "rgba(3,72,82,0.65)",
+          fontSize: "14px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+        }}>
+          You&rsquo;re not seated in any programme yet, so there is nothing to show here.
+          Ask a programme manager to add you.
+        </div>
+      )}
       <KpiStrip kpis={data.kpis} />
       <TrendDistribution
         trend={data.trend}
