@@ -60,14 +60,18 @@ export function useDuplicateDestination(): DuplicateDestinationState {
 
   const needsChoice = isSuperAdmin ? programmes.length > 0 : programmes.length > 1;
   // A super admin always has a destination — "no programme" means GLOBAL. For
-  // anyone else, an empty list is a dead end the server would only report after
-  // the click, and a failed fetch is indistinguishable from it unless we say so.
-  const blocked = !loading && !isSuperAdmin && (failed || programmes.length === 0);
-  const blockedReason = !blocked
-    ? null
-    : failed
-    ? "Could not load your programmes. Reload the page and try again."
-    : "You do not belong to any programme, so a copy has nowhere to live. Ask an administrator to add you to one.";
+  // anyone else an EMPTY list is a real dead end, and saying so beats letting
+  // the server refuse after the click.
+  //
+  // A FAILED fetch is not that. Listing programmes needs `programmes.view`,
+  // which duplicating does not: a caller holding only `courses.create` can be
+  // refused this list and still have a perfectly good sole programme the server
+  // will pick for them. Blocking on failure would deny a copy the backend would
+  // have made, so failure stays fail-soft — send null and let the server decide.
+  const blocked = !loading && !isSuperAdmin && !failed && programmes.length === 0;
+  const blockedReason = blocked
+    ? "You do not belong to any programme, so a copy has nowhere to live. Ask an administrator to add you to one."
+    : null;
 
   return {
     programmes,
