@@ -189,10 +189,21 @@ describe('the member picker does not need a permission its users lack', () => {
 });
 
 describe('the courses list routes on the right authority', () => {
+  // The catalogue moved into a component when browse-to-duplicate needed a
+  // second mode of it (2026-09-04); /dashboard/courses is now a thin wrapper.
+  // The routing rule travelled with the body, so the assertions follow it.
   const coursesPage = fs.readFileSync(
-    path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
+    path.join(__dirname, '..', 'app', 'dashboard', 'courses', '_components', 'CourseCatalogue.tsx'),
     'utf-8',
   );
+
+  it('the route still renders the catalogue — a wrapper that forgot it would pass every assertion below', () => {
+    const wrapper = fs.readFileSync(
+      path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
+      'utf-8',
+    );
+    expect(wrapper).toMatch(/<CourseCatalogue mode="manage" \/>/);
+  });
 
   it('sends Manage to the management view only for can_manage', () => {
     // /dashboard/course-management is gated by canManageCourse, which excludes
