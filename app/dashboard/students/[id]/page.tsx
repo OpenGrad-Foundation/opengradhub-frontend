@@ -1,15 +1,15 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { EntityLink } from "../../programmes/_components/entity-link";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { BackLink } from "@/components/back-link";
 import { PerformanceHistoryTable } from "@/components/performance-history-table";
 import { TrackerSection } from "./_components/tracker-section";
 import { useStudentProfile } from "@/lib/queries/students";
 import { useTopicStrength } from "@/lib/queries/analytics";
 import { useReportHistory } from "@/lib/queries/reports";
-import { withFrom } from "@/lib/nav";
-import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import type { StudentProfile } from "@/lib/api";
 
 const BRAND = { dark: "#034852", teal: "#006d6c", mid: "#209379", red: "#c53030" };
@@ -51,10 +51,10 @@ function formatDate(iso: string | null): string {
 
 export default function StudentProfilePage() {
   const { id } = useParams<{ id: string }>();
-  const currentUrl = useCurrentUrl();
+  const { has, hasAny } = usePermissions();
   const { data, isPending, error } = useStudentProfile(id);
   // Both degrade silently — the profile itself is the page, these are extras.
-  const { data: history } = useReportHistory(id);
+  const { data: history } = useReportHistory(id, hasAny(...STUDENT_PROFILE_PERMISSIONS));
   const { data: topics } = useTopicStrength(id);
 
   if (error) {
@@ -83,7 +83,7 @@ export default function StudentProfilePage() {
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       <BackLink fallback="/dashboard/analytics" style={backLinkStyle} />
 
-      <Header student={student} atRisk={kpis.at_risk} currentUrl={currentUrl} />
+      <Header student={student} atRisk={kpis.at_risk} />
 
       <div style={{ display: "grid", gap: "16px",
                     gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))" }}>
@@ -112,12 +112,12 @@ export default function StudentProfilePage() {
                 {courses.map((c) => (
                   <tr key={c.id}>
                     <td style={{ ...td, fontWeight: 600 }}>
-                      <Link
-                        href={withFrom(`/dashboard/courses/${c.id}`, currentUrl)}
+                      <EntityLink
+                        href={`/dashboard/courses/${c.id}`} permissions={[PERM.courses.view]}
                         style={{ color: BRAND.dark, textDecoration: "none" }}
                       >
                         {c.title}
-                      </Link>
+                      </EntityLink>
                     </td>
                     <td style={{ ...td, textAlign: "right" }}>{c.lessons_done} / {c.lessons_total}</td>
                     <td style={{ ...td, textAlign: "right" }}>{c.completion_pct}%</td>
@@ -132,7 +132,7 @@ export default function StudentProfilePage() {
         )}
       </div>
 
-      <TrackerSection studentId={id} />
+      {has(PERM.tracker.view) && <TrackerSection studentId={id} />}
 
       {topics && topics.length > 0 && (
         <div style={card}>
@@ -175,8 +175,8 @@ export default function StudentProfilePage() {
 }
 
 function Header({
-  student, atRisk, currentUrl,
-}: { student: StudentProfile["student"]; atRisk: boolean; currentUrl: string }) {
+  student, atRisk,
+}: { student: StudentProfile["student"]; atRisk: boolean }) {
   const meta = [
     student.programme,
     student.roll_number ? `Roll ${student.roll_number}` : null,
@@ -202,12 +202,12 @@ function Header({
 
       <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "8px 0 0" }}>
         {student.school_id ? (
-          <Link
-            href={withFrom(`/dashboard/schools/${student.school_id}`, currentUrl)}
+          <EntityLink
+            href={`/dashboard/schools/${student.school_id}`} permissions={[PERM.schools.view]}
             style={{ color: BRAND.teal, textDecoration: "none", fontWeight: 600 }}
           >
             {student.school_name ?? "School"}
-          </Link>
+          </EntityLink>
         ) : (
           <span>{student.school_name ?? "No school"}</span>
         )}
@@ -221,12 +221,12 @@ function Header({
           {student.batches.map((b, i) => (
             <span key={b.id}>
               {i > 0 && ", "}
-              <Link
-                href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)}
+              <EntityLink
+                href={`/dashboard/batches/${b.id}`} permissions={[PERM.batches.view]}
                 style={{ color: BRAND.teal, textDecoration: "none" }}
               >
                 {b.name}
-              </Link>
+              </EntityLink>
             </span>
           ))}
         </p>

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { PERM, hasEffectiveSelfScope } from "@/lib/permissions";
 import {
   getCoursesPage,
   type Course,
@@ -27,7 +27,6 @@ import {
   type StudentCourse,
 } from "@/lib/api";
 import { useStudentCourses } from "@/lib/queries/students";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
@@ -65,13 +64,11 @@ export default function CoursesPage() {
 
   const deferredSearch = useDeferredValue(searchInput);
 
-  const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
   const userId = data?.user?.id ?? null;
   const canCreate = has(PERM.courses.create);
   const canManage = has(PERM.courses.edit);
-  // "Student view" (enrolled courses) vs "management view" (catalogue) is a
-  // genuine identity distinction — a learner sees their own enrolments.
-  const isStudent = roleCode === "STUDENT";
+  // The effective self scope selects personal enrolments and progress.
+  const isStudent = hasEffectiveSelfScope(data?.permissions);
   const supportsFullStatusFilter = canManage;
   // Only managers can see DRAFT/ARCHIVED rows at all (the API forces ACTIVE
   // otherwise), so the extra tabs are hidden for everyone else.
@@ -302,6 +299,7 @@ export default function CoursesPage() {
             </div>
           )}
 
+          {canCreate && <Link href="/dashboard/courses/duplicate" className="text-sm font-semibold text-[var(--teal)]">Browse to duplicate</Link>}
           {canCreate && (
             <Link
               href="/dashboard/courses/new"
@@ -510,7 +508,7 @@ export default function CoursesPage() {
                   key={course.id}
                   course={course}
                   canManage={canManage}
-                  callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+                  callerId={has(PERM.scope.unrestricted) ? null : userId}
                 />
               ))}
             </div>
@@ -518,7 +516,7 @@ export default function CoursesPage() {
             <CourseTable
               courses={managementCourses}
               canManage={canManage}
-              callerId={roleCode === "SUPER_ADMIN" ? null : userId}
+              callerId={has(PERM.scope.unrestricted) ? null : userId}
             />
           )}
         </section>

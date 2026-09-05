@@ -79,6 +79,7 @@ export default function TrackerPage() {
   const { has, isLoading: permLoading } = usePermissions();
   const canAuthor = has(PERM.tracker.author);
   const canFill = has(PERM.tracker.fill);
+  const canViewStudents = has(PERM.students.view);
   const canOverrideFill = has(PERM.tracker.fill_override);
   const canClear = has(PERM.tracker.blocker_clear);
   const canAdmin = has(PERM.tracker.admin);
@@ -98,11 +99,11 @@ export default function TrackerPage() {
     if (canAllTasks || canAuthor) next.push("allTasks");
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
-    if (canFill || isManagerView) next.push("myStudents"); // own students list
+    if (canViewStudents) next.push("myStudents"); // own students list
     if (canAuthor) next.push("builder");                   // new + manage templates
     if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
-  }, [canAuthor, canFill, isManagerView, canAllTasks]);
+  }, [canAuthor, canFill, isManagerView, canAllTasks, canViewStudents]);
 
   /**
    * `?task=<templateId>` opens straight into that task's grid — the link a student
@@ -216,7 +217,6 @@ export default function TrackerPage() {
         ) : drillTask ? (
           <TaskBreakdown
             task={drillTask}
-            roleCode={roleCode}
             currentUserId={currentUser?.user.id ?? ""}
             canNudge={canAuthor}
             onBack={() => setDrillTask(null)}

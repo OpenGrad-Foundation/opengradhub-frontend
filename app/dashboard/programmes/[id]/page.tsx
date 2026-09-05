@@ -1,12 +1,14 @@
 "use client";
+
+import { BatchImpactNotice, mergeBatchImpacts } from "@/components/programme-batch-impact";
 import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation";
 import { usePermissions, usePermission, useAnyPermission } from "@/hooks/use-permission";
 import { useCurrentUser } from "@/lib/queries/current-user";
-import { PERM } from "@/lib/permissions";
+import { PERM, programmeCapabilities, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import {
   ApiError, fetchSchools, getBatchImpact,
   type BatchImpact, type ProgrammeContentKind,
@@ -30,7 +32,9 @@ import {
 import { SearchMultiPicker } from "@/components/SearchMultiPicker";
 import { EntityLink } from "../_components/entity-link";
 import { useRowNavigation } from "../_components/use-row-navigation";
-import { STAFF_ANALYTICS_PERMISSIONS } from "@/lib/permissions";
+import { readProgrammeState, updateProgrammeUrl, withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { BackLink } from "@/components/back-link";
 
 /**
  * Not every message worth showing is a failure. Attaching content that another
@@ -51,8 +55,8 @@ type Notify = (message: string | null, tone?: BannerTone) => void;
  * the dropdown was the authority when the permission always was.
  */
 const MEMBERSHIP_HELP =
-  "Adds them to this programme. What they can do inside it comes from their role's " +
-  "permissions — membership decides WHICH programme those apply to, never what they are.";
+  "Adds them to this programme. Actions follow their effective permissions. " +
+  "Operational access remains limited to their assigned batches and permitted scope.";
 
 /**
  * The hub is a workspace, not a report, so it is tabbed rather than a single
@@ -93,35 +97,25 @@ function tabStyle(active: boolean): React.CSSProperties {
 export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { has, isSuperAdmin } = usePermissions();
+  const { has } = usePermissions();
+  const pathname = usePathname();
+  const params = useSearchParams();
   const { data: me } = useCurrentUser();
-  const canEdit = has(PERM.programmes.edit);
-  const canManageMembers = has(PERM.programmes.manage_members);
 
   const { data: programme, isLoading, error } = useProgramme(id);
   // Overview lands first. People was the default because it was the only tab
   // when this page was a membership editor; the hub now answers "how is this
   // programme doing" before "who is on it", and the numbers are the cheapest
   // thing here to fetch.
-  const [tab, setTab] = useState<TabKey>("overview");
+  const { tab } = readProgrammeState(params);
+  const setTab = (tab: TabKey) => router.replace(updateProgrammeUrl(pathname, params, { tab }), { scroll: false });
   const [banner, setBanner] = useState<Banner | null>(null);
   const notify: Notify = (message, tone = "error") =>
     setBanner(message === null ? null : { text: message, tone });
 
-  // Membership plus the permission — the same two halves the server checks, so
-  // the controls shown match the writes that will be accepted.
-  //
-  // The badge used to say OWNER while the Settings tab refused the same person,
-  // because the two answered different questions: `my_level` was the legacy
-  // programme_members.level and every gate here is PBAC. Migration 119 retired
-  // that column, and `is_member` is what replaced it — a fact, with no authority
-  // of its own to contradict.
   const isMember = Boolean(programme?.is_member);
-  // `has("*")` was never a permission — it only ever returned true because
-  // usePermissions short-circuited on the SUPER_ADMIN role code. With that
-  // wildcard gone it would be permanently false, so the real permission is named
-  // instead. A super admin holds it explicitly, so nothing changes for them.
-  const mayAdminister = canEdit && (isMember || isSuperAdmin);
+  const capabilities = programmeCapabilities(has, isMember);
+  const mayAdminister = capabilities.manage;
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !programme) {
@@ -136,9 +130,7 @@ export default function ProgrammeDetailPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <button style={{ ...linkBtnStyle, alignSelf: "flex-start" }} onClick={() => router.push("/dashboard/programmes")}>
-        ← All programmes
-      </button>
+      <BackLink fallback="/dashboard/programmes" style={{ ...linkBtnStyle, alignSelf: "flex-start" }} />
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
         <div>
@@ -155,9 +147,7 @@ export default function ProgrammeDetailPage() {
             {programme.code}
           </div>
         </div>
-        {/* The caller's ROLE, which is what decides how far they see. There is
-            no membership level to show any more, and showing one was the bug:
-            it said OWNER for everyone and contradicted the gates on this page. */}
+        {/* The role label is presentation; effective permissions decide actions. */}
         {isMember && me?.role?.code && (
           <span style={memberBadge()}>{roleLabel(me.role.code)}</span>
         )}
@@ -166,7 +156,7 @@ export default function ProgrammeDetailPage() {
       {programme.status === "ARCHIVED" && (
         <div style={noticeStyle}>
           This programme is archived. Editors cannot edit its content while it stays
-          archived. Owners keep administrative access, so this can be undone below.
+          archived. Programme administrators keep administrative access, so this can be undone below.
         </div>
       )}
       {banner && (
@@ -178,7 +168,7 @@ export default function ProgrammeDetailPage() {
         aria-label="Programme sections"
         style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8 }}
       >
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.key !== "students" || capabilities.students).map((t) => (
           <button
             key={t.key}
             role="tab"
@@ -194,11 +184,11 @@ export default function ProgrammeDetailPage() {
       {tab === "people" && (
         <PeopleSection
           programmeId={id}
-          canManage={canManageMembers && (isMember || isSuperAdmin)}
+          canManage={capabilities.manageMembers}
           onError={notify}
         />
       )}
-      {tab === "students" && <StudentsSection programmeId={id} />}
+      {tab === "students" && (capabilities.students ? <StudentsSection programmeId={id} /> : <div style={noticeStyle}>Student access requires the View Students permission.</div>)}
       {tab === "overview" && <OverviewSection programmeId={id} />}
       {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
@@ -209,8 +199,7 @@ export default function ProgrammeDetailPage() {
           : (
             <div style={noticeStyle}>
               Changing a programme&rsquo;s settings needs the{" "}
-              <strong>Create and Edit Programmes</strong> permission, which your role does
-              not hold. You can still see everything on the other tabs.
+              <strong>Manage Programmes</strong> permission and access to administer this programme.
             </div>
           )
       )}
@@ -240,6 +229,8 @@ function PeopleSection({
   programmeId, canManage, onError,
 }: { programmeId: string; canManage: boolean; onError: Notify }) {
   const { data: members = [], isLoading } = useProgrammeMembers(programmeId);
+  const canSeeContacts = usePermission(PERM.staff.view_contacts);
+  const [selectedMember, setSelectedMember] = useState<string | null>(null);
   const addMember = useAddProgrammeMember();
   const removeMember = useRemoveProgrammeMember();
 
@@ -304,7 +295,7 @@ function PeopleSection({
               options={candidates.map((u) => ({
                 id: u.user_id,
                 label: u.name,
-                sublabel: [u.role, u.email].filter(Boolean).join(" · "),
+                sublabel: [u.role, canSeeContacts ? u.email : null].filter(Boolean).join(" · "),
               }))}
               value={picks}
               onChange={setPicks}
@@ -388,8 +379,8 @@ function PeopleSection({
                     <td style={{ ...tdStyle, ...labelStyle, paddingTop: 12, paddingBottom: 12 }} colSpan={canManage ? 4 : 3}>
                       {section.label}
                       <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 8, color: "rgba(3,72,82,0.55)" }}>
-                        — they can see their part of this programme. They cannot administer it
-                        or edit its content, and they are removed by detaching the school.
+                        — their school responsibility connects them here. Actions and operational
+                        access follow their effective permissions and assigned batches.
                       </span>
                     </td>
                   </tr>
@@ -404,8 +395,9 @@ function PeopleSection({
                     {rows.map((m) => (
                       <tr key={m.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                         <td style={tdStyle}>
-                          {m.name}
-                          {m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
+                          <button style={linkBtnStyle} aria-expanded={selectedMember === m.user_id} onClick={() => setSelectedMember(selectedMember === m.user_id ? null : m.user_id)}>{m.name}</button>
+                          {selectedMember === m.user_id && <div style={{ marginTop: 6, fontSize: 12 }}>{roleLabel(m.role)} · {m.source === "MEMBER" ? "Programme member" : "School responsibility"}</div>}
+                          {canSeeContacts && m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
                           {m.via_schools.length > 0 && (
                             <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
                               {m.via_schools.map((v) => (
@@ -421,7 +413,7 @@ function PeopleSection({
                                       : "They manage the in-charge of this attached school."
                                   }
                                 >
-                                  via {v.name}
+                                  via <EntityLink href={`/dashboard/schools/${v.school_id}`} permissions={[PERM.schools.view]}>{v.name}</EntityLink>
                                 </span>
                               ))}
                             </div>
@@ -507,6 +499,12 @@ function statCard(label: string, value: string, hint?: string, href?: string) {
  */
 function OverviewSection({ programmeId }: { programmeId: string }) {
   const { data, isLoading, error } = useProgrammeOverview(programmeId);
+  const { has } = usePermissions();
+  const currentUrl = useCurrentUrl();
+  const params = useSearchParams();
+  const pathname = usePathname();
+  const hub = (tab: TabKey) => updateProgrammeUrl(pathname, params, { tab });
+  const doubtHref = (status: string) => has(PERM.doubts.view) ? withFrom(`/dashboard/doubts?status=${status}&programme_id=${programmeId}`, currentUrl) : undefined;
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !data) return <div style={errorStyle}>Failed to load programme overview.</div>;
@@ -527,21 +525,21 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
               while reach is current. With the school arm on, a student assigned
               elsewhere who attends a hosted school enters the first number and
               never the second. */}
-          {statCard("Students reached", String(o.reachable_students))}
-          {statCard("Assigned to programme", String(o.assigned_students))}
-          {statCard("Schools", String(o.schools))}
-          {statCard("Batches", String(o.batches))}
-          {statCard("Staff", String(o.staff))}
+          {statCard("Students reached", String(o.reachable_students), undefined, has(PERM.students.view) ? hub("students") : undefined)}
+          {statCard("Assigned to programme", String(o.assigned_students), undefined, has(PERM.students.view) ? updateProgrammeUrl(pathname, params, { tab: "students", via: "PROGRAMME", page: 0 }) : undefined)}
+          {statCard("Schools", String(o.schools), undefined, hub("schools"))}
+          {statCard("Batches", String(o.batches), undefined, hub("batches"))}
+          {statCard("Staff", String(o.staff), undefined, hub("people"))}
         </div>
       </div>
 
       <div>
         <div style={{ ...labelStyle, marginBottom: 8 }}>Content owned</div>
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          {statCard("Courses", String(o.content.courses))}
-          {statCard("Assignments", String(o.content.assignments))}
-          {statCard("Resources", String(o.content.resources))}
-          {statCard("Quizzes", String(o.content.quizzes))}
+          {statCard("Courses", String(o.content.courses), undefined, hub("content"))}
+          {statCard("Assignments", String(o.content.assignments), undefined, hub("content"))}
+          {statCard("Resources", String(o.content.resources), undefined, hub("content"))}
+          {statCard("Quizzes", String(o.content.quizzes), undefined, hub("content"))}
         </div>
         {contentTotal === 0 && (
           <div style={{ ...noticeStyle, marginTop: 10 }}>
@@ -556,7 +554,7 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
           {statCard("Quiz attempts", String(o.activity.attempts))}
           {statCard("Average score", o.activity.avg_score === null ? "—" : `${o.activity.avg_score}%`,
             o.activity.avg_score === null ? "no completed attempts yet" : undefined)}
-          {statCard("Attendance marks", String(o.activity.attendance_marks))}
+          {statCard("Register marks", String(o.activity.attendance_marks), "Recorded in offline attendance registers")}
           {statCard("Tracker records", String(o.activity.tracker_records))}
         </div>
       </div>
@@ -569,8 +567,8 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
               on an instance of the old API that has never heard of `doubts`.
               Dereferencing it flat would take the whole Overview tab down with a
               TypeError for the length of the rollout. */}
-          {statCard("Open", String(o.doubts?.open ?? 0), undefined, "/dashboard/doubts?status=OPEN")}
-          {statCard("Answered", String(o.doubts?.answered ?? 0), undefined, "/dashboard/doubts?status=ANSWERED")}
+          {statCard("Open", String(o.doubts?.open ?? 0), undefined, doubtHref("OPEN"))}
+          {statCard("Answered", String(o.doubts?.answered ?? 0), undefined, doubtHref("ANSWERED"))}
         </div>
       </div>
     </section>
@@ -594,28 +592,23 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
  */
 function StudentsSection({ programmeId }: { programmeId: string }) {
   const rowNav = useRowNavigation();
-  const canOpenStudent = useAnyPermission(...STAFF_ANALYTICS_PERMISSIONS);
+  const canSeeStudent = usePermission(PERM.students.view);
+  const canReadProfile = useAnyPermission(...STUDENT_PROFILE_PERMISSIONS);
+  const canOpenStudent = canSeeStudent && canReadProfile;
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const router = useRouter();
   const { data: schools = [] } = useProgrammeSchools(programmeId);
 
-  const [q, setQ] = useState("");
-  const [schoolId, setSchoolId] = useState("");
-  const [via, setVia] = useState<"" | ProgrammeReachVia>("");
-  const [page, setPage] = useState(0);
+  const { q, school: schoolId, via, page } = readProgrammeState(params);
+  const update = (changes: Parameters<typeof updateProgrammeUrl>[2]) => router.replace(updateProgrammeUrl(pathname, params, changes), { scroll: false });
   const PAGE = 200;
-
-  // Debounced, because every keystroke is now a request rather than an
-  // in-memory filter.
-  const [debounced, setDebounced] = useState("");
-  useEffect(() => {
-    const t = setTimeout(() => { setDebounced(q); setPage(0); }, 250);
-    return () => clearTimeout(t);
-  }, [q]);
 
   const { data, isLoading, error, isPlaceholderData } = useProgrammeStudents(
     programmeId,
     true,
     {
-      q: debounced || undefined,
+      q: q || undefined,
       school_id: schoolId || undefined,
       via: via || undefined,
       limit: PAGE,
@@ -624,7 +617,7 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
   );
   const students = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const filtering = Boolean(debounced || schoolId || via);
+  const filtering = Boolean(q || schoolId || via);
 
   const viaBadge = (v: ProgrammeReachVia) => {
     const style: React.CSSProperties = {
@@ -655,12 +648,12 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
             style={{ ...inputStyle, width: 240 }}
             placeholder="Search name, roll number or school"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => update({ q: e.target.value, page: 0 })}
           />
           <select
             style={{ ...inputStyle, width: 200 }}
             value={schoolId}
-            onChange={(e) => { setSchoolId(e.target.value); setPage(0); }}
+            onChange={(e) => update({ school: e.target.value, page: 0 })}
           >
             <option value="">All schools</option>
             {schools.map((sc: ProgrammeSchool) => (
@@ -670,7 +663,7 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
           <select
             style={{ ...inputStyle, width: 170 }}
             value={via}
-            onChange={(e) => { setVia(e.target.value as "" | ProgrammeReachVia); setPage(0); }}
+            onChange={(e) => update({ via: e.target.value as "" | ProgrammeReachVia, page: 0 })}
           >
             <option value="">Reached any way</option>
             <option value="PROGRAMME">Assigned to programme</option>
@@ -724,7 +717,8 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
                 <td style={tdStyle}>
                   <EntityLink
                     href={`/dashboard/students/${s.user_id}`}
-                    permissions={STAFF_ANALYTICS_PERMISSIONS}
+                    permissions={STUDENT_PROFILE_PERMISSIONS}
+                    requiredPermissions={[PERM.students.view]}
                   >
                     {s.name}
                   </EntityLink>
@@ -749,13 +743,13 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
 
       {total > PAGE && (
         <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-          <button style={secondaryButton} disabled={page === 0} onClick={() => setPage((n) => n - 1)}>
+          <button style={secondaryButton} disabled={page === 0} onClick={() => update({ page: page - 1 })}>
             Previous
           </button>
           <button
             style={secondaryButton}
             disabled={(page + 1) * PAGE >= total}
-            onClick={() => setPage((n) => n + 1)}
+            onClick={() => update({ page: page + 1 })}
           >
             Next
           </button>
@@ -778,18 +772,20 @@ const KINDS: Array<{ key: ProgrammeContentKind; label: string; one: string; row:
 /**
  * Where each content kind lives, and what it takes to open it.
  *
- * Resources have no detail page — they are files, opened from the Resources
- * list — so they are deliberately absent and render as plain text rather than a
- * link to a route that does not exist.
+ * Resources open the focused list entry; quizzes open the existing builder
+ * with its own read/write gates. Each destination keeps the hub return URL.
  */
 const CONTENT_HREF: Record<string, ((id: string) => string) | undefined> = {
   courses: (id) => `/dashboard/courses/${id}`,
   assignments: (id) => `/dashboard/assignments/${id}`,
+  quizzes: (id) => `/dashboard/quiz-builder/${id}`,
+  resources: (id) => `/dashboard/resources?focus=${id}`,
 };
 const CONTENT_PERMS: Record<string, readonly string[]> = {
   courses: [PERM.courses.view],
   assignments: [PERM.assignments.view],
   resources: [PERM.resources.view],
+  quizzes: [PERM.test_bank.view],
 };
 
 const KIND_ROW_LABEL = Object.fromEntries(KINDS.map((k) => [k.key, k.row])) as Record<
@@ -1008,9 +1004,9 @@ function SchoolsSection({
   const [picks, setPicks] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!canManage) return;
+    if (!canManage || !canOpenSchool) return;
     fetchSchools().then(setAll).catch(() => setAll([]));
-  }, [canManage]);
+  }, [canManage, canOpenSchool]);
 
   const attachedIds = useMemo(() => new Set(attached.map((s) => s.school_id)), [attached]);
   const candidates = all.filter((s) => !attachedIds.has(s.id));
@@ -1026,7 +1022,7 @@ function SchoolsSection({
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h2 style={{ ...titleStyle, fontSize: 17 }}>Schools</h2>
 
-      {canManage && (
+      {canManage && canOpenSchool && (
         <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 320px" }}>
             <label style={formLabelStyle}>Attach schools</label>
@@ -1164,14 +1160,7 @@ function BatchesSection({
         if (cancelled) return;
         // allSettled, not all: one failed lookup must not hide the impacts that
         // did come back — it downgrades the notice, it does not erase it.
-        const byCourse = new Map<string, BatchImpact>();
-        for (const r of results) {
-          if (r.status === "fulfilled") {
-            // Two picked batches can teach the same course; name it once.
-            for (const c of r.value) byCourse.set(c.course_id, c);
-          }
-        }
-        setImpact([...byCourse.values()]);
+        setImpact(mergeBatchImpacts(results.flatMap(result => result.status === "fulfilled" ? [result.value] : [])));
         setImpactFailed(results.some((r) => r.status === "rejected"));
       })
       .finally(() => { if (!cancelled) setChecking(false); });
@@ -1255,27 +1244,8 @@ function BatchesSection({
           {checking && (
             <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>Checking impact…</div>
           )}
-          {impact !== null && impact.length > 0 && (
-            <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
-              <strong>This removes edit rights from another programme.</strong>{" "}
-              {picks.length === 1 ? "This batch teaches" : "These batches teach"} {impact.length} course
-              {impact.length === 1 ? "" : "s"} owned elsewhere.
-              Once the batch belongs here those courses are shared across programmes, so
-              their owners keep ownership and lose editing:
-              <ul style={{ margin: "8px 0 0 18px" }}>
-                {impact.map((c) => (
-                  <li key={c.course_id}>
-                    {c.title} <span style={{ opacity: 0.7 }}>— {c.owner_programme}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {impact !== null && impact.length === 0 && picks.length > 0 && !checking && !impactFailed && (
-            <div style={{ fontSize: 12, color: "#067a45" }}>
-              No side effects — {picks.length === 1 ? "this batch teaches" : "these batches teach"} nothing
-              another programme owns.
-            </div>
+          {impact !== null && picks.length > 0 && (impact.length > 0 || (!checking && !impactFailed)) && (
+            <BatchImpactNotice items={impact} />
           )}
           {impactFailed && !checking && (
             <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>

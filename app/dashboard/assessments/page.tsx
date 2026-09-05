@@ -6,14 +6,13 @@ import { useRouter } from "next/navigation";
 import { useSearchParams, usePathname } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { hasEffectiveSelfScope, PERM } from "@/lib/permissions";
 import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type AvailableQuiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
 import {
   type AssessmentsOverviewItem,
   getQuizLeaderboard,
   type QuizLeaderboard,
 } from "@/lib/api";
-import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useAssessmentsOverview } from "@/lib/queries/assessments";
 import { useBatches } from "@/lib/queries/batches";
 import { useProgrammes } from "@/lib/queries/programmes";
@@ -32,14 +31,14 @@ export default function AssessmentsPage() {
 
   const studentId      = data?.user?.id ?? "";
 
-  // Admin-viewers (any analytics permission) go to the monitor view.
-  const isAdminViewer = has(PERM.analytics.view)
+  const isLearner = hasEffectiveSelfScope(data?.permissions ?? []);
+  const canViewOwn = isLearner && has(PERM.assessments.view);
+  const isAdminViewer = !isLearner && has(PERM.students.view) && (has(PERM.analytics.view)
                      || has(PERM.analytics.view_admin)
                      || has(PERM.analytics.view_manager)
-                     || has(PERM.analytics.view_fellow);
+                     || has(PERM.analytics.view_fellow));
 
-  // Attempters get the quiz list; others with `assessments.view` get the admin view.
-  const canAttempt = has(PERM.assessments.attempt);
+  const canAttempt = canViewOwn && has(PERM.assessments.attempt);
 
   const [quizzes, setQuizzes]           = useState<AvailableQuiz[]>([]);
   const [moduleQuizzes, setModuleQuizzes] = useState<ModuleQuiz[]>([]);
@@ -55,7 +54,7 @@ export default function AssessmentsPage() {
   const [batchLoading, setBatchLoading] = useState(false);
 
   useEffect(() => {
-    if (userLoading || !canAttempt || !studentId) return;
+    if (userLoading || !canViewOwn || !studentId) return;
     setLoading(true);
     Promise.all([getAvailableQuizzes(), getModuleQuizzes()])
       .then(async ([globalQs, moduleQs]) => {
@@ -78,17 +77,17 @@ export default function AssessmentsPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load quizzes."))
       .finally(() => setLoading(false));
-  }, [userLoading, canAttempt, studentId]);
+  }, [userLoading, canViewOwn, studentId]);
 
   useEffect(() => {
-    if (!selectedCourseId || !studentId) return;
+    if (!canViewOwn || !selectedCourseId || !studentId) return;
     setBatchLoading(true);
     setBatchComparison(null);
     getBatchComparison(studentId, selectedCourseId)
       .then(setBatchComparison)
       .catch(() => {})
       .finally(() => setBatchLoading(false));
-  }, [selectedCourseId, studentId]);
+  }, [canViewOwn, selectedCourseId, studentId]);
 
   if (userLoading) {
     return (
@@ -101,6 +100,10 @@ export default function AssessmentsPage() {
   // ── Admin/Manager view ───────────────────────────────────────────────────
   if (isAdminViewer) {
     return <MonitorView />;
+  }
+
+  if (!canViewOwn) {
+    return <div><PageHeader /><p className="text-sm text-slate-600">Assessment monitoring requires View Students and an analytics permission. Your assigned quizzes are available with Self scope and View Assessments permission.</p></div>;
   }
 
   // ── Student view ─────────────────────────────────────────────────────────
@@ -141,6 +144,7 @@ export default function AssessmentsPage() {
                   <QuizRow
                     key={q.id}
                     quiz={q}
+                    canAttempt={canAttempt}
                     label={`${q.course_title} · ${q.module_title}`}
                     attempts={attemptsByQuiz[q.id] ?? []}
                     locked={q.is_locked === true}
@@ -164,6 +168,7 @@ export default function AssessmentsPage() {
                   <QuizRow
                     key={q.id}
                     quiz={q}
+                    canAttempt={canAttempt}
                     label="Global Quiz"
                     attempts={attemptsByQuiz[q.id] ?? []}
                     locked={q.attemptable === false}
@@ -217,11 +222,12 @@ export default function AssessmentsPage() {
 // ── Quiz row ──────────────────────────────────────────────────────────────────
 
 function QuizRow({
-  quiz, label, attempts, locked, lockedTitle, windowInfo, missed, onStart, onReview, onPractice,
+  quiz, label, attempts, canAttempt, locked, lockedTitle, windowInfo, missed, onStart, onReview, onPractice,
 }: {
   quiz: Omit<Quiz, "questions">;
   label: string;
   attempts: QuizAttempt[];
+  canAttempt: boolean;
   /** Module test gated by sequential flow, or batch test outside its window. */
   locked?: boolean;
   /** Tooltip for the disabled Start button (defaults to the module-lock hint). */
@@ -242,7 +248,7 @@ function QuizRow({
   const attemptsUsed = attempts.length;
   const exhausted    = maxAttempts != null && maxAttempts > 0 && attemptsUsed >= maxAttempts;
   const isLocked     = locked === true;
-  const showPractice = attemptsUsed > 0 && quiz.first_attempt_counts === true;
+  const showPractice = canAttempt && attemptsUsed > 0 && quiz.first_attempt_counts === true;
 
   const sorted = [...attempts].sort((a, b) => {
     const ta = a.submitted_at ? Date.parse(a.submitted_at) : 0;
@@ -317,7 +323,7 @@ function QuizRow({
             )}
           </div>
 
-          <button
+          {canAttempt && <button
             onClick={onStart}
             disabled={exhausted || isLocked}
             title={isLocked ? (lockedTitle ?? "Complete the module's lessons (and any prior modules) in the course to unlock this quiz") : undefined}
@@ -335,7 +341,7 @@ function QuizRow({
             }}
           >
             {isLocked ? "🔒 Locked" : exhausted ? "No attempts left" : attemptsUsed > 0 ? "Retake" : "Start"}
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -608,21 +614,19 @@ function MonitorView() {
   const page        = Number(params.get('page') ?? '1');
   const drawerId    = params.get('drawer');
 
-  const { data: batches = [] } = useBatches('ACTIVE');
-  const { data: allProgrammes = [] } = useProgrammes();
-  const { isSuperAdmin } = usePermissions();
-
-  // MEMBERSHIP, not visibility. `GET /programmes` returns every programme to a
-  // PROGRAM_MANAGER — they administer the catalogue — with `my_level: null` on
-  // the ones they are not in. Filtering on the raw list would classify every PM
-  // as a member and offer picker options the backend answers with a 404.
-  // SUPER_ADMIN is never a member and is the deliberate exception: they filter
-  // over everything.
-  const myProgrammes = isSuperAdmin
-    ? allProgrammes
-    : allProgrammes.filter((p) => p.is_member);
-  const inProgrammeMode = !isSuperAdmin && myProgrammes.length > 0;
-  const showPicker = isSuperAdmin ? allProgrammes.length > 0 : myProgrammes.length >= 2;
+  const { has } = usePermissions();
+  const canReadBatches = has(PERM.batches.view);
+  const canReadProgrammes = has(PERM.programmes.view);
+  const batchQuery = useBatches('ACTIVE', canReadBatches);
+  const programmeQuery = useProgrammes(false, canReadProgrammes);
+  const batches = canReadBatches ? batchQuery.data ?? [] : [];
+  const allProgrammes = canReadProgrammes ? programmeQuery.data ?? [] : [];
+  // The API resolves operational reach. A direct seat must not widen it, and
+  // filtering on membership would hide assigned-batch access from nonmembers.
+  const isUnrestricted = has(PERM.scope.unrestricted);
+  const myProgrammes = allProgrammes;
+  const inProgrammeMode = !isUnrestricted && myProgrammes.length > 0;
+  const showPicker = myProgrammes.length > 0;
 
   const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
     type: type ?? undefined,
@@ -687,7 +691,7 @@ function MonitorView() {
             >
               {/* SUPER_ADMIN's default is the platform-wide view; sending no
                   programme_id is what preserves it. */}
-              <option value="">{isSuperAdmin ? 'All programmes' : 'All my programmes'}</option>
+              <option value="">{isUnrestricted ? 'All programmes' : 'All my programmes'}</option>
               {myProgrammes.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -732,16 +736,16 @@ function MonitorView() {
               ? 'No quizzes yet — none of this programme\u2019s courses have published quizzes.'
               : 'No assessments match your filters.'}
           </p>
-          {inProgrammeMode && (
+          {inProgrammeMode && has(PERM.programmes.view) && (
             // Courses are attached to a programme by hand, on its content tab.
             // A silent fallback to the platform-wide list would hide a missing
             // attachment forever, so the empty state says where to go instead.
             <p style={{ marginTop: '10px', fontSize: '13px' }}>
               <a
-                href={`/dashboard/programmes/${programmeId || myProgrammes[0]?.id || ''}`}
+                href={`/dashboard/programmes/${programmeId || myProgrammes[0]?.id || ''}?tab=content`}
                 style={{ color: '#209379', fontWeight: 600 }}
               >
-                Attach courses to this programme →
+                Open programme content →
               </a>
             </p>
           )}
@@ -1152,12 +1156,4 @@ const glassCard: React.CSSProperties = {
   borderRadius: "20px",
   padding: "28px 32px",
   boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-};
-
-const primaryBtn: React.CSSProperties = {
-  padding: "10px 20px", border: "none", borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "13px", cursor: "pointer",
-  boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
 };

@@ -6,10 +6,11 @@ import { qk } from './keys';
 import { makeIdbPersister } from './persister';
 
 /** Layer 4 — Tier 1 (IDB-persisted) batches list hook. 5 min stale / 30 min gc. */
-export function useBatches(status?: 'ACTIVE' | 'ARCHIVED' | 'all') {
+export function useBatches(status?: 'ACTIVE' | 'ARCHIVED' | 'all', enabled = true) {
   return useQuery({
     queryKey: qk.batches(status),
     queryFn: () => getBatches(status),
+    enabled,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     persister: makeIdbPersister(),

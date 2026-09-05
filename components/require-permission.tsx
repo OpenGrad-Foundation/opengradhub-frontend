@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/use-permission";
-import { ROUTE_PERMISSION } from "@/lib/permissions";
+import { canAccessDashboardPath } from "@/lib/permissions";
 
 // ── Reusable wrapper ─────────────────────────────────────────────────────────
 // Gates a subtree behind one or more permission codes (ANY-of). While the
@@ -37,12 +37,8 @@ export function RequirePermission({
 export function DashboardRouteGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { hasAny, isLoading } = usePermissions();
-
-  const segment = pathname.replace(/^\/dashboard\/?/, "").split("/")[0] ?? "";
-  const required = ROUTE_PERMISSION[segment];
-  const requiredCodes = Array.isArray(required) ? required : required ? [required] : [];
-  const allowed = requiredCodes.length === 0 || hasAny(...requiredCodes);
+  const { has, isLoading } = usePermissions();
+  const allowed = canAccessDashboardPath(pathname, has);
 
   useEffect(() => {
     if (!isLoading && !allowed) {
@@ -50,7 +46,8 @@ export function DashboardRouteGuard({ children }: { children: React.ReactNode })
     }
   }, [isLoading, allowed, router]);
 
-  if (!isLoading && !allowed) return <NoAccess />;
+  if (isLoading) return null;
+  if (!allowed) return <NoAccess />;
   return <>{children}</>;
 }
 

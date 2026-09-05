@@ -11,6 +11,8 @@
  * and the Live Classes "Students" grid (classes only) are both gone.
  */
 import { useEffect, useState } from "react";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { Modal } from "@/components/Modal";
 import { getCourses, type Course } from "@/lib/api";
 import { useBatches } from "@/lib/queries/batches";
@@ -23,6 +25,7 @@ import { useRecordsFilters } from "./useRecordsFilters";
 type Cohort = { type: "batch" | "course"; id: string };
 
 export function RecordsTab() {
+  const { has } = usePermissions();
   const { state, set, openStudent, closeStudent } = useRecordsFilters();
   const { cohortType, cohortId, from, to, page, view, student } = state;
 
@@ -60,8 +63,8 @@ export function RecordsTab() {
           aria-label="Cohort type"
           className={CONTROL}
         >
-          <option value="batch">By batch</option>
-          <option value="course">By course</option>
+          <option value="batch" disabled={!has(PERM.batches.view)}>By batch</option>
+          <option value="course" disabled={!has(PERM.courses.view)}>By course</option>
         </select>
 
         <CohortPicker
@@ -379,20 +382,27 @@ function CohortPicker({ type, value, onChange }: {
   value: string;
   onChange: (v: string) => void;
 }) {
+  const { has } = usePermissions();
+  const canViewCourses = has(PERM.courses.view);
+  const canViewBatches = has(PERM.batches.view);
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseError, setCourseError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (!canViewCourses || type !== "course") return;
     let cancelled = false;
     setCourseError(false);
     getCourses(undefined, undefined, undefined, true)
       .then((cs) => { if (!cancelled) setCourses(cs); })
       .catch(() => { if (!cancelled) setCourseError(true); });
     return () => { cancelled = true; };
-  }, [reloadKey]);
+  }, [reloadKey, canViewCourses, type]);
 
-  const batches = useBatches();
+  const batches = useBatches(undefined, canViewBatches && type === "batch");
+  if (type === "course" ? !canViewCourses : !canViewBatches) {
+    return <span className="text-sm text-slate-500">View {type === "course" ? "Courses" : "Batches"} permission is required to choose this cohort.</span>;
+  }
 
   // An empty picker and a failed picker look identical, and the records query
   // stays disabled either way — so the failure has to be said out loud, with a

@@ -10,7 +10,10 @@ import { PERM } from "@/lib/permissions";
 
 export default function SuperAdminOverview({ userId }: { userId: string }) {
   const { widgets, isLoading, error, refetch } = useSuperAdminOverview(userId);
-  const canTriage = usePermission(PERM.test_bank.manage_questions);
+  const canManageQuestions = usePermission(PERM.test_bank.manage_questions);
+  const canViewStudents = usePermission(PERM.students.view);
+  const canViewBank = usePermission(PERM.test_bank.view);
+  const canTriage = canManageQuestions && canViewStudents && canViewBank;
   const { count } = useOpenReportedCount(canTriage);
   const merged = withReportedStat(widgets, { show: canTriage, count });
   return <GenericOverview role="SUPER_ADMIN" widgets={merged} isLoading={isLoading} error={error} refetch={refetch} />;

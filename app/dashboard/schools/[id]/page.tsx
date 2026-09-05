@@ -33,7 +33,7 @@ export default function SchoolDetailPage() {
   const canEditSchool = has(PERM.schools.edit);
   const canEditRoster = has(PERM.user_management.edit);
   const canAttachBatch = has(PERM.batches.edit);
-  const canViewAttendance = has(PERM.attendance.view);
+  const canViewAttendance = has(PERM.attendance.view) && has(PERM.students.view);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);

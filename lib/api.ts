@@ -163,6 +163,7 @@ export type SafeUser = {
   id: string;
   name: string;
   role: string;
+  programme_id?: string | null;
   programme_type: string | null;
   school_id: string | null;
   zone: string | null;
@@ -966,9 +967,9 @@ export type ModuleWithProgress = {
   module_quizzes: Array<{ id: string; title: string; published: boolean; order_index: number; is_complete?: boolean }>;
 };
 
-export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
+export async function getCourseOverview(courseId: string, studentId?: string): Promise<ModuleWithProgress[]> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
-  url.searchParams.set("student_id", studentId);
+  if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
   return (await r.json()) as ModuleWithProgress[];
@@ -1859,7 +1860,7 @@ export async function duplicateQuiz(
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/duplicate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ programme_id: programmeId ?? null }),
+    body: JSON.stringify({ programme_id: programmeId }),
   });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -3411,12 +3412,26 @@ export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolR
 /**
  * Create a single user.
  */
+export type StudentCreationDestinations = {
+  requires_batch: boolean;
+  programmes: Array<{ id: string; name: string; kind: string }>;
+  batches: Array<{ id: string; name: string; programme_id: string }>;
+};
+export async function getStudentCreationDestinations(): Promise<StudentCreationDestinations> {
+  const response = await apiFetch(`${API_BASE_URL}/users/create-destinations`, { cache: "no-store" });
+  if (!response.ok) throw new ApiError("Could not load student destinations.", response.status);
+  return response.json() as Promise<StudentCreationDestinations>;
+}
+
 export async function createUser(payload: {
   name: string;
   email?: string;
   phone?: string;
   role: string;
   programme_type?: string;
+  programme_id?: string;
+  batch_id?: string;
+  fellow_id?: string;
   school_id?: string;
   state?: string;
   school_code?: string;
@@ -3453,6 +3468,7 @@ export async function updateUser(
     email?: string;
     phone?: string;
     programme_type?: string;
+    programme_id?: string;
     school_id?: string;
     state?: string;
     school_code?: string;
@@ -5178,6 +5194,8 @@ export interface ProgrammeBatch {
 }
 
 export interface BatchImpact {
+  id?: string;
+  kind?: 'courses' | 'assignments' | 'resources';
   course_id: string;
   title: string;
   owner_programme: string;
@@ -5279,9 +5297,11 @@ export async function releaseProgrammeContent(
  * copied, nothing student-facing. The release valve for programme-owned
  * courses — the copy can be assigned to any programme.
  */
-export async function duplicateCourse(id: string): Promise<Course> {
+export async function duplicateCourse(id: string, programmeId?: string | null): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId }),
     cache: "no-store",
   });
 

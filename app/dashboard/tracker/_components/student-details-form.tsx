@@ -19,11 +19,13 @@ type FieldValues = Record<string, unknown>;
  */
 export function StudentDetailsForm({
   studentId,
+  readOnly = false,
   studentName,
   onClose,
   onSaved,
 }: {
   studentId: string;
+  readOnly?: boolean;
   studentName?: string;
   onClose: () => void;
   onSaved?: () => void;
@@ -60,6 +62,7 @@ export function StudentDetailsForm({
   };
 
   async function onSubmit() {
+    if (readOnly) return;
     setFormError(null);
     setFieldErrors({});
     setSaved(false);
@@ -111,7 +114,7 @@ export function StudentDetailsForm({
         ) : (
           <>
             <div className="flex-1 overflow-y-auto px-4 py-4">
-              <div className="flex flex-col gap-4">
+              <fieldset disabled={readOnly} className="flex flex-col gap-4">
                 {activeDetails.map((d) => (
                   <FieldInput
                     key={d.field.field_key}
@@ -121,7 +124,7 @@ export function StudentDetailsForm({
                     onChange={(v) => setValue(d.field.field_key, v)}
                   />
                 ))}
-              </div>
+              </fieldset>
             </div>
             <div className="border-t border-gray-100 p-3">
               {formError && (
@@ -132,7 +135,7 @@ export function StudentDetailsForm({
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Saved.
                 </p>
               )}
-              <button
+              {!readOnly && <button
                 type="button"
                 onClick={onSubmit}
                 disabled={save.isPending}
@@ -140,7 +143,7 @@ export function StudentDetailsForm({
               >
                 {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 Save details
-              </button>
+              </button>}
             </div>
           </>
         )}

@@ -1,7 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { CheckCircle2, ChevronRight, Loader2, Search, ArrowLeft } from "lucide-react";
+import { ChevronRight, Loader2, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getStudentRoster } from "@/lib/api";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   useTrackerPms,
@@ -17,16 +21,11 @@ import { IN_CHARGE_PLURAL } from "@/lib/labels";
 
 type Level = "pm" | "zm" | "fellow" | "school" | "student";
 type Crumb = { level: Level; id: string; name: string };
-
-function getStartLevel(roleCode: string): Level {
-  switch (roleCode) {
-    case "SUPER_ADMIN": return "pm";
-    case "PROGRAM_MANAGER": return "zm";
-    case "ZONAL_MANAGER": return "fellow";
-    case "FELLOW": return "school";
-    default: return "student"; // fallback
-  }
-}
+type HierarchyItem = {
+  id: string; name: string; zm_count?: number; fellow_count?: number;
+  state?: string | null; district?: string | null;
+  programme?: string | null; programme_type?: string | null;
+};
 
 function getHomeLabel(startLevel: Level): string {
   switch (startLevel) {
@@ -57,6 +56,15 @@ function getListTitle(level: Level, parentName?: string): string {
 }
 
 export function HierarchicalStudentsPanel() {
+  const { has, isLoading } = usePermissions();
+  if (isLoading) return null;
+  if (!has(PERM.students.view)) return <p>You do not have permission to view students.</p>;
+  return <ScopedStudentsPanel />;
+}
+
+function ScopedStudentsPanel() {
+  const canFill = usePermissions().has(PERM.tracker.fill);
+  const [startLevel, setStartLevel] = useState<Level>("student");
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const [path, setPath] = useState<Crumb[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<{ id: string; name: string } | null>(null);
@@ -71,7 +79,6 @@ export function HierarchicalStudentsPanel() {
 
   if (!user) return null;
 
-  const startLevel = getStartLevel(user.role.code);
   const currentLevel = path.length > 0 ? getNextLevel(path[path.length - 1].level) : startLevel;
   const currentParentId = path.length > 0 ? path[path.length - 1].id : null;
   const currentParentName = path.length > 0 ? path[path.length - 1].name : undefined;
@@ -82,6 +89,11 @@ export function HierarchicalStudentsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      <label className="flex items-center gap-2 text-sm text-gray-600">Browse
+        <select aria-label="Browse team and students" value={startLevel} onChange={event => { setStartLevel(event.target.value as Level); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+          {(["student", "pm", "zm", "fellow"] as Level[]).map(level => <option key={level} value={level}>{getHomeLabel(level)}</option>)}
+        </select>
+      </label>
       {path.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-600 px-1">
           <button
@@ -109,6 +121,8 @@ export function HierarchicalStudentsPanel() {
       )}
 
       <LevelRenderer
+        key={`${currentLevel}:${currentParentId ?? "root"}`}
+        canFill={canFill}
         level={currentLevel as Level}
         parentId={currentParentId}
         parentName={currentParentName}
@@ -124,6 +138,7 @@ export function HierarchicalStudentsPanel() {
 
       {selectedStudent && (
         <StudentDetailsForm
+          readOnly={!canFill}
           studentId={selectedStudent.id}
           studentName={selectedStudent.name}
           onClose={() => setSelectedStudent(null)}
@@ -145,18 +160,23 @@ function getNextLevel(level: Level): Level | null {
 
 function LevelRenderer({
   level,
+  canFill,
   parentId,
   parentName,
   userId,
   onSelect,
 }: {
   level: Level;
+  canFill: boolean;
   parentId: string | null;
   parentName?: string;
   userId: string;
   onSelect: (crumb: Crumb) => void;
 }) {
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
+  const rootStudents = level === "student" && !parentId;
+  const rosterQuery = useQuery({ queryKey: ["og", "student", "tracker-roster", userId, q, page], queryFn: () => getStudentRoster({ search: q || undefined, limit: 50, offset: page * 50 }), enabled: rootStudents });
 
   const pmsQuery = useTrackerPms(level === "pm");
   const zmsQuery = useTrackerZms(level === "zm" && !parentId);
@@ -166,10 +186,10 @@ function LevelRenderer({
   const fellowSchoolsQuery = useTrackerFellowSchools(level === "school" ? (parentId || userId) : undefined);
   const schoolStudentsQuery = useTrackerSchoolStudents(level === "student" && parentId ? parentId : undefined);
 
-  let data: any[] | undefined;
+  let data: HierarchyItem[] | undefined;
   let isLoading = false;
-  let error: any = null;
-  let getProps: (item: any) => { id: string; name: string; subtitle: string; rightItem?: React.ReactNode } = () => ({
+  let error: unknown = null;
+  let getProps: (item: HierarchyItem) => { id: string; name: string; subtitle: string; rightItem?: React.ReactNode } = () => ({
     id: "",
     name: "",
     subtitle: "",
@@ -214,16 +234,16 @@ function LevelRenderer({
       subtitle: s.district ? `${s.district}${s.state ? `, ${s.state}` : ""}` : s.state || "No location",
     });
   } else if (level === "student") {
-    data = schoolStudentsQuery.data;
-    isLoading = schoolStudentsQuery.isLoading;
-    error = schoolStudentsQuery.error;
+    data = rootStudents ? rosterQuery.data?.items : schoolStudentsQuery.data;
+    isLoading = rootStudents ? rosterQuery.isLoading : schoolStudentsQuery.isLoading;
+    error = rootStudents ? rosterQuery.error : schoolStudentsQuery.error;
     getProps = (st) => ({
       id: st.id,
       name: st.name,
-      subtitle: st.programme || "No programme",
+      subtitle: st.programme_type || st.programme || "No programme",
       rightItem: (
         <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition group-hover:border-teal-300 group-hover:bg-teal-50 group-hover:text-teal-700">
-          Edit details <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+          {canFill ? "Edit details" : "View details"} <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
       ),
     });
@@ -247,17 +267,7 @@ function LevelRenderer({
     );
   }
 
-  if (!data || data.length === 0) {
-    return (
-      <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-5 text-center">
-        <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
-        <p className="text-sm font-semibold text-gray-950">No {level}s found</p>
-        <p className="text-sm text-gray-500">There are no {level}s to display here.</p>
-      </div>
-    );
-  }
-
-  const shown = data.filter((item) => getProps(item).name.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = (data ?? []).filter((item) => getProps(item).name.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
     <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
@@ -269,7 +279,7 @@ function LevelRenderer({
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => { setQ(e.target.value); setPage(0); }}
             placeholder="Search…"
             className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
           />
@@ -307,6 +317,11 @@ function LevelRenderer({
           })}
         </ul>
       )}
+      {rootStudents && <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-sm">
+        <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
+        <span>{rosterQuery.data?.total ?? 0} students · Page {page + 1}</span>
+        <button type="button" disabled={!rosterQuery.data?.has_more} onClick={() => setPage(page + 1)}>Next</button>
+      </div>}
     </section>
   );
 }

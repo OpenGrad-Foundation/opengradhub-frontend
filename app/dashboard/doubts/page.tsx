@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -10,6 +12,11 @@ import { useStaffDoubts } from "@/lib/queries/doubts";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function DoubtsPage() {
+  return <Suspense fallback={<LoadingState />}><DoubtsPageContent /></Suspense>;
+}
+
+function DoubtsPageContent() {
+  const programmeId = useSearchParams().get("programme_id");
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const queryClient = useQueryClient();
@@ -40,11 +47,11 @@ export default function DoubtsPage() {
   const canSubmit  = has(PERM.doubts.submit);
   const canRespond = has(PERM.doubts.respond);
   const canDelete  = has(PERM.doubts.delete);
-  const isStaffViewer = canRespond || canDelete;
+  const isStaffViewer = canRespond || canDelete || has(PERM.students.view);
 
   // Single stable cache entry — `getDoubts` ignores its args and the backend
   // scopes the list by `req.auth`, so we never partition the cache by filters.
-  const { data: doubtsData, isPending, isError, error: queryError } = useStaffDoubts();
+  const { data: doubtsData, isPending, isError, error: queryError } = useStaffDoubts({ programme_id: programmeId ?? undefined });
   const doubts = doubtsData ?? [];
   const loading = isPending;
   const error = isError ? (queryError instanceof Error ? queryError.message : "Failed to load doubts.") : null;
@@ -59,7 +66,7 @@ export default function DoubtsPage() {
 
   if (isStaffViewer) {
     return (
-      <StaffDoubtsView
+      <><BackLink fallback="/dashboard" /><StaffDoubtsView
         doubts={doubts}
         loading={loading}
         error={error}
@@ -68,12 +75,13 @@ export default function DoubtsPage() {
         canDelete={canDelete}
         focusId={focusId}
         statusParam={statusParam}
-      />
+      /></>
     );
   }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <BackLink fallback="/dashboard" />
       {/* ── Header ─────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
         <div>
@@ -185,6 +193,7 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <BackLink fallback="/dashboard" />
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
       </div>

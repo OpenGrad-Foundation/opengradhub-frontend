@@ -6,7 +6,8 @@ import {
   type QuestionReportRow,
 } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { EntityLink } from "../programmes/_components/entity-link";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
 /**
@@ -16,12 +17,15 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
  * the endpoints regardless — this is affordance, not a security boundary.
  */
 export function QuestionReportsPanel({ questionId }: { questionId: string }) {
-  const canTriage = usePermission(PERM.test_bank.manage_questions);
+  const canManageQuestions = usePermission(PERM.test_bank.manage_questions);
+  const canViewStudents = usePermission(PERM.students.view);
+  const canTriage = canManageQuestions && canViewStudents;
   const [reports, setReports] = useState<QuestionReportRow[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const invalidate = useInvalidate();
 
   useEffect(() => {
+    setReports([]);
     if (!canTriage || !questionId) return;
     let cancelled = false;
     // The API rolls a GROUP child's reports up under the parent's id for us.
@@ -81,7 +85,7 @@ export function QuestionReportsPanel({ questionId }: { questionId: string }) {
           )}
 
           <p style={{ margin: "6px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
-            {r.student_name} · {r.quiz_title} · {new Date(r.created_at).toLocaleDateString()}
+            <EntityLink href={`/dashboard/students/${r.student_id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{r.student_name}</EntityLink> · {r.quiz_title} · {new Date(r.created_at).toLocaleDateString()}
           </p>
 
           {/* Editing a shared question changes every quiz using it — say so before they act. */}

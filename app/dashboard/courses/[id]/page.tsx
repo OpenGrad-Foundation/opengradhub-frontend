@@ -5,8 +5,8 @@ import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasEffectiveSelfScope } from "@/lib/permissions";
 import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -18,7 +18,7 @@ export default function CourseOverviewPage() {
   const fromManagement = searchParams.get("from") === "management";
   const backHref = fromManagement ? `/dashboard/course-management/${courseId}` : "/dashboard/courses";
   const { data: userData, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (userData?.role?.code ?? "") as RoleCode;
+  const isLearner = hasEffectiveSelfScope(userData?.permissions);
   const studentId = userData?.user?.id ?? "";
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -31,12 +31,12 @@ export default function CourseOverviewPage() {
     setLoading(true);
     Promise.all([
       getCourseById(courseId),
-      getCourseOverview(courseId, studentId),
+      getCourseOverview(courseId, isLearner ? studentId : undefined),
     ])
       .then(([c, m]) => { setCourse(c); setModules(m); })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load course."))
       .finally(() => setLoading(false));
-  }, [userLoading, courseId, studentId]);
+  }, [userLoading, courseId, studentId, isLearner]);
 
   if (loading || userLoading) return <LoadingState />;
 
@@ -55,9 +55,9 @@ export default function CourseOverviewPage() {
   const completedLessons = modules.reduce((sum, m) => sum + m.lessons.filter(l => l.is_complete).length, 0);
   const pct = totalLessons === 0 ? 0 : Math.round(100 * completedLessons / totalLessons);
   const isSequential = course.locking_mode === "SEQUENTIAL";
-  // Non-students (ZM/FELLOW/GOV/etc. with courses.view) get a read-only preview:
+  // Staff scopes with courses.view receive a read-only preview:
   // course structure + content, no personal progress, no locking, no quiz-taking.
-  const isPreview = roleCode !== "STUDENT";
+  const isPreview = !isLearner;
 
   return (
     <div>
@@ -129,7 +129,6 @@ export default function CourseOverviewPage() {
                 module={mod}
                 courseId={courseId}
                 isSequential={isSequential}
-                roleCode={roleCode}
                 isPreview={isPreview}
                 prevModuleTitle={prevMod?.title ?? ""}
               />
@@ -143,11 +142,10 @@ export default function CourseOverviewPage() {
 
 // ── Module Section ─────────────────────────────────────────────
 
-function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, prevModuleTitle }: {
+function ModuleSection({ module, courseId, isSequential, isPreview, prevModuleTitle }: {
   module: ModuleWithProgress;
   courseId: string;
   isSequential: boolean;
-  roleCode: RoleCode;
   isPreview: boolean;
   prevModuleTitle: string;
 }) {
@@ -155,7 +153,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
   const allDone = module.is_module_complete;
-  const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
+  const isModuleLocked = isSequential && !isPreview && module.is_locked;
   
   const items = [
     ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
@@ -202,7 +200,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
           {items.map((item, idx) => {
-            const isStudent = roleCode === "STUDENT";
+            const isStudent = !isPreview;
             const isItemLocked = isStudent && isSequential && (isModuleLocked || (idx > 0 && !items[idx - 1].is_complete));
             const lockTooltip = isModuleLocked
               ? `Complete "${prevModuleTitle}" module to unlock`

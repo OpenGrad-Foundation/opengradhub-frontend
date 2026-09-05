@@ -6,6 +6,7 @@ import { qk } from './keys';
 
 export interface StaffDoubtsFilters {
   status?: string;
+  programme_id?: string;
   programme?: string;
   school?: string;
   q?: string;
@@ -23,7 +24,10 @@ export interface StaffDoubtsFilters {
 export function useStaffDoubts(filters: StaffDoubtsFilters = {}) {
   return useQuery({
     queryKey: qk.staffDoubts(filters as Record<string, unknown>),
-    queryFn: () => getDoubts(),
+    queryFn: async () => {
+      const rows = await getDoubts();
+      return filters.programme_id ? rows.filter(row => row.programme_id === filters.programme_id) : rows;
+    },
     staleTime: 30_000,
   });
 }

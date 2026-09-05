@@ -28,10 +28,20 @@ import { useCallback } from 'react';
  * is invisible in development and shows up as a stale screen in production.
  */
 export const DOMAIN_KEYS = {
+  // Ownership, membership, archive and attachments change both reach and editability.
+  programmes: [
+    ['og', 'programmes'], ['og', 'programme'], ['og', 'courses'], ['og', 'course'],
+    ['og', 'quizzes'], ['og', 'quiz'], ['og', 'assessments'], ['og', 'assignments'],
+    ['og', 'resources'], ['og', 'student'], ['og', 'report'], ['og', 'analytics'],
+    ['og', 'dashboard'], ['og', 'user'], ['og', 'batches'], ['og', 'schools'],
+    ['og', 'tracker'], ['og', 'calendar'], ['og', 'doubts'], ['og', 'attendance'],
+    ['og', 'live-classes'], ['og', 'duplicate'],
+    ['analytics'],
+  ],
   // course content: lists, detail, overview, lessons, plus anything derived
   courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // user CRUD / role / archive — busts the managers list and authz-derived views
-  users: [['og', 'user'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard']],
+  users: [['og', 'user'], ['og', 'student'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'programme'], ['og', 'programmes'], ['og', 'batches'], ['og', 'courses'], ['og', 'course'], ['og', 'bundles'], ['og', 'attendance'], ['analytics']],
   // school CRUD / fellow assignment
   schools: [['og', 'schools'], ['og', 'managers'], ['og', 'analytics']],
   // announcement writes update the inbox + dashboard announcements card, not analytics aggregates

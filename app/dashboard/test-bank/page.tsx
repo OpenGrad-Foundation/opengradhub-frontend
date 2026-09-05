@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount, duplicateQuiz } from "@/lib/api";
+import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { PERM } from "@/lib/permissions";
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
@@ -46,6 +48,9 @@ function TestBankPageContent() {
   const userId = data?.user?.id ?? "";
   const invalidate = useInvalidate();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
+  const canCreate = usePermission(PERM.test_bank.create);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,39 +74,12 @@ function TestBankPageContent() {
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [quizToMove, setQuizToMove]     = useState<{ id: string; title: string } | null>(null);
-  const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+  const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<Awaited<ReturnType<typeof getUniqueQuestionsForQuiz>>>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
-  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
 
-  /**
-   * Copy a quiz into your own programme.
-   *
-   * No programme picker here: the server picks when you belong to exactly one,
-   * and returns a message naming the problem when you belong to several or
-   * none. That keeps the common case one click, which is the case this button
-   * exists for — a quiz you can see but cannot edit, because it is another
-   * programme's.
-   */
-  const handleDuplicateQuiz = async (quiz: Omit<Quiz, "questions">) => {
-    if (!confirm(
-      `Duplicate "${quiz.title}" into your programme?\n\n` +
-      "The copy uses the same questions and starts as an unpublished draft. " +
-      "Editing a question still changes it everywhere it is used.",
-    )) return;
-    setDuplicatingId(quiz.id);
-    try {
-      const copy = await duplicateQuiz(quiz.id);
-      invalidate("quizzes");
-      await fetchGlobalTests();
-      if (confirm(`Created "${copy.title}". Open it now?`)) {
-        window.location.href = `/dashboard/quiz-builder/${copy.id}`;
-      }
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Failed to duplicate quiz.");
-    } finally {
-      setDuplicatingId(null);
-    }
+  const handleDuplicateQuiz = (quiz: Omit<Quiz, "questions">) => {
+    router.push(withFrom(`/dashboard/test-bank/duplicate?source=${quiz.id}`, currentUrl));
   };
 
   const handleArchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
@@ -145,8 +123,10 @@ function TestBankPageContent() {
   // Open student reports per bank question, for the ⚠ badges.
   // Held in react-query (not local state) so resolving a report from the slide-over
   // can invalidate it and the badges/filter update without a page refresh.
-  const canTriage = usePermission(PERM.test_bank.manage_questions);
-  const { data: reportCounts = EMPTY_REPORT_COUNTS } = useQuery({
+  const canManageQuestions = usePermission(PERM.test_bank.manage_questions);
+  const canViewStudents = usePermission(PERM.students.view);
+  const canTriage = canManageQuestions && canViewStudents;
+  const { data: cachedReportCounts = EMPTY_REPORT_COUNTS } = useQuery({
     queryKey: qk.questionReportCounts(),
     enabled: canTriage,
     // No quiz_id: this page lists the whole bank, not one quiz.
@@ -159,7 +139,8 @@ function TestBankPageContent() {
   // Deep-link from the dashboard "Reported Questions" card: show only questions
   // that currently have open reports. The reportCounts map is already loaded for
   // triagers, so this is a pure client-side narrowing — no extra fetch.
-  const reportsOnly = searchParams.get("reports") === "open";
+  const reportCounts = canTriage ? cachedReportCounts : EMPTY_REPORT_COUNTS;
+  const reportsOnly = canTriage && searchParams.get("reports") === "open";
   const visibleQuestions = reportsOnly
     ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
     : questions;
@@ -288,6 +269,7 @@ function TestBankPageContent() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
+          {canCreate && <Link href={withFrom("/dashboard/test-bank/duplicate", currentUrl)} style={outlineBtn}>Browse quizzes to duplicate</Link>}
           <Link href="/dashboard/quiz-builder/new" style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)", textDecoration: "none" }}>
             + New Global Quiz
           </Link>
@@ -388,7 +370,6 @@ function TestBankPageContent() {
               busy={archiveBusy === t.id}
               onMove={() => setQuizToMove({ id: t.id, title: t.title })}
               onDuplicate={() => void handleDuplicateQuiz(t)}
-              duplicating={duplicatingId === t.id}
             />
           ))}
           {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
@@ -549,7 +530,7 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate, duplicating }: {
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate }: {
   quiz: Omit<Quiz, "questions">;
   isLast: boolean;
   onDelete: () => void;
@@ -558,8 +539,8 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
   busy: boolean;
   onMove: () => void;
   onDuplicate: () => void;
-  duplicating: boolean;
 }) {
+  const canCreate = usePermission(PERM.test_bank.create);
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const created = fmt(quiz.created_at);
   const isArchived = quiz.archived_at != null;
@@ -631,9 +612,9 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
         {/* The sanctioned way to use another programme's quiz: take a copy.
             The copy reuses the same questions and starts as an unpublished
             draft in your programme. */}
-        {!isArchived && (
-          <button onClick={onDuplicate} disabled={duplicating} style={{ ...outlineBtn, opacity: duplicating ? 0.5 : 1 }}>
-            {duplicating ? "…" : "Duplicate"}
+        {!isArchived && canCreate && (
+          <button onClick={onDuplicate} style={outlineBtn}>
+            Duplicate
           </button>
         )}
         {isArchived ? (

@@ -6,15 +6,14 @@ import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { NudgeButton } from "./nudge-button";
 
 const LEVELS: TrackerDrillLevel[] = ["zm", "fellow", "school", "student"];
 
 function leafFor(target: TrackerTargetType): TrackerDrillLevel {
   return target === "student" ? "student" : target === "school" ? "school" : "fellow";
-}
-function startFor(roleCode: string): TrackerDrillLevel {
-  return roleCode === "ZONAL_MANAGER" ? "fellow" : "zm";
 }
 function nextLevel(level: TrackerDrillLevel): TrackerDrillLevel | null {
   const i = LEVELS.indexOf(level);
@@ -35,19 +34,20 @@ type Crumb = { level: TrackerDrillLevel; id: string; name: string };
  *  drill stops at the task's target level. */
 export function TaskBreakdown({
   task,
-  roleCode,
   currentUserId,
   canNudge,
   onBack,
 }: {
   task: TrackerTaskSummaryRow;
-  roleCode: string;
   currentUserId: string;
   canNudge: boolean;
   onBack: () => void;
 }) {
-  const start = startFor(roleCode);
-  const leaf = leafFor(task.target_type);
+  const canViewStudents = usePermissions().has(PERM.students.view);
+  const targetLeaf = leafFor(task.target_type);
+  const leaf = targetLeaf === "student" && !canViewStudents ? "school" : targetLeaf;
+  const [group, setGroup] = useState<TrackerDrillLevel>(leaf);
+  const start = LEVELS.indexOf(group) <= LEVELS.indexOf(leaf) ? group : leaf;
   const [path, setPath] = useState<Crumb[]>([]);
 
   const currentLevel = path.length > 0 ? nextLevel(path[path.length - 1].level)! : start;
@@ -66,6 +66,11 @@ export function TaskBreakdown({
         </div>
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-gray-600">Group by
+        <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+          {LEVELS.slice(0, LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
+        </select>
+      </label>
       <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-gray-600">
         <button
           type="button"
@@ -89,6 +94,7 @@ export function TaskBreakdown({
       </div>
 
       <LevelList
+        key={`${currentLevel}:${currentParentId ?? "root"}`}
         templateId={task.template_id}
         level={currentLevel}
         parentId={currentParentId}
