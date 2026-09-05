@@ -51,7 +51,8 @@ describe('course view, material variant', () => {
     expect(screen.queryByText('What is 2+2?')).toBeNull();
     fireEvent.click(screen.getByText('Check 1'));
     expect(screen.getByText('What is 2+2?')).toBeTruthy();
-    expect(screen.getByText('Correct option')).toBeTruthy();
+    // The shared question renderer marks the right option rather than labelling it.
+    expect(screen.getByText('4').closest('li')?.textContent).toContain('✓');
   });
 
   it('offers no links out of the material, since those endpoints refuse a foreign course', () => {

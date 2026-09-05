@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
-import { MaterialPreview } from "@/components/material-preview";
+import { QuizQuestions } from "@/components/quiz-material-view";
 import type { Course, ModuleWithProgress, LessonWithProgress } from "@/lib/api";
 import type { MaterialNode } from "@/lib/duplicate-material";
 import { withFrom } from "@/lib/nav";
@@ -409,9 +409,10 @@ function QuizRow({ quiz, isLast, isPreview, isLocked, lockTooltip, currentUrl, v
         </div>
         {open && (
           <div style={panelStyle}>
-            {material
-              ? <MaterialPreview node={material} />
-              : <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.45)" }}>This quiz has no questions.</p>}
+            <QuizQuestions
+              sections={material?.sections as Parameters<typeof QuizQuestions>[0]["sections"]}
+              questions={material?.questions as Parameters<typeof QuizQuestions>[0]["questions"]}
+            />
           </div>
         )}
       </div>
