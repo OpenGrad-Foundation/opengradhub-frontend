@@ -1,3 +1,4 @@
+vi.mock("@/hooks/use-permission", () => ({ usePermissions: () => ({ has: (code: string) => ["attendance.view", "students.view", "courses.view", "batches.view"].includes(code), isLoading: false }) }));
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { RecordsView } from "@/lib/attendance-api";

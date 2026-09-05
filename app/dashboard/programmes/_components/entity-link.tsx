@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useAnyPermission } from "@/hooks/use-permission";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { useAnyPermission, usePermissions } from "@/hooks/use-permission";
 import { withFrom } from "@/lib/nav";
 
 /**
@@ -26,26 +26,27 @@ import { withFrom } from "@/lib/nav";
 export function EntityLink({
   href,
   permissions,
+  requiredPermissions = [],
+  style,
   children,
 }: {
   href: string;
   /** Any one of these is enough — mirrors ROUTE_PERMISSION, which is ANY-of. */
   permissions: readonly string[];
+  requiredPermissions?: readonly string[];
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   const allowed = useAnyPermission(...permissions);
-  const pathname = usePathname();
-  const params = useSearchParams();
+  const { has } = usePermissions();
+  const current = useCurrentUrl();
 
-  if (!allowed) return <>{children}</>;
-
-  const qs = params?.toString();
-  const current = qs ? `${pathname}?${qs}` : (pathname ?? "/dashboard/programmes");
+  if (!allowed || !requiredPermissions.every(has)) return <>{children}</>;
 
   return (
     <Link
       href={withFrom(href, current)}
-      style={{ color: "#0abe62", fontWeight: 600, textDecoration: "none" }}
+      style={{ color: "#0abe62", fontWeight: 600, textDecoration: "none", ...style }}
     >
       {children}
     </Link>

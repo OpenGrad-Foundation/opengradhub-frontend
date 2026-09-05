@@ -52,9 +52,8 @@ export function allTasksFilterSpec(facets: TrackerFacets = EMPTY_FACETS): Filter
     { key: "zone", urlKey: "zone", apiKey: "district", label: ZONE, kind: "select", options: facets.zones },
     {
       key: "zm", urlKey: "zm", apiKey: "zmId", label: "Zonal Manager", kind: "select", options: facets.zms,
-      // A ZM's whole scope is one ZM's subtree, so the control would offer exactly
-      // one choice and filter nothing.
-      visibleFor: ({ role }) => role !== "ZONAL_MANAGER",
+      // Only the returned scoped choices determine whether this filter is useful.
+      visibleFor: () => facets.zms.length > 1,
     },
     { key: "incharge", urlKey: "incharge", apiKey: "fellowId", label: IN_CHARGE, kind: "select", options: facets.incharges },
     { key: "school", urlKey: "school", apiKey: "schoolId", label: "School", kind: "select", options: facets.schools },

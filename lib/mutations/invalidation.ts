@@ -28,12 +28,22 @@ import { useCallback } from 'react';
  * is invisible in development and shows up as a stale screen in production.
  */
 export const DOMAIN_KEYS = {
+  // Ownership, membership, archive and attachments change both reach and editability.
+  programmes: [
+    ['og', 'programmes'], ['og', 'programme'], ['og', 'courses'], ['og', 'course'],
+    ['og', 'quizzes'], ['og', 'quiz'], ['og', 'assessments'], ['og', 'assignments'],
+    ['og', 'resources'], ['og', 'student'], ['og', 'students'], ['og', 'report'], ['og', 'analytics'],
+    ['og', 'dashboard'], ['og', 'user'], ['og', 'batches'], ['og', 'schools'],
+    ['og', 'tracker'], ['og', 'calendar'], ['og', 'doubts'], ['og', 'attendance'],
+    ['og', 'live-classes'], ['og', 'duplicate'],
+    ['analytics'],
+  ],
   // course content: lists, detail, overview, lessons, plus anything derived
   courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // user CRUD / role / archive — busts the managers list and authz-derived views
-  users: [['og', 'user'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard']],
+  users: [['og', 'user'], ['og', 'student'], ['og', 'students'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'programme'], ['og', 'programmes'], ['og', 'batches'], ['og', 'courses'], ['og', 'course'], ['og', 'bundles'], ['og', 'attendance'], ['analytics']],
   // school CRUD / fellow assignment
-  schools: [['og', 'schools'], ['og', 'managers'], ['og', 'analytics']],
+  schools: [['og', 'schools'], ['og', 'students'], ['og', 'managers'], ['og', 'analytics']],
   // announcement writes update the inbox + dashboard announcements card, not analytics aggregates
   announcements: [['og', 'announcements'], ['og', 'dashboard'], ['og', 'inbox']],
   // quiz authoring (create/update/publish/sections/questions)
@@ -47,7 +57,7 @@ export const DOMAIN_KEYS = {
   // 'attendance' and 'live-classes' are here because membership decides who is
   // IN a cohort: adding or removing a member changes both the canonical report's
   // rows and every class roster they appear on.
-  batches: [['og', 'batches'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
+  batches: [['og', 'batches'], ['og', 'students'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
   // calendar/live-class changes affect the calendar + dashboard "upcoming" card.
   // 'attendance' is in here because a live class IS an occasion in the canonical

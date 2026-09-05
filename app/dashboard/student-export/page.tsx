@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import type { RoleCode } from "@/lib/moduleAccess";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import {
   downloadAnalyticsStudentsCsv,
   getAnalyticsSchools,
@@ -12,9 +12,7 @@ import {
 } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
-// Page access (`student_export.view`) is enforced by the backend and the
-// dashboard route guard. The role checks below only shape the filter UI
-// (which fields are editable for which role) — they are not an access gate.
+// Record filters narrow the backend-authorized roster.
 
 const ROLE_OPTIONS = [
   "SUPER_ADMIN",
@@ -47,11 +45,17 @@ const EMPTY_FILTERS: FilterState = {
 };
 
 export default function StudentExportPage() {
-  const { data, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (data?.role?.code ?? "") as RoleCode;
+  const { has, isLoading } = usePermissions();
+  if (isLoading) return <LoadingState />;
+  if (!has(PERM.student_export.view) || !has(PERM.students.view)) return <p>You do not have permission to view this roster.</p>;
+  return <StudentExportContent />;
+}
+
+function StudentExportContent() {
+  const canDownload = usePermissions().has(PERM.student_export.run);
 
   const [filters, setFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
-  const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
+  const [activeFilters, setActiveFilters] = useState<FilterState>({ ...EMPTY_FILTERS });
   const [schools, setSchools] = useState<AnalyticsSchool[]>([]);
   const [students, setStudents] = useState<AnalyticsStudent[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
@@ -60,12 +64,6 @@ export default function StudentExportPage() {
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [hasInitialized, setHasInitialized] = useState(false);
-
-  const isAdmin = roleCode === "SUPER_ADMIN" || roleCode === "PROGRAM_MANAGER";
-  const isZonalManager = roleCode === "ZONAL_MANAGER";
-  const isFellow = roleCode === "FELLOW";
-
   const filtersForApi = useMemo(() => {
     const source = activeFilters ?? filters;
     return {
@@ -90,28 +88,6 @@ export default function StudentExportPage() {
   }, []);
 
   useEffect(() => {
-    if (userLoading || hasInitialized) return;
-
-    const next = { ...EMPTY_FILTERS };
-    if (isZonalManager) {
-      next.zone = data?.user?.zone ?? "";
-    }
-    setFilters(next);
-    setActiveFilters(next);
-    setHasInitialized(true);
-  }, [userLoading, isZonalManager, data?.user?.zone, hasInitialized]);
-
-  useEffect(() => {
-    if (!isFellow || schools.length === 0) return;
-    if (filters.school_id) return;
-
-    const nextSchoolId = schools[0]?.id ?? "";
-    const nextFilters = { ...filters, school_id: nextSchoolId };
-    setFilters(nextFilters);
-    if (!activeFilters) setActiveFilters(nextFilters);
-  }, [isFellow, schools, filters, activeFilters]);
-
-  useEffect(() => {
     if (!activeFilters) return;
 
     setStudentsLoading(true);
@@ -124,9 +100,8 @@ export default function StudentExportPage() {
       .finally(() => setStudentsLoading(false));
   }, [activeFilters, filtersForApi]);
 
-  if (userLoading) return <LoadingState />;
-
   async function handleDownload() {
+    if (!canDownload) return;
     setDownloading(true);
     setDownloadError(null);
 
@@ -184,7 +159,7 @@ export default function StudentExportPage() {
 
       <div style={filterCard}>
         <div style={filterGrid}>
-          {isAdmin && (
+          {(
             <FilterField label="Role">
               <select
                 value={filters.role}
@@ -230,11 +205,7 @@ export default function StudentExportPage() {
             <select
               value={filters.school_id}
               onChange={(e) => setFilters({ ...filters, school_id: e.target.value })}
-              style={{
-                ...inputStyle,
-                background: isFellow ? "rgba(3,72,82,0.04)" : "#ffffff",
-              }}
-              disabled={isFellow}
+              style={inputStyle}
             >
               <option value="">All schools</option>
               {schools.map((school) => (
@@ -248,17 +219,13 @@ export default function StudentExportPage() {
             )}
           </FilterField>
 
-          {(isAdmin || isZonalManager) && (
+          {(
             <FilterField label="Zone">
               <input
                 type="text"
                 value={filters.zone}
                 onChange={(e) => setFilters({ ...filters, zone: e.target.value })}
-                style={{
-                  ...inputStyle,
-                  background: isZonalManager ? "rgba(3,72,82,0.04)" : "#ffffff",
-                }}
-                disabled={isZonalManager}
+                style={inputStyle}
                 placeholder="e.g. TN-CHN"
               />
             </FilterField>
@@ -304,7 +271,7 @@ export default function StudentExportPage() {
                 : `Showing ${students.length} students`}
             </p>
           </div>
-          <button
+          {canDownload && <button
             type="button"
             onClick={handleDownload}
             disabled={downloading}
@@ -315,7 +282,7 @@ export default function StudentExportPage() {
             }}
           >
             {downloading ? "Preparing..." : "Download CSV"}
-          </button>
+          </button>}
         </div>
 
         {downloadError && (

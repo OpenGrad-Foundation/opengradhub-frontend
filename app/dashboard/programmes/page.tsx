@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { usePermissions } from "@/hooks/use-permission";
+import { EntityLink } from "./_components/entity-link";
 import { useRowNavigation } from "./_components/use-row-navigation";
 import { PERM } from "@/lib/permissions";
 import { useProgrammes } from "@/lib/queries/programmes";
@@ -27,7 +26,7 @@ function suggestCode(name: string, state: string): string {
 
 export default function ProgrammesPage() {
   const { has } = usePermissions();
-  const canEdit = has(PERM.programmes.edit);
+  const canCreate = has(PERM.programmes.create);
   const rowNav = useRowNavigation();
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -52,7 +51,7 @@ export default function ProgrammesPage() {
             />
             Show archived
           </label>
-          {canEdit && (
+          {canCreate && (
             <button style={primaryButton} onClick={() => setShowCreate(true)}>
               New programme
             </button>
@@ -85,7 +84,7 @@ export default function ProgrammesPage() {
             {!isLoading && programmes.length === 0 && (
               <tr>
                 <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={6}>
-                  No programmes yet.{canEdit ? " Create one to get started." : ""}
+                  No programmes yet.{canCreate ? " Create one to get started." : ""}
                 </td>
               </tr>
             )}
@@ -103,9 +102,9 @@ export default function ProgrammesPage() {
                 }}
               >
                 <td style={tdStyle}>
-                  <Link href={`/dashboard/programmes/${p.id}`} style={{ color: "#0abe62", fontWeight: 700, textDecoration: "none" }}>
+                  <EntityLink permissions={[PERM.programmes.view]} href={`/dashboard/programmes/${p.id}`} style={{ color: "#0abe62", fontWeight: 700, textDecoration: "none" }}>
                     {p.name}
-                  </Link>
+                  </EntityLink>
                   {p.cohort_label && (
                     <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(3,72,82,0.5)" }}>
                       {p.cohort_label}

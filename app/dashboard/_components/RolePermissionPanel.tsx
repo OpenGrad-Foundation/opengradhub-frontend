@@ -89,7 +89,10 @@ export function RolePermissionPanel({
     if (readOnly) return;
     setGranted((prev) => {
       const next = new Set(prev);
-      if (next.has(permCode)) next.delete(permCode);
+      if (permCode.startsWith("scope.")) {
+        for (const code of next) if (code.startsWith("scope.")) next.delete(code);
+        next.add(permCode);
+      } else if (next.has(permCode)) next.delete(permCode);
       else next.add(permCode);
       return next;
     });
@@ -237,7 +240,9 @@ export function RolePermissionPanel({
                         <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852", textTransform: "capitalize" }}>
                           {actionOf(perm.code)}
                         </span>
-                        <ToggleSwitch on={on} disabled={readOnly} onChange={() => toggle(perm.code)} />
+                        {selectedModule === "scope" ? (
+                          <input type="radio" name="role-scope" aria-label={perm.name} checked={on} disabled={readOnly} onChange={() => toggle(perm.code)} />
+                        ) : <ToggleSwitch on={on} disabled={readOnly} onChange={() => toggle(perm.code)} />}
                       </div>
                     );
                   })}

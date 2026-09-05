@@ -3,26 +3,31 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { DuplicationBrowser } from "@/components/duplication-browser";
 import { useCurrentUser } from "@/hooks/use-current-user";
-import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
-import { useInvalidate } from "@/lib/mutations/invalidation";
-import { duplicateCourse, getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
-import type { RoleCode } from "@/lib/moduleAccess";
+import { hasEffectiveSelfScope } from "@/lib/permissions";
+import { getCourseById, getCourseOverview, type Course, type ModuleWithProgress, type LessonWithProgress } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
-import { useDuplicateDestination, DestinationPicker } from "@/components/duplicate-destination";
 
 // ── Page ───────────────────────────────────────────────────────
 
 export default function CourseOverviewPage() {
+  const { id } = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  // Keep old review links on the dedicated material API and destination policy.
+  if (searchParams.get("mode") === "duplicate") return <DuplicationBrowser key={id} kind="courses" initialSourceId={id} />;
+  return <CourseOverview />;
+}
+
+function CourseOverview() {
   const { id: courseId } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const fromManagement = searchParams.get("from") === "management";
   const backHref = fromManagement ? `/dashboard/course-management/${courseId}` : "/dashboard/courses";
   const { data: userData, isLoading: userLoading } = useCurrentUser();
-  const roleCode = (userData?.role?.code ?? "") as RoleCode;
+  const isLearner = hasEffectiveSelfScope(userData?.permissions);
   const studentId = userData?.user?.id ?? "";
 
   const [course, setCourse] = useState<Course | null>(null);
@@ -30,46 +35,17 @@ export default function CourseOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const router = useRouter();
-  const { has } = usePermissions();
-  const invalidate = useInvalidate();
-  // Browse-to-duplicate: same read-only preview, plus the one button the flow
-  // exists for. Requires the create permission — the browse list is gated on
-  // it too, but a pasted URL must not bypass that.
-  const isDuplicateMode = searchParams.get("mode") === "duplicate" && has(PERM.courses.create);
-  const destination = useDuplicateDestination();
-  const [duplicating, setDuplicating] = useState(false);
-  const [dupError, setDupError] = useState<string | null>(null);
-
-  async function handleDuplicate() {
-    if (!course) return;
-    if (destination.needsChoice && !destination.isSuperAdmin && !destination.selected) {
-      setDupError("Choose which programme this copy belongs to.");
-      return;
-    }
-    setDuplicating(true);
-    setDupError(null);
-    try {
-      const copy = await duplicateCourse(course.id, destination.bodyValue);
-      invalidate("courses");
-      router.push(`/dashboard/course-management/${copy.id}?tab=settings`);
-    } catch (e) {
-      setDupError(e instanceof Error ? e.message : "Failed to duplicate course.");
-      setDuplicating(false);
-    }
-  }
-
   useEffect(() => {
     if (userLoading || !studentId) return;
     setLoading(true);
     Promise.all([
       getCourseById(courseId),
-      getCourseOverview(courseId, studentId),
+      getCourseOverview(courseId, isLearner ? studentId : undefined),
     ])
       .then(([c, m]) => { setCourse(c); setModules(m); })
       .catch(e => setError(e instanceof Error ? e.message : "Failed to load course."))
       .finally(() => setLoading(false));
-  }, [userLoading, courseId, studentId]);
+  }, [userLoading, courseId, studentId, isLearner]);
 
   if (loading || userLoading) return <LoadingState />;
 
@@ -88,15 +64,15 @@ export default function CourseOverviewPage() {
   const completedLessons = modules.reduce((sum, m) => sum + m.lessons.filter(l => l.is_complete).length, 0);
   const pct = totalLessons === 0 ? 0 : Math.round(100 * completedLessons / totalLessons);
   const isSequential = course.locking_mode === "SEQUENTIAL";
-  // Non-students (ZM/FELLOW/GOV/etc. with courses.view) get a read-only preview:
+  // Staff scopes with courses.view receive a read-only preview:
   // course structure + content, no personal progress, no locking, no quiz-taking.
-  const isPreview = roleCode !== "STUDENT";
+  const isPreview = !isLearner;
 
   return (
     <div>
       {/* ── Back link ─────────────────────────────────────── */}
       <BackLink fallback={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        {fromManagement ? "← Course Management" : isDuplicateMode ? "← Duplicate a course" : isPreview ? "← Courses" : "← My Courses"}
+        {fromManagement ? "← Course Management" : isPreview ? "← Courses" : "← My Courses"}
       </BackLink>
 
       {/* ── Course header ─────────────────────────────────── */}
@@ -123,36 +99,15 @@ export default function CourseOverviewPage() {
 
           {/* Progress summary (students) / preview badge (staff) */}
           {isPreview ? (
-            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "10px" }}>
+            <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
               <span style={{
                 display: "inline-block", padding: "4px 12px", borderRadius: "100px",
                 fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
                 background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.6)",
               }}>
-                {isDuplicateMode ? "READ ONLY" : "STAFF PREVIEW"}
+                STAFF PREVIEW
               </span>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>{totalLessons} lessons</p>
-              {/* The end of the browse-to-duplicate road: the copy lands in the
-                  chosen programme and opens in its own management workspace. */}
-              {isDuplicateMode && (
-                <>
-                  <DestinationPicker state={destination} />
-                  <button
-                    type="button"
-                    onClick={() => void handleDuplicate()}
-                    disabled={duplicating || destination.loading || destination.blocked}
-                    style={{ ...S.primaryBtn, opacity: duplicating || destination.blocked ? 0.6 : 1 }}
-                  >
-                    {duplicating ? "Duplicating…" : "Duplicate this course"}
-                  </button>
-                  {/* A caller with no programme cannot land a copy anywhere. Say
-                      it here rather than letting the server refuse after a click. */}
-                  {destination.blockedReason && (
-                    <p style={{ margin: 0, fontSize: "12px", color: "#a16207" }}>{destination.blockedReason}</p>
-                  )}
-                  {dupError && <p style={{ margin: 0, fontSize: "12px", color: "#e53e3e" }}>{dupError}</p>}
-                </>
-              )}
+              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "8px 0 0" }}>{totalLessons} lessons</p>
             </div>
           ) : (
             <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
@@ -183,7 +138,6 @@ export default function CourseOverviewPage() {
                 module={mod}
                 courseId={courseId}
                 isSequential={isSequential}
-                roleCode={roleCode}
                 isPreview={isPreview}
                 prevModuleTitle={prevMod?.title ?? ""}
               />
@@ -197,11 +151,10 @@ export default function CourseOverviewPage() {
 
 // ── Module Section ─────────────────────────────────────────────
 
-function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, prevModuleTitle }: {
+function ModuleSection({ module, courseId, isSequential, isPreview, prevModuleTitle }: {
   module: ModuleWithProgress;
   courseId: string;
   isSequential: boolean;
-  roleCode: RoleCode;
   isPreview: boolean;
   prevModuleTitle: string;
 }) {
@@ -209,7 +162,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
   const done  = module.lessons.filter(l => l.is_complete).length;
   const total = module.lessons.length;
   const allDone = module.is_module_complete;
-  const isModuleLocked = isSequential && roleCode === "STUDENT" && module.is_locked;
+  const isModuleLocked = isSequential && !isPreview && module.is_locked;
   
   const items = [
     ...module.lessons.map(l => ({ ...l, itemType: 'LESSON' as const })),
@@ -256,7 +209,7 @@ function ModuleSection({ module, courseId, isSequential, roleCode, isPreview, pr
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
           {items.map((item, idx) => {
-            const isStudent = roleCode === "STUDENT";
+            const isStudent = !isPreview;
             const isItemLocked = isStudent && isSequential && (isModuleLocked || (idx > 0 && !items[idx - 1].is_complete));
             const lockTooltip = isModuleLocked
               ? `Complete "${prevModuleTitle}" module to unlock`

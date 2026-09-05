@@ -8,6 +8,7 @@ import Link from "next/link";
 import { BackLink } from "@/components/back-link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasEffectiveSelfScope } from "@/lib/permissions";
 import {
   getLessonById,
   getCourseById,
@@ -24,7 +25,6 @@ import {
   COMPLETION_PCT,
 } from "@/lib/lesson-progress-buffer";
 import { qk } from "@/lib/queries/keys";
-import type { RoleCode } from "@/lib/moduleAccess";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -45,8 +45,8 @@ export default function LessonPage() {
   const from = useSearchParams().get("from");
   // Sibling-lesson nav re-attaches the original origin so BackLink keeps working.
   const carryFrom = (href: string) => (from ? `${href}?from=${encodeURIComponent(from)}` : href);
-  const studentId = userData?.user?.id ?? "";
-  const roleCode = (userData?.role?.code ?? "") as RoleCode;
+  const isStudent = hasEffectiveSelfScope(userData?.permissions);
+  const studentId = isStudent ? userData?.user?.id ?? "" : "";
 
   const [lesson, setLesson]           = useState<LessonDetail | null>(null);
   const [attemptsByQuiz, setAttemptsByQuiz] = useState<Record<string, QuizAttempt[]>>({});
@@ -427,7 +427,7 @@ export default function LessonPage() {
     if (!nextId || watchedPct < 60) return;
     const unlocked = isComplete || watchedPct >= 80;
     const crossBlocked = Boolean(lesson.next_in_new_module) && !lesson.current_module_complete;
-    const seqLocked = roleCode === "STUDENT" && lockingMode === "SEQUENTIAL" && (!unlocked || crossBlocked);
+    const seqLocked = isStudent && lockingMode === "SEQUENTIAL" && (!unlocked || crossBlocked);
     if (seqLocked) return;
     nextPrefetchedRef.current = true;
     void queryClient.prefetchQuery({
@@ -435,7 +435,7 @@ export default function LessonPage() {
       queryFn: () => getLessonById(nextId),
       staleTime: 60 * 60_000,
     });
-  }, [lesson, watchedPct, isComplete, lockingMode, roleCode, queryClient]);
+  }, [lesson, watchedPct, isComplete, lockingMode, isStudent, queryClient]);
 
   if (loading || userLoading) return <LoadingState />;
 
@@ -454,8 +454,7 @@ export default function LessonPage() {
   // watchedPct drives re-renders; isComplete persists across renders and sessions
   const isUnlocked = isComplete || watchedPct >= 80;
   const isSequentialCourse = lockingMode === "SEQUENTIAL";
-  const isStudent = roleCode === "STUDENT";
-  // Non-students view lessons as a read-only preview (no quiz-taking, no gating).
+  // Staff scopes view lessons as a read-only preview.
   const isPreview = !isStudent;
   // In sequential mode, students must complete this lesson before navigating to the
   // next; AND if the next lesson starts a new module, the current module must be

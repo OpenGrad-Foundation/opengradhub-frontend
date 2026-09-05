@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 
+let grants = ['students.view', 'analytics.view', 'courses.view', 'schools.view', 'batches.view'];
+vi.mock('@/hooks/use-permission', () => ({
+  usePermissions: () => ({ has: (p: string) => grants.includes(p), hasAny: (...p: string[]) => p.some(x => grants.includes(x)) }),
+  useAnyPermission: (...p: string[]) => p.some(x => grants.includes(x)),
+}));
+
 const searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "stu-1" }),
@@ -56,6 +62,7 @@ function profile(over: Record<string, any> = {}) {
 }
 
 beforeEach(() => {
+  grants = ['students.view', 'analytics.view', 'courses.view', 'schools.view', 'batches.view'];
   profileState.data = profile();
   profileState.isPending = false;
   profileState.error = null;
@@ -63,6 +70,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("StudentProfilePage", () => {
+  it('keeps course, batch and school labels unlinked when their destination capability is absent', () => {
+    grants = ['students.view', 'analytics.view'];
+    const { getByText } = render(<StudentProfilePage />);
+    expect(getByText('Algebra').closest('a')).toBeNull();
+    expect(getByText('NEET Batch A').closest('a')).toBeNull();
+    expect(getByText(/GHSS Kozhikode/).closest('a')).toBeNull();
+  });
   it("shows the student identity and school", () => {
     const { getByText } = render(<StudentProfilePage />);
     expect(getByText("Asha Menon")).toBeTruthy();

@@ -3,6 +3,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import StudentsPage from "@/app/dashboard/students/page";
 import type { StudentDirectoryFilters } from "@/lib/api";
 
+let grants = ["students.view", "analytics.view"];
+vi.mock("@/hooks/use-permission", () => ({
+  usePermissions: () => ({ has: (code: string) => grants.includes(code) }),
+  useAnyPermission: (...codes: string[]) => codes.some(code => grants.includes(code)),
+}));
 let mockRows: unknown[] = [];
 let mockTotal = 0;
 let search = "";
@@ -23,6 +28,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/link", () => ({ default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a> }));
 
 beforeEach(() => {
+  grants = ["students.view", "analytics.view"];
   mockRows = [];
   mockTotal = 0;
   search = "";
@@ -31,6 +37,25 @@ beforeEach(() => {
 });
 
 describe("Students directory", () => {
+  it("shows roster identity without a profile link or contact details for roster-only viewers", () => {
+    grants = ["students.view"];
+    mockRows = [{ user_id: "s1", name: "Asha R", email: "asha@example.test" }];
+    mockTotal = 1;
+    render(<StudentsPage />);
+    expect(screen.getByText("Asha R").closest("a")).toBeNull();
+    expect(screen.queryByText("asha@example.test")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Email" })).toBeNull();
+  });
+
+  it("displays student contact fields only with the separate contact grant", () => {
+    grants = ["students.view", "students.view_contact"];
+    mockRows = [{ user_id: "s1", name: "Asha R", email: "asha@example.test" }];
+    mockTotal = 1;
+    render(<StudentsPage />);
+    expect(screen.getByText("asha@example.test")).toBeTruthy();
+    expect(screen.getByText("Asha R").closest("a")).toBeNull();
+  });
+
   it("renders an empty state when nobody is in scope", () => {
     render(<StudentsPage />);
     expect(screen.getByText(/No students/i)).toBeTruthy();

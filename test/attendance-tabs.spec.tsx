@@ -10,6 +10,7 @@ import { render } from "@testing-library/react";
  */
 
 let perms: string[] = [];
+let query = "";
 
 vi.mock("@/hooks/use-permission", () => ({
   usePermissions: () => ({ has: (p: string) => perms.includes(p), isLoading: false }),
@@ -29,15 +30,15 @@ vi.mock("@/app/dashboard/attendance/_components/StudentView", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
   usePathname: () => "/dashboard/attendance",
-  useSearchParams: () => new URLSearchParams(""),
+  useSearchParams: () => new URLSearchParams(query),
 }));
 
 import AttendancePage from "@/app/dashboard/attendance/page";
 
-beforeEach(() => { perms = []; });
+beforeEach(() => { perms = []; query = ""; });
 
 describe("staff Attendance", () => {
-  beforeEach(() => { perms = ["attendance.view", "attendance.manage"]; });
+  beforeEach(() => { perms = ["attendance.view", "attendance.manage", "students.view", "live_classes.view", "schools.view"]; });
 
   it("offers exactly Records, School confirmations and Registers", () => {
     const { getAllByRole } = render(<AttendancePage />);
@@ -75,5 +76,26 @@ describe("no attendance permission", () => {
   it("says so rather than rendering an empty shell", () => {
     const { getByText } = render(<AttendancePage />);
     expect(getByText(/don't have access/i)).toBeTruthy();
+  });
+});
+
+describe("separate attendance data capabilities", () => {
+  it("does not mount student records with attendance.view alone", () => {
+    perms = ["attendance.view"];
+    const { queryByText, getByText } = render(<AttendancePage />);
+    expect(queryByText("records-panel")).toBeNull();
+    expect(getByText(/View Students permission/)).toBeTruthy();
+  });
+  it("does not mount school confirmations without live-class viewing", () => {
+    perms = ["attendance.view"]; query = "tab=confirmations";
+    const { queryByText, getByText } = render(<AttendancePage />);
+    expect(queryByText("confirmations-panel")).toBeNull();
+    expect(getByText(/View Live Classes permission/)).toBeTruthy();
+  });
+  it("does not mount register identity workflows without students.view", () => {
+    perms = ["attendance.view", "attendance.manage", "schools.view"]; query = "tab=registers";
+    const { queryByText, getByText } = render(<AttendancePage />);
+    expect(queryByText("registers-panel")).toBeNull();
+    expect(getByText(/View Students permission/)).toBeTruthy();
   });
 });

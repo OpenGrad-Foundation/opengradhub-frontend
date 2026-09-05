@@ -1,4 +1,7 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryCache, QueryClient } from '@tanstack/react-query';
+import { ApiError } from '../api';
+import { PERSISTER_KEY_PREFIX } from '@tanstack/query-persist-client-core';
+import { idbDel } from './persister';
 
 /**
  * Layer 4 of caching strategy v2 — QueryClient factory.
@@ -20,6 +23,18 @@ import { QueryClient } from '@tanstack/react-query';
  */
 export function makeQueryClient(): QueryClient {
   return new QueryClient({
+    queryCache: new QueryCache({
+      onError: (error, query) => {
+        // TanStack keeps prior data after a failed refetch. A revoked response
+        // must disappear immediately while the access error stays visible.
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          query.setState({ data: undefined, dataUpdatedAt: 0 });
+          if (typeof indexedDB !== 'undefined') {
+            void idbDel(`${PERSISTER_KEY_PREFIX}-${query.queryHash}`).catch(() => undefined);
+          }
+        }
+      },
+    }),
     defaultOptions: {
       queries: {
         staleTime: 60_000,

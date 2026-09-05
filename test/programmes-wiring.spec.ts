@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { qk } from '../lib/queries/keys';
 import { PERM, ROUTE_PERMISSION } from '../lib/permissions';
 import { MODULE_META } from '../lib/moduleAccess';
+import { DOMAIN_KEYS } from '../lib/mutations/invalidation';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -103,13 +104,15 @@ describe('content writes invalidate outside the programme family', () => {
     // Without this an EDITOR who was just granted a course keeps seeing it
     // read-only until the cache happens to expire.
     const fn = mutations.slice(mutations.indexOf('function useProgrammeContentInvalidation'));
-    expect(fn).toMatch(/'og', 'courses'/);
-    expect(fn).toMatch(/qk\.assignments\(\)/);
+    expect(fn).toContain('useProgrammeInvalidation');
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'courses']);
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'assignments']);
   });
 
   it('drops the resources cache too — resources are a content kind since 095', () => {
     const fn = mutations.slice(mutations.indexOf('function useProgrammeContentInvalidation'));
-    expect(fn).toMatch(/'og', 'resources'/);
+    expect(fn).toContain('useProgrammeInvalidation');
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'resources']);
   });
 
   it('a resource write drops the programme caches, since retargeting changes editability', () => {
@@ -177,14 +180,15 @@ describe('the member picker does not need a permission its users lack', () => {
     // say where the authority actually comes from.
     expect(detail).not.toMatch(/const LEVELS/);
     expect(detail).not.toMatch(/LEVEL_HELP/);
-    expect(detail).toMatch(/comes from their role's\s*" \+\s*"permissions/);
+    expect(detail).toContain('Actions follow their effective permissions');
+    expect(detail).toContain('assigned batches and permitted scope');
   });
 
   it('tells an archived programme’s owner that they can undo it', () => {
     // levelFor stops at ARCHIVED but administration does not, so the old
     // "grants nothing" wording described a lockout that no longer happens.
     expect(detail).not.toMatch(/Membership grants nothing while it stays archived/);
-    expect(detail).toMatch(/Owners keep administrative access/);
+    expect(detail).toMatch(/Programme administrators keep administrative access/);
   });
 });
 
@@ -202,7 +206,7 @@ describe('the courses list routes on the right authority', () => {
       path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
       'utf-8',
     );
-    expect(wrapper).toMatch(/<CourseCatalogue mode="manage" \/>/);
+    expect(wrapper).toMatch(/<CourseCatalogue \/>/);
   });
 
   it('sends Manage to the management view only for can_manage', () => {

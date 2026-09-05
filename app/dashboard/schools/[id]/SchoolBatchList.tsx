@@ -16,9 +16,13 @@ import { titleStyle } from "../styles";
 export function SchoolBatchList({
   batches,
   currentUrl,
+  canOpen = true,
+  showStudentCounts = true,
 }: {
   batches: SchoolRosterDetail["batches"];
   currentUrl: string;
+  canOpen?: boolean;
+  showStudentCounts?: boolean;
 }) {
   if (batches.length === 0) {
     return (
@@ -30,20 +34,23 @@ export function SchoolBatchList({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-      {batches.map((b) => (
-        <Link key={b.id} href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)} style={rowStyle}>
+      {batches.map((b) => {
+        const contents = <>
           <span style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             <span style={{ ...titleStyle, fontSize: "16px" }}>{b.name}</span>
             {b.programme_type && <span style={chipStyle}>{b.programme_type}</span>}
-            <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+            {showStudentCounts && <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
               {b.students.length} student{b.students.length === 1 ? "" : "s"}
-            </span>
+            </span>}
           </span>
-          <span aria-hidden="true" style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>
+          {canOpen && <span aria-hidden="true" style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>
             View batch →
-          </span>
-        </Link>
-      ))}
+          </span>}
+        </>;
+        return canOpen
+          ? <Link key={b.id} href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)} style={rowStyle}>{contents}</Link>
+          : <div key={b.id} style={rowStyle}>{contents}</div>;
+      })}
     </div>
   );
 }

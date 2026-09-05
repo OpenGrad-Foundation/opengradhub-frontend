@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
+import { withFrom } from "@/lib/nav";
 
 /**
  * Row-level navigation that does not cost the anchor's behaviour.
@@ -24,6 +26,7 @@ import type { MouseEvent } from "react";
  */
 export function useRowNavigation() {
   const router = useRouter();
+  const currentUrl = useCurrentUrl();
   return (href: string | null) => {
     if (!href) return {};
     return {
@@ -32,7 +35,7 @@ export function useRowNavigation() {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         if ((e.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
         if (window.getSelection()?.toString()) return;
-        router.push(href);
+        router.push(withFrom(href, currentUrl));
       },
       style: { cursor: "pointer" as const },
     };

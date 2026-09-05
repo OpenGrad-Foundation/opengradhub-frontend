@@ -102,11 +102,15 @@ export async function addOverride(
   return res.json() as Promise<Override[]>;
 }
 
-export async function deleteOverride(userId: string, permissionId: string): Promise<void> {
+export async function deleteOverride(userId: string, permissionId: string): Promise<{ deleted: true; scope_reset: boolean }> {
   const res = await apiFetch(`${API_BASE}/users/${userId}/overrides/${permissionId}`, {
     method: "DELETE",
   });
-  if (!res.ok) throw new Error("Failed to delete override.");
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? "Failed to delete override.");
+  }
+  return res.json() as Promise<{ deleted: true; scope_reset: boolean }>;
 }
 
 // ── Role-level management (defaults editing + CRUD) ───────────────────────────

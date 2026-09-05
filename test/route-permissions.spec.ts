@@ -1,7 +1,28 @@
 import { describe, expect, it } from 'vitest';
-import { ROUTE_PERMISSION, PERM } from '../lib/permissions';
+import { ROUTE_PERMISSION, PERM, canAccessDashboardPath } from '../lib/permissions';
 
 describe('dashboard route permissions', () => {
+  it('keeps the students directory open to roster-only viewers while profiles require learning history access', () => {
+    const rosterOnly = (code: string) => code === PERM.students.view;
+    expect(canAccessDashboardPath('/dashboard/students', rosterOnly)).toBe(true);
+    expect(canAccessDashboardPath('/dashboard/students?state=Kerala', rosterOnly)).toBe(true);
+    expect(canAccessDashboardPath('/dashboard/students/s1', rosterOnly)).toBe(false);
+    expect(canAccessDashboardPath('/dashboard/students/s1', code => rosterOnly(code) || code === PERM.reports.view)).toBe(true);
+  });
+
+  it('requires student data access for exports even when a query string is present', () => {
+    expect(canAccessDashboardPath('/dashboard/student-export?state=Kerala', code => code === PERM.student_export.view)).toBe(false);
+  });
+
+  it('keeps saved duplication URLs on the create permission without opening normal course or quiz routes', () => {
+    const creator = (code: string) => code === PERM.courses.create || code === PERM.test_bank.create;
+    for (const path of ['/dashboard/quiz-builder/duplicate', '/dashboard/quiz-builder/duplicate/q1', '/dashboard/courses/c1?mode=duplicate']) {
+      expect(canAccessDashboardPath(path, creator)).toBe(true);
+    }
+    expect(canAccessDashboardPath('/dashboard/courses/c1', creator)).toBe(false);
+    expect(canAccessDashboardPath('/dashboard/quiz-builder/q1', creator)).toBe(false);
+  });
+
   it('does not allow student report access through the analytics route guard', () => {
     expect(ROUTE_PERMISSION.analytics).not.toContain('reports.view');
     expect(ROUTE_PERMISSION.analytics).not.toContain('analytics.view_student');
@@ -23,17 +44,8 @@ describe('dashboard route permissions', () => {
     expect(ROUTE_PERMISSION['role-management']).toBe(PERM.role_management.view);
   });
 
-  it('gates the student profile route on the staff analytics permissions only', () => {
-    expect(ROUTE_PERMISSION.students).toEqual(
-      expect.arrayContaining([
-        'analytics.view_admin',
-        'analytics.view_manager',
-        'analytics.view_fellow',
-      ]),
-    );
-    // students hold analytics.view for their own dashboards — it must not open
-    // another student's profile page.
-    expect(ROUTE_PERMISSION.students).not.toContain('analytics.view');
+  it('requires the explicit student-data grant for profiles', () => {
+    expect(ROUTE_PERMISSION.students).toBe(PERM.students.view);
   });
 
   it('treats Tracker as a separate Hub module gated by tracker.view', () => {

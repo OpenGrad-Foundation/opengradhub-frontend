@@ -7,6 +7,7 @@ import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasEffectiveSelfScope, PERM } from "@/lib/permissions";
 import {
   getQuizById,
   startQuizAttempt,
@@ -212,6 +213,7 @@ export default function QuizTakingPage() {
   const from = useSearchParams().get("from");
   const currentUrl = useCurrentUrl();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const canAttempt = hasEffectiveSelfScope(userData?.permissions) && !!userData?.permissions.includes(PERM.assessments.attempt);
   // Stamped onto every draft so startup recovery only ever offers this
   // account's own pending submits back — IndexedDB is shared per browser.
   const { userId: clerkUserId } = useAuth();
@@ -456,8 +458,8 @@ export default function QuizTakingPage() {
     if (userLoading || !userData || hasLoadedRef.current) return;
     hasLoadedRef.current = true;
 
-    if (userData.role.code !== "STUDENT") {
-      setError("Only students can take quizzes.");
+    if (!hasEffectiveSelfScope(userData.permissions)) {
+      setError("Quiz attempts require your own learning scope.");
       setPhase("error");
       return;
     }
@@ -484,6 +486,7 @@ export default function QuizTakingPage() {
   }, [userLoading, userData, quizId]);
 
   async function handleStart() {
+    if (!canAttempt) return;
     retrySubmitRef.current = null;
     try {
       if (quiz?.require_fullscreen) {
@@ -806,7 +809,7 @@ export default function QuizTakingPage() {
             </div>
           )}
 
-          {(() => {
+          {canAttempt && (() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
             const fsBlockMobile = fsRequired && !fsSupported;

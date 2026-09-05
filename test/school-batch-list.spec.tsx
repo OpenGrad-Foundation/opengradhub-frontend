@@ -20,6 +20,12 @@ const batches = [
 const currentUrl = "/dashboard/schools/sch-1";
 
 describe("SchoolBatchList", () => {
+  it("keeps batch labels without navigation when the batch view grant is absent", () => {
+    render(<SchoolBatchList batches={batches} currentUrl={currentUrl} canOpen={false} />);
+    expect(screen.getByText("CAT Morning")).toBeTruthy();
+    expect(screen.queryAllByRole("link")).toHaveLength(0);
+  });
+
   it("links each batch to its own batch page, carrying the school as ?from=", () => {
     render(<SchoolBatchList batches={batches} currentUrl={currentUrl} />);
 

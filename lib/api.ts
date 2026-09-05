@@ -163,6 +163,7 @@ export type SafeUser = {
   id: string;
   name: string;
   role: string;
+  programme_id?: string | null;
   programme_type: string | null;
   school_id: string | null;
   zone: string | null;
@@ -531,10 +532,13 @@ export async function getManagerAnalytics(
 // ── Programme Insights ─────────────────────────────────────────────────────
 
 export type InsightsScope = {
-  kind: "global" | "programme" | "zone" | "school";
+  kind: "global" | "partner" | "programme" | "zone" | "school";
   label: string;
   school_ids?: string[];
+  /** Present only for kind === "partner". [] means seated in nothing. */
+  programme_ids?: string[];
   programme_filter: string | null;
+  programme_filter_id: string | null;
 };
 
 export type InsightsResponse = {
@@ -565,6 +569,8 @@ export type InsightsResponse = {
 
 export type ProgrammeInsightsFilters = {
   programme?: string;
+  /** A programme ENTITY id (partner callers). Mutually exclusive with `programme`. */
+  programmeId?: string;
   state?: string;
   district?: string;
   schoolId?: string;
@@ -574,7 +580,8 @@ export async function getProgrammeInsights(
   filters: ProgrammeInsightsFilters = {},
 ): Promise<InsightsResponse> {
   const qs = new URLSearchParams();
-  if (filters.programme) qs.set("programme", filters.programme);
+  if (filters.programme)   qs.set("programme", filters.programme);
+  if (filters.programmeId) qs.set("programme_id", filters.programmeId);
   if (filters.state)     qs.set("state", filters.state);
   if (filters.district)  qs.set("district", filters.district);
   if (filters.schoolId)  qs.set("school_id", filters.schoolId);
@@ -582,6 +589,12 @@ export async function getProgrammeInsights(
   const res = await apiFetch(`${API_BASE_URL}/analytics/insights${path}`);
   if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
   return (await res.json()) as InsightsResponse;
+}
+
+export async function getAnalyticsFilterProgrammes(): Promise<Array<{ id: string; name: string }>> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/programmes`);
+  if (!res.ok) throw new ApiError("Failed to fetch programmes.", res.status);
+  return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
 export async function getAnalyticsFilterStates(): Promise<string[]> {
@@ -961,9 +974,9 @@ export type ModuleWithProgress = {
   module_quizzes: Array<{ id: string; title: string; published: boolean; order_index: number; is_complete?: boolean }>;
 };
 
-export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
+export async function getCourseOverview(courseId: string, studentId?: string): Promise<ModuleWithProgress[]> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
-  url.searchParams.set("student_id", studentId);
+  if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
   return (await r.json()) as ModuleWithProgress[];
@@ -1854,7 +1867,7 @@ export async function duplicateQuiz(
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/duplicate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ programme_id: programmeId ?? null }),
+    body: JSON.stringify({ programme_id: programmeId }),
   });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
@@ -3463,12 +3476,26 @@ export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolR
 /**
  * Create a single user.
  */
+export type StudentCreationDestinations = {
+  requires_batch: boolean;
+  programmes: Array<{ id: string; name: string; kind: string }>;
+  batches: Array<{ id: string; name: string; programme_id: string }>;
+};
+export async function getStudentCreationDestinations(): Promise<StudentCreationDestinations> {
+  const response = await apiFetch(`${API_BASE_URL}/users/create-destinations`, { cache: "no-store" });
+  if (!response.ok) throw new ApiError("Could not load student destinations.", response.status);
+  return response.json() as Promise<StudentCreationDestinations>;
+}
+
 export async function createUser(payload: {
   name: string;
   email?: string;
   phone?: string;
   role: string;
   programme_type?: string;
+  programme_id?: string;
+  batch_id?: string;
+  fellow_id?: string;
   school_id?: string;
   state?: string;
   school_code?: string;
@@ -3505,6 +3532,7 @@ export async function updateUser(
     email?: string;
     phone?: string;
     programme_type?: string;
+    programme_id?: string;
     school_id?: string;
     state?: string;
     school_code?: string;
@@ -5230,6 +5258,8 @@ export interface ProgrammeBatch {
 }
 
 export interface BatchImpact {
+  id?: string;
+  kind?: 'courses' | 'assignments' | 'resources';
   course_id: string;
   title: string;
   owner_programme: string;
@@ -5329,15 +5359,15 @@ export async function releaseProgrammeContent(
 /**
  * Duplicate a course: fresh draft owned by the caller AND the chosen programme,
  * curriculum copied, nothing student-facing. The release valve for
- * programme-owned courses. `programmeId` omitted/null = the server picks the
- * caller's sole programme, or replies with a message asking which.
+ * programme-owned courses. Omit `programmeId` for sole-programme inference;
+ * explicit null requests a Global copy and requires an allowed Global destination.
  */
 export async function duplicateCourse(id: string, programmeId?: string | null): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
     method: "POST",
-    cache: "no-store",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ programme_id: programmeId ?? null }),
+    body: JSON.stringify({ programme_id: programmeId }),
+    cache: "no-store",
   });
 
   if (!response.ok) {

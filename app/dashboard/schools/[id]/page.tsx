@@ -12,9 +12,10 @@ import {
   type SchoolRosterStudent,
   type SchoolDetail as SchoolAnalytics,
 } from "@/lib/api";
+import { EntityLink } from "../../programmes/_components/entity-link";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { PERM, ANALYTICS_DASHBOARD_PERMISSIONS, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { SchoolFormModal } from "../SchoolFormModal";
 import { AddStudentsPanel } from "./AddStudentsPanel";
@@ -30,9 +31,13 @@ export default function SchoolDetailPage() {
   const currentUrl = useCurrentUrl();
   const { has } = usePermissions();
   const canEditSchool = has(PERM.schools.edit);
-  const canEditRoster = has(PERM.user_management.edit);
+  const canViewStudents = has(PERM.students.view);
+  const canViewStudentContacts = canViewStudents && has(PERM.students.view_contact);
+  const canViewStaffContacts = has(PERM.staff.view_contacts);
+  const canViewAnalytics = canViewStudents && ANALYTICS_DASHBOARD_PERMISSIONS.some(has);
+  const canEditRoster = has(PERM.user_management.edit) && canViewStudents;
   const canAttachBatch = has(PERM.batches.edit);
-  const canViewAttendance = has(PERM.attendance.view);
+  const canViewAttendance = has(PERM.attendance.view) && has(PERM.students.view);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
@@ -65,17 +70,17 @@ export default function SchoolDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (canViewStudents) void load(); }, [load, canViewStudents]);
 
-  // Analytics summary degrades silently: roles without analytics.view_fellow
-  // get a 403 here and simply see no card.
+  // Only request learning analytics when the caller holds that capability.
   useEffect(() => {
+    if (!canViewAnalytics) { setAnalytics(null); return; }
     let cancelled = false;
     getSchoolDetail(id)
       .then((a) => { if (!cancelled) setAnalytics(a); })
       .catch(() => { if (!cancelled) setAnalytics(null); });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, canViewAnalytics]);
 
   async function removeStudent(studentId: string) {
     setRemovingId(studentId);
@@ -92,6 +97,11 @@ export default function SchoolDetailPage() {
       setRemovingId(null);
     }
   }
+
+  if (!canViewStudents) return <div>
+    <BackLink fallback="/dashboard/schools" style={backLinkStyle} />
+    <p style={{ color: "rgba(3,72,82,0.6)", marginTop: 16 }}>Viewing school details requires permission to view students.</p>
+  </div>;
 
   if (loading) return <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading school…</p>;
 
@@ -111,6 +121,7 @@ export default function SchoolDetailPage() {
 
   const tableProps = {
     schoolStudentIds,
+    canViewStudentContacts,
     canEditRoster,
     confirmRemoveId,
     removingId,
@@ -155,7 +166,7 @@ export default function SchoolDetailPage() {
           {school.fellow_name ? (
             <>
               <p style={cardValueStyle}>{school.fellow_name}</p>
-              {school.fellow_email && (
+              {canViewStaffContacts && school.fellow_email && (
                 <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>{school.fellow_email}</p>
               )}
             </>
@@ -228,10 +239,11 @@ export default function SchoolDetailPage() {
       )}
 
       <div style={{ marginBottom: "24px" }}>
-        <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} />
+        <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} canOpen={has(PERM.batches.view)} showStudentCounts={canViewStudents} />
       </div>
 
-      {/* Roster: every student of this school, batched or not. */}
+      {/* Roster identity and contacts have independent data grants. */}
+      {canViewStudents && <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
         <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
           Students ({stats.student_count})
@@ -250,6 +262,7 @@ export default function SchoolDetailPage() {
         emptyMessage="No students assigned to this school yet."
         {...tableProps}
       />
+      </>}
 
       {/* Committed register attendance for this school — read-only; uploading
           still lives in the Attendance tab. */}
@@ -280,6 +293,7 @@ function RosterTable({
   schoolStudentIds,
   emptyMessage,
   canEditRoster,
+  canViewStudentContacts,
   confirmRemoveId,
   removingId,
   onRemove,
@@ -290,6 +304,7 @@ function RosterTable({
   schoolStudentIds: Set<string>;
   emptyMessage: string;
   canEditRoster: boolean;
+  canViewStudentContacts: boolean;
   confirmRemoveId: string | null;
   removingId: string | null;
   onRemove: (studentId: string) => void;
@@ -303,7 +318,7 @@ function RosterTable({
           <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
             <th style={thStyle}>Name</th>
             <th style={thStyle}>Roll Number</th>
-            <th style={thStyle}>Email</th>
+            {canViewStudentContacts && <th style={thStyle}>Email</th>}
             <th style={thStyle}>Programme</th>
             {canEditRoster && <th style={thStyle} />}
           </tr>
@@ -311,15 +326,15 @@ function RosterTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={canEditRoster ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
+              <td colSpan={3 + Number(canEditRoster) + Number(canViewStudentContacts)} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
                 {emptyMessage}
               </td>
             </tr>
           ) : rows.map((st) => (
             <tr key={st.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-              <td style={tdStyle}>{st.name}</td>
+              <td style={tdStyle}><EntityLink href={`/dashboard/students/${st.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{st.name}</EntityLink></td>
               <td style={tdStyle}>{st.roll_number ?? "—"}</td>
-              <td style={tdStyle}>{st.email ?? "—"}</td>
+              {canViewStudentContacts && <td style={tdStyle}>{st.email ?? "—"}</td>}
               <td style={tdStyle}>{st.programme ?? "—"}</td>
               {canEditRoster && (
                 <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>

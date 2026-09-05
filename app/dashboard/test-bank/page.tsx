@@ -2,10 +2,12 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { getQuestions, deleteQuestion, deleteQuestions, getQuizzes, deleteQuiz, cleanupOrphanedImages, type Question, type Quiz, getUniqueQuestionsForQuiz, getQuestionReportCounts, getQuestionById, archiveQuiz, unarchiveQuiz, getInFlightCount } from "@/lib/api";
 import { usePermission } from "@/hooks/use-permission";
+import { withFrom } from "@/lib/nav";
+import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { PERM } from "@/lib/permissions";
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
@@ -46,6 +48,9 @@ function TestBankPageContent() {
   const userId = data?.user?.id ?? "";
   const invalidate = useInvalidate();
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const currentUrl = useCurrentUrl();
+  const canCreate = usePermission(PERM.test_bank.create);
 
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,13 +74,13 @@ function TestBankPageContent() {
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [quizToMove, setQuizToMove]     = useState<{ id: string; title: string } | null>(null);
-  const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<any[]>([]);
+  const [uniqueQuestionsForDelete, setUniqueQuestionsForDelete] = useState<Awaited<ReturnType<typeof getUniqueQuestionsForQuiz>>>([]);
   const [showArchived, setShowArchived] = useState(false);
   const [archiveBusy, setArchiveBusy] = useState<string | null>(null);
 
-  // Duplicate lives in the browse-to-duplicate flow now
-  // (/dashboard/quiz-builder/duplicate), not on these rows: the quiz you need a
-  // copy of is another programme's, so it is not a row here to begin with.
+  const handleDuplicateQuiz = (quiz: Omit<Quiz, "questions">) => {
+    router.push(withFrom(`/dashboard/test-bank/duplicate?source=${quiz.id}`, currentUrl));
+  };
 
   const handleArchiveQuiz = async (quiz: Omit<Quiz, "questions">) => {
     setArchiveBusy(quiz.id);
@@ -118,8 +123,10 @@ function TestBankPageContent() {
   // Open student reports per bank question, for the ⚠ badges.
   // Held in react-query (not local state) so resolving a report from the slide-over
   // can invalidate it and the badges/filter update without a page refresh.
-  const canTriage = usePermission(PERM.test_bank.manage_questions);
-  const { data: reportCounts = EMPTY_REPORT_COUNTS } = useQuery({
+  const canManageQuestions = usePermission(PERM.test_bank.manage_questions);
+  const canViewStudents = usePermission(PERM.students.view);
+  const canTriage = canManageQuestions && canViewStudents;
+  const { data: cachedReportCounts = EMPTY_REPORT_COUNTS } = useQuery({
     queryKey: qk.questionReportCounts(),
     enabled: canTriage,
     // No quiz_id: this page lists the whole bank, not one quiz.
@@ -132,7 +139,8 @@ function TestBankPageContent() {
   // Deep-link from the dashboard "Reported Questions" card: show only questions
   // that currently have open reports. The reportCounts map is already loaded for
   // triagers, so this is a pure client-side narrowing — no extra fetch.
-  const reportsOnly = searchParams.get("reports") === "open";
+  const reportCounts = canTriage ? cachedReportCounts : EMPTY_REPORT_COUNTS;
+  const reportsOnly = canTriage && searchParams.get("reports") === "open";
   const visibleQuestions = reportsOnly
     ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
     : questions;
@@ -261,6 +269,7 @@ function TestBankPageContent() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2.5">
+          {canCreate && <Link href={withFrom("/dashboard/test-bank/duplicate", currentUrl)} style={outlineBtn}>Browse quizzes to duplicate</Link>}
           <Link href="/dashboard/quiz-builder/new" style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)", textDecoration: "none" }}>
             + New Global Quiz
           </Link>
@@ -360,6 +369,7 @@ function TestBankPageContent() {
               onUnarchive={() => handleUnarchiveQuiz(t)}
               busy={archiveBusy === t.id}
               onMove={() => setQuizToMove({ id: t.id, title: t.title })}
+              onDuplicate={() => void handleDuplicateQuiz(t)}
             />
           ))}
           {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
@@ -520,7 +530,7 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove }: {
+function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate }: {
   quiz: Omit<Quiz, "questions">;
   isLast: boolean;
   onDelete: () => void;
@@ -528,7 +538,9 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
   onUnarchive: () => void;
   busy: boolean;
   onMove: () => void;
+  onDuplicate: () => void;
 }) {
+  const canCreate = usePermission(PERM.test_bank.create);
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
   const created = fmt(quiz.created_at);
   const isArchived = quiz.archived_at != null;
@@ -595,6 +607,14 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
         {!isArchived && (
           <button onClick={onMove} style={outlineBtn}>
             Move to Module
+          </button>
+        )}
+        {/* The sanctioned way to use another programme's quiz: take a copy.
+            The copy reuses the same questions and starts as an unpublished
+            draft in your programme. */}
+        {!isArchived && canCreate && (
+          <button onClick={onDuplicate} style={outlineBtn}>
+            Duplicate
           </button>
         )}
         {isArchived ? (

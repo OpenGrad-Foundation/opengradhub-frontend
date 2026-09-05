@@ -6,9 +6,9 @@ import { useCurrentUser } from "@/hooks/use-current-user";
  * PBAC client-side gate.
  *
  * Reads the caller's effective permission set from `GET /users/me` (cached by
- * `useCurrentUser`). Mirrors the backend `PermissionsGuard`: SUPER_ADMIN holds
- * every permission implicitly (wildcard), everyone else must have the code in
- * their effective set (role grants ∪ user ALLOW − user DENY).
+ * `useCurrentUser`). Mirrors the backend `PermissionsGuard`: every caller,
+ * including SUPER_ADMIN, must hold the code in their effective set
+ * (role grants ∪ user ALLOW − user DENY).
  *
  * This is UI affordance only — the real enforcement is the backend guard.
  * Hiding a button you can't use is a courtesy, not a security boundary.

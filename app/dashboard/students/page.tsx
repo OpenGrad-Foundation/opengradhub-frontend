@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { EntityLink } from "../programmes/_components/entity-link";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useStudentFacets, useStudentsList } from "@/lib/queries/students";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
-import { withFrom } from "@/lib/nav";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
 import type { StudentFacets } from "@/lib/api";
 import { secondaryButton, tdStyle, thStyle, titleStyle } from "@/app/dashboard/schools/styles";
@@ -42,6 +43,8 @@ function readPage(searchParams: SearchParamsReader): number {
 }
 
 export default function StudentsPage() {
+  const { has } = usePermissions();
+  const canViewStudents = has(PERM.students.view);
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentUrl = useCurrentUrl();
@@ -74,12 +77,12 @@ export default function StudentsPage() {
     q: debouncedQ || undefined,
     limit: LIMIT,
     offset,
-  });
-  const { data: facets = EMPTY_FACETS } = useStudentFacets();
+  }, canViewStudents);
+  const { data: facets = EMPTY_FACETS } = useStudentFacets(canViewStudents);
 
-  const rows = data?.rows ?? [];
+  const rows = canViewStudents ? data?.rows ?? [] : [];
   const total = data?.total ?? 0;
-  const showEmail = rows.length > 0 && "email" in rows[0];
+  const showEmail = has(PERM.students.view_contact) && rows.some(row => "email" in row);
   const columnCount = showEmail ? 7 : 6;
   const firstShown = rows.length === 0 ? 0 : offset + 1;
   const lastShown = rows.length === 0 ? 0 : Math.min(offset + rows.length, total);
@@ -111,6 +114,8 @@ export default function StudentsPage() {
     setPage(next);
     writeUrl(filters, next);
   };
+
+  if (!canViewStudents) return <p>You do not have permission to view students.</p>;
 
   return (
     <div>
@@ -153,12 +158,14 @@ export default function StudentsPage() {
                 ) : rows.map((row) => (
                   <tr key={row.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
                     <td style={{ ...tdStyle, fontWeight: 600 }}>
-                      <Link
-                        href={withFrom(`/dashboard/students/${row.user_id}`, currentUrl)}
+                      <EntityLink
+                        permissions={STUDENT_PROFILE_PERMISSIONS}
+                        requiredPermissions={[PERM.students.view]}
+                        href={`/dashboard/students/${row.user_id}`}
                         style={{ color: "#0abe62", textDecoration: "none" }}
                       >
                         {row.name}
-                      </Link>
+                      </EntityLink>
                     </td>
                     <td style={tdStyle}>{row.roll_number ?? "—"}</td>
                     <td style={tdStyle}>{row.school_name ?? "—"}</td>

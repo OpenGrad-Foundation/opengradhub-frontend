@@ -49,6 +49,7 @@ export default function CourseManagementPage() {
   const requestedTab: TabKey = TABS.includes(tabParam as TabKey) ? (tabParam as TabKey) : "curriculum";
   const canAccess = has(PERM.courses.edit);
   const canEnrol = has(PERM.courses.enrol);
+  const canCreate = has(PERM.courses.create);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
@@ -208,9 +209,14 @@ export default function CourseManagementPage() {
     return "No students matched the current filters.";
   }, [studentsLoading, studentsRows.length]);
 
-  // Duplicate lives in the browse-to-duplicate flow now
-  // (/dashboard/courses/duplicate → preview?mode=duplicate), not here: a course
-  // you can already manage is not the one you need a copy of.
+  // Duplicate → jump into the copy's workspace. The caller is the copy's
+  // creator, so they land in the FULL workspace even when the source only
+  // granted them the content-only view; the copy is a LEGACY draft assignable
+  // to any programme — the release valve for programme-owned courses.
+  function handleDuplicate() {
+    if (!currentCourse) return;
+    router.push(`/dashboard/courses/duplicate?source=${currentCourse.id}&from=${encodeURIComponent(`/dashboard/course-management/${currentCourse.id}`)}`);
+  }
 
   async function handleStatusToggle() {
     if (!currentCourse) return;
@@ -391,6 +397,11 @@ export default function CourseManagementPage() {
               <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} style={ghostLinkBtn}>
                 Preview as student
               </Link>
+              {canCreate && (
+                <button onClick={handleDuplicate} style={ghostLinkBtn}>
+                  Duplicate
+                </button>
+              )}
               <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
                 {actionLoading ? "Updating…" : currentCourse.status === "ACTIVE" ? "Archive course" : "Publish course"}
               </button>

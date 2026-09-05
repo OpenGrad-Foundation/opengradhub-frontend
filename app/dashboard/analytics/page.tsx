@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { ANALYTICS_DASHBOARD_PERMISSIONS } from "@/lib/permissions";
 
 const ProgrammeInsights = dynamic(
   () => import("./_components/ProgrammeInsights"),
@@ -10,10 +10,10 @@ const ProgrammeInsights = dynamic(
 );
 
 export default function AnalyticsPage() {
-  const { has, isLoading } = usePermissions();
+  const { hasAny, isLoading } = usePermissions();
 
   if (isLoading) return <LoadingPlaceholder />;
-  if (!has(PERM.analytics.view)) {
+  if (!hasAny(...ANALYTICS_DASHBOARD_PERMISSIONS)) {
     return (
       <div style={{ background: "#ffffff", borderRadius: "24px", padding: "48px 36px", textAlign: "center" }}>
         <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.55)" }}>

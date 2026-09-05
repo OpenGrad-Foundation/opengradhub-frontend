@@ -22,6 +22,8 @@ import {
 } from "@/lib/queries/attendance";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSchools, getCourses, type Course } from "@/lib/api";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { useBatches } from "@/lib/queries/batches";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
@@ -55,6 +57,8 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
   scheduledAt: string;
   canManage: boolean;
 }) {
+  const { has } = usePermissions();
+  const canChooseSchools = has(PERM.schools.view) || has(PERM.user_management.create);
   const { data: links, isLoading } = useClassLinks(classId);
   const generate = useGenerateLinks();
   const addSchools = useAddSchoolLinks();
@@ -67,7 +71,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
     queryKey: ["og", "schools", "options"],
     queryFn: fetchSchools,
     staleTime: 5 * 60_000,
-    enabled: canManage,
+    enabled: canManage && canChooseSchools,
   });
 
   // Already-linked schools stay in the list but are disabled, rather than being
@@ -169,7 +173,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
 
       {canManage && (
         <div className="pt-1 space-y-2">
-          {schoolsFailed ? (
+          {!canChooseSchools ? <p className="text-sm text-slate-500">View Schools permission is required to add a school.</p> : schoolsFailed ? (
             <p className="text-sm text-red-600">
               Can&apos;t load the school list — your role may not have permission to view schools.
               Ask an admin.
@@ -186,7 +190,7 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
           )}
           <div className="flex flex-wrap items-center gap-2">
             <button
-              disabled={addingIds.length === 0 || addSchools.isPending}
+              disabled={!canChooseSchools || addingIds.length === 0 || addSchools.isPending}
               onClick={() =>
                 addSchools.mutate(
                   { classId, schoolIds: addingIds },
@@ -235,15 +239,19 @@ function ClassLinksPanel({ classId, classTitle, scheduledAt, canManage }: {
  * request — the school set for each class is what is loaded lazily, per row.
  */
 function AudienceFilter({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { has } = usePermissions();
+  const canViewCourses = has(PERM.courses.view);
+  const canViewBatches = has(PERM.batches.view);
   const [courses, setCourses] = useState<Course[]>([]);
   useEffect(() => {
+    if (!canViewCourses) return;
     let cancelled = false;
     getCourses(undefined, undefined, undefined, true)
       .then((cs) => { if (!cancelled) setCourses(cs); })
       .catch(() => { /* the picker just stays short; the list still works */ });
     return () => { cancelled = true; };
-  }, []);
-  const batches = useBatches();
+  }, [canViewCourses]);
+  const batches = useBatches(undefined, canViewBatches);
 
   return (
     <select
@@ -254,10 +262,10 @@ function AudienceFilter({ value, onChange }: { value: string; onChange: (v: stri
     >
       <option value="">All audiences</option>
       <optgroup label="Courses">
-        {courses.map((c) => <option key={c.id} value={`course:${c.id}`}>{c.title}</option>)}
+        {(canViewCourses ? courses : []).map((c) => <option key={c.id} value={`course:${c.id}`}>{c.title}</option>)}
       </optgroup>
       <optgroup label="Batches">
-        {(batches.data ?? []).map((b) => <option key={b.id} value={`batch:${b.id}`}>{b.name}</option>)}
+        {(canViewBatches ? batches.data ?? [] : []).map((b) => <option key={b.id} value={`batch:${b.id}`}>{b.name}</option>)}
       </optgroup>
       <optgroup label="Programmes">
         {PROGRAMME_KINDS.map((k) => <option key={k.value} value={`programme:${k.value}`}>{k.label}</option>)}

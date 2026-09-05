@@ -31,10 +31,11 @@ import { qk } from './keys';
  * immediately look at the list you just changed.
  */
 
-export function useProgrammes(includeArchived = false) {
+export function useProgrammes(includeArchived = false, enabled = true) {
   return useQuery({
     queryKey: qk.programmes(includeArchived),
     queryFn: () => getProgrammes(includeArchived),
+    enabled,
     staleTime: 60_000,
   });
 }

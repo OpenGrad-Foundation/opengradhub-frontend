@@ -45,9 +45,9 @@ describe("duplicateCourse body", () => {
     expect(JSON.parse(String(initOf()?.body))).toEqual({ programme_id: "p1" });
   });
 
-  it("sends programme_id: null when nothing is chosen (server picks)", async () => {
+  it("omits programme_id when nothing is chosen (server picks)", async () => {
     fetchMock.mockResolvedValue(ok({ id: "copy" }));
     await duplicateCourse("c1");
-    expect(JSON.parse(String(initOf()?.body))).toEqual({ programme_id: null });
+    expect(JSON.parse(String(initOf()?.body))).toEqual({});
   });
 });
