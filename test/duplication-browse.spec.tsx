@@ -29,13 +29,22 @@ describe('duplication browse', () => {
     expect(state.sources).not.toHaveBeenCalled();
   });
   it('requires a destination choice for multiple programmes and sends the selected id', async () => {
-    state.duplicateCourse.mockResolvedValue({ id: 'copy', title: 'Copy created' }); mount();
+    state.duplicateQuiz.mockResolvedValue({ id: 'copy', title: 'Copy created' }); mount('quizzes');
     fireEvent.click(await screen.findByRole('button', { name: 'Preview Source material' }));
     expect((await screen.findByRole('button', { name: 'Create copy' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByRole('combobox', { name: 'Destination programme' }), { target: { value: 'p2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create copy' }));
-    await waitFor(() => expect(state.duplicateCourse).toHaveBeenCalledWith('source', 'p2'));
+    await waitFor(() => expect(state.duplicateQuiz).toHaveBeenCalledWith('source', 'p2'));
     expect(await screen.findByText('Created “Copy created”.')).toBeTruthy();
+  });
+  it('sends a course to its own view rather than dumping it inline', async () => {
+    // A course has a curriculum worth walking, so reviewing one opens the course
+    // view; only quizzes, which have no such view, are previewed in place.
+    mount('courses');
+    const open = await screen.findByRole('link', { name: 'Open Source material' });
+    expect(open.getAttribute('href')).toContain('/dashboard/courses/source?mode=duplicate');
+    expect(screen.queryByRole('button', { name: 'Preview Source material' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create copy' })).toBeNull();
   });
   it('automatically chooses the sole programme and previews answer keys without editing the original', async () => {
     state.destinations = { programmes: [{ id: 'p1', name: 'One' }], can_global: false };
