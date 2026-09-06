@@ -31,17 +31,15 @@ export function DuplicationBrowser({ kind }: { kind: DuplicateKind }) {
   return <div style={{ display: 'grid', gap: 20 }}>
     <BackLink fallback={kind === 'courses' ? '/dashboard/courses' : '/dashboard/test-bank'} />
     <h1 style={titleStyle}>Browse {kind} to duplicate</h1>
-    <p style={noticeStyle}>Preview material from all programmes, then create a draft in your destination programme. Copies share question-bank questions; editing a shared question changes every use. Learner records are never copied.</p>
     {error && <p role='alert' style={errorStyle}>{error.message}</p>}
-    <label>Search material <input aria-label='Search material' style={{ ...inputStyle, maxWidth: 400, marginLeft: 8 }} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>Search material <input aria-label='Search material' style={{ ...inputStyle, maxWidth: 400 }} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} /></label>
     <div style={{ ...cardStyle, padding: 16 }}>
       {sources.isPending ? <p>Loading material…</p> : <>
-        <p>{sources.data?.total ?? 0} matching {kind}</p>
         {sources.data?.items.map(source => <div key={source.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px 0', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
           <div><strong>{source.title}</strong>{source.owner_programme_name && <div>{source.owner_programme_name}</div>}</div>
           <Link style={{ ...secondaryButton, textDecoration: 'none', display: 'inline-block' }} aria-label={`Open ${source.title}`} href={withFrom(detailHref(source.id), currentUrl)}>Open {kind === 'courses' ? 'course' : 'quiz'}</Link>
         </div>)}
-        <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12 }}>
           <button style={secondaryButton} disabled={page === 1} onClick={() => setPage(page - 1)}>Previous</button>
           <span>Page {page}</span>
           <button style={secondaryButton} disabled={!sources.data?.has_next} onClick={() => setPage(page + 1)}>Next</button>
