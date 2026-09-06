@@ -66,13 +66,7 @@ export default function SharedTrackerPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-lg font-semibold text-gray-900">{PARTNER_TRACKER_NAME}</h1>
-        <p className="mt-1 max-w-prose text-sm text-gray-600">
-          Tasks that programme managers have chosen to share with you. This is not
-          everything the programme tracks — only what has been shared.
-        </p>
-      </div>
+      <h1 className="text-lg font-semibold text-gray-900">{PARTNER_TRACKER_NAME}</h1>
 
       <div className="flex flex-wrap gap-2">
         {CARDS.map((c) => {
@@ -192,15 +186,6 @@ export default function SharedTrackerPage() {
           </div>
         </div>
       )}
-
-      {/* The honest caveat behind every geographic figure above. Chosen over
-          stamping geography onto each record at issuance: the numbers are grouped
-          by where students are now, and saying so costs nothing, whereas implying
-          they were frozen at the time would be false. */}
-      <p className="text-xs text-gray-500">
-        Grouped by where students and schools are now. A student who transfers takes their
-        past records with them, so historical figures follow current placements.
-      </p>
     </div>
   );
 }

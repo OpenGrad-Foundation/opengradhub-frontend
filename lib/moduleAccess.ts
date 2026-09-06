@@ -70,9 +70,10 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   batches:          { label: "Batches",         href: "/dashboard/batches" },
   tracker:          { label: TRACKER_NAME,      href: "/dashboard/tracker" },
   // Its own module, not a view of the tracker's. The nav is built from effective
-  // MODULES, so filing the partner permission under `tracker` would have shown a
-  // funding official "Task Tracker" — a link to the internal page their
-  // permissions refuse. One module, one link, somewhere they can actually read.
+  // MODULES, so filing the partner permission under `tracker` would have pointed
+  // a funding official at /dashboard/tracker — the internal page their
+  // permissions refuse. Same label now, different href: one module, one link,
+  // somewhere they can actually read.
   shared_tracker:   { label: PARTNER_TRACKER_NAME, href: "/dashboard/shared-tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };

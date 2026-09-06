@@ -29,15 +29,15 @@ export const TRACKER_NAME = "Task Tracker";
  * The partner-facing name for the same module.
  *
  * Government and funding officials see this on the one surface they can reach
- * (/dashboard/shared-tracker); internal staff see TRACKER_NAME on theirs. Two
- * names, on purpose, because the two audiences are reading different things —
- * the partner view is a subset someone opted them into, not the tracker.
+ * (/dashboard/shared-tracker); internal staff see TRACKER_NAME on theirs. The
+ * two surfaces are still different pages — the partner view is a subset someone
+ * opted them into, not the tracker — but they now read under the same name, so
+ * the word "Fellow" survives nowhere on screen.
  *
- * It says "Fellow" where the rest of the product now says "School In-Charge".
- * That is a deliberate exception, requested for the external surface; do not
- * take it as licence to reintroduce "Fellow" anywhere else.
+ * Kept as its own constant so the partner surface can be renamed again without
+ * touching the internal one.
  */
-export const PARTNER_TRACKER_NAME = "Fellow Tracker";
+export const PARTNER_TRACKER_NAME = TRACKER_NAME;
 
 /** Role code → screen label. Codes stay as the backend defines them. */
 export const ROLE_LABELS: Record<string, string> = {
