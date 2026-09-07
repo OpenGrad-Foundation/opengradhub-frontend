@@ -28,10 +28,10 @@ function monthLabel(month: string): string {
   });
 }
 
-export function AttendancePanel({ schoolId, canView }: { schoolId: string; canView: boolean }) {
+export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { schoolId: string; canView: boolean; defaultOpen?: boolean }) {
   const { has } = usePermissions();
   const canRead = canView && has(PERM.attendance.view) && has(PERM.students.view);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [month, setMonth] = useState<string | null>(null);
   // Don't fetch until opened: most visits to this page aren't about attendance,
   // and a role without attendance.view would only earn a 403 for the trouble.

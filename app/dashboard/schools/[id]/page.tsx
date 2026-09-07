@@ -23,8 +23,32 @@ import { AttachBatchPanel } from "./AttachBatchPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { SchoolBatchList } from "./SchoolBatchList";
 import {
-  labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle,
+  labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle, inputStyle,
 } from "../styles";
+
+/** Section tabs. Batches/Students/Attendance used to stack, which buried
+ *  attendance below a 400-row roster. */
+const TABS = [
+  { key: "students", label: "Students" },
+  { key: "batches", label: "Batches" },
+  { key: "attendance", label: "Attendance" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+function tabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "10px 18px",
+    border: "none",
+    borderRadius: "10px",
+    background: active ? "rgba(10,190,98,0.12)" : "transparent",
+    color: active ? "#046b45" : "rgba(3,72,82,0.65)",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 700,
+    fontSize: "13px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+}
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +75,8 @@ export default function SchoolDetailPage() {
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
+  const [tab, setTab] = useState<TabKey>("students");
+  const [studentQuery, setStudentQuery] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +144,12 @@ export default function SchoolDetailPage() {
 
   const { school, stats, students } = detail;
   const schoolStudentIds = new Set(students.map((s) => s.id));
+  const q = studentQuery.trim().toLowerCase();
+  const visibleStudents = q
+    ? students.filter((st) =>
+        [st.name, st.roll_number, canViewStudentContacts ? st.email : null, st.programme]
+          .some((v) => v?.toLowerCase().includes(q)))
+    : students;
 
   const tableProps = {
     schoolStudentIds,
@@ -218,57 +250,85 @@ export default function SchoolDetailPage() {
         </div>
       )}
 
+      {/* Tabs: these three sections are each long, so they page instead of stack. */}
+      <div
+        role="tablist"
+        aria-label="School sections"
+        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8, marginBottom: 20 }}
+      >
+        {TABS.filter((t) => t.key !== "attendance" || canViewAttendance).map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            style={tabStyle(tab === t.key)}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+            {t.key === "batches" ? ` (${detail.batches.length})` : t.key === "students" ? ` (${stats.student_count})` : ""}
+          </button>
+        ))}
+      </div>
+
       {/* Batches hosted at this school. The roster of each one lives on the
           batch page, so a row is a link, not a disclosure. */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
-          Batches ({detail.batches.length})
-        </h2>
-        {canAttachBatch && (
-          <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
+      {tab === "batches" && <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>Batches</h2>
+          {canAttachBatch && (
+            <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
+          )}
+        </div>
+
+        {showAddBatch && (
+          <AttachBatchPanel
+            schoolId={school.id}
+            schoolName={school.name}
+            onClose={() => setShowAddBatch(false)}
+            onChanged={() => void load()}
+          />
         )}
-      </div>
 
-      {showAddBatch && (
-        <AttachBatchPanel
-          schoolId={school.id}
-          schoolName={school.name}
-          onClose={() => setShowAddBatch(false)}
-          onChanged={() => void load()}
-        />
-      )}
-
-      <div style={{ marginBottom: "24px" }}>
         <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} canOpen={has(PERM.batches.view)} showStudentCounts={canViewStudents} />
-      </div>
+      </>}
 
       {/* Roster identity and contacts have independent data grants. */}
-      {canViewStudents && <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
-          Students ({stats.student_count})
-        </h2>
-        {canEditRoster && (
-          <button onClick={() => setShowAdd(true)} style={primaryButton}>+ Add Students</button>
+      {tab === "students" && <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
+            Students{q ? ` · ${visibleStudents.length} match${visibleStudents.length === 1 ? "" : "es"}` : ""}
+          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 240px", justifyContent: "flex-end" }}>
+            <input
+              type="search"
+              value={studentQuery}
+              onChange={(e) => setStudentQuery(e.target.value)}
+              placeholder={canViewStudentContacts ? "Search name, roll number, email…" : "Search name or roll number…"}
+              aria-label="Search students"
+              style={{ ...inputStyle, maxWidth: "320px", padding: "8px 14px" }}
+            />
+            {canEditRoster && (
+              <button onClick={() => setShowAdd(true)} style={{ ...primaryButton, whiteSpace: "nowrap" }}>+ Add Students</button>
+            )}
+          </div>
+        </div>
+
+        {rosterError && (
+          <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
         )}
-      </div>
 
-      {rosterError && (
-        <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
-      )}
-
-      <RosterTable
-        rows={students}
-        emptyMessage="No students assigned to this school yet."
-        {...tableProps}
-      />
+        <RosterTable
+          rows={visibleStudents}
+          emptyMessage={q ? "No students match this search." : "No students assigned to this school yet."}
+          {...tableProps}
+        />
       </>}
 
       {/* Committed register attendance for this school — read-only; uploading
           still lives in the Attendance tab. */}
-      <div style={{ marginTop: "24px" }}>
-        <AttendancePanel schoolId={school.id} canView={canViewAttendance} />
-      </div>
+      {tab === "attendance" && (
+        <AttendancePanel schoolId={school.id} canView={canViewAttendance} defaultOpen />
+      )}
 
       {showAdd && (
         <AddStudentsPanel
