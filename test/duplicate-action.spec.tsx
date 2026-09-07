@@ -24,14 +24,15 @@ describe('duplicate action', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Destination programme' }), { target: { value: 'p2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create copy' }));
     await waitFor(() => expect(state.duplicateCourse).toHaveBeenCalledWith('source', 'p2'));
-    expect(await screen.findByText('Created “Copy created”.')).toBeTruthy();
+    expect(await screen.findByText(/Created “Copy created”\./)).toBeTruthy();
   });
 
-  it('automatically chooses the sole programme, with no picker to answer', async () => {
+  it('preselects the sole programme, still shown in the picker', async () => {
     state.destinations = { programmes: [{ id: 'p1', name: 'One' }], can_global: false };
     state.duplicateQuiz.mockResolvedValue({ id: 'copy', title: 'Quiz copy' }); mount('quizzes');
-    expect(await screen.findByText('Destination: One')).toBeTruthy();
-    expect(screen.queryByRole('combobox')).toBeNull();
+    const picker = await screen.findByRole('combobox', { name: 'Destination programme' }) as HTMLSelectElement;
+    expect(picker.value).toBe('p1');
+    expect(picker.options.length).toBe(1);
     fireEvent.click(screen.getByRole('button', { name: 'Create copy' }));
     await waitFor(() => expect(state.duplicateQuiz).toHaveBeenCalledWith('source', 'p1'));
   });
@@ -39,7 +40,7 @@ describe('duplicate action', () => {
   it('sends null for a deliberately global copy', async () => {
     state.destinations = { programmes: [], can_global: true };
     state.duplicateCourse.mockResolvedValue({ id: 'copy', title: 'Global copy' }); mount();
-    expect(await screen.findByText('Destination: Global')).toBeTruthy();
+    expect(((await screen.findByRole('combobox', { name: 'Destination programme' })) as HTMLSelectElement).value).toBe('__global__');
     fireEvent.click(screen.getByRole('button', { name: 'Create copy' }));
     await waitFor(() => expect(state.duplicateCourse).toHaveBeenCalledWith('source', null));
   });

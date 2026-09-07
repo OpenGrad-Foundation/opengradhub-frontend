@@ -10,7 +10,7 @@ import { getDuplicateDestinations, type DuplicateKind } from '@/lib/duplicate-ma
 import { useInvalidate } from '@/lib/mutations/invalidation';
 import { useCurrentUrl } from '@/lib/useCurrentUrl';
 import { withFrom } from '@/lib/nav';
-import { errorStyle, inputStyle, primaryButton } from '@/app/dashboard/programmes/styles';
+import { errorStyle, inputStyle, primaryButton, secondaryButton } from '@/app/dashboard/programmes/styles';
 
 const GLOBAL_DESTINATION = '__global__';
 
@@ -62,12 +62,13 @@ export function DuplicateAction({ kind, sourceId, ready = true }: {
   return <div style={{ display: 'grid', gap: 10 }}>
     {error && <p role='alert' style={errorStyle}>{error.message}</p>}
     <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-      {options.length === 1
-        ? <span>Destination: {options[0].label}</span>
-        : <label>Destination programme <select aria-label='Destination programme' style={inputStyle} value={selection} onChange={event => setSelection(event.target.value)}>
-            <option value=''>Choose programme</option>
-            {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select></label>}
+      {/* The select is drawn even for a single destination: a bare label read as
+          "there is nothing to pick here" when in fact the copy was about to be
+          taken into that programme. One option is preselected, not hidden. */}
+      <label>Destination programme <select aria-label='Destination programme' style={inputStyle} value={destination} onChange={event => setSelection(event.target.value)}>
+        {options.length > 1 && <option value=''>Choose programme</option>}
+        {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select></label>
       <button
         style={primaryButton}
         disabled={!selectedIsValid || !ready || copy.isPending || copy.isSuccess}
@@ -76,6 +77,12 @@ export function DuplicateAction({ kind, sourceId, ready = true }: {
         {copy.isPending ? 'Creating…' : 'Create copy'}
       </button>
     </div>
-    {copy.data && <p role='status'>Created “{copy.data.title}”. {canOpenCopy && <Link href={withFrom(kind === 'courses' ? `/dashboard/course-management/${copy.data.id}` : `/dashboard/quiz-builder/${copy.data.id}`, currentUrl)}>Open copy</Link>}</p>}
+    {copy.data && <p role='status' style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+      Created “{copy.data.title}”.
+      {canOpenCopy && <Link
+        style={{ ...secondaryButton, textDecoration: 'none', display: 'inline-block' }}
+        href={withFrom(kind === 'courses' ? `/dashboard/course-management/${copy.data.id}` : `/dashboard/quiz-builder/${copy.data.id}`, currentUrl)}
+      >Open copy</Link>}
+    </p>}
   </div>;
 }
