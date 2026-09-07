@@ -45,6 +45,11 @@ export type TrackerTemplate = {
    *  and no longer offered when authoring; existing tasks keep working. */
   require_location: boolean;
   require_geo_verification: boolean;
+  /** Shared with the government / funding officials seated in this task's programme. */
+  partner_visible?: boolean;
+  /** Which programme owns this task type. Null for org-only tasks — and a task with no
+   *  programme can never be shared externally, because partners are seated per programme. */
+  programme_id?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -163,6 +168,7 @@ export type TrackerTemplatePatch = {
   deadline?: string | null;
   status?: "draft" | "active" | "archived";
   recurrence_frequency?: TrackerRecurrence | null;
+  priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
   require_geo_verification?: boolean;

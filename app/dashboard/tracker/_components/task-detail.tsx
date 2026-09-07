@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
-import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, useTrackerSummary, useTrackerTemplate, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
-import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
+import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, useTrackerSummary, useTrackerTemplate, useUpdateTrackerField, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
+import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerPriority, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
@@ -32,11 +32,20 @@ function slugKey(label: string, used: Set<string>): string {
 export function TaskDetail({
   template,
   canAuthor,
+  canShareExternally = false,
   onBack,
   onOpenGrid,
 }: {
   template: TrackerTemplate;
   canAuthor: boolean;
+  /**
+   * May this user share a task outside the organisation? Its own permission
+   * (tracker.share_external) because tracker.author includes Zonal Managers, and
+   * authoring a task is not the same decision as publishing its proof photographs
+   * to a funder. Defaults to false so a caller that forgets to pass it hides the
+   * one control whose effect leaves the building.
+   */
+  canShareExternally?: boolean;
   onBack: () => void;
   onOpenGrid?: () => void;
 }) {
@@ -125,7 +134,7 @@ export function TaskDetail({
       )}
 
       {editing ? (
-        <EditTemplate template={template} onDone={() => setEditing(false)} />
+        <EditTemplate template={template} canShareExternally={canShareExternally} onDone={() => setEditing(false)} />
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="flex flex-wrap items-center gap-3">
@@ -192,6 +201,17 @@ export function TaskDetail({
 
 function FieldRow({ templateId, field: f, editing }: { templateId: string; field: TrackerField; editing: boolean }) {
   const del = useDeleteTrackerField(templateId);
+  const [open, setOpen] = useState(false);
+
+  // The editor only exists inside edit mode; leaving it collapses the row.
+  if (editing && open && f.id) {
+    return (
+      <li className="px-4 py-3">
+        <EditFieldForm templateId={templateId} field={f} onDone={() => setOpen(false)} />
+      </li>
+    );
+  }
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
       <div className="min-w-0">
@@ -204,12 +224,78 @@ function FieldRow({ templateId, field: f, editing }: { templateId: string; field
       <div className="flex items-center gap-2">
         {f.source === "profile" ? <StatusPill label="Auto-filled" tone="amber" /> : <StatusPill label="You enter" tone="gray" />}
         {editing && f.id && (
+          <button type="button" onClick={() => setOpen(true)} aria-label={`Edit ${f.label}`} className="text-gray-400 hover:text-teal-700">
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+          </button>
+        )}
+        {editing && f.id && (
           <button type="button" onClick={() => del.mutate(f.id!)} disabled={del.isPending} aria-label="Remove field" className="text-gray-400 hover:text-red-600 disabled:opacity-50">
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * Edits an existing field in place. Only what the server accepts on a field PATCH:
+ * label, required and — for select/multiselect — the choices. The field's key and
+ * type stay fixed, because records already hold values under that key in that shape.
+ */
+function EditFieldForm({ templateId, field: f, onDone }: { templateId: string; field: TrackerField; onDone: () => void }) {
+  const update = useUpdateTrackerField(templateId);
+  const [label, setLabel] = useState(f.label);
+  const [required, setRequired] = useState(f.required);
+  const [optionsText, setOptionsText] = useState((f.options ?? []).join(", "));
+  const [err, setErr] = useState<string | null>(null);
+  const hasOptions = f.field_type === "select" || f.field_type === "multiselect";
+  const inputClass = "h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+
+  async function save() {
+    setErr(null);
+    const trimmed = label.trim();
+    if (!trimmed) { setErr("Give the field a label."); return; }
+    const options = optionsText.split(",").map((o) => o.trim()).filter(Boolean);
+    if (hasOptions && options.length === 0) { setErr("List at least one choice."); return; }
+    try {
+      await update.mutateAsync({
+        fieldId: f.id!,
+        patch: { label: trimmed, required, ...(hasOptions ? { options } : {}) },
+      });
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save that field.");
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-teal-200 bg-teal-50/40 p-3">
+      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
+        <input value={label} onChange={(e) => setLabel(e.target.value)} aria-label="Field label" className={inputClass} />
+        {hasOptions ? (
+          <input value={optionsText} onChange={(e) => setOptionsText(e.target.value)} aria-label="Choices" placeholder="choices: a, b" className={inputClass} />
+        ) : (
+          <div />
+        )}
+        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+          <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
+        </label>
+      </div>
+      {/* Says why the two immutable parts are missing, rather than leaving their absence
+          to be read as a bug. */}
+      <p className="mt-2 text-xs text-gray-500">
+        The field type ({f.field_type}) and its key cannot change — answers already filled in
+        are stored against them.
+      </p>
+      {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
+      <div className="mt-2 flex items-center gap-2">
+        <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+          {update.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Save field
+        </button>
+        <button type="button" onClick={onDone} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+      </div>
+    </div>
   );
 }
 
@@ -417,7 +503,11 @@ function AddFieldForm({
   );
 }
 
-function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone: () => void }) {
+function EditTemplate({
+  template,
+  canShareExternally,
+  onDone,
+}: { template: TrackerTemplate; canShareExternally: boolean; onDone: () => void }) {
   const update = useUpdateTrackerTemplate(template.id);
   const [name, setName] = useState(template.name);
   const [description, setDescription] = useState(template.description ?? "");
@@ -426,7 +516,14 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>((template.recurrence_frequency as TrackerRecurrence) ?? "");
   const [requirePhoto, setRequirePhoto] = useState(template.require_photo);
   const [requireGeo, setRequireGeo] = useState(template.require_geo_verification);
+  const [priority, setPriority] = useState<TrackerPriority>(template.priority ?? "medium");
+  const [partnerVisible, setPartnerVisible] = useState(Boolean(template.partner_visible));
   const [err, setErr] = useState<string | null>(null);
+
+  // Partners are seated per programme, so a task with no programme has nobody to share
+  // with. The server refuses `true` in that case; mirror the rule here rather than
+  // letting the author tick a box that will bounce.
+  const hasProgramme = Boolean(template.programme_id);
 
   const inputClass = "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
 
@@ -441,6 +538,10 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
         recurrence_frequency: recurrence || null,
         require_photo: requirePhoto,
         require_geo_verification: requireGeo,
+        priority,
+        // Only send the sharing flag when this user may decide it. Sending the
+        // unchanged value would still trip the server's permission check.
+        ...(canShareExternally ? { partner_visible: partnerVisible } : {}),
       });
       onDone();
     } catch (e) {
@@ -479,6 +580,14 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
           <option value="archived">Archived</option>
         </select>
       </label>
+      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        Priority
+        <select value={priority} onChange={(e) => setPriority(e.target.value as TrackerPriority)} className={inputClass}>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </label>
       <div className="flex flex-col gap-2 sm:col-span-2">
         <span className="text-sm font-medium text-gray-700">Proof of visit</span>
         <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -493,6 +602,40 @@ function EditTemplate({ template, onDone }: { template: TrackerTemplate; onDone:
           </label>
         )}
       </div>
+      {/* Sharing outside the organisation. Same warning-shaped block as the builder,
+          because it is the only control here whose effect leaves the building. */}
+      {canShareExternally && (
+        <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:col-span-2">
+          <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
+          <label className="flex items-start gap-2 text-sm text-amber-900">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={partnerVisible}
+              disabled={!hasProgramme}
+              onChange={(e) => setPartnerVisible(e.target.checked)}
+            />
+            <span>Let government and funding officials seated in this programme follow this task</span>
+          </label>
+          {/* Disabled rather than hidden, with the reason stated — a vanished control
+              reads as a missing feature. */}
+          {!hasProgramme && (
+            <p className="ml-6 text-xs text-amber-800">
+              This task has no programme, and officials are seated per programme, so there is
+              nobody to share it with.
+            </p>
+          )}
+          {partnerVisible && hasProgramme && (
+            <p className="ml-6 text-xs text-amber-800">
+              They will see every record of this task: the school, the {IN_CHARGE_LOWER} who
+              last updated it, what they filled in, whether it is late or blocked, and — where
+              this task requires them — the proof photographs and their GPS coordinates. Only
+              officials already seated in this programme, and only this task. You can switch it
+              off again, but anything already downloaded stays downloaded.
+            </p>
+          )}
+        </div>
+      )}
       {err && <p className="text-sm text-red-700 sm:col-span-2">{err}</p>}
       <div className="flex items-center gap-2 sm:col-span-2">
         <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">

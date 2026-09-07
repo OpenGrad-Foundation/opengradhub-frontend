@@ -488,6 +488,7 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, prefil
         templateId={detailId}
         fallback={templates.find((t) => t.id === detailId) ?? null}
         canAuthor={canAuthor}
+        canShareExternally={canShareExternally}
         onBack={() => setDetailId(null)}
         onOpenGrid={() => setGridId(detailId)}
       />
@@ -531,12 +532,15 @@ function TaskDetailRoute({
   templateId,
   fallback,
   canAuthor,
+  canShareExternally,
   onBack,
   onOpenGrid,
 }: {
   templateId: string;
   fallback: TrackerTemplate | null;
   canAuthor: boolean;
+  /** Sharing outside the organisation is its own permission — see the builder. */
+  canShareExternally: boolean;
   onBack: () => void;
   onOpenGrid: () => void;
 }) {
@@ -555,7 +559,7 @@ function TaskDetailRoute({
     );
   }
 
-  return <TaskDetail template={template} canAuthor={canAuthor} onBack={onBack} onOpenGrid={onOpenGrid} />;
+  return <TaskDetail template={template} canAuthor={canAuthor} canShareExternally={canShareExternally} onBack={onBack} onOpenGrid={onOpenGrid} />;
 }
 
 /** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state.
