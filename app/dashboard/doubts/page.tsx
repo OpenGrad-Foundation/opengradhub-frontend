@@ -66,7 +66,7 @@ function DoubtsPageContent() {
 
   if (isStaffViewer) {
     return (
-      <><BackLink fallback="/dashboard" /><StaffDoubtsView
+      <StaffDoubtsView
         doubts={doubts}
         loading={loading}
         error={error}
@@ -75,7 +75,7 @@ function DoubtsPageContent() {
         canDelete={canDelete}
         focusId={focusId}
         statusParam={statusParam}
-      /></>
+      />
     );
   }
 
