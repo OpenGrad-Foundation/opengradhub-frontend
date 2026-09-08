@@ -10,7 +10,6 @@ import { partnerFilterSpec } from "@/app/dashboard/tracker/_components/filter-sp
 import type { PartnerLifecycle, PartnerTaskRow } from "@/lib/tracker-api";
 import { PARTNER_TRACKER_NAME } from "@/lib/labels";
 import { PartnerDrill } from "./_components/partner-drill";
-import { PartnerRecords } from "./_components/partner-records";
 
 /**
  * The tracker as a government or funding official reads it.
@@ -41,8 +40,6 @@ export default function SharedTrackerPage() {
 
   const [page, setPage] = useState(1);
   const [openTask, setOpenTask] = useState<PartnerTaskRow | null>(null);
-  const [recordScope, setRecordScope] =
-    useState<{ state?: string; district?: string; schoolId?: string; studentId?: string } | null>(null);
 
   // The filter kit writes every keystroke straight to the URL, which would put a
   // request on the wire per character. Debounced here rather than inside the kit so
@@ -126,7 +123,7 @@ export default function SharedTrackerPage() {
               return (
                 <li key={t.template_id}>
                   <button
-                    onClick={() => { setOpenTask(open ? null : t); setRecordScope(null); }}
+                    onClick={() => setOpenTask(open ? null : t)}
                     className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50"
                   >
                     <div className="min-w-0 flex-1">
@@ -151,19 +148,7 @@ export default function SharedTrackerPage() {
 
                   {open && (
                     <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-4">
-                      {recordScope === null ? (
-                        <PartnerDrill task={t} filters={debounced} onOpenRecords={setRecordScope} />
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => setRecordScope(null)}
-                            className="self-start text-xs font-medium text-teal-700 underline"
-                          >
-                            Back to the breakdown
-                          </button>
-                          <PartnerRecords task={t} scope={recordScope} filters={debounced} />
-                        </>
-                      )}
+                      <PartnerDrill task={t} filters={debounced} />
                     </div>
                   )}
                 </li>

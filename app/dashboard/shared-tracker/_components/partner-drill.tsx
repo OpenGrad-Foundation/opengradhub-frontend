@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
 import { usePartnerBreakdown } from "@/lib/queries/tracker";
 import { PARTNER_NO_PLACE, type PartnerTaskRow } from "@/lib/tracker-api";
 import { ZONE } from "@/lib/labels";
+import { PartnerRecords } from "./partner-records";
 
 /**
  * The geographic drill, scoped to one shared task.
@@ -34,81 +35,88 @@ const LEVEL_TITLE: Record<Level, string> = {
   state: "States", zone: `${ZONE}s`, school: "Schools", student: "Students",
 };
 
+const DRILL_LEVELS: Level[] = ["state", "zone", "school", "student"];
+
 type Crumb = { level: Level; key: string; label: string };
 
-export function PartnerDrill({ task, filters, onOpenRecords }: {
+export function PartnerDrill({ task, filters }: {
   task: PartnerTaskRow;
   /** The page's own filter bar. Carried through so the breakdown counts the same
    *  records the task card above it does; without it the two disagree on screen
    *  and nothing says which is right. */
   filters: Record<string, unknown>;
-  onOpenRecords: (scope: {
-    state?: string; district?: string; schoolId?: string; studentId?: string;
-  }) => void;
 }) {
   // A staff task has no geography at all, so the drill would be one bucket deep.
-  // Sending the official straight to the records is more honest than a level that
+  // Rendering its records directly inside the card is more honest than a level that
   // only ever says "Not tied to a place".
   const geographic = task.target_type !== "fellow";
   const [path, setPath] = useState<Crumb[]>([]);
 
   const leaf = leafFor(task.target_type);
-  const level: Level = (["state", "zone", "school", "student"] as Level[])[path.length] ?? leaf;
+  const showRecords = path.some((p) => p.level === leaf || p.key === PARTNER_NO_PLACE);
+  const currentLevel: Level = DRILL_LEVELS[path.length] ?? leaf;
+
   const scope = {
     state: path.find((p) => p.level === "state")?.key,
     district: path.find((p) => p.level === "zone")?.key,
     schoolId: path.find((p) => p.level === "school")?.key,
+    studentId: path.find((p) => p.level === "student")?.key,
   };
 
   const { data: rows, isLoading } = usePartnerBreakdown(
-    geographic ? task.template_id : null, { ...filters, level, ...scope },
+    geographic && !showRecords ? task.template_id : null,
+    { ...filters, level: currentLevel, ...scope },
   );
 
   if (!geographic) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-        This task is about a person rather than a place, so it has no geographic
-        breakdown.{" "}
-        <button onClick={() => onOpenRecords({})} className="font-medium text-teal-700 underline">
-          See its records
-        </button>
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <PartnerRecords task={task} scope={{}} filters={filters} />
       </div>
     );
   }
-
-  const atLeaf = level === leaf;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <header className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-sm">
         {path.length > 0 && (
           <button
+            type="button"
             onClick={() => setPath(path.slice(0, -1))}
             className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-900"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back
           </button>
         )}
-        <button onClick={() => setPath([])} className="text-gray-500 hover:text-gray-900">
+        <button
+          type="button"
+          onClick={() => setPath([])}
+          className="text-gray-500 hover:text-gray-900"
+        >
           All
         </button>
         {path.map((c, i) => (
           <span key={`${c.level}-${c.key}`} className="flex items-center gap-2">
             <ChevronRight className="h-3.5 w-3.5 text-gray-300" aria-hidden="true" />
             <button
+              type="button"
               onClick={() => setPath(path.slice(0, i + 1))}
-              className="text-gray-700 hover:text-gray-900"
+              className={`hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-gray-900" : "text-gray-700"}`}
             >
               {c.label}
             </button>
           </span>
         ))}
         <span className="ml-auto text-xs uppercase tracking-wide text-gray-400">
-          {LEVEL_TITLE[level]}
+          {showRecords ? "Records" : LEVEL_TITLE[currentLevel]}
         </span>
       </header>
 
-      {isLoading ? (
+      {showRecords ? (
+        <div className="p-4">
+          <PartnerRecords task={task} scope={scope} filters={filters} />
+        </div>
+      ) : isLoading ? (
         <div className="flex min-h-24 items-center justify-center">
           <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
         </div>
@@ -118,30 +126,26 @@ export function PartnerDrill({ task, filters, onOpenRecords }: {
         <ul className="divide-y divide-gray-100">
           {rows.map((r) => {
             const pct = r.total === 0 ? 0 : Math.round((r.done / r.total) * 100);
-            // The last level opens the records; everything above it goes deeper.
-            // At the leaf the clicked row IS the scope, so its own key has to go
-            // in: without it, clicking one student opened every record for the
-            // school, and clicking one school every record in the zone.
-            // The no-place bucket has no geography to drill THROUGH — its state and
-            // zone are null — so going deeper would ask the server to match a
-            // sentinel against a real column and return nothing. It goes straight to
-            // its records instead, at whatever level it appears.
-            const go = () => (r.key === PARTNER_NO_PLACE
-              ? onOpenRecords({ schoolId: PARTNER_NO_PLACE })
-              : atLeaf
-                ? onOpenRecords({
-                  ...scope,
-                  ...(level === "school" ? { schoolId: r.key } : {}),
-                  ...(level === "student" ? { studentId: r.key } : {}),
-                })
-                : setPath([...path, { level, key: r.key, label: r.label }]));
+            const isNoPlace = r.key === PARTNER_NO_PLACE;
+            const go = () => setPath([
+              ...path,
+              {
+                level: currentLevel,
+                key: r.key,
+                label: isNoPlace ? "No school on record" : r.label,
+              },
+            ]);
             return (
               <li key={r.key}>
-                <button onClick={go} className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-gray-50">
+                <button
+                  type="button"
+                  onClick={go}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-gray-50"
+                >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm text-gray-900">
                       {r.label}
-                      {r.key === PARTNER_NO_PLACE && (
+                      {isNoPlace && (
                         <span className="ml-2 text-xs text-gray-400">no school on record</span>
                       )}
                     </div>

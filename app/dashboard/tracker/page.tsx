@@ -130,7 +130,7 @@ export default function TrackerPage() {
   // fight over `status` and `q` in the same query string.
   const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
   const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
-  const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
+  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow">("zm");
   // Manager overview: when a status card is clicked, show only the tasks in that state
   // (replacing the team roster) until cleared. Null = no filter, show the roster.
   const [overviewState, setOverviewState] = useState<TaskState | null>(null);
@@ -209,7 +209,7 @@ export default function TrackerPage() {
                  different task inside the tracker, the origin is no longer where "back"
                  means, and the normal in-tracker back applies. */
               active={fillTemplateId === deepLinkTask}
-              label="Back to task"
+              label={drillTask ? `Back to ${drillTask.name}` : "Back to all tasks"}
               onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
             />
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
@@ -220,10 +220,22 @@ export default function TrackerPage() {
             currentUserId={currentUser?.user.id ?? ""}
             canNudge={canAuthor}
             onBack={() => setDrillTask(null)}
+            onOpenTask={(templateId) => {
+              setSelectedTemplateId(templateId);
+              setFillTemplateId(templateId);
+              setFillFellowId(null);
+              setFillFellowName(null);
+            }}
           />
         ) : (
           <AllTasksPanel
             onOpenDrill={(task) => setDrillTask(task)}
+            onOpenTask={(templateId) => {
+              setSelectedTemplateId(templateId);
+              setFillTemplateId(templateId);
+              setFillFellowId(null);
+              setFillFellowName(null);
+            }}
             role={roleCode}
             filters={allTasksFilters}
           />
@@ -256,15 +268,36 @@ export default function TrackerPage() {
               ) : canAllTasks ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+                    <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
                     <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
                   </div>
-                  {teamView === "zm"
-                    ? <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
-                    : <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />}
+                  {teamView === "my" ? (
+                    <MyTasksList
+                      filters={myTasksFilters}
+                      onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                    />
+                  ) : teamView === "zm" ? (
+                    <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  ) : (
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  )}
                 </div>
               ) : (
-                <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                <div className="flex flex-col gap-3">
+                  <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+                    <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView !== "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
+                  </div>
+                  {teamView === "my" ? (
+                    <MyTasksList
+                      filters={myTasksFilters}
+                      onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                    />
+                  ) : (
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  )}
+                </div>
               )}
               </>
             ) : (

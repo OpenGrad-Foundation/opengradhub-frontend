@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search, Table2 } from "lucide-react";
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
@@ -37,11 +37,13 @@ export function TaskBreakdown({
   currentUserId,
   canNudge,
   onBack,
+  onOpenTask,
 }: {
   task: TrackerTaskSummaryRow;
   currentUserId: string;
   canNudge: boolean;
   onBack: () => void;
+  onOpenTask?: (templateId: string) => void;
 }) {
   const canViewStudents = usePermissions().has(PERM.students.view);
   const targetLeaf = leafFor(task.target_type);
@@ -60,9 +62,20 @@ export function TaskBreakdown({
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
-        <div className="text-right">
-          <p className="text-sm font-semibold text-gray-950">{task.name}</p>
-          <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>
+        <div className="flex items-center gap-3">
+          {onOpenTask && (
+            <button
+              type="button"
+              onClick={() => onOpenTask(task.template_id)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+            >
+              <Table2 className="h-4 w-4" aria-hidden="true" /> Open task data
+            </button>
+          )}
+          <div className="text-right">
+            <p className="text-sm font-semibold text-gray-950">{task.name}</p>
+            <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>
+          </div>
         </div>
       </div>
 

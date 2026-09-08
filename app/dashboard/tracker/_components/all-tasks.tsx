@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2, Table2 } from "lucide-react";
 import { useTrackerFacets, useTrackerTaskSummary } from "@/lib/queries/tracker";
 import type { TrackerTaskSummaryFilters, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
@@ -25,9 +25,10 @@ export type FilterControls = {
 /** Task-first list: one row per task with its overall completion. Clicking a task drills the
  *  org tree (ZM → fellow → school → student) scoped to that task. */
 export function AllTasksPanel({
-  onOpenDrill, filters, role,
+  onOpenDrill, onOpenTask, filters, role,
 }: {
   onOpenDrill: (task: TrackerTaskSummaryRow) => void;
+  onOpenTask?: (templateId: string) => void;
   /** The viewer's role code — a ZM is not offered a Zonal Manager filter. */
   role: string;
   /** URL-backed filter state, owned by the page so it survives navigation. */
@@ -106,7 +107,23 @@ export function AllTasksPanel({
                     <td className="px-4 py-3 text-gray-700">{r.total}</td>
                     <td className="px-4 py-3"><StatePill state={r.rolled_state} /></td>
                     <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
-                    <td className="px-4 py-3"><ChevronRight className="ml-auto h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {onOpenTask && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenTask(r.template_id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-teal-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50"
+                          >
+                            <Table2 className="h-3.5 w-3.5" aria-hidden="true" /> Open
+                          </button>
+                        )}
+                        <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
