@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
-import { IN_CHARGE } from "@/lib/labels";
+import { IN_CHARGE, ROLE_LABELS } from "@/lib/labels";
 import {
   fetchSchoolRosterDetail,
   getSchoolDetail,
@@ -204,6 +204,19 @@ export default function SchoolDetailPage() {
             </>
           ) : (
             <p style={{ ...cardValueStyle, color: "rgba(3,72,82,0.45)" }}>Unassigned</p>
+          )}
+        </div>
+        <div style={cardStyle}>
+          <p style={cardLabelStyle}>{ROLE_LABELS.ZONAL_MANAGER}</p>
+          {school.zm_name ? (
+            <>
+              <p style={cardValueStyle}>{school.zm_name}</p>
+              {canViewStaffContacts && school.zm_email && (
+                <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>{school.zm_email}</p>
+              )}
+            </>
+          ) : (
+            <p style={{ ...cardValueStyle, color: "rgba(3,72,82,0.45)" }}>—</p>
           )}
         </div>
         <div style={cardStyle}>

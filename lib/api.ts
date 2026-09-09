@@ -3363,6 +3363,9 @@ export type SchoolOption = {
   code: string | null;
   fellow_id: string | null;
   fellow_name: string | null;
+  /** The in-charge's manager (Zonal Manager); null when unassigned or unmanaged. */
+  zm_id?: string | null;
+  zm_name?: string | null;
   /** Optional school-visit verification geometry; null until an admin sets it.
    *  Optional on the type so payloads cached before migration 096 still typecheck. */
   latitude?: number | null;
@@ -3500,7 +3503,7 @@ export type SchoolRosterStudent = {
 };
 
 export type SchoolRosterDetail = {
-  school: SchoolOption & { fellow_email: string | null };
+  school: SchoolOption & { fellow_email: string | null; zm_email?: string | null };
   stats: {
     student_count: number;
     programmes: { programme: string | null; count: number }[];
