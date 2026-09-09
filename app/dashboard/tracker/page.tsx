@@ -100,7 +100,7 @@ export default function TrackerPage() {
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
     if (canViewStudents) next.push("myStudents"); // own students list
-    if (canAuthor) next.push("builder");                   // new + manage templates
+    if (canAuthor) next.push("builder");                   // create only — managing lives in Tasks › Manage
     if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
   }, [canAuthor, canFill, isManagerView, canAllTasks, canViewStudents]);
@@ -130,7 +130,10 @@ export default function TrackerPage() {
   // fight over `status` and `q` in the same query string.
   const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
   const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
-  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow">("zm");
+  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow" | "manage">("zm");
+  // The task open in the Tasks tab's Manage view (edit / archive / delete). Lives here so a
+  // freshly-created task can land straight on its own detail from the New task tab.
+  const [manageDetailId, setManageDetailId] = useState<string | null>(null);
   // Manager overview: when a status card is clicked, show only the tasks in that state
   // (replacing the team roster) until cleared. Null = no filter, show the roster.
   const [overviewState, setOverviewState] = useState<TaskState | null>(null);
@@ -271,8 +274,19 @@ export default function TrackerPage() {
                     <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
                     <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
+                    <button type="button" onClick={() => setTeamView("manage")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>Manage</button>
                   </div>
-                  {teamView === "my" ? (
+                  {teamView === "manage" ? (
+                    <ManageTasksPanel
+                      canAuthor={canAuthor}
+                      canShareExternally={has(PERM.tracker.share_external)}
+                      canFill={canFill}
+                      canClear={canClear}
+                      canOverrideFill={canOverrideFill}
+                      detailId={manageDetailId}
+                      onDetailChange={setManageDetailId}
+                    />
+                  ) : teamView === "my" ? (
                     <MyTasksList
                       filters={myTasksFilters}
                       onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
@@ -287,9 +301,20 @@ export default function TrackerPage() {
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
                     <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
-                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView !== "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" || teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
+                    <button type="button" onClick={() => setTeamView("manage")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>Manage</button>
                   </div>
-                  {teamView === "my" ? (
+                  {teamView === "manage" ? (
+                    <ManageTasksPanel
+                      canAuthor={canAuthor}
+                      canShareExternally={has(PERM.tracker.share_external)}
+                      canFill={canFill}
+                      canClear={canClear}
+                      canOverrideFill={canOverrideFill}
+                      detailId={manageDetailId}
+                      onDetailChange={setManageDetailId}
+                    />
+                  ) : teamView === "my" ? (
                     <MyTasksList
                       filters={myTasksFilters}
                       onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
@@ -326,7 +351,14 @@ export default function TrackerPage() {
       ) : safeActiveTab === "myStudents" ? (
         <HierarchicalStudentsPanel />
       ) : (
-        <NewTaskPanel canAuthor={canAuthor} canShareExternally={has(PERM.tracker.share_external)} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} prefill={assignPrefill} />
+        <NewTaskPanel
+          canAuthor={canAuthor}
+          canShareExternally={has(PERM.tracker.share_external)}
+          prefill={assignPrefill}
+          // Land the author on the task they just made — in the Tasks tab's Manage view, where
+          // editing, archiving and deleting live.
+          onCreated={(id) => { setAssignPrefill(null); setManageDetailId(id); setTeamView("manage"); setOverviewState(null); setActiveTab("myTasks"); }}
+        />
       )}
     </div>
   );
@@ -346,7 +378,7 @@ function TasksPanel({
   const overview = useTrackerOverview();
   if (loading) return <TrackerLoading />;
   if (templates.length === 0) {
-    return <EmptyPanel title="No templates yet" detail="Create your first one in the “New task” tab, then assign it to staff, schools, or students." />;
+    return <EmptyPanel title="No tasks yet" detail="Create your first one in the “New task” tab, then assign it to staff, schools, or students." />;
   }
 
   const perTask = new Map((overview.data?.perTask ?? []).map((p) => [p.template_id, p]));
@@ -358,7 +390,7 @@ function TasksPanel({
           <table className="w-full border-collapse text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <th className="px-4 py-3 font-semibold">Template</th>
+                <th className="px-4 py-3 font-semibold">Task</th>
                 <th className="px-4 py-3 font-semibold">Priority</th>
                 <th className="px-4 py-3 font-semibold">Due by</th>
                 <th className="px-4 py-3 font-semibold">Done</th>
@@ -486,7 +518,31 @@ function TeamPanel({ onOpen, onAssign }: {
   );
 }
 
-function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOverrideFill, prefill }: {
+function NewTaskPanel({ canAuthor, canShareExternally, prefill, onCreated }: {
+  canAuthor: boolean;
+  /** Sharing outside the organisation is its own permission — see the builder. */
+  canShareExternally: boolean;
+  /** Audience carried in from an "Assign task" click, which also opens the builder. */
+  prefill?: TrackerAssignPrefill | null;
+  /** Called with the new task's id once it is created. */
+  onCreated: (templateId: string) => void;
+}) {
+  return (
+    <TrackerBuilder
+      canShareExternally={canShareExternally}
+      // Remount when the pre-selected audience changes — the builder only reads it on mount.
+      key={prefill ? `prefill:${prefill.ids.join(",")}` : "blank"}
+      canAuthor={canAuthor}
+      prefill={prefill ?? undefined}
+      onCreated={onCreated}
+    />
+  );
+}
+
+/** Tasks tab › Manage: every task the author can see (active or archived), opening into its
+ *  detail — edit, archive, delete, share — and from there into its grid. This is where an
+ *  existing task is managed; the New task tab only creates. */
+function ManageTasksPanel({ canAuthor, canShareExternally, canFill, canClear, canOverrideFill, detailId, onDetailChange }: {
   canAuthor: boolean;
   /** Sharing outside the organisation is its own permission — see the builder. */
   canShareExternally: boolean;
@@ -495,13 +551,12 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOve
   /** tracker.fill.override. Passed here too, so a task's own grid behaves like every other
    *  route into it — the ROW's capabilities decide whether the control is usable. */
   canOverrideFill: boolean;
-  /** Audience carried in from an "Assign task" click, which also opens the scratch builder. */
-  prefill?: TrackerAssignPrefill | null;
+  /** The open task, or null for the list. Owned by the page so creation can land here. */
+  detailId: string | null;
+  onDetailChange: (id: string | null) => void;
 }) {
-  const [mode, setMode] = useState<"template" | "scratch">(prefill ? "scratch" : "template");
   const [listView, setListView] = useState<"active" | "archived">("active");
   const { data: templates = [], isLoading } = useTrackerTemplates(listView === "archived" ? "archived" : undefined);
-  const [detailId, setDetailId] = useState<string | null>(null);
   const [gridId, setGridId] = useState<string | null>(null);
   const grid = useTrackerGrid(gridId ?? undefined);
 
@@ -512,7 +567,7 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOve
     return (
       <div className="flex flex-col gap-3">
         <button type="button" onClick={() => setGridId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to template
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to task
         </button>
         <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} embedded />
       </div>
@@ -525,7 +580,7 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOve
         fallback={templates.find((t) => t.id === detailId) ?? null}
         canAuthor={canAuthor}
         canShareExternally={canShareExternally}
-        onBack={() => setDetailId(null)}
+        onBack={() => onDetailChange(null)}
         onOpenGrid={() => setGridId(detailId)}
       />
     );
@@ -533,31 +588,11 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOve
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-          <button type="button" onClick={() => setMode("template")} className={tabCls(mode === "template")}>Use existing</button>
-          <button type="button" onClick={() => setMode("scratch")} className={tabCls(mode === "scratch")}>Create new</button>
-        </div>
-        {mode === "template" && (
-          <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-            <button type="button" onClick={() => setListView("active")} className={tabCls(listView === "active")}>Active</button>
-            <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Archived</button>
-          </div>
-        )}
+      <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+        <button type="button" onClick={() => setListView("active")} className={tabCls(listView === "active")}>Active</button>
+        <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Archived</button>
       </div>
-      {mode === "template"
-        ? <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={(id) => setDetailId(id)} />
-        : (
-          <TrackerBuilder
-            canShareExternally={canShareExternally}
-            // Remount when the pre-selected audience changes — the builder only reads it on mount.
-            key={prefill ? `prefill:${prefill.ids.join(",")}` : "blank"}
-            canAuthor={canAuthor}
-            prefill={prefill ?? undefined}
-            // Land the author on the task they just made instead of the list.
-            onCreated={(id) => { setListView("active"); setMode("template"); setDetailId(id); }}
-          />
-        )}
+      <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={onDetailChange} />
     </div>
   );
 }
