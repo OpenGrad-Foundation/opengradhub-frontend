@@ -460,3 +460,30 @@ describe("GeoVerificationModal — manager view", () => {
     expect(screen.queryByRole("button", { name: /override/i })).toBeNull();
   });
 });
+
+describe("one school, two In-Charges", () => {
+  const mineRow = row({ record_id: "mine", doer_id: "me", doer_name: "Me", can_evidence: true });
+  const theirsRow = row({
+    record_id: "theirs", doer_id: "A", doer_name: "Asha",
+    can_fill_self: false, can_fill_override: true, can_evidence: false, can_blocker: false,
+  });
+
+  it("lists the visit each of them owes separately", () => {
+    renderModal({ rows: [mineRow, theirsRow] });
+    expect(screen.getAllByRole("group").length).toBe(2);
+    expect(screen.getByText(/asha's visit/i)).toBeTruthy();
+  });
+
+  it("offers the upload only on the viewer's own visit", () => {
+    renderModal({ rows: [mineRow, theirsRow] });
+    // Uploading is doer-only: a supervisor reviews the evidence, never supplies it.
+    expect(screen.getAllByLabelText(/take visit photo/i).length).toBe(1);
+  });
+
+  it("does not let one In-Charge's accepted photo verify the other's visit", () => {
+    geoResult = { data: [verification({ doer_id: "A" })], isLoading: false };
+    renderChip({ rows: [mineRow, theirsRow] });
+    // Two visits owed, one verified — never "1/1" because the schools happen to match.
+    expect(screen.getByText("1/2")).toBeTruthy();
+  });
+});

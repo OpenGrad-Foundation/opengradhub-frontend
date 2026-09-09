@@ -26,6 +26,16 @@ import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
 
+/** Is this draft still exactly what was sent? Values are flat scalars from the cell editors,
+ *  so a key-by-key comparison is the whole test. */
+function sameDraft(draft: RowDraft, sent: TrackerBatchEdit): boolean {
+  if (draft.status !== sent.status) return false;
+  const sentValues = sent.values ?? {};
+  const keys = new Set([...Object.keys(draft.values), ...Object.keys(sentValues)]);
+  for (const key of keys) if (draft.values[key] !== sentValues[key]) return false;
+  return true;
+}
+
 const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg";
 const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -116,8 +126,11 @@ export function TrackerEditableGrid({
   const overridingRow = (row: TrackerGridRow) => onBehalfMode && authorityOf(row).override;
   const canEditRow = (row: TrackerGridRow) =>
     (canFill && authorityOf(row).self) || (overridingRow(row) && !rowComplete(row));
-  /** Does the viewer own ANY row here? Gates the toolbar's doer-only menus. */
+  /** Does the viewer own ANY row here? Gates the doer-only menus (proofs, bulk round trip). */
   const anyOwnRow = canFill && grid.rows.some((r) => authorityOf(r).evidence);
+  /** May the viewer save anything the ordinary way? Wider than `anyOwnRow`: an admin fills a
+   *  row they do not own, and would otherwise get editable cells with no Save button. */
+  const anyOrdinaryFill = canFill && grid.rows.some((r) => authorityOf(r).self);
   /** Everyone whose rows this grid may fill on behalf of — a drill-in has exactly one. */
   const overrideDoers = useMemo(() => {
     const names = new Map<string, string>();
@@ -212,7 +225,7 @@ export function TrackerEditableGrid({
       .map(([record_id, d]) => ({ record_id, values: d.values, status: d.status }));
     if (submitted.length === 0) return;
     const rowsById = new Map(grid.rows.map((r) => [r.record_id, r]));
-    const { own, byDoer, skipped } = groupEditsByAuthority(submitted, rowsById);
+    const { own, byDoer, skipped } = groupEditsByAuthority(submitted, rowsById, Boolean(onBehalf));
     const message = (err: unknown) => (err instanceof Error ? err.message : "Save failed.");
     const saved: string[] = [];
     const failures: string[] = [];
@@ -237,11 +250,17 @@ export function TrackerEditableGrid({
     } finally {
       setSaving(false);
     }
-    // Clear ONLY what the server acknowledged. A failed group keeps its drafts for review and
-    // is never re-routed into a different write path behind the manager's back.
+    // Clear ONLY the acknowledged VERSION. Cells stay editable while the requests are in
+    // flight, so a row typed into again since the click keeps its newer draft rather than
+    // losing it to a save that never carried it.
     if (saved.length) setDrafts((d) => {
+      const submittedById = new Map(submitted.map((e) => [e.record_id, e]));
       const next = { ...d };
-      for (const id of saved) delete next[id];
+      for (const id of saved) {
+        const sent = submittedById.get(id);
+        const current = next[id];
+        if (sent && current && sameDraft(current, sent)) delete next[id];
+      }
       return next;
     });
     if (skipped) {
@@ -661,7 +680,7 @@ export function TrackerEditableGrid({
               )}
             </div>
           )}
-          {(anyOwnRow || onBehalfMode) && (
+          {(anyOrdinaryFill || onBehalfMode) && (
             <button
               type="button"
               onClick={onSave}

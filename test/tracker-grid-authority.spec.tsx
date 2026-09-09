@@ -125,6 +125,20 @@ describe("a grid mixing doers", () => {
     expect(screen.queryByRole("button", { name: /fill on behalf/i })).toBeNull();
   });
 
+  it("gives an admin a Save button on rows they may fill but do not own", () => {
+    // SUPER_ADMIN fills any row ordinarily but owns no evidence: gating Save on evidence
+    // ownership left the cells editable with nothing to submit them.
+    const adminRow = theirs({
+      record_id: "admin", can_fill_self: true, can_fill_override: true,
+      can_evidence: false, can_blocker: true,
+    });
+    renderGrid([adminRow]);
+    const save = (screen.getAllByRole("button") as HTMLButtonElement[])
+      .find((b) => /^save/i.test(b.textContent ?? "") && b.className.includes("bg-teal-600"));
+    expect(save).toBeTruthy();
+    expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).some((b) => !b.disabled)).toBe(true);
+  });
+
   it("keeps a row read-only when the server sent no capabilities for it", () => {
     renderGrid([unknownRow()]);
     expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).every((b) => b.disabled)).toBe(true);

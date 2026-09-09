@@ -41,13 +41,20 @@ export type AuthorityGroups = {
 };
 
 /**
- * One Save, several requests. Own rows keep the ordinary route because the server refuses a
- * self-override outright ("is your own — fill it normally"), and foreign rows are grouped by
- * doer in first-seen order because the override batch takes one person at a time.
+ * One Save, several requests. Foreign rows are grouped by doer in first-seen order because
+ * the override batch takes one person at a time.
+ *
+ * `inSession` decides the route for a row that offers BOTH — a SUPER_ADMIN may fill anyone's
+ * row ordinarily as well as override it. Inside an on-behalf session the override route is
+ * the one the manager asked for and the one the UI promised: it carries the reason, writes
+ * the audit event, notifies the doer, and waives the gates the session says it waives.
+ * Outside a session the ordinary route applies. The server never sets `can_fill_override` on
+ * the caller's own row, so this can never turn an own row into a self-override (a 400).
  */
 export function groupEditsByAuthority(
   edits: TrackerBatchEdit[],
   rowsById: Map<string, TrackerGridRow>,
+  inSession = false,
 ): AuthorityGroups {
   const own: TrackerBatchEdit[] = [];
   const groups = new Map<string, { doerId: string; doerName: string | null; edits: TrackerBatchEdit[] }>();
@@ -56,12 +63,13 @@ export function groupEditsByAuthority(
     const row = rowsById.get(edit.record_id);
     const auth = row ? rowAuthority(row) : null;
     if (!row || !auth?.known) { skipped += 1; continue; }
-    if (auth.self) { own.push(edit); continue; }
-    if (!auth.override || !row.doer_id) { skipped += 1; continue; }
-    const group = groups.get(row.doer_id)
-      ?? { doerId: row.doer_id, doerName: row.doer_name ?? null, edits: [] };
+    const overriding = inSession && auth.override && Boolean(row.doer_id);
+    if (auth.self && !overriding) { own.push(edit); continue; }
+    if (!overriding) { skipped += 1; continue; }
+    const doerId = row.doer_id as string;
+    const group = groups.get(doerId) ?? { doerId, doerName: row.doer_name ?? null, edits: [] };
     group.edits.push(edit);
-    groups.set(row.doer_id, group);
+    groups.set(doerId, group);
   }
   return { own, byDoer: [...groups.values()], skipped };
 }

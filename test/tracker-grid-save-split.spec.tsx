@@ -154,6 +154,18 @@ describe("saving a mixed grid", () => {
     expect(saveMutate.mock.calls[0][0]).toEqual([{ record_id: "own", values: {}, status: "done" }]);
   });
 
+  it("keeps an edit typed while the save is still in flight", async () => {
+    let release: (v: unknown) => void = () => {};
+    saveMutate.mockImplementationOnce(() => new Promise((res) => { release = res; }));
+    renderGrid([mine]);
+    tick("Mine");                       // draft A: done
+    fireEvent.click(saveButton());
+    tick("Mine");                       // draft B: back to not_started, never submitted
+    release({ saved: 1 });
+    // The acknowledged version was A; B is newer and must survive rather than be cleared.
+    await waitFor(() => expect(saveButton().textContent).toMatch(/save \(1\)/i));
+  });
+
   it("saves own rows outside any session, on a grid that also holds foreign rows", async () => {
     renderGrid([mine, asha1]);
     tick("Mine");

@@ -42,7 +42,7 @@ describe('groupEditsByAuthority', () => {
 
   it('sends own rows ordinarily and groups the rest one doer at a time', () => {
     const edits = ['own', 'a1', 'a2', 'b1'].map((record_id) => ({ record_id, values: {}, status: 'done' }));
-    const out = groupEditsByAuthority(edits, rows);
+    const out = groupEditsByAuthority(edits, rows, true);
     expect(out.own.map((e) => e.record_id)).toEqual(['own']);
     expect(out.byDoer.map((g) => [g.doerId, g.edits.length])).toEqual([['A', 2], ['B', 1]]);
     expect(out.byDoer[0].doerName).toBe('Asha');
@@ -51,7 +51,7 @@ describe('groupEditsByAuthority', () => {
 
   it('submits nothing the server would refuse: no doer, unknown authority, or a stale row', () => {
     const edits = ['orphan', 'unknown', 'ghost'].map((record_id) => ({ record_id, values: {}, status: 'done' }));
-    const out = groupEditsByAuthority(edits, rows);
+    const out = groupEditsByAuthority(edits, rows, true);
     expect(out.own).toEqual([]);
     expect(out.byDoer).toEqual([]);
     expect(out.skipped).toBe(3);
@@ -60,10 +60,30 @@ describe('groupEditsByAuthority', () => {
   it('keeps an own row on the ordinary route even inside an override session', () => {
     const out = groupEditsByAuthority(
       [{ record_id: 'a1', values: {}, status: 'done' }, { record_id: 'own', values: {}, status: 'done' }],
-      rows,
+      rows, true,
     );
     // The server rejects a self-override with 400 "is your own — fill it normally".
     expect(out.own.map((e) => e.record_id)).toEqual(['own']);
     expect(out.byDoer).toHaveLength(1);
+  });
+  it('routes an admin who holds both capabilities through the override inside a session', () => {
+    // SUPER_ADMIN may fill anyone's row ordinarily AND override it. Inside a session the
+    // override is what the UI promised: the reason, the audit event, the waived gates.
+    const admin = row({
+      record_id: 'adm', can_fill_self: true, can_fill_override: true,
+      doer_id: 'A', doer_name: 'Asha',
+    });
+    const map = new Map([[admin.record_id, admin]]);
+    const edits = [{ record_id: 'adm', values: {}, status: 'done' }];
+    expect(groupEditsByAuthority(edits, map, true).byDoer).toHaveLength(1);
+    expect(groupEditsByAuthority(edits, map, true).own).toEqual([]);
+    // Outside a session there is no reason to record, so the ordinary route applies.
+    expect(groupEditsByAuthority(edits, map, false).own).toHaveLength(1);
+  });
+
+  it('carries nothing on the override route outside a session', () => {
+    const out = groupEditsByAuthority([{ record_id: 'a1', values: {}, status: 'done' }], rows, false);
+    expect(out.byDoer).toEqual([]);
+    expect(out.skipped).toBe(1);
   });
 });
