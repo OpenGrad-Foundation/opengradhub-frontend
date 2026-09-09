@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -30,6 +32,7 @@ import {
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { usePermissions } from "@/hooks/use-permission";
+import { RoleBadge } from "./_components/role-badge";
 import { StudentCreationDestination, type StudentDestination } from "@/components/student-creation-destination";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
@@ -53,6 +56,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const router = useRouter();
   const canCreate = has(PERM.user_management.create);
   const canDelete = has(PERM.user_management.delete);
   const invalidate = useInvalidate();
@@ -406,7 +410,9 @@ export default function UserManagementPage() {
                   return (
                     <tr
                       key={u.id}
-                      onClick={() => setSelectedUser(u)}
+                      // Students keep the drawer (course/bundle/batch assignment lives there);
+                      // staff open their one-page profile, which hosts the same drawer via "Edit user".
+                      onClick={() => (u.role === "STUDENT" ? setSelectedUser(u) : router.push(`/dashboard/user-management/${u.id}`))}
                       style={{
                         borderBottom: "1px solid rgba(3,72,82,0.05)",
                         cursor: "pointer",
@@ -459,8 +465,17 @@ export default function UserManagementPage() {
                           fontSize: "11px", fontWeight: 600, color: "#209379",
                           opacity: isSelected ? 1 : 0.5,
                         }}>
-                          {isSelected ? "Open ›" : "Manage →"}
+                          {isSelected ? "Open ›" : u.role === "STUDENT" ? "Manage →" : "Profile →"}
                         </span>
+                        {u.role === "STUDENT" && (
+                          <Link
+                            href={`/dashboard/students/${u.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ marginLeft: "10px", fontSize: "11px", fontWeight: 600, color: "#209379", textDecoration: "none" }}
+                          >
+                            Profile →
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );
@@ -2607,14 +2622,6 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function RoleBadge({ role }: { role: string }) {
-  const label = role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: "rgba(32,147,121,0.12)", color: "#209379" }}>
-      {label}
-    </span>
-  );
-}
 
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === "ACTIVE";
