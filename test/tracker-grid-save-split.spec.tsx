@@ -154,6 +154,19 @@ describe("saving a mixed grid", () => {
     expect(saveMutate.mock.calls[0][0]).toEqual([{ record_id: "own", values: {}, status: "done" }]);
   });
 
+  it("discards an admin's on-behalf edit on exit, even though they could fill it ordinarily", async () => {
+    const admin = { ...asha1, record_id: "adm", target_name: "Admin row", can_fill_self: true } as TrackerGridRow;
+    renderGrid([admin]);
+    await startSession();
+    tick("Admin row");
+    expect(screen.getByRole("button", { name: /exit \(discards 1\)/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /exit/i }));
+    // Nothing left to save: the edit belonged to the session, not to the ordinary route.
+    await waitFor(() => expect(saveButton().textContent).not.toMatch(/\(1\)/));
+    fireEvent.click(saveButton());
+    expect(saveMutate).not.toHaveBeenCalled();
+  });
+
   it("keeps an edit typed while the save is still in flight", async () => {
     let release: (v: unknown) => void = () => {};
     saveMutate.mockImplementationOnce(() => new Promise((res) => { release = res; }));

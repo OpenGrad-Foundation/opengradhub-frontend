@@ -282,7 +282,12 @@ export function TrackerEditableGrid({
     // rows were never part of it — they take the ordinary route — so their edits stay.
     setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([id]) => {
       const row = grid.rows.find((r) => r.record_id === id);
-      return row ? rowAuthority(row).self : false;
+      if (!row) return false;
+      const auth = rowAuthority(row);
+      // Anything overridable was typed in the doer's name, whatever else the viewer may do
+      // with that row: an admin holds both paths, and keeping their edit would let a later
+      // ordinary Save land it with no reason, no audit entry and no notification.
+      return auth.self && !auth.override;
     })));
     setOnBehalf(null);
     setError(null);
