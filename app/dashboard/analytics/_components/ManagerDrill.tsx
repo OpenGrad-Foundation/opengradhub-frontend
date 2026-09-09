@@ -1,5 +1,7 @@
 "use client";
 
+import { EntityLink } from "../../programmes/_components/entity-link";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { useManagerAnalytics } from "@/lib/queries/analytics";
 import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend,
@@ -90,7 +92,14 @@ export default function ManagerDrill({
                   <tbody>
                     {data.students.map((s) => (
                       <tr key={s.id}>
-                        <td style={{ ...td, fontWeight: 600 }}>{s.name}</td>
+                        <td style={{ ...td, fontWeight: 600 }}>
+                          <EntityLink
+                            href={`/dashboard/students/${s.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}
+                            style={{ color: BRAND.dark, textDecoration: "none" }}
+                          >
+                            {s.name}
+                          </EntityLink>
+                        </td>
                         <td style={{ ...td, textAlign: "right" }}>{s.completion_pct}%</td>
                         <td style={{ ...td, textAlign: "right" }}>
                           {s.best_score != null ? `${s.best_score}%` : "—"}

@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search, Table2 } from "lucide-react";
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
-import { TASK_STATE_META, type TaskState } from "@/lib/tracker-status";
+import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
+import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { NudgeButton } from "./nudge-button";
 
 const LEVELS: TrackerDrillLevel[] = ["zm", "fellow", "school", "student"];
@@ -12,19 +15,16 @@ const LEVELS: TrackerDrillLevel[] = ["zm", "fellow", "school", "student"];
 function leafFor(target: TrackerTargetType): TrackerDrillLevel {
   return target === "student" ? "student" : target === "school" ? "school" : "fellow";
 }
-function startFor(roleCode: string): TrackerDrillLevel {
-  return roleCode === "ZONAL_MANAGER" ? "fellow" : "zm";
-}
 function nextLevel(level: TrackerDrillLevel): TrackerDrillLevel | null {
   const i = LEVELS.indexOf(level);
   return i >= 0 && i < LEVELS.length - 1 ? LEVELS[i + 1] : null;
 }
 
 const LEVEL_LABEL: Record<TrackerDrillLevel, string> = {
-  zm: "Zonal Managers", fellow: "Fellows", school: "Schools", student: "Students",
+  zm: "Zonal Managers", fellow: IN_CHARGE_PLURAL, school: "Schools", student: "Students",
 };
 const CHILD_NOUN: Record<TrackerDrillLevel, string> = {
-  zm: "fellow", fellow: "school", school: "student", student: "",
+  zm: IN_CHARGE_LOWER, fellow: "school", school: "student", student: "",
 };
 
 type Crumb = { level: TrackerDrillLevel; id: string; name: string };
@@ -34,19 +34,22 @@ type Crumb = { level: TrackerDrillLevel; id: string; name: string };
  *  drill stops at the task's target level. */
 export function TaskBreakdown({
   task,
-  roleCode,
   currentUserId,
   canNudge,
   onBack,
+  onOpenTask,
 }: {
   task: TrackerTaskSummaryRow;
-  roleCode: string;
   currentUserId: string;
   canNudge: boolean;
   onBack: () => void;
+  onOpenTask?: (templateId: string) => void;
 }) {
-  const start = startFor(roleCode);
-  const leaf = leafFor(task.target_type);
+  const canViewStudents = usePermissions().has(PERM.students.view);
+  const targetLeaf = leafFor(task.target_type);
+  const leaf = targetLeaf === "student" && !canViewStudents ? "school" : targetLeaf;
+  const [group, setGroup] = useState<TrackerDrillLevel>(leaf);
+  const start = LEVELS.indexOf(group) <= LEVELS.indexOf(leaf) ? group : leaf;
   const [path, setPath] = useState<Crumb[]>([]);
 
   const currentLevel = path.length > 0 ? nextLevel(path[path.length - 1].level)! : start;
@@ -59,12 +62,28 @@ export function TaskBreakdown({
         <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
-        <div className="text-right">
-          <p className="text-sm font-semibold text-gray-950">{task.name}</p>
-          <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>
+        <div className="flex items-center gap-3">
+          {onOpenTask && (
+            <button
+              type="button"
+              onClick={() => onOpenTask(task.template_id)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+            >
+              <Table2 className="h-4 w-4" aria-hidden="true" /> Open task data
+            </button>
+          )}
+          <div className="text-right">
+            <p className="text-sm font-semibold text-gray-950">{task.name}</p>
+            <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>
+          </div>
         </div>
       </div>
 
+      <label className="flex items-center gap-2 text-sm text-gray-600">Group by
+        <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+          {LEVELS.slice(0, LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
+        </select>
+      </label>
       <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-gray-600">
         <button
           type="button"
@@ -88,6 +107,7 @@ export function TaskBreakdown({
       </div>
 
       <LevelList
+        key={`${currentLevel}:${currentParentId ?? "root"}`}
         templateId={task.template_id}
         level={currentLevel}
         parentId={currentParentId}
@@ -118,8 +138,11 @@ function LevelList({
   onDrill: (row: TrackerBreakdownRow) => void;
 }) {
   const [q, setQ] = useState("");
+  const [status, setStatus] = useState<TaskState | "">("");
   const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useTrackerTaskBreakdown(templateId, level, parentId, q, page);
+  const { data, isLoading, error } = useTrackerTaskBreakdown(
+    templateId, level, parentId, q, page, status || undefined,
+  );
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
@@ -133,18 +156,26 @@ function LevelList({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
         <div>
           <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {isLeafLevel ? "Each row shows its status for the task." : "Open a row to drill into its completion."}
-          </p>
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-          <input
-            value={q}
-            onChange={(e) => { setQ(e.target.value); setPage(1); }}
-            placeholder="Search…"
-            className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-          />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={status}
+            aria-label="Status"
+            onChange={(e) => { setStatus(e.target.value as TaskState | ""); setPage(1); }}
+            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500"
+          >
+            <option value="">All statuses</option>
+            {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
+          </select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+            <input
+              value={q}
+              onChange={(e) => { setQ(e.target.value); setPage(1); }}
+              placeholder="Search…"
+              className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+            />
+          </div>
         </div>
       </div>
 

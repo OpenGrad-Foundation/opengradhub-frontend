@@ -3,6 +3,7 @@
 import { useClerk } from "@clerk/nextjs";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
+import { roleLabel } from "@/lib/labels";
 import HeroBand from "./_components/HeroBand";
 import NextLiveClassHero from "./_components/NextLiveClassHero";
 import RoleDashboard from "./_components/RoleDashboard";
@@ -57,7 +58,7 @@ export default function DashboardPage() {
   }
 
   const roleCode = data.role.code;
-  const roleName = data.role.name;
+  const roleName = roleLabel(data.role.name);
   const userName = data.user.fullName;
   const programmeType = data.user.programme;
 

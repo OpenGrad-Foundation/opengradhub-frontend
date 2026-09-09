@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { VideoIcon } from "@/components/icons/ClassIcons";
 import { getNextLiveClass, joinLiveClass, type LiveClass } from "@/lib/api";
+import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function NextLiveClassHero({ studentId }: { studentId: string }) {
   const [cls,       setCls]       = useState<LiveClass | null | "loading">("loading");
@@ -9,6 +11,7 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
   const [joining,   setJoining]   = useState(false);
   const [joined,    setJoined]    = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const invalidate = useInvalidate();
 
   useEffect(() => {
     getNextLiveClass(studentId)
@@ -54,6 +57,9 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
       const { meeting_url } = await joinLiveClass(liveClass.id, studentId);
       setJoined(true);
       window.open(meeting_url, "_blank", "noopener,noreferrer");
+      // For an online class this click IS the attendance mark, so the cached
+      // attendance card sitting next to this one is now wrong.
+      invalidate("liveClassAttendance");
     } catch { /* ignore */ } finally {
       setJoining(false);
     }
@@ -82,7 +88,7 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
             LIVE
           </span>
         ) : (
-          <span style={{ fontSize: "28px" }}>🎥</span>
+          <VideoIcon className="h-7 w-7 text-[var(--teal)]" />
         )}
       </div>
 

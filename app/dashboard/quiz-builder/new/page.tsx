@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
-import { createQuiz } from "@/lib/api";
+import { createQuiz, getProgrammes, type Programme } from "@/lib/api";
 
 export default function NewQuizPage() {
   const router = useRouter();
@@ -32,15 +32,38 @@ export default function NewQuizPage() {
   const [wrongMarks, setWrongMarks]                 = useState("0");
   const [submitting, setSubmitting]         = useState(false);
   const [error, setError]                   = useState<string | null>(null);
+  // Programme ownership. A standalone quiz belongs to exactly one programme; a
+  // module quiz inherits its course's, so the picker is hidden for those.
+  const [programmes, setProgrammes]         = useState<Programme[]>([]);
+  const [programmeId, setProgrammeId]       = useState("");
 
   const quizType = moduleId ? "MODULE_TEST" : "GLOBAL_TEST";
+
+  // Only standalone quizzes need an owner chosen. One programme means no real
+  // choice, so it is selected here and the control renders as a plain statement
+  // rather than a dropdown of one.
+  useEffect(() => {
+    if (quizType !== "GLOBAL_TEST") return;
+    let cancelled = false;
+    void getProgrammes()
+      .then((list) => {
+        if (cancelled) return;
+        setProgrammes(list);
+        if (list.length === 1) setProgrammeId(list[0].id);
+      })
+      .catch(() => { /* the server still decides; a failed list must not block creation */ });
+    return () => { cancelled = true; };
+  }, [quizType]);
   const backHref = courseId ? `/dashboard/courses/${courseId}/builder` : "/dashboard/test-bank";
   // Bulk import builds the whole quiz from a file, so it belongs beside this
   // form rather than inside the question builder. Carrying module_id/course_id
   // through is what keeps the import scoped to this module instead of the
   // global test bank.
+  // `from` rides along so the import lands the author back where they started
+  // instead of on the quiz it just created.
   const bulkImportQuery = new URLSearchParams(
-    Object.entries({ course_id: courseId, module_id: moduleId }).filter(([, v]) => v),
+    Object.entries({ course_id: courseId, module_id: moduleId, from: params.get("from") ?? backHref })
+      .filter(([, v]) => v) as [string, string][],
   ).toString();
   const bulkImportHref = `/dashboard/quiz-builder/bulk-import${bulkImportQuery ? `?${bulkImportQuery}` : ""}`;
 
@@ -65,6 +88,8 @@ export default function NewQuizPage() {
         title:                  title.trim(),
         quiz_type:              quizType as "MODULE_TEST" | "GLOBAL_TEST",
         module_id:              moduleId || undefined,
+        // Omitted for a module quiz, which takes its course's programme.
+        programme_id:           quizType === "GLOBAL_TEST" ? (programmeId || undefined) : undefined,
         duration_minutes:       duration      ? Number(duration)      : undefined,
         max_attempts:           maxAttempts   ? Number(maxAttempts)   : undefined,
         pass_threshold_percent: passThreshold ? Number(passThreshold) : undefined,
@@ -97,9 +122,6 @@ export default function NewQuizPage() {
         </a>
         <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
         <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
-        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-          Set up the quiz — you can add questions after saving.
-        </p>
 
         {/* The other way in: skip the form and let a markdown/PDF file define
             the whole quiz, questions included. Points at bulkImportHref — same
@@ -110,15 +132,27 @@ export default function NewQuizPage() {
             <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
               Already have the quiz in a file?
             </p>
-            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
-              Upload a markdown or PDF and we&apos;ll build the whole quiz — settings and questions —
-              for you to review.
-            </p>
           </div>
           <Link href={bulkImportHref} style={uploadCalloutBtn}>
             ⬆ Upload Entire Quiz
           </Link>
         </div>
+
+        {/* The third way in: start from a quiz another programme already built.
+            Module quizzes are course content and travel with their course, so
+            this is offered for standalone quizzes only. */}
+        {quizType === "GLOBAL_TEST" && (
+          <div style={uploadCallout}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
+                Already exists in another programme?
+              </p>
+            </div>
+            <Link href="/dashboard/quiz-builder/duplicate" style={uploadCalloutBtn}>
+              Duplicate a quiz →
+            </Link>
+          </div>
+        )}
       </div>
 
       <form onSubmit={(e) => void handleCreate(e)}>
@@ -126,6 +160,33 @@ export default function NewQuizPage() {
           <Field label="Quiz Title *">
             <input value={title} onChange={e => setTitle(e.target.value)} style={input} placeholder="e.g. Chapter 3 Revision Quiz" required />
           </Field>
+
+          {/* A quiz belongs to one programme. Module quizzes are absent from
+              this branch on purpose — theirs is their course's, and offering a
+              second answer here would invite the two to disagree. */}
+          {quizType === "GLOBAL_TEST" && programmes.length > 1 && (
+            <Field label="Programme *">
+              <select value={programmeId} onChange={e => setProgrammeId(e.target.value)} style={input} required>
+                <option value="">Select a programme…</option>
+                {programmes.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <p style={{ margin: "6px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+                Only this programme will see and use the quiz. Others can duplicate it into their own.
+              </p>
+            </Field>
+          )}
+          {quizType === "GLOBAL_TEST" && programmes.length === 1 && (
+            <Field label="Programme">
+              <p style={{ margin: 0, fontSize: "14px", color: "#034852", fontWeight: 600 }}>
+                {programmes[0].name}
+              </p>
+              <p style={{ margin: "6px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+                Only this programme will see and use the quiz.
+              </p>
+            </Field>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
             <Field label="Duration (minutes, 0 = untimed)">

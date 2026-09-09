@@ -101,10 +101,6 @@ export const PERM = {
     view: "student_export.view",
     run: "student_export.run",
   },
-  bulk_assign: {
-    view: "bulk_assign.view",
-    run: "bulk_assign.run",
-  },
   schools: {
     view: "schools.view",
     create: "schools.create",
@@ -113,9 +109,15 @@ export const PERM = {
   },
   programmes: {
     view: "programmes.view",
+    create: "programmes.create",
+    manage: "programmes.manage",
+    /** Legacy catalogue entry only; not a runtime administration gate. */
     edit: "programmes.edit",
     manage_members: "programmes.manage_members",
   },
+  students: { view: "students.view", view_contact: "students.view_contact" },
+  staff: { view_contacts: "staff.view_contacts" },
+  scope: { self: "scope.self", subtree: "scope.subtree", programme_all: "scope.programme_all", unrestricted: "scope.unrestricted" },
   batches: {
     view: "batches.view",
     create: "batches.create",
@@ -149,14 +151,36 @@ export const PERM = {
   tracker: {
     view: "tracker.view",
     author: "tracker.author",
+    // Sharing a task outside the organisation. Separate from `author` because
+    // that one includes Zonal Managers, and publishing proof photographs to a
+    // funder is not the same decision as writing a task. See migration 124.
+    share_external: "tracker.share_external",
     fill: "tracker.fill",
+    /** Fill a subordinate's row in their name — ZM/PM only (migration 103). */
+    fill_override: "tracker.fill.override",
     blocker_clear: "tracker.blocker.clear",
     admin: "tracker.admin",
+    all_tasks: "tracker.all_tasks",
+    /** Accept an out-of-range school-visit verification (migration 097). */
+    geo_override: "tracker.geo.override",
+    /** Reopen one overdue record until a new date (migration 098). */
+    extension_grant: "tracker.extension.grant",
   },
 } as const;
 
 export const ANALYTICS_DASHBOARD_PERMISSIONS = [
   PERM.analytics.view,
+  PERM.analytics.view_admin,
+  PERM.analytics.view_manager,
+  PERM.analytics.view_fellow,
+] as const;
+
+/**
+ * Staff-only analytics permissions. Excludes `analytics.view` on purpose —
+ * students hold it for their own dashboards, and it must not unlock a page
+ * that shows another student's record.
+ */
+export const STAFF_ANALYTICS_PERMISSIONS = [
   PERM.analytics.view_admin,
   PERM.analytics.view_manager,
   PERM.analytics.view_fellow,
@@ -168,6 +192,9 @@ export const REPORTS_ROUTE_PERMISSIONS = [
   PERM.analytics.view_manager,
   PERM.analytics.view_fellow,
 ] as const;
+
+/** Full profiles contain learning history, in addition to the roster identity. */
+export const STUDENT_PROFILE_PERMISSIONS = [...ANALYTICS_DASHBOARD_PERMISSIONS, PERM.reports.view] as const;
 
 type RoutePermission = string | readonly string[];
 
@@ -189,12 +216,50 @@ export const ROUTE_PERMISSION: Record<string, RoutePermission> = {
   analytics: ANALYTICS_DASHBOARD_PERMISSIONS,
   reports: REPORTS_ROUTE_PERMISSIONS,
   "student-export": PERM.student_export.view,
-  "bulk-manage": PERM.bulk_assign.view,
   "user-management": PERM.user_management.view,
   schools: PERM.schools.view,
   programmes: PERM.programmes.view,
+  students: PERM.students.view,
   batches: PERM.batches.view,
   "role-management": PERM.role_management.view,
   tracker: PERM.tracker.view,
   // `/dashboard` itself and self-scoped pages (notifications, profile) have no gate.
 };
+
+/** Action authority and administrative reach are independent from data access. */
+export function programmeCapabilities(has: (code: string) => boolean, isMember: boolean) {
+  const administer = isMember || has(PERM.scope.unrestricted);
+  return {
+    create: has(PERM.programmes.create),
+    manage: has(PERM.programmes.manage) && administer,
+    manageMembers: has(PERM.programmes.manage_members) && administer,
+    students: has(PERM.students.view),
+    staffContacts: has(PERM.staff.view_contacts),
+  };
+}
+
+/** Dedicated source browsing requires create, without opening normal data routes. */
+export function routePermissionForPath(pathname: string): RoutePermission | undefined {
+  const [pathnameOnly, query = ''] = pathname.split('?');
+  const path = pathnameOnly.replace(/\/$/, '');
+  if (/^\/dashboard\/courses\/[^/]+$/.test(path) && new URLSearchParams(query).get('mode') === 'duplicate') return PERM.courses.create;
+  if (path === '/dashboard/courses/duplicate') return PERM.courses.create;
+  if (path === '/dashboard/test-bank/duplicate' || /^\/dashboard\/quiz-builder\/duplicate(?:\/[^/]+)?$/.test(path)) return PERM.test_bank.create;
+  return ROUTE_PERMISSION[path.replace(/^\/dashboard\/?/, '').split('/')[0]];
+}
+
+export function canAccessDashboardPath(pathname: string, has: (code: string) => boolean): boolean {
+  const required = routePermissionForPath(pathname);
+  const codes = typeof required === 'string' ? [required] : required ?? [];
+  if (codes.length && !codes.some(has)) return false;
+  const path = pathname.split('?')[0].replace(/\/$/, '');
+  if (/^\/dashboard\/student-export(?:\/|$)/.test(path)) return has(PERM.students.view);
+  if (/^\/dashboard\/students\/[^/]+(?:\/|$)/.test(path)) return STUDENT_PROFILE_PERMISSIONS.some(has);
+  return true;
+}
+
+/** Learning persona follows the single effective scope, including custom role names. */
+export function hasEffectiveSelfScope(permissions: readonly string[] | undefined): boolean {
+  const scopes = permissions?.filter(code => code.startsWith("scope.")) ?? [];
+  return scopes.length === 1 && scopes[0] === PERM.scope.self;
+}

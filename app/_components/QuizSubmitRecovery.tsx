@@ -2,51 +2,44 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { submitQuizAttempt, advanceQuizSection, ApiError } from '@/lib/api';
+import { submitQuizAttempt, advanceQuizSection } from '@/lib/api';
 import { listPendingSubmits, clearDraft, type QuizDraft } from '@/lib/quiz-draft';
+import { isTerminalSubmitError } from '@/lib/quiz-submit-recovery';
 import { useInvalidate } from '@/lib/mutations/invalidation';
 
 // Skip drafts whose submit is likely still in flight in another tab.
-const STALE_MS = 15_000;
+const MIN_AGE_MS = 15_000;
 
-/**
- * True when the server rejected this attempt terminally — meaning it's either
- * already submitted, or the time is up and the server will never accept it.
- * Safe to clear the draft. The backend signals this with HTTP 400 + specific
- * messages, so match the message rather than the status alone.
- */
-function isTerminalSubmitError(e: unknown): boolean {
-  if (!(e instanceof ApiError)) return false;
-  if (e.status === 409) return true;
-  if (e.status === 400) {
-    if (/already\s+(been\s+)?submitted/i.test(e.message)) return true;
-    if (/time is up/i.test(e.message)) return true;
-  }
-  return false;
-}
+// A submit still pending after a week will never be accepted (the attempt is
+// long past its deadline, reset, or gone). Prompting for it forever is worse
+// than dropping it, so drafts older than this are pruned instead of offered.
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1_000;
 
 /**
  * Startup recovery for interrupted quiz submits. On app mount (once Clerk is
- * signed in) it scans IndexedDB for drafts whose submit POST was started but
- * never confirmed cleared — a crash or network drop mid-submit — and offers to
- * replay the saved payload. Treats a 409 as already-submitted (safe to clear).
+ * signed in) it scans IndexedDB for this user's drafts whose submit POST was
+ * started but never confirmed cleared — a crash or network drop mid-submit —
+ * and offers to replay the saved payload. Errors the server will never accept
+ * (see isTerminalSubmitError) clear the draft instead of re-prompting.
  * Dismissing keeps the draft so answers are never silently discarded.
  */
 export function QuizSubmitRecovery() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const [pending, setPending] = useState<QuizDraft[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const invalidate = useInvalidate();
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!isLoaded || !isSignedIn || !userId) return;
     let cancelled = false;
-    listPendingSubmits(STALE_MS)
+    // Scoped to this account: drafts saved by another user on this browser can
+    // never be replayed, so offering them would prompt on every launch forever.
+    listPendingSubmits({ userId, minAgeMs: MIN_AGE_MS, maxAgeMs: MAX_AGE_MS })
       .then((list) => { if (!cancelled) setPending(list); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, userId]);
 
   if (pending.length === 0) return null;
   const current = pending[0];
@@ -66,7 +59,8 @@ export function QuizSubmitRecovery() {
       setPending((p) => p.slice(1));
     } catch (e) {
       if (isTerminalSubmitError(e)) {
-        // Server rejected this submission terminally (already submitted or time up) — safe to clear and move on.
+        // Server rejected this submission terminally (already submitted, time up,
+        // gone, or not ours) — safe to clear and move on.
         await clearDraft(current.attempt_id).catch(() => {});
         setPending((p) => p.slice(1));
       } else {

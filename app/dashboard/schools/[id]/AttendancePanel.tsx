@@ -13,6 +13,8 @@
  * the Tailwind used in the attendance tab.
  */
 import type React from "react";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { useState } from "react";
 import { useSchoolRegister } from "@/lib/queries/attendance";
 import { titleStyle, thStyle, tdStyle } from "../styles";
@@ -26,14 +28,16 @@ function monthLabel(month: string): string {
   });
 }
 
-export function AttendancePanel({ schoolId, canView }: { schoolId: string; canView: boolean }) {
-  const [open, setOpen] = useState(false);
+export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { schoolId: string; canView: boolean; defaultOpen?: boolean }) {
+  const { has } = usePermissions();
+  const canRead = canView && has(PERM.attendance.view) && has(PERM.students.view);
+  const [open, setOpen] = useState(defaultOpen);
   const [month, setMonth] = useState<string | null>(null);
   // Don't fetch until opened: most visits to this page aren't about attendance,
   // and a role without attendance.view would only earn a 403 for the trouble.
-  const { data, isLoading, isError } = useSchoolRegister(schoolId, month, canView && open);
+  const { data, isLoading, isError } = useSchoolRegister(schoolId, month, canRead && open);
 
-  if (!canView) return null;
+  if (!canRead) return null;
 
   const months = data?.available_months ?? [];
   const shown = data?.month ?? null;
@@ -95,8 +99,23 @@ export function AttendancePanel({ schoolId, canView }: { schoolId: string; canVi
                 </thead>
                 <tbody>
                   {data.students.map((s) => (
-                    <tr key={s.student_id} style={{ borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-                      <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{s.name}</td>
+                    // A row for a student tracked online is still shown — the
+                    // register is a record of what the school committed — but it
+                    // is not that student's attendance, so it is not presented as
+                    // if it were.
+                    <tr
+                      key={s.student_id}
+                      style={{ borderBottom: "1px solid rgba(3,72,82,0.06)", opacity: s.official ? 1 : 0.5 }}
+                      title={s.official ? undefined : "Tracked online — not counted from this register."}
+                    >
+                      <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                        {s.name}
+                        {!s.official && (
+                          <span style={{ marginLeft: "6px", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                            · tracked online
+                          </span>
+                        )}
+                      </td>
                       <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "rgba(3,72,82,0.7)" }}>
                         {s.present}/{s.total}
                         {s.total > 0 && ` (${Math.round((s.present / s.total) * 100)}%)`}

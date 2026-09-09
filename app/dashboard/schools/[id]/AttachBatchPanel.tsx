@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getBatches, updateBatch, type Batch } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
+import { BatchFormModal } from "../../batches/BatchFormModal";
 import {
   labelStyle, titleStyle, secondaryButton, closeBtnStyle, inputStyle, linkBtnStyle,
 } from "../styles";
@@ -12,6 +15,12 @@ import {
  * batches not already hosted here (independent ones first, then batches hosted
  * at another school — attaching moves them). Attach = PATCH /batches/:id
  * { school_id } (guard batches.edit — opener gated on it).
+ *
+ * When the batch does not exist yet, "Create a new batch" stacks the batch
+ * create slide-over on top with this school pre-filled, so the user never
+ * leaves the school screen to go make one. Closing it drops back here with the
+ * list refreshed; the new batch is already hosted here, so it lands in the
+ * school's accordion rather than in the candidate list.
  */
 export function AttachBatchPanel({
   schoolId, schoolName, onClose, onChanged,
@@ -27,14 +36,21 @@ export function AttachBatchPanel({
   const [attachingId, setAttachingId] = useState<string | null>(null);
   const [attachedIds, setAttachedIds] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createdCount, setCreatedCount] = useState(0);
   const invalidate = useInvalidate();
+  const { has } = usePermissions();
+  const canCreateBatch = has(PERM.batches.create);
 
-  useEffect(() => {
-    getBatches("ACTIVE")
+  const loadBatches = useCallback(() => {
+    setLoading(true);
+    return getBatches("ACTIVE")
       .then((rows) => setBatches(rows))
       .catch((e) => setErr(e instanceof Error ? e.message : "Failed to load batches."))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { void loadBatches(); }, [loadBatches]);
 
   const q = query.trim().toLowerCase();
   const candidates = batches
@@ -86,22 +102,41 @@ export function AttachBatchPanel({
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
-          <input
-            autoFocus
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search batches by name…"
-            aria-label="Search batches"
-            style={inputStyle}
-          />
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <input
+              autoFocus
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search batches by name…"
+              aria-label="Search batches"
+              style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+            />
+            {canCreateBatch && (
+              <button
+                onClick={() => setShowCreate(true)}
+                style={{ ...secondaryButton, whiteSpace: "nowrap", flexShrink: 0 }}
+              >
+                + New batch
+              </button>
+            )}
+          </div>
           {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: "10px 0 0" }}>{err}</p>}
 
           <div style={{ marginTop: "14px", display: "grid", gap: "8px" }}>
             {loading ? (
               <p style={hintStyle}>Loading batches…</p>
             ) : candidates.length === 0 ? (
-              <p style={hintStyle}>No batches available to attach.</p>
+              <div style={{ display: "grid", gap: "8px", justifyItems: "start" }}>
+                <p style={hintStyle}>
+                  {q ? "No batch matches that search." : "No existing batch is available to add."}
+                </p>
+                {canCreateBatch && (
+                  <button onClick={() => setShowCreate(true)} style={secondaryButton}>
+                    Create a new batch for {schoolName}
+                  </button>
+                )}
+              </div>
             ) : candidates.map((b) => (
               <div
                 key={b.id}
@@ -125,9 +160,12 @@ export function AttachBatchPanel({
                 </button>
               </div>
             ))}
-            {attachedIds.size > 0 && (
+            {(attachedIds.size > 0 || createdCount > 0) && (
               <p style={{ ...hintStyle, color: "#209379", fontWeight: 600 }}>
-                {attachedIds.size} batch{attachedIds.size === 1 ? "" : "es"} added.
+                {[
+                  attachedIds.size > 0 && `${attachedIds.size} batch${attachedIds.size === 1 ? "" : "es"} added`,
+                  createdCount > 0 && `${createdCount} batch${createdCount === 1 ? "" : "es"} created here`,
+                ].filter(Boolean).join(" · ")}.
               </p>
             )}
           </div>
@@ -138,6 +176,23 @@ export function AttachBatchPanel({
           <button onClick={onClose} style={secondaryButton}>Done</button>
         </div>
       </div>
+
+      {/* Stacked on top of this panel — same slide-over the Batches page uses,
+          with the host school pre-filled. Saving returns here, not to /batches. */}
+      {showCreate && (
+        <BatchFormModal
+          mode="create"
+          defaultSchoolId={schoolId}
+          onClose={() => setShowCreate(false)}
+          onSaved={() => {
+            setShowCreate(false);
+            setCreatedCount((n) => n + 1);
+            invalidate("batches", "schools");
+            void loadBatches();
+            onChanged();
+          }}
+        />
+      )}
     </>
   );
 }

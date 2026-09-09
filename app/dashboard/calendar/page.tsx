@@ -75,11 +75,7 @@ export default function CalendarPage() {
       {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <p style={S.label}>Upcoming</p>
           <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Calendar</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-            Live sessions, deadlines, and programme events
-          </p>
         </div>
         {canCreate && (
           <button onClick={() => setShowCreate(true)} style={primaryBtn}>
@@ -334,7 +330,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
           )}
 
           <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
-            School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
+            School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
 
@@ -472,7 +468,7 @@ function EditEventModal({ event, onClose, onSaved }: {
           )}
 
           <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
-            School / course targeting available via bulk assign. Leave filters blank to broadcast to all students.
+            School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
 

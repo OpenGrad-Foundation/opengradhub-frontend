@@ -12,7 +12,6 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import {
   ApiError,
-  duplicateCourse,
   getCourseById,
   getCourseManagementAnalytics,
   getCourseManagementCurriculum,
@@ -52,7 +51,6 @@ export default function CourseManagementPage() {
   const canEnrol = has(PERM.courses.enrol);
   const canCreate = has(PERM.courses.create);
   const [removingStudentId, setRemovingStudentId] = useState<string | null>(null);
-  const [duplicating, setDuplicating] = useState(false);
 
   const [summary, setSummary] = useState<CourseManagementSummary | null>(null);
   // Set when the caller may edit this course's content but not see its students.
@@ -215,18 +213,9 @@ export default function CourseManagementPage() {
   // creator, so they land in the FULL workspace even when the source only
   // granted them the content-only view; the copy is a LEGACY draft assignable
   // to any programme — the release valve for programme-owned courses.
-  async function handleDuplicate() {
+  function handleDuplicate() {
     if (!currentCourse) return;
-    setDuplicating(true);
-    setError(null);
-    try {
-      const copy = await duplicateCourse(currentCourse.id);
-      invalidate("courses");
-      router.push(`/dashboard/course-management/${copy.id}?tab=settings`);
-    } catch (duplicateError) {
-      setError(duplicateError instanceof Error ? duplicateError.message : "Failed to duplicate course.");
-      setDuplicating(false);
-    }
+    router.push(`/dashboard/courses/duplicate?source=${currentCourse.id}&from=${encodeURIComponent(`/dashboard/course-management/${currentCourse.id}`)}`);
   }
 
   async function handleStatusToggle() {
@@ -400,9 +389,6 @@ export default function CourseManagementPage() {
           </BackLink>
           <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
           <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
-          <p style={subtitle}>
-            Manage students, curriculum, analytics, and settings without leaving the staff workspace.
-          </p>
         </div>
 
         <div className="course-mgmt-header-buttons" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
@@ -412,8 +398,8 @@ export default function CourseManagementPage() {
                 Preview as student
               </Link>
               {canCreate && (
-                <button onClick={() => void handleDuplicate()} disabled={duplicating} style={{ ...ghostLinkBtn, opacity: duplicating ? 0.7 : 1 }}>
-                  {duplicating ? "Duplicating…" : "Duplicate"}
+                <button onClick={handleDuplicate} style={ghostLinkBtn}>
+                  Duplicate
                 </button>
               )}
               <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
@@ -490,9 +476,7 @@ export default function CourseManagementPage() {
           <div className="course-mgmt-card" style={card}>
             <div className="course-mgmt-filters-row" style={{ display: "flex", justifyContent: "space-between", gap: "14px", flexWrap: "wrap", alignItems: "center" }}>
               <div>
-                <p style={eyebrow}>Students</p>
                 <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Roster and progress</h3>
-                <p style={subtitle}>Track enrolled students, progress, marks, assignment state, and recent activity.</p>
               </div>
               <div className="course-mgmt-filters-box" style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                 <input
@@ -673,9 +657,7 @@ export default function CourseManagementPage() {
       {activeTab === "settings" && currentCourse && (
         <div className="course-mgmt-card" style={card}>
           <div style={{ marginBottom: "18px" }}>
-            <p style={eyebrow}>Settings</p>
             <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Course details and publishing</h3>
-            <p style={subtitle}>Update metadata here while keeping learner preview and curriculum editing separate.</p>
           </div>
           <CourseMetaForm
             key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.tags?.join(",") ?? ""}-${currentCourse.cover_image_url ?? ""}`}
@@ -716,7 +698,6 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
 
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Recent activity</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>What happened lately</h3>
           <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
             {summary.recent_activity.length === 0 && (
@@ -739,7 +720,6 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
         </div>
 
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Modules</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Module progress</h3>
           <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
             {summary.module_progress.map((module) => (
@@ -770,7 +750,6 @@ function AnalyticsTab({ analytics }: { analytics: CourseManagementAnalytics }) {
     <div style={{ display: "grid", gap: "16px" }}>
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <p style={eyebrow}>Enrollment trend</p>
           <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Enrollment over time</h3>
           <div style={{ display: "grid", gap: "10px", marginTop: "18px" }}>
             {analytics.enrollment_trend.length === 0 && (

@@ -4,23 +4,24 @@ import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
 import type { TrackerAssignable, TrackerTargetType } from "@/lib/tracker-api";
+import { ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
 
 function prettyState(s: string | null): string {
   if (!s) return "";
   return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
 
-const ROLE_LABEL: Record<string, string> = {
-  FELLOW: "Fellow",
-  ZONAL_MANAGER: "Zonal Manager",
-  PROGRAM_MANAGER: "Program Manager",
-  SUPER_ADMIN: "Super Admin",
-};
-const prettyRole = (r?: string | null) => (r ? ROLE_LABEL[r] ?? prettyState(r) : "");
+const prettyRole = (r?: string | null) => (r ? ROLE_LABELS[r] ?? prettyState(r) : "");
 
-/** Cascading audience filters (State → District → School → Programme) over the caller's
- *  assignable targets, plus a checkbox list + Select-all. Reused by the scratch builder
- *  and the "use a template" flow. Parent owns the selected set. */
+/** Audience filters over the caller's assignable targets, plus a checkbox list +
+ *  Select-all. Reused by the scratch builder and the "use a template" flow. Parent
+ *  owns the selected set.
+ *
+ *  Programme sits OUTSIDE the State → Zone → School cascade and ahead of it. It is
+ *  the broadest real scope now that it reads the `programmes` entity rather than the
+ *  legacy `users.programme` text, so it narrows the geographic options rather than
+ *  being narrowed by them — picking a programme should shorten the state list, not
+ *  leave it offering states the programme does not run in. */
 export function AudiencePicker({
   targetType,
   canAuthor,
@@ -45,31 +46,43 @@ export function AudiencePicker({
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
   const all = useMemo(() => assignable.data ?? [], [assignable.data]);
+  // A target can sit in several programmes (staff seats, school hosting), so this is
+  // membership, not equality. Students carry at most one, in the same array shape.
+  const byProgramme = (t: TrackerAssignable) =>
+    !programmeFilter || t.programmes.some((p) => p.id === programmeFilter);
   const byState = (t: TrackerAssignable) => !stateFilter || t.state === stateFilter;
   const byDistrict = (t: TrackerAssignable) => !districtFilter || t.district === districtFilter;
   const bySchool = (t: TrackerAssignable) => !schoolFilter || t.school_id === schoolFilter;
-  const byProgramme = (t: TrackerAssignable) => !programmeFilter || t.programme === programmeFilter;
   const byRole = (t: TrackerAssignable) => !roleFilter || t.role === roleFilter;
 
-  const stateOpts = useMemo(() => uniq(all.map((t) => t.state)), [all]);
-  const districtOpts = useMemo(() => uniq(all.filter(byState).map((t) => t.district)), [all, stateFilter]);
+  // Programme's own options are computed over every target, unfiltered: it is the
+  // outermost filter, so nothing downstream may remove a programme from its list.
+  const programmeOpts = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of all) for (const p of t.programmes) m.set(p.id, p.name);
+    return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [all]);
+  const inProgramme = useMemo(() => all.filter(byProgramme), [all, programmeFilter]);
+
+  const stateOpts = useMemo(() => uniq(inProgramme.map((t) => t.state)), [inProgramme]);
+  const districtOpts = useMemo(() => uniq(inProgramme.filter(byState).map((t) => t.district)), [inProgramme, stateFilter]);
   // Role filter only appears for a staff (user-doer) target that actually mixes roles — i.e. a
   // PM/Admin seeing ZMs alongside fellows. A ZM's list is fellows-only, so it stays hidden.
   const roleOpts = useMemo(() => uniq(all.map((t) => t.role)), [all]);
   const schoolOpts = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of all.filter((t) => byState(t) && byDistrict(t))) if (t.school_id) m.set(t.school_id, t.school_name ?? t.school_id);
+    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) if (t.school_id) m.set(t.school_id, t.school_name ?? t.school_id);
     return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-  }, [all, stateFilter, districtFilter]);
-  const programmeOpts = useMemo(
-    () => uniq(all.filter((t) => byState(t) && byDistrict(t) && bySchool(t)).map((t) => t.programme)),
-    [all, stateFilter, districtFilter, schoolFilter],
-  );
+  }, [inProgramme, stateFilter, districtFilter]);
   const visibleTargets = useMemo(
-    () => all.filter((t) => byState(t) && byDistrict(t) && bySchool(t) && byProgramme(t) && byRole(t)),
-    [all, stateFilter, districtFilter, schoolFilter, programmeFilter, roleFilter],
+    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && bySchool(t) && byRole(t)),
+    [inProgramme, stateFilter, districtFilter, schoolFilter, roleFilter],
   );
 
+  // Narrowing the programme can strip the downstream selections of their meaning —
+  // a state the new programme does not run in would filter everything to nothing
+  // while still reading as an active choice. Clear them, as State already does.
+  const onProgramme = (v: string) => { setProgrammeFilter(v); setStateFilter(""); setDistrictFilter(""); setSchoolFilter(""); };
   const onState = (v: string) => { setStateFilter(v); setDistrictFilter(""); setSchoolFilter(""); };
   const onDistrict = (v: string) => { setDistrictFilter(v); setSchoolFilter(""); };
   const toggle = (id: string) => {
@@ -82,8 +95,15 @@ export function AudiencePicker({
 
   return (
     <div>
-      <p className="mb-3 text-xs text-gray-500">Narrow by area, then pick all matching {targetWord} at once.</p>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {programmeOpts.length > 0 && (
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Programme
+            <select value={programmeFilter} onChange={(e) => onProgramme(e.target.value)} className={filterClass}>
+              <option value="">All programmes</option>
+              {programmeOpts.map((pr) => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
+            </select>
+          </label>
+        )}
         {roleOpts.length > 1 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Role
             <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={filterClass}>
@@ -101,7 +121,7 @@ export function AudiencePicker({
           </label>
         )}
         {districtOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">District
+          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">{ZONE}
             <select value={districtFilter} onChange={(e) => onDistrict(e.target.value)} className={filterClass}>
               <option value="">All districts</option>
               {districtOpts.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -113,14 +133,6 @@ export function AudiencePicker({
             <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} className={filterClass}>
               <option value="">All schools</option>
               {schoolOpts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
-        )}
-        {programmeOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Programme
-            <select value={programmeFilter} onChange={(e) => setProgrammeFilter(e.target.value)} className={filterClass}>
-              <option value="">All programmes</option>
-              {programmeOpts.map((pr) => <option key={pr} value={pr}>{pr}</option>)}
             </select>
           </label>
         )}

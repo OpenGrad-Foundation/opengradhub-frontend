@@ -1,4 +1,6 @@
 import { API_BASE_URL, ApiError, apiFetch } from "./api";
+import { ZONE } from "./labels";
+import type { RecordLifecycle } from "./tracker-status";
 
 export type TrackerFieldType = "text" | "number" | "date" | "select" | "multiselect" | "boolean" | "url";
 export type TrackerFieldSource = "profile" | "identity" | "input";
@@ -8,7 +10,7 @@ export type TrackerTargetType = "student" | "school" | "fellow";
 export const PROFILE_PATH_LABELS: Record<string, string> = {
   "student.name": "Student name",
   "student.category": "Student category",
-  "student.district": "District",
+  "student.district": ZONE,
   "student.contact": "Student contact",
   "school.name": "School name",
   "school.code": "School code",
@@ -39,7 +41,15 @@ export type TrackerTemplate = {
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   require_photo: boolean;
+  /** Legacy per-record live location capture. Superseded by require_geo_verification
+   *  and no longer offered when authoring; existing tasks keep working. */
   require_location: boolean;
+  require_geo_verification: boolean;
+  /** Shared with the government / funding officials seated in this task's programme. */
+  partner_visible?: boolean;
+  /** Which programme owns this task type. Null for org-only tasks — and a task with no
+   *  programme can never be shared externally, because partners are seated per programme. */
+  programme_id?: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -79,11 +89,38 @@ export type TrackerGridRow = {
   blocked: boolean;
   blocker: { id: string; text: string } | null;
   school_name: string | null;
+  /** The row's school id. School-visit verification is shared per school, so rows are
+   *  matched to a verification by id — names are not unique. Optional while older
+   *  cached grid payloads (which predate it) are still in play. */
+  school_id?: string | null;
   target_name: string | null;
   /** The row's target entity id (student/school/fellow user id). Present for student-target
    *  rows so a fellow can open the "Additional Student Details" form from a locked/not-set cell.
    *  Optional for backward-compatibility while the grid projection is updated to emit it. */
   target_id?: string | null;
+  /** The row's geography, taken from its school. Null on a fellow-target grid, which
+   *  has no school — the geography filters are not offered there. */
+  state?: string | null;
+  district?: string | null;
+  /** Evidence the row actually holds. What the template REQUIRES lives on the template,
+   *  so "missing proof" is the two read together. Optional for the same
+   *  independent-deploy reason as school_id above. */
+  has_photo_proof?: boolean;
+  has_location_proof?: boolean;
+  /** WHO owes this row. Null when a school has no In-Charge assigned. */
+  doer_id?: string | null;
+  doer_name?: string | null;
+  /** May the viewer fill this row the ordinary way (they are its doer, or an admin)? */
+  can_fill_self?: boolean;
+  /** May the viewer fill it in the doer's name, through the override batch? */
+  can_fill_override?: boolean;
+  /** Strict doer authority: photo/geo proofs and the bulk-CSV round trip. */
+  can_evidence?: boolean;
+  /** Like can_evidence, except a SUPER_ADMIN may also raise a blocker. */
+  can_blocker?: boolean;
+  /** Why neither fill flag is set. Optional for the same independent-deploy reason as the
+   *  flags themselves; the grid fails closed when they are absent, never open. */
+  fill_reason?: "no_permission" | "no_doer" | "doer_unreachable" | null;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -133,6 +170,9 @@ export type CreateTrackerTemplateInput = {
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
+  /** Which programme owns this task type. Omitted = derived from the author. */
+  programme_id?: string | null;
   status?: "draft" | "active" | "archived";
 };
 
@@ -142,8 +182,15 @@ export type TrackerTemplatePatch = {
   deadline?: string | null;
   status?: "draft" | "active" | "archived";
   recurrence_frequency?: TrackerRecurrence | null;
+  priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
+  require_geo_verification?: boolean;
+  /**
+   * Share this task type with the government and funding officials seated in its
+   * programme. The server refuses `true` on a task type that has no programme.
+   */
+  partner_visible?: boolean;
 };
 
 export type TrackerFieldPatch = {
@@ -187,6 +234,13 @@ export function getTrackerTemplates(status?: string) {
 
 export function getTrackerTemplate(id: string) {
   return trackerJson<TrackerTemplateDetail>(`/tracker/templates/${encodeURIComponent(id)}`);
+}
+
+/** The programmes the caller may attach a new task type to. Empty means they are
+ *  seated in none — the builder then shows no picker and the task type is created
+ *  without a programme, which is a valid state. */
+export function getTrackerMyProgrammes() {
+  return trackerJson<TrackerTargetProgramme[]>("/tracker/my-programmes");
 }
 
 export function createTrackerTemplate(input: CreateTrackerTemplateInput) {
@@ -233,6 +287,12 @@ export function getTrackerGrid(templateId: string, fellowId?: string) {
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
   return trackerJson<{ saved: number }>("/tracker/records/batch", jsonInit("POST", { edits }));
+}
+
+/** Fill someone else's rows in their name. A separate endpoint, not a flag: the server
+ *  guards it with tracker.fill.override and records the reason in the row's history. */
+export function saveTrackerBatchOnBehalf(reason: string, edits: TrackerBatchEdit[]) {
+  return trackerJson<{ saved: number }>("/tracker/records/batch/override", jsonInit("POST", { reason, edits }));
 }
 
 export type TrackerProofPhoto = { id: string; url: string; created_at: string; created_by: string };
@@ -309,10 +369,20 @@ export type TrackerAssignable = {
    *  picker group and label ZMs vs fellows. Absent for school / student targets. */
   role?: string | null;
   district?: string | null;
-  programme?: string | null;
+  /**
+   * The ACTIVE programmes this target belongs to.
+   *
+   * The real entity, not the old `programme` string — that was `users.programme`,
+   * the legacy free-text UG/PG track, which is NULL for most staff and so fed a
+   * filter that never rendered. A staff member or school can be in several; a
+   * student has at most one. Always an array, never absent.
+   */
+  programmes: TrackerTargetProgramme[];
   school_id?: string | null;
   school_name?: string | null;
 };
+
+export type TrackerTargetProgramme = { id: string; name: string };
 
 export function getTrackerAssignable(targetType: TrackerTargetType, batchId?: string) {
   const q = `targetType=${encodeURIComponent(targetType)}${batchId ? `&batchId=${encodeURIComponent(batchId)}` : ""}`;
@@ -332,6 +402,15 @@ export type TrackerMyTask = {
   status: string;
   blocked: boolean;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+  /** Filtering matches on id, never on a school NAME — names are not unique.
+   *  Optional, like the grid's own school_id: the frontend and backend deploy
+   *  independently (Netlify / Railway), so a browser can be talking to a server
+   *  that predates these fields. Absent must read as "unknown", not crash. */
+  school_id?: string | null;
+  require_photo?: boolean;
+  require_location?: boolean;
+  has_photo_proof?: boolean;
+  has_location_proof?: boolean;
 };
 
 export function getTrackerMyTasks() {
@@ -429,6 +508,13 @@ export type TrackerTaskState = "done" | "pending" | "overdue" | "blocked";
 
 export type TrackerTaskSummaryFilters = {
   q?: string; priority?: TrackerPriority; status?: TrackerTaskState;
+  /** Geography of the record's school. `district` is what the UI calls a Zone. */
+  state?: string; district?: string;
+  /** Org position of the record's doer. */
+  zmId?: string; fellowId?: string; schoolId?: string;
+  dueFrom?: string; dueTo?: string;
+  issuedFrom?: string; issuedTo?: string;
+  noProof?: boolean;
   page?: number; limit?: number;
 };
 
@@ -451,6 +537,20 @@ export function getTrackerTaskSummary(f: TrackerTaskSummaryFilters) {
   return trackerJson<TrackerTaskSummaryPage>(`/tracker/all-tasks/summary${qs ? `?${qs}` : ""}`);
 }
 
+/** Filter dropdown options for the caller's scope, in one request. */
+export type TrackerFacet = { value: string; label: string };
+export type TrackerFacets = {
+  states: TrackerFacet[];
+  zones: TrackerFacet[];
+  zms: TrackerFacet[];
+  incharges: TrackerFacet[];
+  schools: TrackerFacet[];
+};
+
+export function getTrackerFacets() {
+  return trackerJson<TrackerFacets>("/tracker/facets");
+}
+
 export type TrackerDrillLevel = "zm" | "fellow" | "school" | "student";
 
 export type TrackerBreakdownRow = {
@@ -465,7 +565,10 @@ export type TrackerBreakdownPage = {
 
 export function getTrackerTaskBreakdown(
   templateId: string,
-  params: { level: TrackerDrillLevel; parentId?: string; q?: string; page?: number; limit?: number },
+  params: {
+    level: TrackerDrillLevel; parentId?: string; q?: string;
+    status?: TrackerTaskState; page?: number; limit?: number;
+  },
 ) {
   const p = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") p.set(k, String(v));
@@ -484,7 +587,14 @@ export type TrackerEventType =
   | "blocker_comment"
   | "proof_photo_added"
   | "proof_photo_removed"
-  | "proof_location_captured";
+  | "proof_location_captured"
+  // Mirrors tracker-events.ts on the server. These three and extension_granted were already
+  // being emitted and simply fell through describeEvent's default, showing the raw code.
+  | "geo_verification_recorded"
+  | "geo_verification_rejected"
+  | "geo_verification_overridden"
+  | "extension_granted"
+  | "filled_on_behalf";
 
 export type TrackerEvent = {
   id: string;
@@ -661,4 +771,370 @@ export function listProfilePaths(target: TrackerTargetType) {
   return trackerJson<{ paths: TrackerProfilePath[] }>(
     `/tracker/profile-paths?target=${encodeURIComponent(target)}`,
   );
+}
+
+// ── School-visit geo verification ──────────────────────────────────────────────
+// One verification is collected per task + period + school + doer, and covers EVERY
+// row for that school. It is derived from the EXIF metadata of a photo taken with the
+// phone's own camera — the browser is never asked for location permission.
+
+/** Why an upload could not be used as evidence. Mirrors the backend's reason codes. */
+export type GeoRejectionReason =
+  | "no_gps"
+  | "no_capture_time"
+  | "accuracy_too_poor"
+  | "outside_period"
+  | "school_not_configured"
+  | "unreadable"
+  | "too_large";
+
+export type TrackerGeoVerification = {
+  id: string;
+  school_id: string;
+  /** WHOSE visit this is: one verification per (template, period, school, doer). */
+  doer_id: string;
+  status: "verified" | "outside_radius";
+  /** Passed the geofence, or a supervisor overrode it. This is what unlocks completion. */
+  accepted: boolean;
+  distance_m: number;
+  radius_m: number;
+  accuracy_m: number | null;
+  exif_captured_at: string;
+  uploaded_at: string;
+  /** Metadata-stripped thumbnail. The EXIF-bearing original is fetched separately. */
+  preview_url: string | null;
+  override_by: string | null;
+  override_at: string | null;
+  override_reason: string | null;
+};
+
+export function getTemplateGeoVerifications(templateId: string, periodKey?: string) {
+  const qs = periodKey ? `?period_key=${encodeURIComponent(periodKey)}` : "";
+  return trackerJson<TrackerGeoVerification[]>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications${qs}`,
+  );
+}
+
+export async function getRecordGeoVerification(
+  recordId: string,
+): Promise<TrackerGeoVerification | null> {
+  // A row with no verification yet comes back as a 200 with an EMPTY body (Nest
+  // serialises a `null` return that way), which trackerJson maps to undefined.
+  // React Query rejects undefined outright, so the absence is normalised to null.
+  const res = await trackerJson<TrackerGeoVerification | null | undefined>(
+    `/tracker/records/${encodeURIComponent(recordId)}/geo-verification`,
+  );
+  return res ?? null;
+}
+
+/**
+ * Upload the visit photo, RAW.
+ *
+ * The file is sent exactly as the camera wrote it: any client-side resize or canvas
+ * re-encode would strip the EXIF this whole feature reads. The server parses the
+ * metadata, computes the distance and decides the verdict.
+ */
+export async function uploadGeoVerification(
+  templateId: string,
+  schoolId: string,
+  file: File,
+): Promise<TrackerGeoVerification> {
+  const form = new FormData();
+  form.append("photo", file, file.name || "visit.jpg");
+  form.append("school_id", schoolId);
+  const res = await apiFetch(
+    `${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/geo-verifications`,
+    { method: "POST", body: form },
+  );
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as
+      | { message?: string; reason?: GeoRejectionReason }
+      | null;
+    throw new GeoUploadError(body?.message ?? "Could not verify that photo.", body?.reason, res.status);
+  }
+  return (await res.json()) as TrackerGeoVerification;
+}
+
+/** Carries the machine-readable reason so the panel can render the right state. */
+export class GeoUploadError extends ApiError {
+  readonly reason?: GeoRejectionReason;
+  constructor(message: string, reason: GeoRejectionReason | undefined, status: number) {
+    super(message, status);
+    this.reason = reason;
+  }
+}
+
+export function overrideGeoVerification(verificationId: string, reason: string) {
+  return trackerJson<TrackerGeoVerification>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/override`,
+    jsonInit("POST", { reason }),
+  );
+}
+
+/** Presigned URL for the EXIF-bearing original — supervisor review only. */
+export function getGeoVerificationOriginal(verificationId: string) {
+  return trackerJson<{ url: string }>(
+    `/tracker/geo-verifications/${encodeURIComponent(verificationId)}/original`,
+  );
+}
+
+// ── Earlier occurrences of a recurring task ───────────────────────────────────
+
+export type TrackerPeriodHistoryEntry = {
+  record_id: string;
+  period_key: string;
+  status: string;
+  /**
+   * A past period is done or MISSED — missed meaning a row existed and never
+   * reached done. Periods that were never created are absent rather than shown
+   * as gaps: nobody was asked, so nobody missed anything.
+   */
+  lifecycle: "done" | "missed";
+  updated_at: string;
+  updated_by_name: string | null;
+  geo: {
+    id: string;
+    status: "verified" | "outside_radius";
+    accepted: boolean;
+    distance_m: number;
+    radius_m: number;
+    exif_captured_at: string;
+    preview_url: string | null;
+  } | null;
+};
+
+export type TrackerPeriodHistoryPage = {
+  entries: TrackerPeriodHistoryEntry[];
+  /** Feed back as `before` for the next (older) page; null when exhausted. */
+  next_cursor: string | null;
+};
+
+/**
+ * `studentId` switches to the student-profile route. Same payload, different gate:
+ * the tracker route authorises against the record's doer, the profile route against
+ * the student, which is the question a profile page is actually asking.
+ */
+export function getRecordPeriodHistory(
+  recordId: string,
+  limit?: number,
+  before?: string,
+  studentId?: string,
+) {
+  const qs = new URLSearchParams();
+  if (limit) qs.set("limit", String(limit));
+  if (before) qs.set("before", before);
+  const suffix = qs.toString() ? `?${qs}` : "";
+  const path = studentId
+    ? `/tracker/students/${encodeURIComponent(studentId)}/records/${encodeURIComponent(recordId)}/periods`
+    : `/tracker/records/${encodeURIComponent(recordId)}/periods`;
+  return trackerJson<TrackerPeriodHistoryPage>(`${path}${suffix}`);
+}
+
+// ── The tracker, read from one student's side ─────────────────────────────────
+// Everything recorded ABOUT a student, for their profile page. The tracker's own
+// surfaces cut the same data by who DOES the work.
+
+export type TrackerStudentTask = {
+  template_id: string;
+  template_name: string;
+  description: string | null;
+  priority: string;
+  completion_style: "checklist" | "workflow";
+  /** Ordered workflow steps, so the UI can show "step 2 of 3". Null for checklists. */
+  workflow_statuses: string[] | null;
+  done_status: string | null;
+  deadline: string | null;
+  recurrence_frequency: "daily" | "weekly" | "monthly" | null;
+  record_id: string;
+  period_key: string;
+  /** Raw record status: a workflow step name, or not_started/in_progress/done. */
+  status: string;
+  lifecycle: RecordLifecycle;
+  /** Null for a directly-assigned row; set when the row came from a batch. */
+  batch_id: string | null;
+  batch_name: string | null;
+  updated_at: string | null;
+  updated_by_name: string | null;
+  blocker: { text: string; raised_at: string } | null;
+  /** What was filled in for this student. Profile-derived cells are excluded server-side. */
+  cells: TrackerCell[];
+};
+
+export type TrackerStudentTasksResponse = {
+  student_id: string;
+  tasks: TrackerStudentTask[];
+};
+
+export function getStudentTrackerTasks(studentId: string) {
+  return trackerJson<TrackerStudentTasksResponse>(
+    `/tracker/students/${encodeURIComponent(studentId)}/tasks`,
+  );
+}
+
+// ── Deadline extensions ───────────────────────────────────────────────────────
+// An overdue record cannot be completed by anyone. Only a dated extension from a
+// manager above the doer reopens it, and only until that date.
+
+export type TrackerExtension = {
+  id: string;
+  record_id: string;
+  /** New last day, inclusive. */
+  extended_to: string;
+  reason: string;
+  granted_by: string;
+  granted_by_name: string | null;
+  granted_at: string;
+  /** Still covering the row today; a lapsed grant stays visible as history. */
+  active: boolean;
+};
+
+export function getRecordExtensions(recordId: string) {
+  return trackerJson<TrackerExtension[]>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extensions`,
+  );
+}
+
+export function grantExtension(recordId: string, extendedTo: string, reason: string) {
+  return trackerJson<TrackerExtension>(
+    `/tracker/records/${encodeURIComponent(recordId)}/extension`,
+    jsonInit("POST", { extended_to: extendedTo, reason }),
+  );
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+// A manager's download of one task: every record they can see, its filled values, the
+// evidence attached to it and a rollup of its audit trail. `history` adds the full
+// event-by-event log, which arrives as a zip because that is a second file.
+
+export type TaskExportFile = { blob: Blob; filename: string };
+
+export async function fetchTaskExport(
+  templateId: string,
+  opts: { history?: boolean; ownerId?: string },
+): Promise<TaskExportFile> {
+  const url = new URL(`${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/export`);
+  if (opts.history) url.searchParams.set("history", "1");
+  if (opts.ownerId) url.searchParams.set("ownerId", opts.ownerId);
+
+  const r = await apiFetch(url.toString());
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Could not export this task.", r.status);
+  }
+  const disposition = r.headers.get("content-disposition");
+  const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
+  const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
+  return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
+}
+
+// ── the partner view ─────────────────────────────────────────────────────────
+//
+// A separate, deliberately small client for the surface government and funding
+// officials read. It mirrors the internal tracker's shapes — a paginated page with
+// stateCounts, a facets call, a task-scoped drill — because the two surfaces are
+// read the same way, and diverging would mean maintaining two mental models.
+
+export type PartnerLifecycle = "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+
+/** Where records with no school live. Staff tasks are about a person, not a place. */
+export const PARTNER_NO_PLACE = "__no_place__";
+
+export type PartnerFacets = {
+  programmes: TrackerFacetOption[];
+  states: TrackerFacetOption[];
+  zones: TrackerFacetOption[];
+  schools: TrackerFacetOption[];
+  periods: TrackerFacetOption[];
+};
+export type TrackerFacetOption = { value: string; label: string };
+
+export type PartnerTaskRow = {
+  template_id: string;
+  name: string;
+  description: string | null;
+  target_type: TrackerTargetType;
+  programme_id: string;
+  programme_name: string;
+  deadline: string | null;
+  priority: TrackerPriority;
+  total: number; done: number; blocked: number; overdue: number;
+  not_started: number; in_progress: number;
+  photo_count: number;
+  rolled_state: PartnerLifecycle;
+};
+
+export type PartnerTasksPage = {
+  rows: PartnerTaskRow[];
+  total: number; page: number; limit: number;
+  stateCounts: Record<PartnerLifecycle, number>;
+};
+
+export type PartnerBreakdownRow = {
+  key: string; label: string;
+  total: number; done: number; blocked: number; overdue: number;
+};
+
+export type PartnerRecord = {
+  id: string;
+  status: string;
+  lifecycle: PartnerLifecycle;
+  period_key: string | null;
+  school_name: string | null;
+  school_district: string | null;
+  school_state: string | null;
+  student_name: string | null;
+  /** NOT "completed by": tracker_records has no completion columns, only updated_by. */
+  last_updated_by: string | null;
+  updated_at: string;
+  photo_count: number;
+  geo_count: number;
+};
+
+export type PartnerRecordsPage = {
+  rows: PartnerRecord[]; total: number; page: number; limit: number;
+};
+
+export type PartnerProof = {
+  id: string;
+  kind: string;
+  /** A short-lived signed URL, or null for a location-only proof. */
+  url: string | null;
+  lat: number | null; lng: number | null; accuracy_m: number | null;
+  captured_at: string | null;
+};
+
+function partnerQs(params: Record<string, unknown>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === "") continue;
+    q.set(k, String(v));
+  }
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+export function getPartnerTasks(params: Record<string, unknown> = {}) {
+  return trackerJson<PartnerTasksPage>(`/tracker/partner/tasks${partnerQs(params)}`);
+}
+
+export function getPartnerFacets() {
+  return trackerJson<PartnerFacets>("/tracker/partner/facets");
+}
+
+export function getPartnerBreakdown(
+  templateId: string,
+  params: Record<string, unknown> & { level: string },
+) {
+  return trackerJson<PartnerBreakdownRow[]>(
+    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/breakdown${partnerQs(params)}`);
+}
+
+export function getPartnerRecords(templateId: string, params: Record<string, unknown> = {}) {
+  return trackerJson<PartnerRecordsPage>(
+    `/tracker/partner/tasks/${encodeURIComponent(templateId)}/records${partnerQs(params)}`);
+}
+
+export function getPartnerProofs(recordId: string) {
+  return trackerJson<PartnerProof[]>(
+    `/tracker/partner/records/${encodeURIComponent(recordId)}/proofs`);
 }

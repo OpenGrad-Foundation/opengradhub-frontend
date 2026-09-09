@@ -16,6 +16,14 @@ export type DraftAnswer = {
 /** A saved snapshot of a student's in-progress answers for one attempt. */
 export type QuizDraft = {
   attempt_id: string;
+  /**
+   * Clerk user id of the student the draft belongs to. IndexedDB is scoped to
+   * the browser origin, not the account — without this, a draft saved by one
+   * account is offered for replay to whoever signs in next, and the server
+   * rejects it forever ("does not belong to you"). Optional only for drafts
+   * written before this field existed.
+   */
+  user_id?: string;
   answers: Record<string, string | null>;
   flagged: string[];
   current_idx: number;
@@ -103,18 +111,45 @@ export async function clearDraft(attemptId: string): Promise<void> {
   await withStore('readwrite', (store) => store.delete(attemptId));
 }
 
+export type PendingSubmitsOptions = {
+  /** Only return drafts owned by this user (drafts with no owner are legacy and always match). */
+  userId?: string | null;
+  /** Skip submits younger than this — theirs is likely still in flight in another tab. */
+  minAgeMs?: number;
+  /** Drafts pending longer than this are dead; they are dropped AND deleted. */
+  maxAgeMs?: number;
+};
+
 /**
  * Returns every draft that has a pending submit payload — i.e. a submit/advance
  * POST was started but never confirmed cleared. Used by startup recovery to
  * offer replay of a quiz that may have been interrupted by a crash or network
- * drop. `olderThanMs` skips drafts whose submit is likely still in flight in
- * another tab.
+ * drop.
+ *
+ * Two filters exist to stop the recovery prompt becoming immortal:
+ *   - `userId` — a draft belonging to another account on this browser can never
+ *     be replayed (the server rejects it), so it must not be offered.
+ *   - `maxAgeMs` — a submit pending for that long will never be accepted again;
+ *     the draft is pruned so it stops prompting on every launch. Only the
+ *     current user's own drafts are pruned; another account's are left intact.
  */
-export async function listPendingSubmits(olderThanMs = 0): Promise<QuizDraft[]> {
+export async function listPendingSubmits(opts: PendingSubmitsOptions = {}): Promise<QuizDraft[]> {
   if (!hasIndexedDb()) return [];
+  const { userId = null, minAgeMs = 0, maxAgeMs = Infinity } = opts;
   const all = await withStore<QuizDraft[]>('readonly', (store) => store.getAll());
-  const cutoff = Date.now() - olderThanMs;
-  return (all ?? []).filter(
-    (d) => d.submit_pending_at != null && d.submit_pending_at <= cutoff && !!d.submit_payload,
-  );
+  const now = Date.now();
+  const out: QuizDraft[] = [];
+  for (const d of all ?? []) {
+    if (d.submit_pending_at == null || !d.submit_payload) continue;
+    // A draft with no owner predates user scoping — treat it as the current user's.
+    if (d.user_id != null && d.user_id !== userId) continue;
+    const age = now - d.submit_pending_at;
+    if (age < minAgeMs) continue;
+    if (age > maxAgeMs) {
+      await clearDraft(d.attempt_id).catch(() => {});
+      continue;
+    }
+    out.push(d);
+  }
+  return out;
 }

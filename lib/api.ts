@@ -1,3 +1,4 @@
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL } from "./labels";
 import type {
   CurrentUserResponse,
   SignInPayload,
@@ -162,6 +163,7 @@ export type SafeUser = {
   id: string;
   name: string;
   role: string;
+  programme_id?: string | null;
   programme_type: string | null;
   school_id: string | null;
   zone: string | null;
@@ -203,7 +205,7 @@ export async function getFellows(): Promise<FellowOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/users/fellows`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch fellows.", response.status);
+    throw new ApiError(`Failed to fetch ${IN_CHARGE_LOWER_PLURAL}.`, response.status);
   }
 
   return (await response.json()) as FellowOption[];
@@ -221,16 +223,93 @@ export type StudentRosterItem = {
   district: string | null;
 };
 
-/**
- * Fetch the student roster via GET /users/students, which Program Managers
- * can access (analytics.view_manager) unlike GET /users (user_management.view).
- */
-export async function getStudentsList(): Promise<StudentRosterItem[]> {
-  const response = await apiFetch(`${API_BASE_URL}/users/students`);
-  if (!response.ok) {
-    throw new ApiError("Failed to fetch students.", response.status);
+export type StudentRosterPage = {
+  items: StudentRosterItem[];
+  /** Full match count for the filters sent, independent of the page size. */
+  total: number;
+  limit: number;
+  offset: number;
+  /** More rows match than this page carries. */
+  has_more: boolean;
+  /** Legacy alias of `has_more`. */
+  truncated: boolean;
+  /** The caller's view is bounded by their scope — lets an empty list explain itself. */
+  scope_limited: boolean;
+};
+
+export type StudentRosterQuery = {
+  state?: string;
+  district?: string;
+  /** A school UUID, or the literal "none" for students with no school. */
+  school_id?: string;
+  /** School NAME substring. */
+  school_name?: string;
+  programme_type?: string;
+  search?: string;
+  /** Drop students already enrolled in this batch, so the counts stay honest. */
+  exclude_batch_id?: string;
+  limit?: number;
+  offset?: number;
+};
+
+function rosterUrl(q: StudentRosterQuery): string {
+  const url = new URL(`${API_BASE_URL}/users/students`);
+  for (const [key, value] of Object.entries(q)) {
+    if (value === undefined || value === null || value === "") continue;
+    url.searchParams.set(key, String(value));
   }
-  return (await response.json()) as StudentRosterItem[];
+  return url.toString();
+}
+
+/**
+ * Fetch a page of the student roster via GET /users/students, which Program
+ * Managers can access (analytics.view_manager) unlike GET /users
+ * (user_management.view).
+ *
+ * FILTERING IS THE SERVER'S JOB. This used to fetch one unfiltered page and let
+ * callers filter it in the browser, so every student sorting after the server's
+ * row cap was invisible and unsearchable — the picker's own "narrow it down"
+ * advice could not work, because the filters never left the browser.
+ *
+ * Per-caller PII at a constant URL: never cached.
+ */
+export async function getStudentRoster(q: StudentRosterQuery = {}): Promise<StudentRosterPage> {
+  const response = await apiFetch(rosterUrl(q), { cache: "no-store" });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch students.", response.status);
+  }
+  return toRosterPage(await response.json());
+}
+
+/**
+ * GET /users/students pages its response; older backends answer with a bare
+ * array, and backends between the two answer without `has_more`. Normalise all
+ * three so a shape mismatch degrades into a missing row cap warning rather than
+ * a crash on `page.items.filter`.
+ */
+function toRosterPage(body: unknown): StudentRosterPage {
+  if (Array.isArray(body)) {
+    const items = body as StudentRosterItem[];
+    return {
+      items, total: items.length, limit: items.length, offset: 0,
+      has_more: false, truncated: false, scope_limited: false,
+    };
+  }
+  const page = (body ?? {}) as Partial<StudentRosterPage>;
+  const items = page.items ?? [];
+  const total = page.total ?? items.length;
+  const offset = page.offset ?? 0;
+  const hasMore = page.has_more ?? page.truncated ?? offset + items.length < total;
+  return {
+    items,
+    total,
+    limit: page.limit ?? items.length,
+    offset,
+    has_more: hasMore,
+    truncated: hasMore,
+    scope_limited: page.scope_limited ?? false,
+  };
 }
 
 /**
@@ -453,10 +532,13 @@ export async function getManagerAnalytics(
 // ── Programme Insights ─────────────────────────────────────────────────────
 
 export type InsightsScope = {
-  kind: "global" | "programme" | "zone" | "school";
+  kind: "global" | "partner" | "programme" | "zone" | "school";
   label: string;
   school_ids?: string[];
+  /** Present only for kind === "partner". [] means seated in nothing. */
+  programme_ids?: string[];
   programme_filter: string | null;
+  programme_filter_id: string | null;
 };
 
 export type InsightsResponse = {
@@ -487,6 +569,8 @@ export type InsightsResponse = {
 
 export type ProgrammeInsightsFilters = {
   programme?: string;
+  /** A programme ENTITY id (partner callers). Mutually exclusive with `programme`. */
+  programmeId?: string;
   state?: string;
   district?: string;
   schoolId?: string;
@@ -496,7 +580,8 @@ export async function getProgrammeInsights(
   filters: ProgrammeInsightsFilters = {},
 ): Promise<InsightsResponse> {
   const qs = new URLSearchParams();
-  if (filters.programme) qs.set("programme", filters.programme);
+  if (filters.programme)   qs.set("programme", filters.programme);
+  if (filters.programmeId) qs.set("programme_id", filters.programmeId);
   if (filters.state)     qs.set("state", filters.state);
   if (filters.district)  qs.set("district", filters.district);
   if (filters.schoolId)  qs.set("school_id", filters.schoolId);
@@ -504,6 +589,12 @@ export async function getProgrammeInsights(
   const res = await apiFetch(`${API_BASE_URL}/analytics/insights${path}`);
   if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
   return (await res.json()) as InsightsResponse;
+}
+
+export async function getAnalyticsFilterProgrammes(): Promise<Array<{ id: string; name: string }>> {
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/programmes`);
+  if (!res.ok) throw new ApiError("Failed to fetch programmes.", res.status);
+  return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
 export async function getAnalyticsFilterStates(): Promise<string[]> {
@@ -567,6 +658,10 @@ export type Course = {
    * deliberately do NOT get the management view (student PII).
    */
   can_edit_content?: boolean;
+  /** Staff listings only: which programme owns this course. */
+  owner_programme_id?: string | null;
+  owner_programme_name?: string | null;
+  effective_scope_mode?: "LEGACY" | "PROGRAMME" | "GLOBAL";
 };
 
 export type CourseListParams = {
@@ -574,6 +669,8 @@ export type CourseListParams = {
   studentId?: string;
   createdBy?: string;
   allStatuses?: boolean;
+  /** "all" = browse-to-duplicate: every programme's ACTIVE courses (needs courses.create). */
+  scope?: "all";
   search?: string;
   status?: string;
   accessType?: string;
@@ -605,6 +702,7 @@ function appendCourseListParams(url: URL, params: CourseListParams, paginate = f
   if (params.tags) {
     params.tags.forEach(tag => url.searchParams.append("tags", tag));
   }
+  if (params.scope) url.searchParams.set("scope", params.scope);
   if (typeof params.page === "number") url.searchParams.set("page", String(params.page));
   if (typeof params.pageSize === "number") url.searchParams.set("page_size", String(params.pageSize));
   if (paginate) url.searchParams.set("paginate", "true");
@@ -876,9 +974,9 @@ export type ModuleWithProgress = {
   module_quizzes: Array<{ id: string; title: string; published: boolean; order_index: number; is_complete?: boolean }>;
 };
 
-export async function getCourseOverview(courseId: string, studentId: string): Promise<ModuleWithProgress[]> {
+export async function getCourseOverview(courseId: string, studentId?: string): Promise<ModuleWithProgress[]> {
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
-  url.searchParams.set("student_id", studentId);
+  if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
   return (await r.json()) as ModuleWithProgress[];
@@ -1182,30 +1280,75 @@ export type LiveClass = {
   meeting_url: string;
   course_id: string | null;
   course_title: string | null;
-  programme_type: string | null;
   batch_ids: string[] | null;
   created_by: string | null;
   created_at: string;
   attendee_count: number;
-  attended?: boolean;
+  /** Which store answers for this class. null = a legacy row nothing resolved. */
+  attendance_mode: "ONLINE" | "SCHOOL_BASED" | null;
+  /** True when every target is archived. Hidden from the staff list by default. */
+  is_archived_target?: boolean;
+  /**
+   * The student's own canonical verdict. null while the class has not ended.
+   * Replaces the old boolean `attended`, which could not express a
+   * register-sourced UNKNOWN.
+   */
+  attendance_status?: "PRESENT" | "ABSENT" | "UNKNOWN" | null;
+  /** Reported on create/edit: targeted students with no batch, so untrackable. */
+  unresolved_students?: number;
 };
 
-export type LiveClassAttendee = {
-  id: string;
-  name: string;
-  email: string;
-  joined_at: string;
+export type LiveClassFilters = {
+  /** 'upcoming' includes a class that is running right now. */
+  view?: "upcoming" | "past";
+  q?: string;
+  audience_type?: "course" | "batch";
+  audience_id?: string;
+  include_archived?: boolean;
 };
 
-export type LiveClassAttendeesResult = {
-  joined: LiveClassAttendee[];
-  missed: Omit<LiveClassAttendee, "joined_at">[];
-};
-
-export async function getLiveClasses(): Promise<LiveClass[]> {
-  const r = await apiFetch(`${API_BASE_URL}/live-classes`);
+/**
+ * Filters are all optional, and omitting them returns everything — the School
+ * confirmations tab and the class edit page depend on that.
+ */
+export async function getLiveClasses(filters?: LiveClassFilters): Promise<LiveClass[]> {
+  const params = new URLSearchParams();
+  if (filters?.view) params.set("view", filters.view);
+  if (filters?.q?.trim()) params.set("q", filters.q.trim());
+  if (filters?.audience_type && filters?.audience_id) {
+    params.set("audience_type", filters.audience_type);
+    params.set("audience_id", filters.audience_id);
+  }
+  if (filters?.include_archived !== undefined) {
+    params.set("include_archived", String(filters.include_archived));
+  }
+  const qs = params.toString();
+  const r = await apiFetch(`${API_BASE_URL}/live-classes${qs ? `?${qs}` : ""}`);
   if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
   return (await r.json()) as LiveClass[];
+}
+
+export type AudiencePreview = {
+  /** Active students matching every filter set. Zero is a real answer. */
+  total: number;
+  /** Of those, how many are in no active batch — untrackable for attendance. */
+  untrackable: number;
+};
+
+/**
+ * How many students a prospective target reaches. The create form's filters AND
+ * together, so an empty intersection reads exactly like a full one in prose.
+ */
+export async function getAudiencePreview(t: {
+  course_id?: string;
+  batch_ids?: string[];
+}): Promise<AudiencePreview> {
+  const params = new URLSearchParams();
+  if (t.course_id) params.set("course_id", t.course_id);
+  if (t.batch_ids?.length) params.set("batch_ids", t.batch_ids.join(","));
+  const r = await apiFetch(`${API_BASE_URL}/live-classes/audience-preview?${params.toString()}`);
+  if (!r.ok) throw new ApiError("Failed to preview the audience.", r.status);
+  return (await r.json()) as AudiencePreview;
 }
 
 export async function getNextLiveClass(studentId: string): Promise<LiveClass | null> {
@@ -1241,7 +1384,6 @@ export async function createLiveClass(payload: {
   duration_minutes: number;
   meeting_url: string;
   course_id?: string;
-  programme_type?: string;
   batch_ids?: string[];
 }): Promise<LiveClass> {
   const r = await apiFetch(`${API_BASE_URL}/live-classes`, {
@@ -1257,15 +1399,6 @@ export async function createLiveClass(payload: {
   return (await r.json()) as LiveClass;
 }
 
-export async function getLiveClassAttendees(id: string): Promise<LiveClassAttendeesResult> {
-  const r = await apiFetch(`${API_BASE_URL}/live-classes/${id}/attendees`);
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch attendees.", r.status);
-  }
-  return (await r.json()) as LiveClassAttendeesResult;
-}
-
 export async function updateLiveClass(
   id: string,
   payload: {
@@ -1274,8 +1407,12 @@ export async function updateLiveClass(
     scheduled_at?: string;
     duration_minutes?: number;
     meeting_url?: string;
-    course_id?: string;
-    programme_type?: string;
+    /**
+     * PATCH leaves an OMITTED target alone and CLEARS an explicitly null one.
+     * The distinction matters: switching a class between targeting modes has to
+     * null the modes it is leaving, or the class keeps both audiences.
+     */
+    course_id?: string | null;
     batch_ids?: string[];
   },
 ): Promise<LiveClass> {
@@ -1313,6 +1450,8 @@ export type Notification = {
   body: string;
   channel: "IN_APP" | "EMAIL" | "WHATSAPP";
   is_read: boolean;
+  /** NULL for one-shot rows; N for a roll-up row standing in for N events. */
+  rollup_count?: number | null;
   triggered_at: string;
   link: string | null;
 };
@@ -1387,6 +1526,22 @@ export async function clearReadNotifications(): Promise<void> {
     method: "PATCH",
     cache: "no-store",
   });
+}
+
+/**
+ * Dismiss EVERY notification, read or unread, in one call. The escape hatch for
+ * an inbox that filled faster than the user could read it. Unread rows are
+ * marked read server-side too, so the badge clears with the list.
+ */
+export async function clearAllNotifications(): Promise<{ archived: number }> {
+  const response = await apiFetch(`${API_BASE_URL}/notifications/clear-all`, {
+    method: "PATCH",
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new ApiError("Failed to clear notifications.", response.status);
+  }
+  return (await response.json()) as { archived: number };
 }
 
 // ── Assignments API ────────────────────────────────────────────
@@ -1664,6 +1819,12 @@ export type Quiz = {
   // due_at is the quiz's DEFAULT deadline; a batch that sets its own due_at overrides it.
   due_at: string | null;
   archived_at: string | null;
+  // ── Programme ownership (migration 128) ──
+  // Present on list rows. For a module quiz these describe its COURSE's
+  // programme, which is where a module quiz's ownership actually lives.
+  owner_programme_id?: string | null;
+  owner_programme_name?: string | null;
+  effective_scope_mode?: "LEGACY" | "PROGRAMME" | "GLOBAL";
 };
 
 export type CreateQuizPayload = {
@@ -1675,6 +1836,12 @@ export type CreateQuizPayload = {
   shuffle_questions?: boolean;
   show_answers_after?: boolean;
   quiz_type: "MODULE_TEST" | "GLOBAL_TEST";
+  /**
+   * Owning programme, for a GLOBAL_TEST. Omit when you belong to exactly one —
+   * the server fills it in. A module quiz ignores this: it belongs to whichever
+   * programme owns its course.
+   */
+  programme_id?: string | null;
   // No created_by: the server takes authorship from the access token.
   is_sectioned?: boolean;
   sequential_sections?: boolean;
@@ -1685,14 +1852,62 @@ export type CreateQuizPayload = {
   wrong_marks?: number;
 };
 
+/**
+ * Copy a quiz into a programme you belong to.
+ *
+ * The sanctioned way to use another programme's material: a quiz belongs to one
+ * programme, so you take a copy rather than sharing theirs. The copy reuses the
+ * same question rows — the question bank is global — and starts unpublished
+ * with no batch or bundle assignments.
+ */
+export async function duplicateQuiz(
+  quizId: string,
+  programmeId?: string | null,
+): Promise<Quiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/duplicate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    // The server's message is the useful one here — it names why the copy was
+    // refused (not a member of that programme, quiz not visible).
+    throw new ApiError(e?.message ?? "Failed to duplicate quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
+/**
+ * Give an UNOWNED quiz to a programme. Assign, not reassign — a quiz another
+ * programme already owns has to be duplicated instead.
+ */
+export async function assignQuizProgramme(
+  quizId: string,
+  programmeId: string | null,
+): Promise<Quiz> {
+  const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/programme`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId }),
+  });
+  if (!r.ok) {
+    const e = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(e?.message ?? "Failed to assign quiz.", r.status);
+  }
+  return (await r.json()) as Quiz;
+}
+
 export async function getQuizzes(
-  params: { module_id?: string; quiz_type?: string; archived?: boolean } = {},
+  params: { module_id?: string; quiz_type?: string; archived?: boolean; scope?: "all" } = {},
 ): Promise<Omit<Quiz, "questions">[]> {
   const url = new URL(`${API_BASE_URL}/quizzes`);
   if (params.module_id) url.searchParams.set("module_id", params.module_id);
   if (params.quiz_type) url.searchParams.set("quiz_type", params.quiz_type);
   // Default (omitted) lists live quizzes only; archived=true shows the archive.
   if (params.archived) url.searchParams.set("archived", "true");
+  // scope=all is the browse-to-duplicate window: every programme's quizzes.
+  if (params.scope) url.searchParams.set("scope", params.scope);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
   return (await r.json()) as Omit<Quiz, "questions">[];
@@ -2752,6 +2967,105 @@ export type TopicStrengthRow = {
   accuracy_pct: number;
 };
 
+export type StudentProfileCourse = {
+  id: string;
+  title: string;
+  lessons_total: number;
+  lessons_done: number;
+  completion_pct: number;
+  avg_score: number | null;
+};
+
+export type StudentProfile = {
+  student: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    roll_number: string | null;
+    programme: string | null;
+    status: string;
+    school_id: string | null;
+    school_name: string | null;
+    district: string | null;
+    state: string | null;
+    batches: { id: string; name: string }[];
+  };
+  kpis: {
+    completion_pct: number;
+    avg_score: number | null;
+    attempts: number;
+    last_activity_at: string | null;
+    at_risk: boolean;
+  };
+  courses: StudentProfileCourse[];
+};
+
+/** Staff view of one student. Backend asserts the caller's org scope. */
+export async function getStudentProfile(studentId: string): Promise<StudentProfile> {
+  const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/profile`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load student profile.", r.status);
+  }
+  return (await r.json()) as StudentProfile;
+}
+
+export type Opt = { id: string; name: string };
+
+export type DirectoryStudent = {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  in_charge_id: string | null;
+  in_charge_name: string | null;
+  state: string | null;
+  district: string | null;
+  programme_id: string | null;
+  programme_name: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export type StudentDirectoryFilters = {
+  q?: string; programme_id?: string; school_id?: string; state?: string;
+  district?: string; batch_id?: string; in_charge_id?: string;
+  limit?: number; offset?: number;
+};
+
+export type StudentFacets = {
+  programmes: Opt[]; schools: Opt[]; batches: Opt[]; inCharges: Opt[];
+};
+
+/** The scope-bounded student directory. The backend decides who is in it. */
+export async function getStudentsDirectory(
+  f: StudentDirectoryFilters,
+): Promise<{ total: number; rows: DirectoryStudent[] }> {
+  const url = new URL(`${API_BASE_URL}/students`);
+  for (const [k, v] of Object.entries(f)) {
+    if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
+  }
+  const r = await apiFetch(url.toString());
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load students.", r.status);
+  }
+  return (await r.json()) as { total: number; rows: DirectoryStudent[] };
+}
+
+/** Filter options the caller may ask for. Prevents offering a filter the
+ *  endpoint would reject with a 400. */
+export async function getStudentFacets(): Promise<StudentFacets> {
+  const r = await apiFetch(`${API_BASE_URL}/students/facets`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load student filters.", r.status);
+  }
+  return (await r.json()) as StudentFacets;
+}
+
 export async function getTopicStrength(studentId: string): Promise<TopicStrengthRow[]> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`);
   if (!r.ok) {
@@ -2997,6 +3311,19 @@ export type SchoolOption = {
   code: string | null;
   fellow_id: string | null;
   fellow_name: string | null;
+  /** Optional school-visit verification geometry; null until an admin sets it.
+   *  Optional on the type so payloads cached before migration 096 still typecheck. */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** Overrides the 200 m default when set. */
+  verification_radius_m?: number | null;
+};
+
+/** The optional geo trio accepted by school create/update. */
+export type SchoolGeoInput = {
+  latitude?: number | null;
+  longitude?: number | null;
+  verification_radius_m?: number | null;
 };
 
 /**
@@ -3038,7 +3365,7 @@ export async function createSchool(payload: {
   district?: string;
   state?: string;
   code?: string;
-}): Promise<SchoolOption> {
+} & SchoolGeoInput): Promise<SchoolOption> {
   const response = await apiFetch(`${API_BASE_URL}/schools`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -3055,7 +3382,7 @@ export async function createSchool(payload: {
 /** Update a single school. */
 export async function updateSchool(
   id: string,
-  payload: { name?: string; district?: string; state?: string; code?: string },
+  payload: { name?: string; district?: string; state?: string; code?: string } & SchoolGeoInput,
 ): Promise<SchoolOption> {
   const response = await apiFetch(`${API_BASE_URL}/schools/${id}`, {
     method: "PATCH",
@@ -3106,7 +3433,7 @@ export async function setSchoolFellow(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update fellow.", response.status);
+    throw new ApiError(errorBody?.message ?? `Failed to update ${IN_CHARGE_LOWER}.`, response.status);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -3149,12 +3476,26 @@ export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolR
 /**
  * Create a single user.
  */
+export type StudentCreationDestinations = {
+  requires_batch: boolean;
+  programmes: Array<{ id: string; name: string; kind: string }>;
+  batches: Array<{ id: string; name: string; programme_id: string }>;
+};
+export async function getStudentCreationDestinations(): Promise<StudentCreationDestinations> {
+  const response = await apiFetch(`${API_BASE_URL}/users/create-destinations`, { cache: "no-store" });
+  if (!response.ok) throw new ApiError("Could not load student destinations.", response.status);
+  return response.json() as Promise<StudentCreationDestinations>;
+}
+
 export async function createUser(payload: {
   name: string;
   email?: string;
   phone?: string;
   role: string;
   programme_type?: string;
+  programme_id?: string;
+  batch_id?: string;
+  fellow_id?: string;
   school_id?: string;
   state?: string;
   school_code?: string;
@@ -3191,6 +3532,7 @@ export async function updateUser(
     email?: string;
     phone?: string;
     programme_type?: string;
+    programme_id?: string;
     school_id?: string;
     state?: string;
     school_code?: string;
@@ -3515,8 +3857,9 @@ export type Doubt = {
   body: string;
   status: "OPEN" | "ANSWERED";
   answer: string | null;
-  escalated_to_zm_at: string | null;
-  escalated_to_pm_at: string | null;
+  /** The cohort this doubt was asked in, frozen at submission. NULL whenever
+   *  the student's affiliation is unknown, which today is most of them. */
+  programme_id: string | null;
   answered_by_user_id: string | null;
   answered_at: string | null;
   created_at: string;
@@ -3827,7 +4170,12 @@ export async function getAvailableQuizzes(): Promise<AvailableQuiz[]> {
   return (await r.json()) as AvailableQuiz[];
 }
 
-// ── Bulk Assign API ────────────────────────────────────────────
+// ── Bulk enrolment API ─────────────────────────────────────────
+//
+// What is left of the retired Bulk Assign module: the User Management
+// "Bulk Assign" panel filters students and enrols them in courses/bundles in
+// one call. The standalone /dashboard/bulk-manage page and its unenrol +
+// enrolled-items endpoints are gone; enrolment at scale belongs to Batches.
 
 export type StudentForBulk = {
   id: string;
@@ -3847,59 +4195,24 @@ export type StudentFilters = {
   search?: string;
 };
 
+/**
+ * Returns the PAGE, not a bare array: callers were dropping `truncated` on the
+ * floor and rendering a silent prefix of the matches as if it were all of them.
+ *
+ * `school_name` rather than `school_id` — this caller has always sent free text
+ * from a "School name" input, which the server used to interpret as a name
+ * substring under the `school_id` parameter name.
+ */
 export async function getStudentsForBulk(
   filters: StudentFilters,
-): Promise<StudentForBulk[]> {
-  const url = new URL(`${API_BASE_URL}/users/students`);
-  if (filters.state)          url.searchParams.set("state",          filters.state);
-  if (filters.district)       url.searchParams.set("district",       filters.district);
-  if (filters.school_id)      url.searchParams.set("school_id",      filters.school_id);
-  if (filters.programme_type) url.searchParams.set("programme_type", filters.programme_type);
-  if (filters.search)         url.searchParams.set("search",         filters.search);
-
-  const r = await apiFetch(url.toString());
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch students.", r.status);
-  }
-  return (await r.json()) as StudentForBulk[];
-}
-
-export type EnrolledItems = {
-  courses: { id: string; title: string; programme_type: string; lesson_count: number }[];
-  bundles: { id: string; name: string; course_count: number }[];
-};
-
-export async function getEnrolledItemsForStudents(
-  studentIds: string[],
-): Promise<EnrolledItems> {
-  if (!studentIds.length) return { courses: [], bundles: [] };
-  const url = new URL(`${API_BASE_URL}/enrolments/enrolled-items`);
-  url.searchParams.set("student_ids", studentIds.join(","));
-  const r = await apiFetch(url.toString());
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch enrolled items.", r.status);
-  }
-  return (await r.json()) as EnrolledItems;
-}
-
-export async function bulkRemove(payload: {
-  student_ids: string[];
-  course_ids?: string[];
-  bundle_ids?: string[];
-}): Promise<{ removed_courses: number; removed_bundles: number; not_enrolled: number }> {
-  const r = await apiFetch(`${API_BASE_URL}/enrolments/bulk`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
+): Promise<StudentRosterPage> {
+  return getStudentRoster({
+    state:          filters.state,
+    district:       filters.district,
+    school_name:    filters.school_id,
+    programme_type: filters.programme_type,
+    search:         filters.search,
   });
-  if (!r.ok) {
-    const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to bulk remove.", r.status);
-  }
-  return (await r.json()) as { removed_courses: number; removed_bundles: number; not_enrolled: number };
 }
 
 export async function bulkEnrol(payload: {
@@ -4121,6 +4434,8 @@ export type AssessmentsOverviewItem = {
   course_title: string | null;
   bundle_title: string | null;
   duration_minutes: number | null;
+  /** The owning programme, when the row was reached through the caller's own. */
+  programme_name: string | null;
   max_attempts: number | null;
   attempts_count: number;
   students_attempted: number;
@@ -4141,6 +4456,7 @@ export type AssessmentsOverviewFilters = {
   course_id?: string;
   bundle_id?: string;
   batch_id?: string;
+  programme_id?: string;
   from?: string;
   to?: string;
   q?: string;
@@ -4194,6 +4510,10 @@ export type Batch = {
   school_id: string | null;
   school_name: string | null;
   programme_type: string | null;
+  /** Where this cohort's official individual attendance comes from. */
+  delivery_mode: "ONLINE" | "SCHOOL_BASED";
+  /** True once attendance history exists — after that the mode is frozen. */
+  delivery_mode_locked: boolean;
   status: string;
   starts_on: string | null;
   ends_on: string | null;
@@ -4220,6 +4540,10 @@ export type BatchCourseEntry = {
   title: string;
   programme_type: string;
   status: string;
+  /** true when pinned directly on the batch; false when it only comes from a bundle. */
+  is_direct: boolean;
+  /** names of the batch's bundles that supply this course. */
+  via_bundles: string[];
 };
 
 export type BatchBundleEntry = {
@@ -4247,6 +4571,8 @@ export type BatchPayload = {
   name?: string;
   school_id?: string | null;
   programme_type?: string | null;
+  /** Required on create — the API rejects a batch without one. */
+  delivery_mode?: "ONLINE" | "SCHOOL_BASED";
   status?: string;
   starts_on?: string | null;
   ends_on?: string | null;
@@ -4355,7 +4681,7 @@ export async function setBatchMembersFellow(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to set batch fellow.", r.status);
+    throw new ApiError(err?.message ?? `Failed to set batch ${IN_CHARGE_LOWER}.`, r.status);
   }
   return (await r.json()) as { updated: number; reassigned: number };
 }
@@ -4657,8 +4983,6 @@ export async function getQuestionById(id: string): Promise<Question> {
 // ── programmes ─────────────────────────────────────────────────────────────
 
 
-export type ProgrammeLevel = "OWNER" | "EDITOR" | "VIEWER";
-
 export interface Programme {
   id: string;
   code: string;
@@ -4669,16 +4993,103 @@ export interface Programme {
   status: "ACTIVE" | "ARCHIVED";
   created_by: string | null;
   created_at: string;
-  my_level?: ProgrammeLevel | null;
+  /**
+   * Whether the caller is on this programme's member list.
+   *
+   * Replaces `my_level`. Membership is a fact; what a member may DO is a
+   * permission, and the two used to contradict each other on screen — the hub
+   * badge read OWNER above a Settings tab that refused the same person, because
+   * the badge came from programme_members.level and the gate came from PBAC.
+   * Backend migration 119 retired the column.
+   */
+  is_member?: boolean;
+}
+
+export interface ProgrammeMemberViaSchool {
+  school_id: string;
+  name: string;
+  /** IN_CHARGE = the school's own in-charge; MANAGER = someone above them. */
+  cause: "IN_CHARGE" | "MANAGER";
 }
 
 export interface ProgrammeMember {
   user_id: string;
   name: string;
+  /** Null on a derived row unless you administer this programme. */
   email: string | null;
   role: string;
-  level: ProgrammeLevel;
-  added_at: string;
+  /** Null on a derived row — nobody added them, a school attachment did. */
+  added_at: string | null;
+  /**
+   * MEMBER = seated in the programme, and the only kind that can be removed
+   * here. SCHOOL = reached because a school they run was attached; grants no
+   * authority whatsoever.
+   */
+  source: "MEMBER" | "SCHOOL";
+  /** Populated on seated members too, where it answers "if I remove them, do
+   *  they actually go away?" — when a school still justifies them, they do not. */
+  via_schools: ProgrammeMemberViaSchool[];
+}
+
+export interface ProgrammeOverview {
+  /**
+   * Everyone the programme currently reaches, including — when the school arm
+   * is on — students assigned elsewhere who attend a school it hosts.
+   */
+  reachable_students: number;
+  /** Students whose profile says this programme. The only student measure that
+   *  shares a denominator with `activity`, which is read from immutable stamps. */
+  assigned_students: number;
+  schools: number;
+  batches: number;
+  staff: number;
+  content: { courses: number; assignments: number; resources: number; quizzes: number };
+  /** Read from the immutable programme stamp on each fact, not from the
+   *  student's current programme — so a transfer does not restate history. */
+  activity: {
+    attempts: number;
+    avg_score: number | null;
+    attendance_marks: number;
+    tracker_records: number;
+  };
+  /** Doubts carrying this programme's stamp. Unstamped doubts belong to no
+   *  programme and are deliberately absent from both counts.
+   *
+   *  Optional because an API instance from before this field existed can still
+   *  serve a request during a rolling deploy — the type says what the consumer
+   *  must actually handle, rather than what the current backend happens to send. */
+  doubts?: { open: number; answered: number };
+}
+
+export type ProgrammeReachVia = "PROGRAMME" | "BATCH" | "SCHOOL";
+
+export interface ProgrammeStudent {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_id: string | null;
+  school_name: string | null;
+  status: string;
+  /**
+   * EVERY reason this programme reaches them, not just the strongest one — a
+   * student can belong to the programme, sit in one of its batches AND attend a
+   * school it hosts, and the tab exists to explain which.
+   */
+  via: ProgrammeReachVia[];
+}
+
+export interface ProgrammeStudentPage {
+  rows: ProgrammeStudent[];
+  /** Matching rows before the page limit — the roster is now server-filtered. */
+  total: number;
+}
+
+export interface ProgrammeStudentQuery {
+  q?: string;
+  school_id?: string;
+  via?: ProgrammeReachVia;
+  limit?: number;
+  offset?: number;
 }
 
 export interface ProgrammeSchool {
@@ -4740,6 +5151,40 @@ export async function getProgrammeMembers(id: string): Promise<ProgrammeMember[]
   );
 }
 
+/** Counts for the hub's Analytics tab. */
+export async function getProgrammeOverview(id: string): Promise<ProgrammeOverview> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/overview`),
+    "Failed to load programme overview.",
+  );
+}
+
+/**
+ * The students this programme reaches.
+ *
+ * Reach is `users.programme_id` plus members of the programme's own batches —
+ * never the schools it hosts. A school can host two cohorts, so a school-based
+ * arm would return the other one's roster.
+ */
+export async function getProgrammeStudents(
+  id: string,
+  query: ProgrammeStudentQuery = {},
+): Promise<ProgrammeStudentPage> {
+  // Filtering and search moved to the server when the school arm made this
+  // roster large enough that the browser could no longer hold all of it.
+  const qs = new URLSearchParams();
+  if (query.q?.trim()) qs.set("q", query.q.trim());
+  if (query.school_id) qs.set("school_id", query.school_id);
+  if (query.via) qs.set("via", query.via);
+  if (query.limit !== undefined) qs.set("limit", String(query.limit));
+  if (query.offset !== undefined) qs.set("offset", String(query.offset));
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students${suffix}`),
+    "Failed to load students.",
+  );
+}
+
 /**
  * Staff this programme can still take on.
  *
@@ -4757,17 +5202,18 @@ export async function getEligibleProgrammeMembers(
   );
 }
 
-export async function setProgrammeMember(
+export async function addProgrammeMember(
   id: string,
   userId: string,
-  level: ProgrammeLevel,
-): Promise<{ level: ProgrammeLevel }> {
+): Promise<{ added: true }> {
+  // PUT, not POST: adding a member is idempotent on (programme, user). There is
+  // no body — the level that used to be in it is gone.
   const r = await apiFetch(`${API_BASE_URL}/programmes/${id}/members/${userId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ level }),
+    body: "{}",
   });
-  return programmeJson(r, "Failed to set member level.");
+  return programmeJson(r, "Failed to add member.");
 }
 
 export async function removeProgrammeMember(id: string, userId: string): Promise<void> {
@@ -4812,6 +5258,8 @@ export interface ProgrammeBatch {
 }
 
 export interface BatchImpact {
+  id?: string;
+  kind?: 'courses' | 'assignments' | 'resources';
   course_id: string;
   title: string;
   owner_programme: string;
@@ -4857,7 +5305,7 @@ export async function detachProgrammeBatch(id: string, batchId: string): Promise
 // quizzes and bundles, but nothing reads it there, so offering to assign them
 // would report a grant that does not exist.
 
-export type ProgrammeContentKind = "courses" | "assignments" | "resources";
+export type ProgrammeContentKind = "courses" | "assignments" | "resources" | "quizzes";
 
 export interface ProgrammeContentItem {
   kind: ProgrammeContentKind;
@@ -4879,7 +5327,7 @@ export async function getAssignableContent(
   id: string,
   kind: ProgrammeContentKind,
   q?: string,
-): Promise<Array<{ id: string; title: string }>> {
+): Promise<Array<{ id: string; title: string; suggested?: boolean; why?: string }>> {
   const url = new URL(`${API_BASE_URL}/programmes/${id}/content/assignable`);
   url.searchParams.set("kind", kind);
   if (q?.trim()) url.searchParams.set("q", q.trim());
@@ -4909,13 +5357,16 @@ export async function releaseProgrammeContent(
 }
 
 /**
- * Duplicate a course: fresh LEGACY draft owned by the caller, curriculum
- * copied, nothing student-facing. The release valve for programme-owned
- * courses — the copy can be assigned to any programme.
+ * Duplicate a course: fresh draft owned by the caller AND the chosen programme,
+ * curriculum copied, nothing student-facing. The release valve for
+ * programme-owned courses. Omit `programmeId` for sole-programme inference;
+ * explicit null requests a Global copy and requires an allowed Global destination.
  */
-export async function duplicateCourse(id: string): Promise<Course> {
+export async function duplicateCourse(id: string, programmeId?: string | null): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses/${id}/duplicate`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ programme_id: programmeId }),
     cache: "no-store",
   });
 

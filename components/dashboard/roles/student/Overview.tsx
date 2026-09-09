@@ -13,12 +13,17 @@ export default function StudentOverview({ userId }: { userId: string }) {
   const { widgets, isLoading, error, refetch } = useStudentOverview(userId);
 
   /**
-   * Register attendance is a second, independent source. Kept card-local on
-   * purpose: /attendance/me failing must not blank courses, scores and doubts,
-   * so it never feeds the whole-widget error path below.
+   * ONE attendance number, from the canonical API — whichever store is
+   * authoritative for this student's cohorts. Kept card-local on purpose:
+   * /attendance/me failing must not blank courses, scores and doubts, so it
+   * never feeds the whole-widget error path below.
    */
   const myAttendance = useMyAttendance();
-  const registerPct = myAttendance.data?.register.percent ?? null;
+  const totals = (myAttendance.data?.series ?? []).reduce(
+    (acc, s) => ({ present: acc.present + s.summary.present, marked: acc.marked + s.summary.marked }),
+    { present: 0, marked: 0 },
+  );
+  const attendancePct = totals.marked === 0 ? null : Math.round((totals.present / totals.marked) * 100);
 
   if (error) {
     return <WidgetError message={error} onRetry={refetch} />;
@@ -48,23 +53,18 @@ export default function StudentOverview({ userId }: { userId: string }) {
           isLoading={isLoading}
           helperText={widgets.openDoubts === 0 ? "No open doubts" : undefined}
         />
-        {/* Two different attendance streams, so both say which one they are —
-            unlabelled they'd read as one number contradicting itself. */}
+        {/* One number, not two: whichever store is authoritative for this
+            student answers it. Two side-by-side percentages read as one figure
+            contradicting itself, which is what this consolidation removed. */}
         <StatCard
-          label="Live class %"
-          value={widgets.attendancePct}
-          isLoading={isLoading}
-          helperText={widgets.attendancePct === 0 ? "No live classes attended yet" : undefined}
-        />
-        <StatCard
-          label="Register %"
-          value={registerPct ?? 0}
+          label="Attendance"
+          value={attendancePct ?? 0}
           isLoading={myAttendance.isLoading}
           helperText={
             myAttendance.isError
-              ? "Couldn't load register attendance"
-              : registerPct === null
-                ? "No register attendance recorded yet"
+              ? "Couldn't load attendance"
+              : attendancePct === null
+                ? "No attendance recorded yet"
                 : undefined
           }
         />

@@ -1,0 +1,174 @@
+"use client";
+
+import { useState } from "react";
+import { ArrowLeft, ChevronRight, Loader2 } from "lucide-react";
+import { usePartnerBreakdown } from "@/lib/queries/tracker";
+import { PARTNER_NO_PLACE, type PartnerTaskRow } from "@/lib/tracker-api";
+import { ZONE } from "@/lib/labels";
+import { PartnerRecords } from "./partner-records";
+
+/**
+ * The geographic drill, scoped to one shared task.
+ *
+ * Levels are PLACES, not people. The internal breakdown walks Zonal Manager →
+ * School In-Charge → School → Student; an outside official walks State → Zone →
+ * School → Student instead. A funder needs to know where the work happened, not
+ * who reports to whom, and a management hierarchy published to every official
+ * ever seated in a programme cannot be unpublished.
+ *
+ * There is no programme level: one task type belongs to exactly one programme, so
+ * inside a task it would be a level with a single row.
+ *
+ * The path is carried as named parts rather than one opaque parent id, because a
+ * district name is not unique across states — "Mysuru" alone cannot identify a
+ * zone, and a level key is a plain string for geography but a uuid for a school.
+ */
+
+type Level = "state" | "zone" | "school" | "student";
+
+/** Where the drill stops, by what the task is actually about. */
+function leafFor(target: PartnerTaskRow["target_type"]): Level {
+  return target === "student" ? "student" : "school";
+}
+
+const LEVEL_TITLE: Record<Level, string> = {
+  state: "States", zone: `${ZONE}s`, school: "Schools", student: "Students",
+};
+
+const DRILL_LEVELS: Level[] = ["state", "zone", "school", "student"];
+
+type Crumb = { level: Level; key: string; label: string };
+
+export function PartnerDrill({ task, filters }: {
+  task: PartnerTaskRow;
+  /** The page's own filter bar. Carried through so the breakdown counts the same
+   *  records the task card above it does; without it the two disagree on screen
+   *  and nothing says which is right. */
+  filters: Record<string, unknown>;
+}) {
+  // A staff task has no geography at all, so the drill would be one bucket deep.
+  // Rendering its records directly inside the card is more honest than a level that
+  // only ever says "Not tied to a place".
+  const geographic = task.target_type !== "fellow";
+  const [path, setPath] = useState<Crumb[]>([]);
+
+  const leaf = leafFor(task.target_type);
+  const showRecords = path.some((p) => p.level === leaf || p.key === PARTNER_NO_PLACE);
+  const currentLevel: Level = DRILL_LEVELS[path.length] ?? leaf;
+
+  const scope = {
+    state: path.find((p) => p.level === "state")?.key,
+    district: path.find((p) => p.level === "zone")?.key,
+    schoolId: path.find((p) => p.level === "school")?.key,
+    studentId: path.find((p) => p.level === "student")?.key,
+  };
+
+  const { data: rows, isLoading } = usePartnerBreakdown(
+    geographic && !showRecords ? task.template_id : null,
+    { ...filters, level: currentLevel, ...scope },
+  );
+
+  if (!geographic) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <PartnerRecords task={task} scope={{}} filters={filters} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <header className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-sm">
+        {path.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPath(path.slice(0, -1))}
+            className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-900"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setPath([])}
+          className="text-gray-500 hover:text-gray-900"
+        >
+          All
+        </button>
+        {path.map((c, i) => (
+          <span key={`${c.level}-${c.key}`} className="flex items-center gap-2">
+            <ChevronRight className="h-3.5 w-3.5 text-gray-300" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={() => setPath(path.slice(0, i + 1))}
+              className={`hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-gray-900" : "text-gray-700"}`}
+            >
+              {c.label}
+            </button>
+          </span>
+        ))}
+        <span className="ml-auto text-xs uppercase tracking-wide text-gray-400">
+          {showRecords ? "Records" : LEVEL_TITLE[currentLevel]}
+        </span>
+      </header>
+
+      {showRecords ? (
+        <div className="p-4">
+          <PartnerRecords task={task} scope={scope} filters={filters} />
+        </div>
+      ) : isLoading ? (
+        <div className="flex min-h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+        </div>
+      ) : !rows?.length ? (
+        <p className="p-5 text-sm text-gray-500">Nothing recorded here yet.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {rows.map((r) => {
+            const pct = r.total === 0 ? 0 : Math.round((r.done / r.total) * 100);
+            const isNoPlace = r.key === PARTNER_NO_PLACE;
+            const go = () => setPath([
+              ...path,
+              {
+                level: currentLevel,
+                key: r.key,
+                label: isNoPlace ? "No school on record" : r.label,
+              },
+            ]);
+            return (
+              <li key={r.key}>
+                <button
+                  type="button"
+                  onClick={go}
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-gray-50"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm text-gray-900">
+                      {r.label}
+                      {isNoPlace && (
+                        <span className="ml-2 text-xs text-gray-400">no school on record</span>
+                      )}
+                    </div>
+                    {(r.overdue > 0 || r.blocked > 0) && (
+                      <div className="mt-0.5 flex gap-3 text-xs">
+                        {r.overdue > 0 && <span className="text-amber-700">{r.overdue} overdue</span>}
+                        {r.blocked > 0 && <span className="text-red-700">{r.blocked} blocked</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="w-32 shrink-0">
+                    <div className="h-2 rounded-full bg-gray-100">
+                      <div className="h-2 rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+                    </div>
+                    <div className="mt-1 text-right text-xs text-gray-600">{r.done} of {r.total}</div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}

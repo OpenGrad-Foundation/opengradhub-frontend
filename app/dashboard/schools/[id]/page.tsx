@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
 import { BackLink } from "@/components/back-link";
+import { IN_CHARGE } from "@/lib/labels";
 import {
   fetchSchoolRosterDetail,
   getSchoolDetail,
@@ -12,27 +12,56 @@ import {
   type SchoolRosterStudent,
   type SchoolDetail as SchoolAnalytics,
 } from "@/lib/api";
-import { withFrom } from "@/lib/nav";
+import { EntityLink } from "../../programmes/_components/entity-link";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { PERM, ANALYTICS_DASHBOARD_PERMISSIONS, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { SchoolFormModal } from "../SchoolFormModal";
 import { AddStudentsPanel } from "./AddStudentsPanel";
 import { AttachBatchPanel } from "./AttachBatchPanel";
 import { AttendancePanel } from "./AttendancePanel";
+import { SchoolBatchList } from "./SchoolBatchList";
 import {
-  labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle,
+  labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle, inputStyle,
 } from "../styles";
+
+/** Section tabs. Batches/Students/Attendance used to stack, which buried
+ *  attendance below a 400-row roster. */
+const TABS = [
+  { key: "students", label: "Students" },
+  { key: "batches", label: "Batches" },
+  { key: "attendance", label: "Attendance" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+function tabStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "10px 18px",
+    border: "none",
+    borderRadius: "10px",
+    background: active ? "rgba(10,190,98,0.12)" : "transparent",
+    color: active ? "#046b45" : "rgba(3,72,82,0.65)",
+    fontFamily: "var(--font-heading)",
+    fontWeight: 700,
+    fontSize: "13px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+}
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
   const currentUrl = useCurrentUrl();
   const { has } = usePermissions();
   const canEditSchool = has(PERM.schools.edit);
-  const canEditRoster = has(PERM.user_management.edit);
+  const canViewStudents = has(PERM.students.view);
+  const canViewStudentContacts = canViewStudents && has(PERM.students.view_contact);
+  const canViewStaffContacts = has(PERM.staff.view_contacts);
+  const canViewAnalytics = canViewStudents && ANALYTICS_DASHBOARD_PERMISSIONS.some(has);
+  const canEditRoster = has(PERM.user_management.edit) && canViewStudents;
   const canAttachBatch = has(PERM.batches.edit);
-  const canViewAttendance = has(PERM.attendance.view);
+  const canViewAttendance = has(PERM.attendance.view) && has(PERM.students.view);
   const invalidate = useInvalidate();
 
   const [detail, setDetail] = useState<SchoolRosterDetail | null>(null);
@@ -46,17 +75,8 @@ export default function SchoolDetailPage() {
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [rosterError, setRosterError] = useState<string | null>(null);
-  // Collapsed-by-default accordion. Keys: batch ids + "unbatched".
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  function toggleSection(key: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+  const [tab, setTab] = useState<TabKey>("students");
+  const [studentQuery, setStudentQuery] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -76,17 +96,17 @@ export default function SchoolDetailPage() {
     }
   }, [id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (canViewStudents) void load(); }, [load, canViewStudents]);
 
-  // Analytics summary degrades silently: roles without analytics.view_fellow
-  // get a 403 here and simply see no card.
+  // Only request learning analytics when the caller holds that capability.
   useEffect(() => {
+    if (!canViewAnalytics) { setAnalytics(null); return; }
     let cancelled = false;
     getSchoolDetail(id)
       .then((a) => { if (!cancelled) setAnalytics(a); })
       .catch(() => { if (!cancelled) setAnalytics(null); });
     return () => { cancelled = true; };
-  }, [id]);
+  }, [id, canViewAnalytics]);
 
   async function removeStudent(studentId: string) {
     setRemovingId(studentId);
@@ -104,6 +124,11 @@ export default function SchoolDetailPage() {
     }
   }
 
+  if (!canViewStudents) return <div>
+    <BackLink fallback="/dashboard/schools" style={backLinkStyle} />
+    <p style={{ color: "rgba(3,72,82,0.6)", marginTop: 16 }}>Viewing school details requires permission to view students.</p>
+  </div>;
+
   if (loading) return <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading school…</p>;
 
   if (error || !detail) {
@@ -119,11 +144,16 @@ export default function SchoolDetailPage() {
 
   const { school, stats, students } = detail;
   const schoolStudentIds = new Set(students.map((s) => s.id));
-  const batchedIds = new Set(detail.batches.flatMap((b) => b.students.map((s) => s.id)));
-  const unbatched = students.filter((s) => !batchedIds.has(s.id));
+  const q = studentQuery.trim().toLowerCase();
+  const visibleStudents = q
+    ? students.filter((st) =>
+        [st.name, st.roll_number, canViewStudentContacts ? st.email : null, st.programme]
+          .some((v) => v?.toLowerCase().includes(q)))
+    : students;
 
   const tableProps = {
     schoolStudentIds,
+    canViewStudentContacts,
     canEditRoster,
     confirmRemoveId,
     removingId,
@@ -164,11 +194,11 @@ export default function SchoolDetailPage() {
       {/* Fellow + stats cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
         <div style={cardStyle}>
-          <p style={cardLabelStyle}>Assigned Fellow</p>
+          <p style={cardLabelStyle}>Assigned {IN_CHARGE}</p>
           {school.fellow_name ? (
             <>
               <p style={cardValueStyle}>{school.fellow_name}</p>
-              {school.fellow_email && (
+              {canViewStaffContacts && school.fellow_email && (
                 <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>{school.fellow_email}</p>
               )}
             </>
@@ -220,112 +250,85 @@ export default function SchoolDetailPage() {
         </div>
       )}
 
-      {/* Roster */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-        <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
-          Students ({stats.student_count})
-        </h2>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+      {/* Tabs: these three sections are each long, so they page instead of stack. */}
+      <div
+        role="tablist"
+        aria-label="School sections"
+        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8, marginBottom: 20 }}
+      >
+        {TABS.filter((t) => t.key !== "attendance" || canViewAttendance).map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            style={tabStyle(tab === t.key)}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+            {t.key === "batches" ? ` (${detail.batches.length})` : t.key === "students" ? ` (${stats.student_count})` : ""}
+          </button>
+        ))}
+      </div>
+
+      {/* Batches hosted at this school. The roster of each one lives on the
+          batch page, so a row is a link, not a disclosure. */}
+      {tab === "batches" && <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>Batches</h2>
           {canAttachBatch && (
             <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
           )}
-          {canEditRoster && (
-            <button onClick={() => setShowAdd(true)} style={primaryButton}>+ Add Students</button>
-          )}
         </div>
-      </div>
 
-      {showAddBatch && (
-        <AttachBatchPanel
-          schoolId={school.id}
-          schoolName={school.name}
-          onClose={() => setShowAddBatch(false)}
-          onChanged={() => void load()}
+        {showAddBatch && (
+          <AttachBatchPanel
+            schoolId={school.id}
+            schoolName={school.name}
+            onClose={() => setShowAddBatch(false)}
+            onChanged={() => void load()}
+          />
+        )}
+
+        <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} canOpen={has(PERM.batches.view)} showStudentCounts={canViewStudents} />
+      </>}
+
+      {/* Roster identity and contacts have independent data grants. */}
+      {tab === "students" && <>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
+            Students{q ? ` · ${visibleStudents.length} match${visibleStudents.length === 1 ? "" : "es"}` : ""}
+          </h2>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 240px", justifyContent: "flex-end" }}>
+            <input
+              type="search"
+              value={studentQuery}
+              onChange={(e) => setStudentQuery(e.target.value)}
+              placeholder={canViewStudentContacts ? "Search name, roll number, email…" : "Search name or roll number…"}
+              aria-label="Search students"
+              style={{ ...inputStyle, maxWidth: "320px", padding: "8px 14px" }}
+            />
+            {canEditRoster && (
+              <button onClick={() => setShowAdd(true)} style={{ ...primaryButton, whiteSpace: "nowrap" }}>+ Add Students</button>
+            )}
+          </div>
+        </div>
+
+        {rosterError && (
+          <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
+        )}
+
+        <RosterTable
+          rows={visibleStudents}
+          emptyMessage={q ? "No students match this search." : "No students assigned to this school yet."}
+          {...tableProps}
         />
-      )}
-
-      {rosterError && (
-        <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
-      )}
-
-      {/* Batch accordion: ACTIVE batches hosted at this school, collapsed by
-          default — click a header to reveal its students. Members may belong
-          to other schools — those rows are display-only (no Remove). */}
-      {detail.batches.map((b) => (
-        <div key={b.id} style={{ marginBottom: "12px" }}>
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={expanded.has(b.id)}
-            onClick={() => toggleSection(b.id)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection(b.id); } }}
-            style={sectionHeaderStyle}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-              <span aria-hidden="true" style={{ fontSize: "12px", color: "#209379" }}>
-                {expanded.has(b.id) ? "▾" : "▸"}
-              </span>
-              <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>{b.name}</h3>
-              {b.programme_type && <span style={chipStyle}>{b.programme_type}</span>}
-              <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
-                {b.students.length} student{b.students.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <Link
-              href={withFrom(`/dashboard/batches/${b.id}`, currentUrl)}
-              onClick={(e) => e.stopPropagation()}
-              style={{ ...linkBtnStyle, textDecoration: "none" }}
-            >
-              View batch →
-            </Link>
-          </div>
-          {expanded.has(b.id) && (
-            <div style={{ marginTop: "8px" }}>
-              <RosterTable rows={b.students} emptyMessage="No students in this batch." {...tableProps} />
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* School-roster students not in any batch. With zero batches this holds
-          the whole roster, matching the old single-table behavior. */}
-      {detail.batches.length > 0 ? (
-        <div style={{ marginBottom: "24px" }}>
-          <div
-            role="button"
-            tabIndex={0}
-            aria-expanded={expanded.has("unbatched")}
-            onClick={() => toggleSection("unbatched")}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSection("unbatched"); } }}
-            style={sectionHeaderStyle}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <span aria-hidden="true" style={{ fontSize: "12px", color: "#209379" }}>
-                {expanded.has("unbatched") ? "▾" : "▸"}
-              </span>
-              <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>
-                Not in any batch
-              </h3>
-              <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
-                {unbatched.length} student{unbatched.length === 1 ? "" : "s"}
-              </span>
-            </div>
-          </div>
-          {expanded.has("unbatched") && (
-            <div style={{ marginTop: "8px" }}>
-              <RosterTable rows={unbatched} emptyMessage="All students are in batches." {...tableProps} />
-            </div>
-          )}
-        </div>
-      ) : (
-        <RosterTable rows={unbatched} emptyMessage="No students assigned to this school yet." {...tableProps} />
-      )}
+      </>}
 
       {/* Committed register attendance for this school — read-only; uploading
           still lives in the Attendance tab. */}
-      <div style={{ marginTop: "24px" }}>
-        <AttendancePanel schoolId={school.id} canView={canViewAttendance} />
-      </div>
+      {tab === "attendance" && (
+        <AttendancePanel schoolId={school.id} canView={canViewAttendance} defaultOpen />
+      )}
 
       {showAdd && (
         <AddStudentsPanel
@@ -350,6 +353,7 @@ function RosterTable({
   schoolStudentIds,
   emptyMessage,
   canEditRoster,
+  canViewStudentContacts,
   confirmRemoveId,
   removingId,
   onRemove,
@@ -360,6 +364,7 @@ function RosterTable({
   schoolStudentIds: Set<string>;
   emptyMessage: string;
   canEditRoster: boolean;
+  canViewStudentContacts: boolean;
   confirmRemoveId: string | null;
   removingId: string | null;
   onRemove: (studentId: string) => void;
@@ -373,7 +378,7 @@ function RosterTable({
           <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
             <th style={thStyle}>Name</th>
             <th style={thStyle}>Roll Number</th>
-            <th style={thStyle}>Email</th>
+            {canViewStudentContacts && <th style={thStyle}>Email</th>}
             <th style={thStyle}>Programme</th>
             {canEditRoster && <th style={thStyle} />}
           </tr>
@@ -381,15 +386,15 @@ function RosterTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={canEditRoster ? 5 : 4} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
+              <td colSpan={3 + Number(canEditRoster) + Number(canViewStudentContacts)} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
                 {emptyMessage}
               </td>
             </tr>
           ) : rows.map((st) => (
             <tr key={st.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-              <td style={tdStyle}>{st.name}</td>
+              <td style={tdStyle}><EntityLink href={`/dashboard/students/${st.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{st.name}</EntityLink></td>
               <td style={tdStyle}>{st.roll_number ?? "—"}</td>
-              <td style={tdStyle}>{st.email ?? "—"}</td>
+              {canViewStudentContacts && <td style={tdStyle}>{st.email ?? "—"}</td>}
               <td style={tdStyle}>{st.programme ?? "—"}</td>
               {canEditRoster && (
                 <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
@@ -427,7 +432,6 @@ function RosterTable({
 }
 
 const backLinkStyle: React.CSSProperties = { fontSize: "13px", fontWeight: 700, color: "#0abe62", textDecoration: "none" };
-const sectionHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "14px 18px", borderRadius: "14px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff", cursor: "pointer", userSelect: "none" };
 const chipStyle: React.CSSProperties = { display: "inline-block", padding: "4px 10px", borderRadius: "999px", background: "rgba(3,72,82,0.06)", fontSize: "12px", fontWeight: 600, color: "#034852" };
 const cardStyle: React.CSSProperties = { padding: "20px", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" };
 const cardLabelStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };

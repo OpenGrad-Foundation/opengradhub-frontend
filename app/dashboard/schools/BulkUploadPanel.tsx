@@ -5,11 +5,17 @@ import Papa from "papaparse";
 import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
 import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { ZONE } from "@/lib/labels";
 import { labelStyle, closeBtnStyle, formLabelStyle, inputStyle } from "./styles";
 
-const HEADERS = ["name", "district", "state", "code"] as const;
+// Mirrors SCHOOL_CSV_COLUMNS in the backend schools service. The three geo columns
+// are optional — they only enable school-visit verification for that school.
+const HEADERS = [
+  "name", "district", "state", "code", "latitude", "longitude", "verification_radius_m",
+] as const;
 const HEADER_LABELS: Record<string, string> = {
-  name: "Name", district: "District", state: "State", code: "Code",
+  name: "Name", district: ZONE, state: "State", code: "Code",
+  latitude: "Latitude", longitude: "Longitude", verification_radius_m: "Radius (m)",
 };
 
 function csvEscape(val: string): string {
@@ -63,7 +69,11 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
         if (parsed.errors?.length) { setParseError(parsed.errors[0].message || "Invalid CSV format."); return; }
         const data = (parsed.data ?? []).filter((r) => r && Object.keys(r).length > 0);
         setRows(data.map((r) => ({
-          name: r.name ?? "", district: r.district ?? "", state: r.state ?? "", code: r.code ?? "",
+          // "zone" is what the column is called on screen; older templates and the
+          // backend still say "district", so accept either spelling on the way in.
+          name: r.name ?? "", district: r.district ?? r.zone ?? "", state: r.state ?? "", code: r.code ?? "",
+          latitude: r.latitude ?? "", longitude: r.longitude ?? "",
+          verification_radius_m: r.verification_radius_m ?? "",
         })));
       } catch {
         setParseError("Failed to parse CSV. Please use the downloaded template.");
@@ -91,9 +101,10 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
     const errs: string[] = [];
     if (!r.name?.trim()) errs.push("Name");
     if (!r.state?.trim()) errs.push("State");
-    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push("District");
+    else if (normState(r.state) !== ALL_STATE && !r.district?.trim()) errs.push(ZONE);
     const c = (r.code ?? "").trim().toLowerCase();
     if (c && (codeCounts.get(c) ?? 0) > 1) errs.push("Duplicate code");
+    errs.push(...geoRowErrors(r));
     return errs;
   }
   const errsPerRow = rows.map(rowErrors);
@@ -106,7 +117,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       warns.push("Unknown state");
     } else if (st && di && !isValidDistrictForState(st, di)) {
       const label = STATES.find((s) => s.value === normState(st))?.label ?? st;
-      warns.push(`District not in ${label}`);
+      warns.push(`${ZONE} not in ${label}`);
     }
     return warns;
   }
@@ -220,7 +231,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                         const cellErr =
                           (col === "name" && !val.trim()) ||
                           (col === "state" && !val.trim()) ||
-                          (col === "district" && !val.trim() && !!row.state?.trim() && normState(row.state) !== ALL_STATE);
+                          (col === "district" && !val.trim() && !!row.state?.trim() && normState(row.state) !== ALL_STATE) ||
+                          geoCellInvalid(col, row);
                         const res = col === "state" ? resolved[idx].stateStatus
                                   : col === "district" ? resolved[idx].districtStatus : null;
                         if (res && res.status === "ambiguous" && res.candidates) {
@@ -310,3 +322,39 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
 
 const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" };
 const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap" };
+
+/**
+ * Optional visit-verification columns. Blank is normal and never an error; only a
+ * malformed value is. Mirrors the server rules so a typo is caught before upload.
+ */
+function geoRowErrors(r: Record<string, string>): string[] {
+  const errs: string[] = [];
+  const lat = (r.latitude ?? "").trim();
+  const lng = (r.longitude ?? "").trim();
+  const radius = (r.verification_radius_m ?? "").trim();
+
+  if ((lat === "") !== (lng === "")) {
+    errs.push("Latitude and longitude must both be set");
+  } else if (lat !== "") {
+    const latN = Number(lat);
+    const lngN = Number(lng);
+    if (!Number.isFinite(latN) || latN < -90 || latN > 90) errs.push("Latitude");
+    if (!Number.isFinite(lngN) || lngN < -180 || lngN > 180) errs.push("Longitude");
+  }
+  if (radius !== "") {
+    const n = Number(radius);
+    if (!Number.isInteger(n) || n < 25 || n > 5000) errs.push("Radius (25–5000 m)");
+  }
+  return errs;
+}
+
+/** Which specific geo cell is at fault, so the preview highlights only that one. */
+function geoCellInvalid(col: string, row: Record<string, string>): boolean {
+  const errs = geoRowErrors(row);
+  if (!errs.length) return false;
+  if (col === "verification_radius_m") return errs.some((e) => e.startsWith("Radius"));
+  if (col === "latitude" || col === "longitude") {
+    return errs.some((e) => e.startsWith("Latitude") || e.startsWith("Longitude"));
+  }
+  return false;
+}

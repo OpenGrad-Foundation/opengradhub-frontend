@@ -32,6 +32,7 @@ import {
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { Tabs, type TabDef } from "@/app/dashboard/_components/Tabs";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,9 @@ export default function BundleDetailPage() {
     setDeleting(true);
     try {
       await deleteBundle(bundleId);
-      invalidate('bundles');
+      // batch_bundles rows cascade away via FK — every batch that held this
+      // bundle loses it and its derived courses.
+      invalidate('bundles', 'batches');
       await queryClient.invalidateQueries({ queryKey: ["og", "bundles"] });
       router.push("/dashboard/bundles");
     } catch (e) {
@@ -111,6 +114,95 @@ export default function BundleDetailPage() {
     return <Shell><div style={glassCard}><p style={{ color: "#e53e3e", fontWeight: 600 }}>{globalError ?? "Bundle not found."}</p></div></Shell>;
   }
 
+  // Panels are declared up front so the conditional Settings tab stays typed;
+  // <Tabs> renders only the active one.
+  const tabs: TabDef[] = [
+    {
+      key: "courses",
+      label: "Courses",
+      panel: (
+        <Section
+          title="Courses in this Bundle"
+          action={
+            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
+              + Add Course
+            </button>
+          }
+        >
+          <CourseList
+            bundleId={bundleId}
+            courses={bundle.courses}
+            studentCount={bundle.enrolled_students.length}
+            onRemoved={() => { void reload(); }}
+            onReordered={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "students",
+      label: "Students",
+      panel: (
+        <Section
+          title="Students Enrolled"
+          action={
+            <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
+              + Assign to Student
+            </button>
+          }
+        >
+          <StudentTable
+            bundleId={bundleId}
+            students={bundle.enrolled_students}
+            onRemoved={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "quizzes",
+      label: "Quizzes",
+      panel: (
+        <Section
+          title="Quizzes in this Bundle"
+          action={
+            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
+              + Add Quiz
+            </button>
+          }
+        >
+          <TestList
+            bundleId={bundleId}
+            tests={bundle.tests}
+            onRemoved={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+  ];
+
+  if (has(PERM.bundles.delete)) {
+    tabs.push({
+      key: "settings",
+      label: "Settings",
+      panel: (
+        <Section title="Danger Zone">
+          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+            Deleting a bundle removes it and its course/quiz groupings, and drops it from
+            every batch that holds it. Students keep access to courses they were already
+            enrolled in. This cannot be undone.
+          </p>
+          <button onClick={handleDelete} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
+            {deleting ? "Deleting…" : "Delete Bundle"}
+          </button>
+        </Section>
+      ),
+    });
+  }
+
   return (
     <Shell>
       {/* ── Header ───────────────────────────────────────────── */}
@@ -130,70 +222,11 @@ export default function BundleDetailPage() {
             <Chip icon="📝" value={bundle.tests.length} label="quiz" />
           </div>
         </div>
-        {has(PERM.bundles.delete) && (
-          <button onClick={handleDelete} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? "Deleting…" : "Delete Bundle"}
-          </button>
-        )}
       </div>
 
       {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
-      {/* ── Section 1: Courses ───────────────────────────────── */}
-      <Section
-        title="Courses in this Bundle"
-        subtitle="Drag to reorder. Students enrolled in this bundle are automatically given access to all courses here."
-        action={
-          <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
-            + Add Course
-          </button>
-        }
-      >
-        <CourseList
-          bundleId={bundleId}
-          courses={bundle.courses}
-          studentCount={bundle.enrolled_students.length}
-          onRemoved={() => { void reload(); }}
-          onReordered={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 2: Students ──────────────────────────────── */}
-      <Section
-        title="Students Enrolled"
-        subtitle="All students enrolled in this bundle have access to every course listed above."
-        action={
-          <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
-            + Assign to Student
-          </button>
-        }
-      >
-        <StudentTable
-          bundleId={bundleId}
-          students={bundle.enrolled_students}
-          onRemoved={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 3: Tests ─────────────────────────────────── */}
-      <Section
-        title="Quizzes in this Bundle"
-        subtitle="Published global quizzes attached to this bundle. Enrolled students can see and take these from their Quizzes page."
-        action={
-          <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
-            + Add Quiz
-          </button>
-        }
-      >
-        <TestList
-          bundleId={bundleId}
-          tests={bundle.tests}
-          onRemoved={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
+      <Tabs tabs={tabs} ariaLabel="Bundle sections" />
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addCourseOpen && (
@@ -284,7 +317,9 @@ function CourseList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nStudents already enrolled will keep their individual course access.`)) return;
     try {
       await removeCourseFromBundle(bundleId, courseId);
-      invalidate('bundles');
+      // Enrolments survive by design, but batches reaching this course only via
+      // the bundle lose it from their derived course list.
+      invalidate('bundles', 'batches');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove course.");
@@ -495,7 +530,10 @@ function AddCourseModal({
         const result = await addCourseToBundle(bundleId, c.id);
         totalStudentsEnrolled += result.students_enrolled;
       }
-      invalidate('bundles');
+      // Back-end back-fills course_enrolments for every bundle subscriber and
+      // the course joins the derived course list of every batch holding this
+      // bundle — so the student/course views and batch views both go stale.
+      invalidate('bundles', 'enrolment', 'batches');
       const noun = courseList.length === 1 ? `"${courseList[0].title}"` : `${courseList.length} courses`;
       const msg = totalStudentsEnrolled > 0
         ? `${noun} added and ${totalStudentsEnrolled} student${totalStudentsEnrolled !== 1 ? "s" : ""} enrolled.`
@@ -733,7 +771,7 @@ function TestList({
     if (!confirm(`Remove "${title}" from this bundle?\n\nExisting student attempts are not affected.`)) return;
     try {
       await removeTestFromBundle(bundleId, quizId);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onRemoved();
     } catch (e) {
       setGlobalError(e instanceof Error ? e.message : "Failed to remove quiz.");
@@ -840,7 +878,7 @@ function AddTestModal({
     setError(null);
     try {
       await addTestToBundle(bundleId, selected.id);
-      invalidate('bundles');
+      invalidate('bundles', 'quizzes');
       onAdded(`"${selected.title}" added to bundle.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add quiz.");
@@ -913,18 +951,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
 }
 
-function Section({ title, subtitle, action, children }: {
-  title: string; subtitle?: string; action?: React.ReactNode; children: React.ReactNode;
+function Section({ title, action, children }: {
+  title: string; action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
     <div style={{ ...glassCard, marginBottom: "24px" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: subtitle ? "4px" : "20px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "20px" }}>
         <h2 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h2>
         {action}
       </div>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: "0 0 18px" }}>{subtitle}</p>
-      )}
       {children}
     </div>
   );

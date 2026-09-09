@@ -1,16 +1,21 @@
 "use client";
 
 /**
- * Attendance tab — permission-switched:
- *  - attendance.view (staff): Live Classes links | Registers | Overview tabs
- *  - attendance.view_own (students): personal stats view
+ * Attendance — permission-switched.
+ *
+ *  staff   (attendance.view)     Records | School confirmations | Registers
+ *  student (attendance.view_own) their own attendance
+ *
+ * "Records" is first and default because it is the answer to the question the
+ * module exists for: was this student present? The other two tabs are the ways
+ * data gets IN — a whole-school confirmation, and a paper register.
  */
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { Tabs } from "../_components/Tabs";
-import { LinksTab } from "./_components/LinksTab";
+import { RecordsTab } from "./_components/RecordsTab";
+import { SchoolConfirmationsTab } from "./_components/SchoolConfirmationsTab";
 import { RegistersTab } from "./_components/RegistersTab";
-import { OverviewTab } from "./_components/OverviewTab";
 import { StudentView } from "./_components/StudentView";
 
 export default function AttendancePage() {
@@ -46,6 +51,9 @@ export default function AttendancePage() {
   }
 
   const canManage = has(PERM.attendance.manage);
+  const canViewStudents = has(PERM.students.view);
+  const canViewClasses = has(PERM.live_classes.view);
+  const canChooseSchools = has(PERM.schools.view) || has(PERM.user_management.create);
 
   return (
     <div className="p-4 sm:p-6">
@@ -55,17 +63,14 @@ export default function AttendancePage() {
       >
         Attendance
       </h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Per-school live-class links and paper register uploads.
-      </p>
 
       <div className="mt-4">
         <Tabs
           ariaLabel="Attendance tabs"
           tabs={[
-            { key: "links", label: "Live Classes", panel: <LinksTab canManage={canManage} /> },
-            { key: "registers", label: "Registers", panel: <RegistersTab canManage={canManage} /> },
-            { key: "overview", label: "Overview", panel: <OverviewTab /> },
+            { key: "records", label: "Records", panel: canViewStudents ? <RecordsTab /> : <p>View Students permission is required to read attendance records.</p> },
+            { key: "confirmations", label: "School confirmations", panel: canViewClasses ? <SchoolConfirmationsTab canManage={canManage} /> : <p>View Live Classes permission is required to open school confirmations.</p> },
+            { key: "registers", label: "Registers", panel: !canViewStudents ? <p>View Students permission is required to use registers.</p> : canManage && !canChooseSchools ? <p>View Schools permission is required to choose a register school.</p> : <RegistersTab canManage={canManage} /> },
           ]}
         />
       </div>

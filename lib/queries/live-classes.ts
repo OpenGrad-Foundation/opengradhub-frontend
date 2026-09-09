@@ -1,15 +1,20 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getLiveClasses, getNextLiveClass, getLiveClassAttendees } from '../api';
-import { getLiveClassRoster, getAttendanceSummary, getStudentAttendance } from '../api-attendance';
+import { getLiveClasses, getNextLiveClass, getAudiencePreview, type LiveClassFilters } from '../api';
 import { qk } from './keys';
 
 /** Layer 4 — Tier 2 live-class hooks. Memory-only. */
-export function useLiveClasses() {
+
+/**
+ * `filters` is optional and a bare call fetches the unfiltered list — which is
+ * what the School confirmations tab and the class edit page need, since both
+ * work over past and archived classes.
+ */
+export function useLiveClasses(filters?: LiveClassFilters) {
   return useQuery({
-    queryKey: qk.liveClasses(),
-    queryFn: () => getLiveClasses(),
+    queryKey: qk.liveClasses(filters as Record<string, unknown> | undefined),
+    queryFn: () => getLiveClasses(filters),
     staleTime: 2 * 60_000,
   });
 }
@@ -23,41 +28,21 @@ export function useNextLiveClass(studentId: string) {
   });
 }
 
-export function useLiveClassAttendees(id: string) {
-  return useQuery({
-    queryKey: qk.liveClassAttendees(id),
-    queryFn: () => getLiveClassAttendees(id),
-    enabled: !!id,
-    staleTime: 60_000,
-  });
-}
-
-export function useLiveClassRoster(id: string, enabled = true) {
-  return useQuery({
-    queryKey: qk.liveClassRoster(id),
-    queryFn: () => getLiveClassRoster(id),
-    enabled: !!id && enabled,
-    staleTime: 30_000,
-  });
-}
-
-export function useAttendanceSummary(params: {
-  course_id?: string; batch_id?: string; from?: string; to?: string; page?: number; limit?: number;
+/**
+ * Audience size for a prospective class target. Debounced by the caller's own
+ * state; `placeholderData` keeps the previous count on screen while a new one
+ * loads, so the line does not flicker between every keystroke.
+ */
+export function useAudiencePreview(t: {
+  course_id?: string;
+  batch_ids?: string[];
 }) {
-  const enabled = !!params.course_id || !!params.batch_id;
+  const enabled = !!t.course_id || !!t.batch_ids?.length;
   return useQuery({
-    queryKey: qk.liveClassAttendanceSummary(params),
-    queryFn: () => getAttendanceSummary(params),
+    queryKey: qk.liveClassAudiencePreview(t as Record<string, unknown>),
+    queryFn: () => getAudiencePreview(t),
     enabled,
-    staleTime: 60_000,
-  });
-}
-
-export function useStudentAttendance(studentId: string) {
-  return useQuery({
-    queryKey: qk.studentAttendance(studentId),
-    queryFn: () => getStudentAttendance(studentId),
-    enabled: !!studentId,
-    staleTime: 60_000,
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
   });
 }

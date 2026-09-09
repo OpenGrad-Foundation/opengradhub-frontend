@@ -12,6 +12,7 @@ import {
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
+import { IN_CHARGE } from "@/lib/labels";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
   { code: "SUPER_ADMIN",      label: "Super Admin" },
   { code: "PROGRAM_MANAGER",  label: "Program Manager" },
   { code: "ZONAL_MANAGER",    label: "Zonal Manager" },
-  { code: "FELLOW",           label: "Fellow" },
+  { code: "FELLOW",           label: IN_CHARGE },
   { code: "STUDENT",          label: "Student" },
   { code: "GOVERNMENT",       label: "Government" },
   { code: "FUNDING_PARTNER",  label: "Funding Partner" },

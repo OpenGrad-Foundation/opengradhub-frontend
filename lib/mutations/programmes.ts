@@ -10,32 +10,17 @@ import {
   detachProgrammeSchool,
   releaseProgrammeContent,
   removeProgrammeMember,
-  setProgrammeMember,
+  addProgrammeMember,
   updateProgramme,
   type ProgrammeContentKind,
-  type ProgrammeLevel,
 } from '../api';
-import { qk } from '../queries/keys';
+import { DOMAIN_KEYS } from './invalidation';
 
-/**
- * Programme container writes.
- *
- * Membership and school writes stay inside the programme key family: they
- * change who administers a programme, which no other view renders.
- *
- * CONTENT writes do not, and this is the case the original note predicted.
- * Moving a course into a programme changes `can_manage` on the courses list for
- * every member of that programme, so the content mutations invalidate the
- * course and assignment families too. Without that, an EDITOR who was just
- * granted a course keeps seeing it read-only until their cache happens to
- * expire.
- */
-
+/** Programme changes can alter reach, ownership and administrative access. */
 function useProgrammeInvalidation() {
   const qc = useQueryClient();
-  return (id?: string) => {
-    void qc.invalidateQueries({ queryKey: ['og', 'programmes'] });
-    if (id) void qc.invalidateQueries({ queryKey: qk.programme(id) });
+  return (_id?: string) => {
+    for (const queryKey of DOMAIN_KEYS.programmes) void qc.invalidateQueries({ queryKey });
   };
 }
 
@@ -56,11 +41,11 @@ export function useUpdateProgramme() {
   });
 }
 
-export function useSetProgrammeMember() {
+export function useAddProgrammeMember() {
   const invalidate = useProgrammeInvalidation();
   return useMutation({
-    mutationFn: (args: { id: string; userId: string; level: ProgrammeLevel }) =>
-      setProgrammeMember(args.id, args.userId, args.level),
+    mutationFn: (args: { id: string; userId: string }) =>
+      addProgrammeMember(args.id, args.userId),
     onSuccess: (_d, args) => invalidate(args.id),
   });
 }
@@ -92,23 +77,8 @@ export function useDetachProgrammeSchool() {
   });
 }
 
-/**
- * Content assignment reaches outside the programme family — see the note above.
- * `qk.courses` is parameterised by filters, so invalidate the whole prefix
- * rather than guessing which filter combination is mounted.
- */
 function useProgrammeContentInvalidation() {
-  const qc = useQueryClient();
-  return (id: string) => {
-    void qc.invalidateQueries({ queryKey: qk.programme(id) });
-    void qc.invalidateQueries({ queryKey: ['og', 'courses'] });
-    void qc.invalidateQueries({ queryKey: ['og', 'course'] });
-    void qc.invalidateQueries({ queryKey: qk.assignments() });
-    // Resources became a content kind in 095. Assigning one changes who may
-    // edit it, which the resources list reports per row as can_edit, so that
-    // list goes stale on assign and release exactly as courses do.
-    void qc.invalidateQueries({ queryKey: ['og', 'resources'] });
-  };
+  return useProgrammeInvalidation();
 }
 
 export function useAssignProgrammeContent() {

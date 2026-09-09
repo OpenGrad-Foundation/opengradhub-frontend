@@ -6,6 +6,8 @@
 // human label and href — keyed by the DB `modules.code`. There is no role→module
 // table here any more; that lived in the old RBAC world.
 
+import { TRACKER_NAME, PARTNER_TRACKER_NAME } from "./labels";
+
 export type RoleCode =
   | "SUPER_ADMIN"
   | "PROGRAM_MANAGER"
@@ -33,13 +35,14 @@ export type ModuleKey =
   | "analytics"
   | "reports"
   | "student_export"
+  | "students"
   | "user_management"
   | "role_management"
-  | "bulk_assign"
   | "programmes"
   | "schools"
   | "batches"
   | "tracker"
+  | "shared_tracker"
   | "attendance";
 
 export type ModuleMeta = { label: string; href: string };
@@ -59,31 +62,101 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   analytics:        { label: "Analytics",       href: "/dashboard/analytics" },
   reports:          { label: "Reports",         href: "/dashboard/reports" },
   student_export:   { label: "Student Export",  href: "/dashboard/student-export" },
+  students:         { label: "Students",        href: "/dashboard/students" },
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
-  bulk_assign:      { label: "Bulk Assign",     href: "/dashboard/bulk-manage" },
   programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
-  tracker:          { label: "Tracker",         href: "/dashboard/tracker" },
+  tracker:          { label: TRACKER_NAME,      href: "/dashboard/tracker" },
+  // Its own module, not a view of the tracker's. The nav is built from effective
+  // MODULES, so filing the partner permission under `tracker` would have pointed
+  // a funding official at /dashboard/tracker — the internal page their
+  // permissions refuse. Same label now, different href: one module, one link,
+  // somewhere they can actually read.
+  shared_tracker:   { label: PARTNER_TRACKER_NAME, href: "/dashboard/shared-tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 
-// Module keys that nest under the collapsible "LMS Tools" sidebar group.
-// Order within the group still follows MODULE_ORDER (MODULE_META declaration order).
-// Presentation-only: the *set* of granted modules still comes from the backend.
-export const LMS_GROUP_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
-  "courses",
-  "bundles",
-  "assessments",   // "Quizzes"
-  "test_bank",     // "Question Bank"
-  "assignments",
-  "live_classes",
-  "calendar",
-  "resources",
-  "doubts",
-  "analytics",
-  "reports",
-  "student_export",
-  "batches",
+/**
+ * Modules that exist in the codebase but are deliberately NOT exposed yet.
+ *
+ * The attendance registers / OMR feature rode along with the FellowTracker
+ * release because its commits are interleaved with the tracker ones below the
+ * programme cut, not because it was ready to show. Hiding it here — rather than
+ * ripping the code out of a branch that is already deployed — keeps the change
+ * small and reversible: delete the key to turn the module back on.
+ *
+ * This is presentation only. The backend still grants the module and its routes
+ * still answer, so anyone holding a direct URL or a token can reach it. It is a
+ * "not finished, don't show it" switch, NOT an access control.
+ *
+ * Note the live-class attendance marking inside Live Classes is a different
+ * feature and is intentionally untouched.
+ */
+export const HIDDEN_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>([
+  "attendance",
 ]);
+
+// ── Collapsible sidebar groups ──────────────────────────────────────────────
+//
+// Module keys that nest under a collapsible sidebar group instead of sitting
+// flat in the rail. Order *within* a group still follows MODULE_ORDER
+// (MODULE_META declaration order); the groups themselves render in the order
+// declared here, after the pinned Dashboard and before the flat remainder.
+//
+// Presentation-only: the *set* of granted modules still comes from the backend,
+// so listing a key here never grants it. A group whose members are all ungranted
+// renders nothing at all.
+//
+// A key must appear in at most one group.
+
+export type NavGroupKey = "lms" | "management";
+
+export type NavGroup = {
+  key: NavGroupKey;
+  label: string;
+  /** localStorage key holding this group's persisted open/closed state. */
+  storageKey: string;
+  members: ReadonlySet<ModuleKey>;
+};
+
+export const NAV_GROUPS: readonly NavGroup[] = [
+  {
+    key: "lms",
+    label: "LMS",
+    storageKey: "sidebar.lms.open",
+    members: new Set<ModuleKey>([
+      "courses",
+      "bundles",
+      "assessments",   // "Quizzes"
+      "test_bank",     // "Question Bank"
+      "assignments",
+      "live_classes",
+      "calendar",
+      "resources",
+      "doubts",
+      "analytics",
+      "reports",
+      "student_export",
+    ]),
+  },
+  {
+    key: "management",
+    label: "Management",
+    storageKey: "sidebar.management.open",
+    members: new Set<ModuleKey>([
+      "students",
+      "user_management",
+      "role_management",
+      "programmes",
+      "schools",
+      "batches",
+    ]),
+  },
+];
+
+// Every key claimed by some group — used to compute the flat remainder.
+export const GROUPED_MODULE_KEYS: ReadonlySet<ModuleKey> = new Set<ModuleKey>(
+  NAV_GROUPS.flatMap((g) => [...g.members]),
+);

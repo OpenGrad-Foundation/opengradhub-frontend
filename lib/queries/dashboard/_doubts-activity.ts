@@ -6,7 +6,15 @@ import { apiFetch } from "@/lib/api";
 import type { FeedRow } from "@/lib/queries/dashboard/_shared";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-const FIVE_MIN = 5 * 60_000;
+// Thirty seconds, and refetch on focus.
+//
+// This feed used to be a convenience: a ZM or PM learned about a doubt from a
+// DOUBT_ESCALATED notification, and the dashboard was where they went next. That
+// notification is gone with the escalation ladder, and the same people now see
+// every doubt in their chain the moment it is asked — so this list IS the
+// signal, and a five-minute stale window with no refetch on focus meant sitting
+// on a tab that quietly stopped being true.
+const THIRTY_SEC = 30_000;
 
 type Role = "FELLOW" | "PROGRAM_MANAGER" | "ZONAL_MANAGER" | "SUPER_ADMIN";
 
@@ -21,18 +29,18 @@ type DoubtRow = {
 type AnnouncementRow = { id: string; title: string; created_at: string };
 
 /**
- * Activity feed merging the caller's role-scoped doubts (GET /doubts already
- * scopes: fellows see their schools, ZM/PM see doubts escalated to them,
- * super-admin sees all) with role-targeted announcements. Sorted newest-first,
- * capped at 20. Used by the FELLOW / PROGRAM_MANAGER / ZONAL_MANAGER /
- * SUPER_ADMIN activity tabs.
+ * Activity feed merging the caller's scoped doubts (GET /doubts scopes them:
+ * the author, a seated member of the doubt's programme, the in-charge of the
+ * school it was asked in and their manager chain, and unrestricted) with
+ * role-targeted announcements. Sorted newest-first, capped at 20. Used by the
+ * FELLOW / PROGRAM_MANAGER / ZONAL_MANAGER / SUPER_ADMIN activity tabs.
  */
 export function useDoubtsActivity(role: Role, userId: string) {
   const query = useQuery<FeedRow[], Error>({
     queryKey: qk.dashboardWidget(role, "activity", userId),
     enabled: !!userId,
-    staleTime: FIVE_MIN,
-    refetchOnWindowFocus: false,
+    staleTime: THIRTY_SEC,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const [doubtsRes, annRes] = await Promise.all([
         apiFetch(`${API_BASE}/doubts`),

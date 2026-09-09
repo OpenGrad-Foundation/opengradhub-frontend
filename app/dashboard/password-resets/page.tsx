@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { EntityLink } from "../programmes/_components/entity-link";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import {
   getPasswordResetRequests,
   approvePasswordResetRequest,
@@ -23,23 +24,27 @@ export default function PasswordResetsPage() {
   const [newPassword, setNewPassword] = useState("");
 
   const isAuthLoading = userLoading || permissionsLoading;
-  const canView = has(PERM.password_resets.view);
-  const canManage = has(PERM.password_resets.manage);
-
-  const load = useCallback(() => {
-    setLoading(true);
-    getPasswordResetRequests()
-      .then(setRequests)
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load."))
-      .finally(() => setLoading(false));
-  }, []);
+  const canView = has(PERM.password_resets.view) && has(PERM.students.view);
+  const canManage = canView && has(PERM.password_resets.manage);
 
   useEffect(() => {
+    setRequests([]);
+    setNotice(null);
+    setError(null);
+    setApprovingId(null);
+    setNewPassword("");
     if (isAuthLoading || !canView) return;
-    load();
-  }, [isAuthLoading, canView, load]);
+    let cancelled = false;
+    setLoading(true);
+    getPasswordResetRequests()
+      .then((rows) => { if (!cancelled) setRequests(rows); })
+      .catch((err) => { if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [isAuthLoading, canView]);
 
   async function handle(action: "approve" | "reject", req: PasswordResetRequest) {
+    if (!canManage) return;
     setActionId(req.id);
     setError(null);
     setNotice(null);
@@ -75,11 +80,6 @@ export default function PasswordResetsPage() {
   return (
     <div className="p-6 sm:p-8 max-w-3xl">
       <h1 className="text-xl font-bold mb-1">Password Reset Requests</h1>
-      <p className="text-sm text-black/60 mb-6">
-        Students who forgot their password and verified their roll number and date of
-        birth. Approve a request by setting a new password for the student, then share
-        it with them offline.
-      </p>
 
       {notice && (
         <p role="status" className="mb-4 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
@@ -105,7 +105,7 @@ export default function PasswordResetsPage() {
             >
               <div>
                 <p className="text-sm font-semibold text-zinc-900">
-                  {req.student_name}{" "}
+                  <EntityLink href={`/dashboard/students/${req.user_id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{req.student_name}</EntityLink>{" "}
                   <span className="font-normal text-zinc-500">({req.roll_number})</span>
                 </p>
                 <p className="text-xs text-zinc-500">

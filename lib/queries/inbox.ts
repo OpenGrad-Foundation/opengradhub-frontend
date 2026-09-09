@@ -58,6 +58,16 @@ export function useInboxFeed(opts: { role: string }) {
     items,
     isLoading: a.isLoading || n.isLoading,
     isError: a.isError || n.isError,
+    /**
+     * Both halves of the feed have resolved at least once. The toast baseline MUST NOT be taken before this: the two
+     * queries settle at different times, and a baseline captured from whichever
+     * arrived first makes the other one's backlog look brand new.
+     *
+     * Announcements are `enabled: !!role`, so this stays false until the current
+     * user's role is known — deliberately. A disabled query has fetched nothing,
+     * and treating "disabled" as "settled" reintroduces the exact race.
+     */
+    isSettled: a.isFetched && n.isFetched,
   };
 }
 

@@ -42,6 +42,11 @@ export const qk = {
   analyticsSchools: () => ['og', 'analytics', 'schools'] as const,
   analyticsStudents: (filters: Record<string, unknown>) =>
     ['og', 'analytics', 'students', filters] as const,
+  studentProfile: (studentId: string) =>
+    ['og', 'student', studentId, 'profile'] as const,
+  studentsDirectory: (params: Record<string, unknown>) =>
+    ['og', 'students', 'directory', params] as const,
+  studentFacets: () => ['og', 'students', 'facets'] as const,
   topicStrength: (studentId: string) =>
     ['og', 'student', studentId, 'topics'] as const,
   quizAttempts: (quizId: string, studentId?: string) =>
@@ -54,20 +59,18 @@ export const qk = {
   bundles: (studentId?: string) => ['og', 'bundles', studentId ?? 'all'] as const,
   batches: (status?: string) => ['og', 'batches', status ?? 'ACTIVE'] as const,
   batch: (id: string) => ['og', 'batches', 'detail', id] as const,
-  liveClasses: () => ['og', 'live-classes'] as const,
+  /**
+   * `filters` keeps a filtered staff list from colliding with the bare list the
+   * School confirmations tab and the class edit page still fetch.
+   */
+  liveClasses: (filters?: Record<string, unknown>) =>
+    ['og', 'live-classes', filters ?? {}] as const,
   nextLiveClass: (studentId: string) =>
     ['og', 'live-classes', 'next', studentId] as const,
-  liveClassAttendees: (id: string) =>
-    ['og', 'live-classes', id, 'attendees'] as const,
   liveClassRoster: (id: string) =>
     ['og', 'live-classes', id, 'roster'] as const,
-  // Live-class attendance summary. Distinct from `attendanceSummary` below,
-  // which is the register/attendance-module summary — different feature, and
-  // the two collided on this name when the branches merged.
-  liveClassAttendanceSummary: (filters: Record<string, unknown>) =>
-    ['og', 'live-classes', 'attendance-summary', filters] as const,
-  studentAttendance: (studentId: string) =>
-    ['og', 'live-classes', 'student-attendance', studentId] as const,
+  liveClassAudiencePreview: (target: Record<string, unknown>) =>
+    ['og', 'live-classes', 'audience-preview', target] as const,
   assignments: () => ['og', 'assignments'] as const,
   submissionQueue: (filters: Record<string, unknown>) =>
     ['og', 'assignments', 'submission-queue', filters] as const,
@@ -82,7 +85,11 @@ export const qk = {
     ['og', 'attendance', 'links', classId] as const,
   attendanceRegister: (id: string) =>
     ['og', 'attendance', 'register', id] as const,
-  attendanceSummary: () => ['og', 'attendance', 'summary'] as const,
+  /** The canonical report. Under 'attendance' so any write busts it. */
+  attendanceRecords: (filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'records', filters] as const,
+  attendanceStudentRecords: (studentId: string, filters: Record<string, unknown>) =>
+    ['og', 'attendance', 'records', 'student', studentId, filters] as const,
   attendanceMe: () => ['og', 'attendance', 'me'] as const,
   attendanceSheet: (schoolId: string, month: string) =>
     ['og', 'attendance', 'sheet', schoolId, month] as const,
@@ -108,9 +115,28 @@ export const qk = {
   trackerBlockersMine: () => ['og', 'tracker', 'blockers', 'mine'] as const,
   trackerBlockersQueue: () => ['og', 'tracker', 'blockers', 'queue'] as const,
   trackerAssignable: (targetType: string) => ['og', 'tracker', 'assignable', targetType] as const,
+  trackerMyProgrammes: () => ['og', 'tracker', 'my-programmes'] as const,
+  partnerTasks: (q: string) => ['og', 'tracker', 'partner', 'tasks', q] as const,
+  partnerFacets: () => ['og', 'tracker', 'partner', 'facets'] as const,
+  partnerBreakdown: (id: string, q: string) => ['og', 'tracker', 'partner', 'breakdown', id, q] as const,
+  partnerRecords: (id: string, q: string) => ['og', 'tracker', 'partner', 'records', id, q] as const,
+  partnerProofs: (id: string) => ['og', 'tracker', 'partner', 'proofs', id] as const,
   trackerMyTasks: () => ['og', 'tracker', 'my-tasks'] as const,
   trackerRecordHistory: (recordId: string) => ['og', 'tracker', 'history', 'record', recordId] as const,
   trackerProofs: (recordId: string) => ['og', 'tracker', 'proofs', recordId] as const,
+  /** Shared school-visit verifications for a task's period (not per record). */
+  trackerGeo: (templateId: string, periodKey: string) =>
+    ['og', 'tracker', 'geo', templateId, periodKey] as const,
+  /** The shared verification a single row consumes, for its History drawer. */
+  trackerExtensions: (recordId: string) => ['og', 'tracker', 'extensions', recordId] as const,
+  trackerRecordGeo: (recordId: string) => ['og', 'tracker', 'geo-record', recordId] as const,
+  /** Every tracker row recorded about one student, for their profile page. */
+  trackerStudentTasks: (studentId: string) => ['og', 'tracker', 'student-tasks', studentId] as const,
+  /** One page of a recurring task's earlier periods; cursor is part of the key.
+   *  `scope` separates the tracker route from the student-profile route — same
+   *  payload, but different authorisation, so they must not share a cache entry. */
+  trackerPeriods: (recordId: string, before: string, scope = 'record') =>
+    ['og', 'tracker', 'periods', scope, recordId, before] as const,
   trackerTemplateHistory: (templateId: string) => ['og', 'tracker', 'history', 'template', templateId] as const,
   trackerBlockerThread: (blockerId: string) => ['og', 'tracker', 'blocker-thread', blockerId] as const,
   trackerOverview: () => ['og', 'tracker', 'overview'] as const,
@@ -118,8 +144,10 @@ export const qk = {
   trackerFellowTasks: (fellowId: string) => ['og', 'tracker', 'fellow-tasks', fellowId] as const,
   trackerAllTasks: (f: Record<string, unknown>) => ['og', 'tracker', 'all-tasks', f] as const,
   trackerTaskSummary: (f: Record<string, unknown>) => ['og', 'tracker', 'task-summary', f] as const,
-  trackerTaskBreakdown: (templateId: string, level: string, parentId: string, q: string, page: number) =>
-    ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, page] as const,
+  trackerTaskBreakdown: (
+    templateId: string, level: string, parentId: string, q: string, status: string, page: number,
+  ) => ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, status, page] as const,
+  trackerFacets: () => ['og', 'tracker', 'facets'] as const,
   trackerZms: () => ['og', 'tracker', 'zms'] as const,
   trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
   trackerFellowSchools: (fellowId: string) => ['og', 'tracker', 'fellow-schools', fellowId] as const,
@@ -134,6 +162,8 @@ export const qk = {
   programme: (id: string) => ['og', 'programme', id] as const,
   programmeMembers: (id: string) => ['og', 'programme', id, 'members'] as const,
   programmeEligibleMembers: (id: string) => ['og', 'programme', id, 'eligible-members'] as const,
+  programmeOverview: (id: string) => ['og', 'programme', id, 'overview'] as const,
+  programmeStudents: (id: string) => ['og', 'programme', id, 'students'] as const,
   programmeSchools: (id: string) => ['og', 'programme', id, 'schools'] as const,
   programmeContent: (id: string) => ['og', 'programme', id, 'content'] as const,
   programmeBatches: (id: string) => ['og', 'programme', id, 'batches'] as const,

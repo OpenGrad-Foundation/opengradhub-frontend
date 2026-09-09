@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { EntityLink } from "../../programmes/_components/entity-link";
+import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { InsightsResponse } from "@/lib/api";
-import { withFrom } from "@/lib/nav";
-import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 const card: React.CSSProperties = {
   background: "#ffffff",
@@ -29,7 +28,6 @@ function timeAgo(iso: string | null): string {
 export function NeedsAttention({
   data,
 }: { data: NonNullable<InsightsResponse["needs_attention"]> }) {
-  const currentUrl = useCurrentUrl();
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 300px), 1fr))", gap: "16px" }}>
       <div style={card}>
@@ -40,15 +38,15 @@ export function NeedsAttention({
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {data.at_risk_students.map((s) => (
               <li key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-                <Link
-                  href={`/dashboard/users/${s.id}` as any}
+                <EntityLink
+                  href={`/dashboard/students/${s.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}
                   style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{s.name}</span>
                   <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)" }}>
                     {s.completion_pct}% · {s.avg_score ?? "—"}% · {timeAgo(s.last_activity_at)}
                   </span>
-                </Link>
+                </EntityLink>
               </li>
             ))}
           </ul>
@@ -63,15 +61,15 @@ export function NeedsAttention({
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {data.worst_quizzes.map((q) => (
               <li key={q.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
-                <Link
-                  href={withFrom(`/dashboard/quiz/${q.id}/leaderboard`, currentUrl) as any}
+                <EntityLink
+                  href={`/dashboard/quiz/${q.id}/leaderboard`} permissions={[PERM.assessments.view]} requiredPermissions={[PERM.students.view]}
                   style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{q.title}</span>
                   <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)" }}>
                     {q.avg_score}% · {q.attempts} attempts
                   </span>
-                </Link>
+                </EntityLink>
               </li>
             ))}
           </ul>

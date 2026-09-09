@@ -10,6 +10,9 @@ import {
   getProgrammeContent,
   getProgrammeMembers,
   getProgrammeSchools,
+  getProgrammeOverview,
+  getProgrammeStudents,
+  type ProgrammeStudentQuery,
   getProgrammes,
   type ProgrammeContentKind,
 } from '../api';
@@ -28,10 +31,11 @@ import { qk } from './keys';
  * immediately look at the list you just changed.
  */
 
-export function useProgrammes(includeArchived = false) {
+export function useProgrammes(includeArchived = false, enabled = true) {
   return useQuery({
     queryKey: qk.programmes(includeArchived),
     queryFn: () => getProgrammes(includeArchived),
+    enabled,
     staleTime: 60_000,
   });
 }
@@ -51,6 +55,39 @@ export function useProgrammeMembers(id: string | undefined) {
     queryFn: () => getProgrammeMembers(id as string),
     enabled: Boolean(id),
     staleTime: 30_000,
+  });
+}
+
+/** Hub Analytics tab. Lazily enabled so the counts are not fetched unread. */
+export function useProgrammeOverview(id: string | undefined, enabled = true) {
+  return useQuery({
+    queryKey: qk.programmeOverview(id ?? ''),
+    queryFn: () => getProgrammeOverview(id as string),
+    enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * The programme's student roster. Lazily enabled by the hub so opening the page
+ * does not fetch a roster nobody looked at.
+ */
+export function useProgrammeStudents(
+  id: string | undefined,
+  enabled = true,
+  query: ProgrammeStudentQuery = {},
+) {
+  return useQuery({
+    // The filters are part of the key: server-side filtering means each
+    // combination is a different response, and sharing one key would serve a
+    // filtered roster as the unfiltered one.
+    queryKey: [...qk.programmeStudents(id ?? ''), query],
+    queryFn: () => getProgrammeStudents(id as string, query),
+    enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+    // Keeps the previous page on screen while a keystroke's query is in flight,
+    // instead of blanking the table on every character typed.
+    placeholderData: (prev) => prev,
   });
 }
 

@@ -3,9 +3,10 @@ import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import type { BulkParseJobStatus, ParsedBulkQuiz } from '@/lib/api';
 
 const push = vi.fn();
+let searchParams = '';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push, back: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(searchParams),
 }));
 
 const bulkParseQuiz = vi.fn();
@@ -75,6 +76,7 @@ async function tickPoll() {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  searchParams = '';
   push.mockClear();
   bulkParseQuiz.mockResolvedValue(QUIZ);
   bulkSaveQuiz.mockResolvedValue({ jobId: 'job-1' });
@@ -87,7 +89,7 @@ afterEach(() => {
 });
 
 describe('bulk import save', () => {
-  it('waits for the save job to complete, then opens the new quiz in the builder', async () => {
+  it('waits for the save job to complete, then returns to the list it came from', async () => {
     getBulkParseJobStatus
       .mockResolvedValueOnce(jobStatus('active'))
       .mockResolvedValueOnce(jobStatus('active'))
@@ -101,13 +103,22 @@ describe('bulk import save', () => {
     expect(push).not.toHaveBeenCalled();
 
     await tickPoll();
-    expect(push).toHaveBeenCalledWith(
-      `/dashboard/quiz-builder/quiz-9?from=${encodeURIComponent('/dashboard/test-bank?uploadJobId=job-1')}`,
-    );
+    expect(push).toHaveBeenCalledWith('/dashboard/test-bank?uploadJobId=job-1');
   });
 
-  it('falls back to the test bank when the job reports no quiz id', async () => {
-    getBulkParseJobStatus.mockResolvedValue(jobStatus('completed'));
+  it('returns to the page named by ?from= when there is one', async () => {
+    searchParams = 'from=%2Fdashboard%2Fcourse-management%2Fc1%3Ftab%3Dcurriculum';
+    getBulkParseJobStatus.mockResolvedValue(COMPLETED);
+
+    await parseThenSave();
+    await tickPoll();
+
+    expect(push).toHaveBeenCalledWith('/dashboard/course-management/c1?tab=curriculum');
+  });
+
+  it('ignores an off-site ?from= and falls back to the test bank', async () => {
+    searchParams = 'from=https%3A%2F%2Fevil.example.com';
+    getBulkParseJobStatus.mockResolvedValue(COMPLETED);
 
     await parseThenSave();
     await tickPoll();

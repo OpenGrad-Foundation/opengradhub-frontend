@@ -1,4 +1,5 @@
 "use client";
+import { ZONE_LOWER } from "@/lib/labels";
 
 /**
  * Stream 2 staff view: printable sheet, then upload → preview → commit.
@@ -106,7 +107,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
   if (!canManage) {
     return (
       <p className="text-sm text-slate-500">
-        You can view attendance totals in the Overview tab. Uploading a register needs the
+        You can view attendance in the Records tab. Uploading a register needs the
         attendance manage permission.
       </p>
     );
@@ -135,14 +136,9 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
               value={schoolId}
               onChange={setSchoolId}
               disabled={schoolsLoading}
-              placeholder={schoolsLoading ? "Loading schools…" : "Search school by name, code or district…"}
+              placeholder={schoolsLoading ? "Loading schools…" : `Search school by name, code or ${ZONE_LOWER}…`}
             />
           </div>
-        )}
-        {needsSchool && !schoolsFailed && (
-          <p className="mt-1.5 text-xs text-slate-400">
-            Select a school to print its register or upload a filled one.
-          </p>
         )}
       </div>
 

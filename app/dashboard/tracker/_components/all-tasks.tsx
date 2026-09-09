@@ -1,51 +1,70 @@
 "use client";
 
-import { useState } from "react";
-import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
-import { useTrackerTaskSummary } from "@/lib/queries/tracker";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, ChevronRight, Loader2, Table2 } from "lucide-react";
+import { useTrackerFacets, useTrackerTaskSummary } from "@/lib/queries/tracker";
 import type { TrackerTaskSummaryFilters, TrackerTaskSummaryRow } from "@/lib/tracker-api";
-import { TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } from "@/lib/tracker-status";
+import { TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
+import { toQuery, type FilterState } from "@/lib/filters";
 import { StatusCards } from "./status-cards";
+import { FilterBar } from "./filter-bar";
+import { allTasksFilterSpec } from "./filter-specs";
 
-const selCls = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500";
 const ZERO_COUNTS: StateCounts = { done: 0, pending: 0, blocked: 0, overdue: 0 };
+/** Shown inline; everything else lives behind "Add filter". */
+const PRIMARY = ["q", "priority", "status"];
+
+/** URL-backed filter state, owned by the page so a filtered view is linkable. */
+export type FilterControls = {
+  state: FilterState;
+  set: (patch: FilterState) => void;
+  clear: () => void;
+  activeCount: number;
+};
 
 /** Task-first list: one row per task with its overall completion. Clicking a task drills the
  *  org tree (ZM → fellow → school → student) scoped to that task. */
-export function AllTasksPanel({ onOpenDrill }: { onOpenDrill: (task: TrackerTaskSummaryRow) => void }) {
-  const [f, setF] = useState<TrackerTaskSummaryFilters>({ page: 1, limit: 50 });
-  const set = (patch: Partial<TrackerTaskSummaryFilters>) => setF((p) => ({ ...p, page: 1, ...patch }));
-  const { data, isLoading, error } = useTrackerTaskSummary(f);
+export function AllTasksPanel({
+  onOpenDrill, onOpenTask, filters, role,
+}: {
+  onOpenDrill: (task: TrackerTaskSummaryRow) => void;
+  onOpenTask?: (templateId: string) => void;
+  /** The viewer's role code — a ZM is not offered a Zonal Manager filter. */
+  role: string;
+  /** URL-backed filter state, owned by the page so it survives navigation. */
+  filters: FilterControls;
+}) {
+  const { data: facets } = useTrackerFacets();
+  const spec = useMemo(() => allTasksFilterSpec(facets), [facets]);
+  const [page, setPage] = useState(1);
+
+  const query = useMemo(
+    () => toQuery(spec, filters.state) as TrackerTaskSummaryFilters,
+    [spec, filters.state],
+  );
+  // Page 3 of a different filter is an empty list that reads as "no work here".
+  useEffect(() => { setPage(1); }, [query]);
+
+  const limit = 50;
+  const { data, isLoading, error } = useTrackerTaskSummary({ ...query, page, limit });
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
-  const limit = f.limit ?? 50;
-  const page = f.page ?? 1;
   const pages = Math.max(1, Math.ceil(total / limit));
   const stateCounts = data?.stateCounts ?? ZERO_COUNTS;
+  const activeStatus = (filters.state.status ?? null) as TaskState | null;
 
   return (
     <div className="flex flex-col gap-3">
       <StatusCards
         counts={stateCounts}
-        activeState={(f.status ?? null) as TaskState | null}
-        onSelect={(s) => set({ status: f.status === s ? undefined : s })}
+        activeState={activeStatus}
+        onSelect={(s) => filters.set({ status: activeStatus === s ? undefined : s })}
       />
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={f.q ?? ""} onChange={(e) => set({ q: e.target.value })}
-          placeholder="Search tasks…" className={selCls + " w-56"} />
-        <select value={f.priority ?? ""} onChange={(e) => set({ priority: (e.target.value || undefined) as TrackerTaskSummaryFilters["priority"] })} className={selCls}>
-          <option value="">All priorities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
-        <select value={f.status ?? ""} onChange={(e) => set({ status: (e.target.value || undefined) as TrackerTaskSummaryFilters["status"] })} className={selCls}>
-          <option value="">All statuses</option>
-          {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
-        </select>
-      </div>
+      <FilterBar
+        spec={spec} state={filters.state} set={filters.set} clear={filters.clear}
+        activeCount={filters.activeCount} role={role} primaryKeys={PRIMARY}
+      />
 
       {isLoading ? (
         <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
@@ -88,7 +107,23 @@ export function AllTasksPanel({ onOpenDrill }: { onOpenDrill: (task: TrackerTask
                     <td className="px-4 py-3 text-gray-700">{r.total}</td>
                     <td className="px-4 py-3"><StatePill state={r.rolled_state} /></td>
                     <td className="px-4 py-3 text-gray-600">{r.deadline ? formatDate(r.deadline) : "—"}</td>
-                    <td className="px-4 py-3"><ChevronRight className="ml-auto h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        {onOpenTask && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenTask(r.template_id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2.5 py-1 text-xs font-semibold text-teal-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50"
+                          >
+                            <Table2 className="h-3.5 w-3.5" aria-hidden="true" /> Open
+                          </button>
+                        )}
+                        <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -100,9 +135,9 @@ export function AllTasksPanel({ onOpenDrill }: { onOpenDrill: (task: TrackerTask
       <div className="flex items-center justify-between text-sm text-gray-600">
         <span>{total} task{total === 1 ? "" : "s"}</span>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={page <= 1} onClick={() => setF((p) => ({ ...p, page: (p.page ?? 1) - 1 }))} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Prev</button>
+          <button type="button" disabled={page <= 1} onClick={() => setPage((n) => n - 1)} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Prev</button>
           <span>Page {page} / {pages}</span>
-          <button type="button" disabled={page >= pages} onClick={() => setF((p) => ({ ...p, page: (p.page ?? 1) + 1 }))} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Next</button>
+          <button type="button" disabled={page >= pages} onClick={() => setPage((n) => n + 1)} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Next</button>
         </div>
       </div>
     </div>

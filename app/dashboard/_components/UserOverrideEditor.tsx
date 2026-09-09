@@ -109,6 +109,22 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
     });
   }
 
+  const selectedScopeOverride = overrides.find(o => o.permission_code.startsWith("scope.") && o.effect === "ALLOW");
+  const pendingScope = Object.entries(pendingChanges).find(([code]) => code.startsWith("scope."));
+  const selectedScope = pendingScope
+    ? pendingScope[1] === "ALLOW" ? pendingScope[0] : null
+    : effective?.permissions.find(code => code.startsWith("scope."));
+
+  function selectScope(code: string | null) {
+    setPendingChanges(prev => {
+      const next = Object.fromEntries(Object.entries(prev).filter(([key]) => !key.startsWith("scope.")));
+      if (code && code !== selectedScopeOverride?.permission_code) next[code] = "ALLOW";
+      if (!code && selectedScopeOverride) next[selectedScopeOverride.permission_code] = "CLEAR";
+      return next;
+    });
+    setSaveOk(false);
+  }
+
   function handleToggle(permCode: string) {
     setPending(permCode, getPermState(permCode) === "ALLOW" ? "CLEAR" : "ALLOW");
   }
@@ -153,9 +169,6 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "0 0 12px" }}>
-        Toggles grant explicit access for this user. Use Deny to block a role default.
-      </p>
       <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", overflow: "hidden", minHeight: "320px" }}>
         <div style={isMobile
           ? { display: "flex", flexDirection: "row", overflowX: "auto", flexShrink: 0, padding: "6px 6px", borderBottom: "1px solid rgba(3,72,82,0.08)", gap: "4px" }
@@ -202,7 +215,21 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
             <>
               <p style={{ fontFamily: "var(--font-heading)", fontSize: "15px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>{selectedModuleName}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                {selectedActions.map((action) => {
+                {selectedModule === "scope" ? (
+                  <>
+                    <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)" }}>Choose one scope. Other permission overrides stay as configured.</p>
+                    <div role="radiogroup" aria-label="User scope">
+                      {selectedMod?.permissions.map(permission => (
+                        <label key={permission.code} style={{ display: "flex", gap: 10, padding: "10px 12px", fontSize: 13 }}>
+                          <input type="radio" name={`user-scope-${userId}`} value={permission.code} checked={selectedScope === permission.code} onChange={() => selectScope(permission.code)} disabled={saving} />
+                          {permission.name}
+                        </label>
+                      ))}
+                    </div>
+                    <button type="button" disabled={saving || !selectedScopeOverride} onClick={() => selectScope(null)} style={{ alignSelf: "flex-start", padding: "8px 12px" }}>Reset scope to role default</button>
+                    {pendingScope?.[1] === "CLEAR" && <p style={{ fontSize: 12 }}>Saving will restore the role&apos;s default scope.</p>}
+                  </>
+                ) : selectedActions.map((action) => {
                   const permCode = `${selectedModule}.${action}`;
                   const state = getPermState(permCode);
                   const isPending = Boolean(pendingChanges[permCode]);

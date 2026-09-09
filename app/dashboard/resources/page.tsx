@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -26,6 +29,12 @@ const TYPE_STYLES: Record<string, { bg: string; color: string; icon: string }> =
 // ── Page ───────────────────────────────────────────────────────
 
 export default function ResourcesPage() {
+  return <Suspense fallback={<LoadingState />}><ResourcesPageContent /></Suspense>;
+}
+
+function ResourcesPageContent() {
+  const params = useSearchParams();
+  const focus = params.get("focus");
   const { data, isLoading: userLoading } = useCurrentUser();
 
   const [showForm, setShowForm] = useState(false);
@@ -33,12 +42,10 @@ export default function ResourcesPage() {
   const queryClient = useQueryClient();
 
   const roleCode = (data?.role?.code ?? "STUDENT") as RoleCode;
-  const programmeType = data?.user?.programme ?? null;
   const canCreate = usePermission(PERM.resources.create);
 
-  const resourceFilter =
-    roleCode === "STUDENT" && programmeType ? programmeType : undefined;
-  const { data: resources = [], isPending, error: queryError } = useResources(resourceFilter);
+  const { data: allResources = [], isPending, error: queryError } = useResources();
+  const resources = focus ? allResources.filter(resource => resource.id === focus) : allResources;
   const loading = isPending;
   const error = queryError ? (queryError as Error).message : null;
 
@@ -48,6 +55,8 @@ export default function ResourcesPage() {
 
   return (
     <div>
+      <BackLink fallback="/dashboard" />
+      {focus && <p style={{ marginBlock: 12 }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
       {/* ── Header ──────────────────────────────────────────── */}
       <div
         style={{
@@ -58,15 +67,9 @@ export default function ResourcesPage() {
         }}
       >
         <div>
-          <p style={labelStyle}>Library</p>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
             Resources
           </h1>
-          <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-            {roleCode === "STUDENT"
-              ? `Study materials for ${programmeType ?? "all"} programme`
-              : "All study materials across programmes"}
-          </p>
         </div>
 
         {canCreate && (

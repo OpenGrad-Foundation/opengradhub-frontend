@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   archiveNotification,
+  clearAllNotifications,
   clearReadNotifications,
   getNotifications,
   getUnreadCount,
@@ -52,6 +53,15 @@ export function useClearRead() {
   const invalidate = useInvalidate();
   return useMutation({
     mutationFn: () => clearReadNotifications(),
+    onSuccess: () => invalidate('notifications'),
+  });
+}
+
+/** Dismiss every notification, read or unread — the "Clear all" button. */
+export function useClearAll() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: () => clearAllNotifications(),
     onSuccess: () => invalidate('notifications'),
   });
 }
