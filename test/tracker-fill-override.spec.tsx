@@ -66,7 +66,6 @@ function renderGrid(props: Partial<React.ComponentProps<typeof TrackerEditableGr
       grid={grid()}
       canFill
       canClear={false}
-      viewingOther
       canOverrideFill
       owner={OWNER}
       {...props}
@@ -108,7 +107,7 @@ describe("drilled into someone else's rows", () => {
       doer_id: "me", doer_name: "Me", can_fill_self: true, can_fill_override: false,
       can_evidence: true, can_blocker: true,
     });
-    renderGrid({ grid: grid([mine]), viewingOther: false, canOverrideFill: false, owner: null });
+    renderGrid({ grid: grid([mine]), canOverrideFill: false, owner: null });
     expect((screen.getByRole("checkbox") as HTMLInputElement).disabled).toBe(false);
     // (More than one control mentions "Save" — the download buttons carry a
     // "Save your changes first" title while there are unsaved edits.)
@@ -278,8 +277,7 @@ describe("session boundaries", () => {
         grid={grid()}
         canFill
         canClear={false}
-        viewingOther
-        canOverrideFill
+          canOverrideFill
         owner={{ id: "f2", name: "Arun K" }}
       />,
     );
@@ -296,8 +294,7 @@ describe("session boundaries", () => {
         grid={grid()}
         canFill
         canClear={false}
-        viewingOther
-        canOverrideFill
+          canOverrideFill
         owner={OWNER}
       />,
     );

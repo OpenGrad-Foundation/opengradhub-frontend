@@ -38,7 +38,6 @@ export function TrackerEditableGrid({
   onStatusFilterChange,
   visibleRows: visibleRowsProp,
   filterBar,
-  viewingOther = false,
   canOverrideGeo = false,
   canGrantExtension = false,
   canOverrideFill = false,
@@ -60,9 +59,6 @@ export function TrackerEditableGrid({
   /** The filter row itself, owned by the panel above so the status cards can count
    *  the same set the table shows. */
   filterBar?: React.ReactNode;
-  /** True when a manager is drilled into someone else's rows: the visit panel is
-   *  then read-only, since only the doer can supply their own visit photo. */
-  viewingOther?: boolean;
   /** May the viewer accept an out-of-range verification? */
   canOverrideGeo?: boolean;
   /** May the viewer reopen an overdue row with a dated extension? */

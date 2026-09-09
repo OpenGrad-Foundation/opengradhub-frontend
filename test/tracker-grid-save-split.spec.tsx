@@ -61,7 +61,7 @@ const grid = (rows: TrackerGridRow[]): TrackerGrid => ({ columns: [], rows });
 function renderGrid(rows: TrackerGridRow[]) {
   return render(
     <TrackerEditableGrid template={template} grid={grid(rows)} canFill canClear={false}
-      viewingOther={false} owner={null} canOverrideFill />,
+      owner={null} canOverrideFill />,
   );
 }
 

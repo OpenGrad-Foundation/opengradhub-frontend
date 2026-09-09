@@ -78,20 +78,13 @@ function renderGrid(rows: TrackerGridRow[], props: Partial<React.ComponentProps<
       grid={grid(rows)}
       canFill
       canClear={false}
-      // Deliberately the DEEP-LINK route: no owner, not "viewing other". Authority must come
-      // from the rows regardless.
-      viewingOther={false}
+      // Deliberately the DEEP-LINK route: no owner at all. Authority must come from the rows.
       owner={null}
       canOverrideFill
       {...props}
     />,
   );
 }
-
-/** Desktop table + mobile card render each row, so a row owns two checkboxes. */
-const boxesFor = (label: string) =>
-  (screen.getAllByRole("checkbox") as HTMLInputElement[]).filter((b) =>
-    b.closest("tr,div")?.textContent?.includes(label) ?? true);
 
 async function startSession(reason = "On leave; visit confirmed by phone.") {
   fireEvent.click(screen.getByRole("button", { name: /fill on behalf/i }));
@@ -192,5 +185,3 @@ describe("doer-only surfaces", () => {
     expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).every((b) => b.disabled)).toBe(true);
   });
 });
-
-export { boxesFor };

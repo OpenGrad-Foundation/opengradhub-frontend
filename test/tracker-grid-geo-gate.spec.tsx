@@ -200,7 +200,7 @@ describe("tracker grid — the visit-verification gate", () => {
   });
 
   it("offers no upload to a manager drilled into someone else's rows", () => {
-    renderGrid({ viewingOther: true, canFill: false });
+    renderGrid({ canFill: false });
     fireEvent.click(screen.getByRole("button", { name: /visit verification/i }));
     expect(screen.queryByLabelText(/choose an existing photo/i)).toBeNull();
   });

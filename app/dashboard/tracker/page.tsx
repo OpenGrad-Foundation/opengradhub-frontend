@@ -212,7 +212,7 @@ export default function TrackerPage() {
               label="Back to task"
               onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
             />
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : drillTask ? (
           <TaskBreakdown
@@ -240,7 +240,7 @@ export default function TrackerPage() {
               label="Back to my tasks"
               onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
             />
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -293,7 +293,7 @@ export default function TrackerPage() {
       ) : safeActiveTab === "myStudents" ? (
         <HierarchicalStudentsPanel />
       ) : (
-        <NewTaskPanel canAuthor={canAuthor} canShareExternally={has(PERM.tracker.share_external)} canFill={canFill} canClear={canClear} prefill={assignPrefill} />
+        <NewTaskPanel canAuthor={canAuthor} canShareExternally={has(PERM.tracker.share_external)} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} prefill={assignPrefill} />
       )}
     </div>
   );
@@ -453,12 +453,15 @@ function TeamPanel({ onOpen, onAssign }: {
   );
 }
 
-function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, prefill }: {
+function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOverrideFill, prefill }: {
   canAuthor: boolean;
   /** Sharing outside the organisation is its own permission — see the builder. */
   canShareExternally: boolean;
   canFill: boolean;
   canClear: boolean;
+  /** tracker.fill.override. Passed here too, so a task's own grid behaves like every other
+   *  route into it — the ROW's capabilities decide whether the control is usable. */
+  canOverrideFill: boolean;
   /** Audience carried in from an "Assign task" click, which also opens the scratch builder. */
   prefill?: TrackerAssignPrefill | null;
 }) {
@@ -478,7 +481,7 @@ function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, prefil
         <button type="button" onClick={() => setGridId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to template
         </button>
-        <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} embedded />
+        <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} embedded />
       </div>
     );
   }
@@ -676,7 +679,6 @@ function GridPanel({
   error,
   canFill,
   canClear,
-  viewingOther = false,
   canOverrideFill = false,
   owner = null,
 }: {
@@ -689,7 +691,6 @@ function GridPanel({
   canFill: boolean;
   canClear: boolean;
   /** Drilled into another person's rows (a manager reviewing a fellow). */
-  viewingOther?: boolean;
   /** May the viewer take those rows over and fill them in the owner's name? */
   canOverrideFill?: boolean;
   /** Who those rows belong to, for the fill-on-behalf banner. */
@@ -710,7 +711,7 @@ function GridPanel({
   return (
     <GridPanelBody
       template={template} grid={grid} embedded={embedded}
-      canFill={canFill} canClear={canClear} viewingOther={viewingOther}
+      canFill={canFill} canClear={canClear}
       canOverrideGeo={canOverrideGeo} canGrantExtension={canGrantExtension}
       canOverrideFill={canOverrideFill} canExport={canExport} owner={owner}
     />
@@ -719,7 +720,7 @@ function GridPanel({
 
 /** Split out so the filter hooks run unconditionally, after GridPanel's early returns. */
 function GridPanelBody({
-  template, grid, filters, canFill, canClear, viewingOther,
+  template, grid, filters, canFill, canClear,
   canOverrideGeo, canGrantExtension, canOverrideFill, canExport, owner, embedded,
 }: {
   template: TrackerTemplate;
@@ -727,7 +728,6 @@ function GridPanelBody({
   filters?: GridFilterControls;
   canFill: boolean;
   canClear: boolean;
-  viewingOther: boolean;
   canOverrideGeo: boolean;
   canGrantExtension: boolean;
   canOverrideFill: boolean;
@@ -786,7 +786,7 @@ function GridPanelBody({
         grid={grid}
         canFill={canFill}
         canClear={canClear}
-        viewingOther={viewingOther}
+       
         canOverrideGeo={canOverrideGeo}
         canGrantExtension={canGrantExtension}
         canOverrideFill={canOverrideFill}
