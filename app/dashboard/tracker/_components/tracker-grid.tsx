@@ -21,6 +21,7 @@ import { PeriodHistory } from "./period-history";
 import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
 import { displayCellValue as display } from "@/lib/tracker-value";
+import { rowAuthority } from "@/lib/tracker-authority";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
@@ -104,21 +105,21 @@ export function TrackerEditableGrid({
   const rowComplete = (row: TrackerGridRow) => row.status === doneStatus;
   // Nothing outstanding anywhere in the task means there is nothing to fill on behalf of,
   // so the session must not be enterable at all rather than dead-ending at Save.
-  const overridableCount = grid.rows.filter((r) => !rowComplete(r)).length;
+  const overridableCount = grid.rows.filter((r) => rowAuthority(r).override && !rowComplete(r)).length;
 
-  // `canFill` is the permission, not the answer. The server accepts an ordinary fill only
-  // from the DOER, so drilled into someone else's rows the ordinary controls must be off —
-  // offering them just produced an "out of scope" error. Override mode turns the ROW EDITS
-  // back on and nothing else: proofs, blockers, student details and bulk upload all call
-  // endpoints that stay doer-only, and bulk upload in particular posts to the ordinary
-  // batch route, which would be refused mid-upload.
-  const canFillOwn = canFill && !viewingOther;
-  /** Per row, because an on-behalf session may only touch rows that are still outstanding. */
-  const canEditRow = (row: TrackerGridRow) => (onBehalfMode ? !rowComplete(row) : canFillOwn);
-  const canManageEvidence = canFillOwn;
-  const canRaiseBlocker = canFillOwn;
-  const canEditStudentDetails = canFillOwn;
-  const canBulkUpload = canFillOwn;
+  // Authority is a property of the ROW, not of the route that reached this grid. The server
+  // sends it per row because its view scope is deliberately wider than its fill scope: a
+  // manager supervises rows they may not fill, and offering the ordinary controls on those
+  // rows is what produced the "out of scope" error on save.
+  const authorityOf = (row: TrackerGridRow) => rowAuthority(row);
+  /** A row whose capabilities are missing came from a payload older than this contract. */
+  const staleAuthority = grid.rows.some((r) => !authorityOf(r).known);
+  /** Per row: an on-behalf session may only touch outstanding rows the viewer may override. */
+  const overridingRow = (row: TrackerGridRow) => onBehalfMode && authorityOf(row).override;
+  const canEditRow = (row: TrackerGridRow) =>
+    (canFill && authorityOf(row).self) || (overridingRow(row) && !rowComplete(row));
+  /** Does the viewer own ANY row here? Gates the toolbar's doer-only menus. */
+  const anyOwnRow = canFill && grid.rows.some((r) => authorityOf(r).evidence);
 
   // Switching to another person or another task ends the session: its reason described the
   // rows that were on screen when it was given, and must not follow the manager elsewhere.
@@ -128,7 +129,7 @@ export function TrackerEditableGrid({
     setDrafts({});
   }, [template.id, owner?.id]);
   const canOpenDetails = (row: TrackerGridRow): row is TrackerGridRow & { target_id: string } =>
-    canEditStudentDetails && isStudentTarget && Boolean(row.target_id);
+    authorityOf(row).evidence && isStudentTarget && Boolean(row.target_id);
   const [proofReady, setProofReady] = useState<Record<string, boolean>>({});
   const requiresProof = template.require_photo || template.require_location;
   // Shared school-visit verification: ONE per school, consumed by every row for that
@@ -137,10 +138,15 @@ export function TrackerEditableGrid({
   const requiresGeo = Boolean(template.require_geo_verification);
   const geoQuery = useTemplateGeoVerifications(template.id, requiresGeo);
   const geoAcceptedSchools = useMemo(() => {
+    // One verification exists per (template, period, school, DOER). Keying by school alone
+    // would let one In-Charge's visit photo complete another In-Charge's row — invisible
+    // until a grid mixes doers, which per-row authority now makes ordinary.
     const accepted = new Set<string>();
-    for (const v of geoQuery.data ?? []) if (v.accepted) accepted.add(v.school_id);
+    for (const v of geoQuery.data ?? []) if (v.accepted) accepted.add(`${v.school_id}::${v.doer_id}`);
     return accepted;
   }, [geoQuery.data]);
+  const geoAccepted = (row: TrackerGridRow) =>
+    Boolean(row.school_id && row.doer_id && geoAcceptedSchools.has(`${row.school_id}::${row.doer_id}`));
   // The verification dialog: opened from the toolbar chip (browse/replace a photo) or
   // by the gate itself, when a row cannot reach done without its school verified.
   const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
@@ -272,7 +278,7 @@ export function TrackerEditableGrid({
       recordId={row.record_id}
       requirePhoto={template.require_photo}
       requireLocation={template.require_location}
-      editable={row.status !== "done"}
+      editable={row.status !== "done" && authorityOf(row).evidence}
       onReadyChange={onProofReady(row.record_id)}
     />
   );
@@ -280,12 +286,15 @@ export function TrackerEditableGrid({
     const currentStatus = drafts[row.record_id]?.status ?? row.status;
     // Block reaching the done status client-side until required proofs exist (the server
     // 409s regardless; this just avoids a dead-end). Applies to workflow + checklist.
-    const proofUnmet = requiresProof && currentStatus !== doneStatus && proofReady[row.record_id] === false;
+    // RecordProofs only mounts on rows the viewer owns, so its readiness signal cannot be the
+    // only source: on a row without that control, missing proof would silently read as met.
+    const proofSeed = (!template.require_photo || row.has_photo_proof === true)
+      && (!template.require_location || row.has_location_proof === true);
+    const proofUnmet = requiresProof && currentStatus !== doneStatus
+      && (proofReady[row.record_id] ?? proofSeed) === false;
     // A row cannot reach done until its SCHOOL has an accepted visit verification.
     // Purely a convenience: batchSave enforces the same rule inside its transaction.
-    const geoUnmet =
-      requiresGeo && currentStatus !== doneStatus &&
-      !(row.school_id && geoAcceptedSchools.has(row.school_id));
+    const geoUnmet = requiresGeo && currentStatus !== doneStatus && !geoAccepted(row);
     // Overdue outranks the proof/geo reasons: no photo can unblock it, only a
     // manager's extension, so the fellow is told the real blocker.
     const overdue = row.lifecycle === "overdue" && currentStatus !== doneStatus;
@@ -296,15 +305,18 @@ export function TrackerEditableGrid({
     // it does NOT disable the control: reaching for done opens the verification dialog
     // instead of dead-ending on a greyed-out checkbox. Overdue and a school-less row keep
     // disabling it — no photo can fix either.
-    const gateable = canManageEvidence && geoUnmet && !overdue && !proofUnmet && Boolean(row.school_id);
+    const gateable = authorityOf(row).evidence && geoUnmet && !overdue && !proofUnmet && Boolean(row.school_id);
     // What WOULD stop an ordinary fill. In an on-behalf session the server waives all of it,
     // so the control must not stay locked and the hint must not tell the very manager who can
     // now complete the row to go ask a manager for an extension.
     const gated = overdue || proofUnmet || (geoUnmet && !gateable);
-    const blocked = gated && !onBehalfMode;
-    const waiving = gated && onBehalfMode;
+    // Only the rows being filled in someone else's name waive anything: an own row inside a
+    // mixed session still takes the ordinary route, which enforces every gate.
+    const overriding = overridingRow(row);
+    const blocked = gated && !overriding;
+    const waiving = gated && overriding;
     const openGate = () => setGeoModal({ schoolId: row.school_id ?? null, blocking: true });
-    const lockedComplete = onBehalfMode && rowComplete(row);
+    const lockedComplete = overriding && rowComplete(row);
     const hint = lockedComplete
       ? "Already complete — an override fills outstanding work, it does not rewrite finished work"
       : waiving
@@ -411,7 +423,7 @@ export function TrackerEditableGrid({
         </div>
       );
     }
-    if (!canRaiseBlocker) return <span className="text-gray-400">—</span>;
+    if (!authorityOf(row).blocker) return <span className="text-gray-400">—</span>;
     return (
       <div className="flex items-center gap-1">
         <input
@@ -475,7 +487,8 @@ export function TrackerEditableGrid({
             onOpen={() => setGeoModal({ schoolId: null, blocking: false })}
           />
         </div>
-        {!onBehalfMode && canOverrideFill && viewingOther && (
+        {/* Offered wherever an overridable row exists — the ROW says so, not the route. */}
+        {!onBehalfMode && canOverrideFill && grid.rows.some((r) => rowAuthority(r).override) && (
           <button
             type="button"
             onClick={() => setReasonPrompt("")}
@@ -533,7 +546,7 @@ export function TrackerEditableGrid({
               )}
             </div>
           )}
-          {(canFillOwn || onBehalfMode) && (
+          {(anyOwnRow || onBehalfMode) && (
             <div className="relative">
               <button
                 type="button"
@@ -571,7 +584,7 @@ export function TrackerEditableGrid({
                     <span className="font-medium text-gray-800">Download template (Excel)</span>
                     <span className="text-[11px] text-gray-500">Same rows as an .xlsx workbook</span>
                   </button>
-                  {canBulkUpload && (
+                  {anyOwnRow && (
                     <>
                       <span className="my-1 block h-px bg-gray-100" aria-hidden="true" />
                       <button
@@ -591,7 +604,7 @@ export function TrackerEditableGrid({
               )}
             </div>
           )}
-          {(canFillOwn || onBehalfMode) && (
+          {(anyOwnRow || onBehalfMode) && (
             <button
               type="button"
               onClick={onSave}
@@ -636,9 +649,18 @@ export function TrackerEditableGrid({
         <TrackerBulkUploadPanel
           template={template}
           columns={grid.columns}
-          rows={visibleRows}
+          rows={visibleRows.filter((r) => authorityOf(r).evidence)}
           onClose={() => setBulkOpen(false)}
         />
+      )}
+      {staleAuthority && (
+        /* A payload older than per-row authority. Those rows render read-only rather than
+           guessing from the route — the guess is what produced "out of scope" on save. The
+           grid query refetches on focus and after its stale time, so this clears itself. */
+        <p className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-sm text-amber-900">
+          Some rows are still loading their permissions and stay read-only until they do.
+          Refresh if this does not clear.
+        </p>
       )}
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
       <div className="hidden overflow-x-auto rounded-b-lg md:block">
@@ -673,7 +695,7 @@ export function TrackerEditableGrid({
                     </div>
                   </td>
                 </tr>
-                {canManageEvidence && requiresProof && (
+                {authorityOf(row).evidence && requiresProof && (
                   <tr className="border-t border-gray-50">
                     <td colSpan={99} className="px-3 pb-3">{proofsFor(row)}</td>
                   </tr>
@@ -706,7 +728,7 @@ export function TrackerEditableGrid({
                 </label>
               ))}
             </div>
-            {canManageEvidence && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
+            {authorityOf(row).evidence && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
             <div className="mt-3">{statusControl(row, true)}</div>
             <div className="mt-3 border-t border-gray-100 pt-3">{blockerControl(row)}</div>
           </div>
@@ -732,8 +754,8 @@ export function TrackerEditableGrid({
           rows={grid.rows}
           initialSchoolId={geoModal.schoolId}
           blocking={geoModal.blocking}
-          canFill={canManageEvidence}
-          readOnly={viewingOther}
+          canFill={anyOwnRow}
+          readOnly={!anyOwnRow}
           canOverride={canOverrideGeo}
           onClose={() => setGeoModal(null)}
         />

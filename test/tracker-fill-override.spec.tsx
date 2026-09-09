@@ -49,6 +49,9 @@ const row = (over: Partial<TrackerGridRow> = {}): TrackerGridRow =>
   ({
     record_id: "r1", status: "not_started", cells: [], blocked: false, blocker: null,
     school_name: null, school_id: null, target_name: "Priya S",
+    // Someone else's row, as the server describes it: overridable, never ordinarily fillable.
+    doer_id: "f1", doer_name: "Priya S", can_fill_self: false, can_fill_override: true,
+    can_evidence: false, can_blocker: false, fill_reason: null,
     lifecycle: "not_started", ...over,
   }) as TrackerGridRow;
 
@@ -101,7 +104,11 @@ describe("drilled into someone else's rows", () => {
   });
 
   it("leaves a fellow's own grid exactly as it was", () => {
-    renderGrid({ viewingOther: false, canOverrideFill: false, owner: null });
+    const mine = row({
+      doer_id: "me", doer_name: "Me", can_fill_self: true, can_fill_override: false,
+      can_evidence: true, can_blocker: true,
+    });
+    renderGrid({ grid: grid([mine]), viewingOther: false, canOverrideFill: false, owner: null });
     expect((screen.getByRole("checkbox") as HTMLInputElement).disabled).toBe(false);
     // (More than one control mentions "Save" — the download buttons carry a
     // "Save your changes first" title while there are unsaved edits.)

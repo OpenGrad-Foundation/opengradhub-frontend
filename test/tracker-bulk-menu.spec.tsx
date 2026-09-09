@@ -53,6 +53,8 @@ const template = {
 
 const rows: TrackerGridRow[] = [{
   record_id: "r1", status: "not_started", cells: [], blocked: false, blocker: null,
+  doer_id: "me", doer_name: "Me", can_fill_self: true, can_fill_override: false,
+  can_evidence: true, can_blocker: true, fill_reason: null,
   school_name: "Govt HSS Coimbatore", school_id: "s1", target_name: null, lifecycle: "not_started",
 } as TrackerGridRow];
 

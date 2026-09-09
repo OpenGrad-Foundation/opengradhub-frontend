@@ -54,13 +54,16 @@ const row = (over: Partial<TrackerGridRow> = {}): TrackerGridRow =>
   ({
     record_id: "r1", status: "not_started", cells: [], blocked: false, blocker: null,
     school_name: "Govt HSS Coimbatore", school_id: "s1", target_name: null,
+    // The viewer is the doer of these rows: per-row authority, as the server now sends it.
+    doer_id: "me", doer_name: "Me", can_fill_self: true, can_fill_override: false,
+    can_evidence: true, can_blocker: true, fill_reason: null,
     lifecycle: "not_started", ...over,
   }) as TrackerGridRow;
 
 const grid = (rows: TrackerGridRow[]): TrackerGrid => ({ columns: [], rows });
 
 const verification = (over: Partial<TrackerGeoVerification> = {}): TrackerGeoVerification => ({
-  id: "v1", school_id: "s1", status: "verified", accepted: true,
+  id: "v1", school_id: "s1", doer_id: "me", status: "verified", accepted: true,
   distance_m: 34.2, radius_m: 200, accuracy_m: null,
   exif_captured_at: "2026-08-24T04:15:00.000Z",
   uploaded_at: "2026-08-24T09:00:00.000Z",
