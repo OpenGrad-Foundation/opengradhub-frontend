@@ -3011,6 +3011,57 @@ export async function getStudentProfile(studentId: string): Promise<StudentProfi
   return (await r.json()) as StudentProfile;
 }
 
+// ── Staff profile (non-student users) ─────────────────────────────────────────
+export type StaffProfileTask = {
+  record_id: string; template_id: string; name: string; target_name: string | null; school_name: string | null;
+  school_id: string | null; issued_at: string; deadline: string | null; target_type: string;
+  priority: "low" | "medium" | "high"; status: string; blocked: boolean;
+  lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
+};
+/**
+ * Optional keys are OMITTED by the server when the caller lacks that module's
+ * permission; present keys may be empty. Every row is clamped to the caller.
+ */
+export type StaffProfile = {
+  user: {
+    id: string; name: string; role: string; role_label: string; status: string;
+    state: string | null; district: string | null; zone: string | null; category: string | null;
+    created_at: string; last_check_in_at: string | null;
+    programmes: { id: string; name: string }[];
+    email?: string | null; phone?: string | null;
+  };
+  caps: { edit: boolean };
+  edit_user?: SafeUser;
+  org: {
+    manager: { id: string; name: string; role: string } | null; manager_hidden: boolean;
+    reports: { id: string; name: string; role: string }[]; reports_total: number;
+  };
+  tracker?: {
+    counts: { total: number; done: number; overdue: number; blocked: number; in_progress: number; not_started: number };
+    tasks: StaffProfileTask[];
+  };
+  doubts?: {
+    open_for_responsibility: number; answered_by_user: number;
+    recent: { id: string; subject: string; student_name: string | null; school_name: string | null; status: string; created_at: string }[];
+  };
+  schools?: { total: number; items: { id: string; name: string; district: string | null; student_count?: number }[] };
+  attendance?: { live_classes_marked_30d: number; registers_uploaded_30d: number; last_marked_at: string | null };
+  content?: {
+    courses?: number; quizzes?: number; batches?: number;
+    recent: { kind: "course" | "quiz" | "batch"; id: string; title: string; created_at: string }[];
+  };
+  activity: { at: string; kind: string; label: string; link: string | null }[];
+};
+
+export async function getStaffProfile(id: string): Promise<StaffProfile> {
+  const r = await apiFetch(`${API_BASE_URL}/users/${id}/profile`);
+  if (!r.ok) {
+    const err = await r.json().catch(() => null) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to load profile.", r.status);
+  }
+  return r.json();
+}
+
 export type Opt = { id: string; name: string };
 
 export type DirectoryStudent = {
