@@ -3455,9 +3455,13 @@ export async function updateSchool(
 /** Bulk-upload schools from a CSV file. */
 export async function bulkUploadSchools(
   file: File,
+  programmeId?: string | null,
 ): Promise<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
+  // Optional: every created school is attached to this programme (server checks
+  // the same authority as the hub's attach button).
+  if (programmeId) formData.append("programme_id", programmeId);
   const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
     method: "POST",
     body: formData,
@@ -5152,6 +5156,9 @@ export interface ProgrammeSchool {
   name: string;
   district: string | null;
   state: string | null;
+  /** Assigned in-charge and their zonal manager; null when unassigned. */
+  fellow_name?: string | null;
+  zm_name?: string | null;
 }
 
 async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
