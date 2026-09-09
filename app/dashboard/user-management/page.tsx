@@ -30,6 +30,7 @@ import {
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { usePermissions } from "@/hooks/use-permission";
+import { RoleBadge } from "./_components/role-badge";
 import { StudentCreationDestination, type StudentDestination } from "@/components/student-creation-destination";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
@@ -2607,14 +2608,6 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function RoleBadge({ role }: { role: string }) {
-  const label = role.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-  return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: "rgba(32,147,121,0.12)", color: "#209379" }}>
-      {label}
-    </span>
-  );
-}
 
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === "ACTIVE";

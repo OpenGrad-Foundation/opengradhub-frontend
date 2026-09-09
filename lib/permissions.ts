@@ -245,6 +245,8 @@ export function routePermissionForPath(pathname: string): RoutePermission | unde
   if (/^\/dashboard\/courses\/[^/]+$/.test(path) && new URLSearchParams(query).get('mode') === 'duplicate') return PERM.courses.create;
   if (path === '/dashboard/courses/duplicate') return PERM.courses.create;
   if (path === '/dashboard/test-bank/duplicate' || /^\/dashboard\/quiz-builder\/duplicate(?:\/[^/]+)?$/.test(path)) return PERM.test_bank.create;
+  // Staff profile pages need only a dashboard seat; the list root keeps user_management.view.
+  if (/^\/dashboard\/user-management\/[^/]+$/.test(path)) return PERM.dashboard.view;
   return ROUTE_PERMISSION[path.replace(/^\/dashboard\/?/, '').split('/')[0]];
 }
 
