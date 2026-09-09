@@ -13,26 +13,53 @@ import type {
   GeoRejectionReason, TrackerGeoVerification, TrackerGridRow, TrackerTemplate,
 } from "@/lib/tracker-api";
 
-type School = { id: string; name: string };
+/**
+ * A visit is owed per school BY A PERSON: the server stores one verification per
+ * (template, period, school, doer), and a row completes only on its own doer's photo. A
+ * manager's grid can hold two In-Charges' rows for the same school, so the unit here is the
+ * pair, never the school alone — collapsing them showed one person's photo as covering the
+ * other's rows.
+ */
+type VisitTarget = {
+  key: string;
+  schoolId: string;
+  schoolName: string;
+  doerId: string | null;
+  doerName: string | null;
+  /** Uploading is doer-only, so only the viewer's own rows offer it. */
+  canUpload: boolean;
+};
 
-/** Every distinct school in view. Verification is per school, never per row. */
-function schoolsOf(rows: TrackerGridRow[]): School[] {
-  const seen = new Map<string, School>();
+const targetKey = (schoolId: string, doerId: string | null | undefined) => `${schoolId}::${doerId ?? ""}`;
+
+export function visitTargetsOf(rows: TrackerGridRow[]): VisitTarget[] {
+  const seen = new Map<string, VisitTarget>();
   for (const r of rows) {
-    if (r.school_id && r.school_name && !seen.has(r.school_id)) {
-      seen.set(r.school_id, { id: r.school_id, name: r.school_name });
+    if (!r.school_id || !r.school_name) continue;
+    const key = targetKey(r.school_id, r.doer_id);
+    const existing = seen.get(key);
+    if (existing) {
+      existing.canUpload = existing.canUpload || r.can_evidence === true;
+      continue;
     }
+    seen.set(key, {
+      key, schoolId: r.school_id, schoolName: r.school_name,
+      doerId: r.doer_id ?? null, doerName: r.doer_name ?? null,
+      canUpload: r.can_evidence === true,
+    });
   }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return [...seen.values()].sort((a, b) =>
+    a.schoolName.localeCompare(b.schoolName) || (a.doerName ?? "").localeCompare(b.doerName ?? ""));
 }
 
-/** The verification that counts for each school: the accepted one, else the latest. */
-function bySchoolOf(data: TrackerGeoVerification[] | undefined) {
+/** The verification that counts for each (school, doer): the accepted one, else the latest. */
+function byTargetOf(data: TrackerGeoVerification[] | undefined) {
   const map = new Map<string, TrackerGeoVerification>();
   // Newest first from the API; keep the accepted one if there is one, else the latest.
   for (const v of data ?? []) {
-    const existing = map.get(v.school_id);
-    if (!existing || (v.accepted && !existing.accepted)) map.set(v.school_id, v);
+    const key = targetKey(v.school_id, v.doer_id);
+    const existing = map.get(key);
+    if (!existing || (v.accepted && !existing.accepted)) map.set(key, v);
   }
   return map;
 }
@@ -55,13 +82,14 @@ export function GeoStatusChip({
 }) {
   const enabled = Boolean(template.require_geo_verification);
   const { data } = useTemplateGeoVerifications(template.id, enabled);
-  const schools = useMemo(() => schoolsOf(rows), [rows]);
-  const bySchool = useMemo(() => bySchoolOf(data), [data]);
+  const targets = useMemo(() => visitTargetsOf(rows), [rows]);
+  const byTarget = useMemo(() => byTargetOf(data), [data]);
 
   if (!enabled) return null;
 
-  const verified = schools.filter((s) => bySchool.get(s.id)?.accepted).length;
-  const allDone = schools.length > 0 && verified === schools.length;
+  // Counted per (school, doer): a school two In-Charges work is two visits owed, not one.
+  const verified = targets.filter((t) => byTarget.get(t.key)?.accepted).length;
+  const allDone = targets.length > 0 && verified === targets.length;
   const tone = allDone
     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
     : "border-amber-200 bg-amber-50 text-amber-800";
@@ -77,7 +105,7 @@ export function GeoStatusChip({
       <MapPin className="h-3.5 w-3.5" aria-hidden="true" />
       Visit verification
       <span className="font-semibold">
-        {verified}/{schools.length}
+        {verified}/{targets.length}
       </span>
     </button>
   );
@@ -131,14 +159,14 @@ export function GeoVerificationModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const schools = useMemo(() => {
-    const all = schoolsOf(rows);
+  const targets = useMemo(() => {
+    const all = visitTargetsOf(rows);
     if (!initialSchoolId) return all;
     // The school that blocked the row goes first — it is why the fellow is here.
     return [...all].sort((a, b) =>
-      a.id === initialSchoolId ? -1 : b.id === initialSchoolId ? 1 : 0);
+      a.schoolId === initialSchoolId ? -1 : b.schoolId === initialSchoolId ? 1 : 0);
   }, [rows, initialSchoolId]);
-  const bySchool = useMemo(() => bySchoolOf(data), [data]);
+  const byTarget = useMemo(() => byTargetOf(data), [data]);
 
   if (!enabled) return null;
 
@@ -161,7 +189,8 @@ export function GeoVerificationModal({
     }
   }
 
-  const rowsForSchool = (schoolId: string) => rows.filter((r) => r.school_id === schoolId).length;
+  const rowsForTarget = (t: VisitTarget) =>
+    rows.filter((r) => r.school_id === t.schoolId && (r.doer_id ?? null) === t.doerId).length;
   const entryWord = template.target_type === "student" ? "students" : "entries";
   /**
    * A photo is only worth taking while some row it would cover can still be completed.
@@ -170,8 +199,9 @@ export function GeoVerificationModal({
    * that cannot be used. A row that is merely `done` does not withdraw it: replacing the
    * photo behind a finished visit is still legitimate.
    */
-  const inTime = (schoolId: string) =>
-    rows.some((r) => r.school_id === schoolId && r.lifecycle !== "overdue");
+  const inTime = (t: VisitTarget) =>
+    rows.some((r) => r.school_id === t.schoolId && (r.doer_id ?? null) === t.doerId
+      && r.lifecycle !== "overdue");
 
   return (
     <div
@@ -217,26 +247,32 @@ export function GeoVerificationModal({
             <p className="mt-3 flex items-center gap-2 text-xs text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading verification…
             </p>
-          ) : schools.length === 0 ? (
+          ) : targets.length === 0 ? (
             <p className="mt-3 text-xs text-gray-500">No schools in view.</p>
           ) : (
             <div className="mt-3 flex flex-col gap-3">
-              {schools.map((school) => {
-                const v = bySchool.get(school.id);
-                const count = rowsForSchool(school.id);
+              {targets.map((school) => {
+                const v = byTarget.get(school.key);
+                const count = rowsForTarget(school);
+                // Uploading is doer-only. A supervisor sees the evidence and may override an
+                // out-of-range capture, but may not stand in for the visit itself.
+                const mayUpload = canFill && school.canUpload;
                 // One upload runs at a time. When the mutation is in flight but this
                 // dialog did not start it, fall back to showing it on every card.
-                const busy = upload.isPending && (busySchoolId === null || busySchoolId === school.id);
-                const outOfTime = !inTime(school.id);
+                const busy = upload.isPending && (busySchoolId === null || busySchoolId === school.schoolId);
+                const outOfTime = !inTime(school);
                 return (
                   <section
-                    key={school.id}
+                    key={school.key}
                     role="group"
-                    aria-label={school.name}
+                    aria-label={school.doerName ? `${school.schoolName} — ${school.doerName}` : school.schoolName}
                     className="rounded-lg border border-gray-200 p-3"
                   >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <span className="text-sm font-medium text-gray-900">{school.name}</span>
+                      <span className="text-sm font-medium text-gray-900">{school.schoolName}</span>
+                      {school.doerName && !school.canUpload && (
+                        <span className="text-xs text-gray-500">{school.doerName}&apos;s visit</span>
+                      )}
                       <StateBadge verification={v} />
                       <span className="text-xs text-gray-400">
                         {count} {count === 1 ? "entry" : "entries"}
@@ -249,7 +285,7 @@ export function GeoVerificationModal({
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={v.preview_url}
-                            alt={`Visit photo for ${school.name}`}
+                            alt={`Visit photo for ${school.schoolName}`}
                             className="h-14 w-14 shrink-0 rounded border border-gray-200 object-cover"
                           />
                         )}
@@ -267,14 +303,14 @@ export function GeoVerificationModal({
                       <p className="mt-2 text-xs text-amber-800">Overridden: {v.override_reason}</p>
                     )}
 
-                    {!readOnly && canFill && outOfTime && (
+                    {!readOnly && mayUpload && outOfTime && (
                       <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         Past its due date, so no new photo can be added. Ask your ZM or PM for an
                         extension — the upload comes back while it lasts.
                       </p>
                     )}
 
-                    {!readOnly && canFill && !outOfTime && (
+                    {!readOnly && mayUpload && !outOfTime && (
                       <div className="mt-3">
                         {busy ? (
                           <p className="inline-flex items-center gap-2 text-sm text-gray-600">
@@ -288,14 +324,14 @@ export function GeoVerificationModal({
                                 canvas) would produce a JPEG with no EXIF at all and could
                                 never be verified. */}
                             <label
-                              htmlFor={`geo-photo-camera-${school.id}`}
+                              htmlFor={`geo-photo-camera-${school.key}`}
                               className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700"
                             >
                               <Camera className="h-4 w-4" aria-hidden="true" />
                               {v ? "Retake photo" : "Take photo"}
                             </label>
                             <label
-                              htmlFor={`geo-photo-library-${school.id}`}
+                              htmlFor={`geo-photo-library-${school.key}`}
                               className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                             >
                               <ImageIcon className="h-4 w-4" aria-hidden="true" />
@@ -304,23 +340,23 @@ export function GeoVerificationModal({
                           </div>
                         )}
                         <input
-                          id={`geo-photo-camera-${school.id}`}
+                          id={`geo-photo-camera-${school.key}`}
                           type="file"
                           accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
                           capture="environment"
-                          onChange={(e) => void onPick(school.id, e)}
+                          onChange={(e) => void onPick(school.schoolId, e)}
                           className="sr-only"
-                          aria-label={`Take visit photo for ${school.name} with the camera`}
+                          aria-label={`Take visit photo for ${school.schoolName} with the camera`}
                         />
                         <input
-                          id={`geo-photo-library-${school.id}`}
+                          id={`geo-photo-library-${school.key}`}
                           type="file"
                           // No `capture` here on purpose: a photo taken earlier must still be
                           // uploadable, which is an explicit requirement of this flow.
                           accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
-                          onChange={(e) => void onPick(school.id, e)}
+                          onChange={(e) => void onPick(school.schoolId, e)}
                           className="sr-only"
-                          aria-label={`Choose an existing photo for ${school.name}`}
+                          aria-label={`Choose an existing photo for ${school.schoolName}`}
                         />
                       </div>
                     )}
@@ -339,8 +375,8 @@ export function GeoVerificationModal({
                       <OverrideForm verificationId={v.id} onDone={() => setOverrideFor(null)} />
                     )}
 
-                    {errors[school.id] && (
-                      <p className="mt-2 text-xs text-red-700">{errors[school.id]}</p>
+                    {errors[school.schoolId] && (
+                      <p className="mt-2 text-xs text-red-700">{errors[school.schoolId]}</p>
                     )}
                   </section>
                 );
