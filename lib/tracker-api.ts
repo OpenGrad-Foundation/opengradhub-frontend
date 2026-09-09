@@ -107,6 +107,20 @@ export type TrackerGridRow = {
    *  independent-deploy reason as school_id above. */
   has_photo_proof?: boolean;
   has_location_proof?: boolean;
+  /** WHO owes this row. Null when a school has no In-Charge assigned. */
+  doer_id?: string | null;
+  doer_name?: string | null;
+  /** May the viewer fill this row the ordinary way (they are its doer, or an admin)? */
+  can_fill_self?: boolean;
+  /** May the viewer fill it in the doer's name, through the override batch? */
+  can_fill_override?: boolean;
+  /** Strict doer authority: photo/geo proofs and the bulk-CSV round trip. */
+  can_evidence?: boolean;
+  /** Like can_evidence, except a SUPER_ADMIN may also raise a blocker. */
+  can_blocker?: boolean;
+  /** Why neither fill flag is set. Optional for the same independent-deploy reason as the
+   *  flags themselves; the grid fails closed when they are absent, never open. */
+  fill_reason?: "no_permission" | "no_doer" | "doer_unreachable" | null;
   lifecycle: "done" | "blocked" | "overdue" | "not_started" | "in_progress";
 };
 
@@ -777,6 +791,8 @@ export type GeoRejectionReason =
 export type TrackerGeoVerification = {
   id: string;
   school_id: string;
+  /** WHOSE visit this is: one verification per (template, period, school, doer). */
+  doer_id: string;
   status: "verified" | "outside_radius";
   /** Passed the geofence, or a supervisor overrode it. This is what unlocks completion. */
   accepted: boolean;
