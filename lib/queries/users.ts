@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getMe } from '../api';
+import { getMe, getStaffProfile } from '../api';
 import { qk } from './keys';
 import { makeIdbPersister } from './persister';
 
@@ -14,5 +14,16 @@ export function useCurrentUser(userId: string) {
     staleTime: 15 * 60_000,
     gcTime: 60 * 60_000,
     persister: makeIdbPersister(),
+  });
+}
+
+/** Staff profile page. A 404 is a decision (out of scope / not found), not a blip. */
+export function useStaffProfile(userId: string) {
+  return useQuery({
+    queryKey: qk.staffProfile(userId),
+    queryFn: () => getStaffProfile(userId),
+    enabled: !!userId,
+    staleTime: 60_000,
+    retry: false,
   });
 }
