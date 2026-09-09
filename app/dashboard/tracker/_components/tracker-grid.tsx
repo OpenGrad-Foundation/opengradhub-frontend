@@ -21,7 +21,7 @@ import { PeriodHistory } from "./period-history";
 import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
 import { displayCellValue as display } from "@/lib/tracker-value";
-import { rowAuthority } from "@/lib/tracker-authority";
+import { groupEditsByAuthority, rowAuthority } from "@/lib/tracker-authority";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
 type RowDraft = { values: Record<string, unknown>; status?: string };
@@ -92,6 +92,8 @@ export function TrackerEditableGrid({
   const [reasonPrompt, setReasonPrompt] = useState<string | null>(null);
   const [blockerText, setBlockerText] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  // One pending state for the whole operation: a save may now be several requests.
+  const [saving, setSaving] = useState(false);
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null);
   // Open the "Additional Student Details" form for a student-target row.
   const [detailsStudent, setDetailsStudent] = useState<{ id: string; name: string } | null>(null);
@@ -120,6 +122,22 @@ export function TrackerEditableGrid({
     (canFill && authorityOf(row).self) || (overridingRow(row) && !rowComplete(row));
   /** Does the viewer own ANY row here? Gates the toolbar's doer-only menus. */
   const anyOwnRow = canFill && grid.rows.some((r) => authorityOf(r).evidence);
+  /** Everyone whose rows this grid may fill on behalf of — a drill-in has exactly one. */
+  const overrideDoers = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const r of grid.rows) {
+      if (rowAuthority(r).override && r.doer_id) names.set(r.doer_id, r.doer_name ?? "a team member");
+    }
+    return names;
+  }, [grid.rows]);
+  const sessionLabel = owner?.name
+    ?? (overrideDoers.size === 1 ? [...overrideDoers.values()][0] : `${overrideDoers.size} team members`);
+  /** Only the on-behalf drafts are discarded by Exit; own-row work survives it. */
+  const overrideDirtyCount = Object.entries(drafts).filter(([id, d]) => {
+    if (!(Object.keys(d.values).length > 0 || d.status !== undefined)) return false;
+    const row = grid.rows.find((r) => r.record_id === id);
+    return row ? rowAuthority(row).override : false;
+  }).length;
 
   // Switching to another person or another task ends the session: its reason described the
   // rows that were on screen when it was given, and must not follow the manager elsewhere.
@@ -183,20 +201,58 @@ export function TrackerEditableGrid({
     setDrafts((d) => ({ ...d, [recordId]: { ...d[recordId], values: d[recordId]?.values ?? {}, status } }));
   }
 
+  /**
+   * One Save, several requests. A mixed grid holds rows the viewer owns and rows they may
+   * only override, and those take different endpoints: the override route refuses a
+   * self-override outright and accepts a single doer per request. Groups are sent in turn and
+   * accounted for separately, so one refusal cannot discard another group's work.
+   */
   async function onSave() {
     setError(null);
-    const edits: TrackerBatchEdit[] = Object.entries(drafts)
+    // Snapshot at click: anything typed while the requests are in flight is a NEW draft and
+    // must survive, so only these record ids are cleared on success.
+    const submitted: TrackerBatchEdit[] = Object.entries(drafts)
       .filter(([, d]) => Object.keys(d.values).length > 0 || d.status !== undefined)
       .map(([record_id, d]) => ({ record_id, values: d.values, status: d.status }));
-    if (edits.length === 0) return;
+    if (submitted.length === 0) return;
+    const rowsById = new Map(grid.rows.map((r) => [r.record_id, r]));
+    const { own, byDoer, skipped } = groupEditsByAuthority(submitted, rowsById);
+    const message = (err: unknown) => (err instanceof Error ? err.message : "Save failed.");
+    const saved: string[] = [];
+    const failures: string[] = [];
+    setSaving(true);
     try {
-      if (onBehalf) await saveOnBehalf.mutateAsync({ reason: onBehalf.reason, edits });
-      else await save.mutateAsync(edits);
-      setDrafts({});
-    } catch (err) {
-      // Drafts are kept on failure — the manager's typing is the only copy.
-      setError(err instanceof Error ? err.message : "Save failed.");
+      if (own.length) {
+        try {
+          await save.mutateAsync(own);
+          saved.push(...own.map((e) => e.record_id));
+        } catch (err) { failures.push(`Your own rows: ${message(err)}`); }
+      }
+      for (const group of byDoer) {
+        // Reached only inside a session: without a reason there is nothing to record.
+        if (!onBehalf) break;
+        try {
+          await saveOnBehalf.mutateAsync({ reason: onBehalf.reason, edits: group.edits });
+          saved.push(...group.edits.map((e) => e.record_id));
+        } catch (err) {
+          failures.push(`${group.doerName ?? "One team member"}'s rows: ${message(err)}`);
+        }
+      }
+    } finally {
+      setSaving(false);
     }
+    // Clear ONLY what the server acknowledged. A failed group keeps its drafts for review and
+    // is never re-routed into a different write path behind the manager's back.
+    if (saved.length) setDrafts((d) => {
+      const next = { ...d };
+      for (const id of saved) delete next[id];
+      return next;
+    });
+    if (skipped) {
+      failures.push(
+        `${skipped} row${skipped === 1 ? "" : "s"} could not be saved from here — refresh and try again.`);
+    }
+    setError(failures.length ? failures.join(" ") : null);
   }
 
   function startOnBehalf(reason: string) {
@@ -207,8 +263,13 @@ export function TrackerEditableGrid({
   }
 
   function exitOnBehalf() {
+    // Ending the session discards what was typed in someone else's name. The viewer's OWN
+    // rows were never part of it — they take the ordinary route — so their edits stay.
+    setDrafts((d) => Object.fromEntries(Object.entries(d).filter(([id]) => {
+      const row = grid.rows.find((r) => r.record_id === id);
+      return row ? rowAuthority(row).self : false;
+    })));
     setOnBehalf(null);
-    setDrafts({});
     setError(null);
   }
 
@@ -608,10 +669,10 @@ export function TrackerEditableGrid({
             <button
               type="button"
               onClick={onSave}
-              disabled={save.isPending || saveOnBehalf.isPending || dirtyCount === 0}
+              disabled={saving || dirtyCount === 0}
               className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
             >
-              {save.isPending || saveOnBehalf.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {onBehalfMode ? "Save on behalf" : "Save"}{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
             </button>
           )}
@@ -622,7 +683,7 @@ export function TrackerEditableGrid({
           <ShieldAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
           <p className="min-w-0 flex-1 text-xs text-amber-900">
             <span className="font-semibold">
-              Filling as {owner?.name ?? "this team member"}
+              Filling as {sessionLabel}
             </span>
             {" — recorded in this task's history with your name and reason."}
             <span className="mt-0.5 block text-amber-800">&ldquo;{onBehalf?.reason}&rdquo;</span>
@@ -632,13 +693,13 @@ export function TrackerEditableGrid({
             onClick={exitOnBehalf}
             className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
           >
-            {dirtyCount > 0 ? `Exit (discards ${dirtyCount})` : "Exit"}
+            {overrideDirtyCount > 0 ? `Exit (discards ${overrideDirtyCount})` : "Exit"}
           </button>
         </div>
       )}
       {reasonPrompt !== null && (
         <ReasonPrompt
-          ownerName={owner?.name ?? "this team member"}
+          ownerName={sessionLabel}
           value={reasonPrompt}
           onChange={setReasonPrompt}
           onCancel={() => setReasonPrompt(null)}
