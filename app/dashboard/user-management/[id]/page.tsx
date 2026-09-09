@@ -7,6 +7,8 @@ import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 import { useCurrentUser } from "@/lib/queries/current-user";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useStaffProfile } from "@/lib/queries/users";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { RoleBadge } from "../_components/role-badge";
 import { card, Kpi, BRAND, muted, formatDate } from "./_components/section-card";
 import {
@@ -26,6 +28,7 @@ export default function StaffProfilePage() {
   const { data, isPending, error } = useStaffProfile(id);
   const { data: me } = useCurrentUser();
   const invalidate = useInvalidate();
+  const { has } = usePermissions();
   const [editing, setEditing] = useState(false);
 
   if (error) {
@@ -54,6 +57,11 @@ export default function StaffProfilePage() {
     user.status === "ACTIVE" ? null : user.status,
   ].filter(Boolean) as string[];
   const callerId = me?.user?.id ?? "";
+  // The per-person list (TeamPanel) only exists for tracker authors; everyone else
+  // has just their own My Tasks. Link only where the click can land on this person.
+  const tasksHref = user.id === callerId
+    ? "/dashboard/tracker?tab=myTasks"
+    : has(PERM.tracker.author) ? `/dashboard/tracker?tab=myTasks&owner=${user.id}` : null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -95,7 +103,7 @@ export default function StaffProfilePage() {
       </div>
 
       <OrgSection org={org} />
-      {tracker && <TasksSection tracker={tracker} userId={user.id} />}
+      {tracker && <TasksSection tracker={tracker} viewAllHref={tasksHref} />}
       {doubts && <DoubtsSection doubts={doubts} />}
       {schools && <SchoolsSection schools={schools} />}
       {attendance && <AttendanceSection attendance={attendance} />}

@@ -40,9 +40,10 @@ export function OrgSection({ org }: { org: StaffProfile["org"] }) {
   );
 }
 
-export function TasksSection({ tracker, userId }: { tracker: NonNullable<StaffProfile["tracker"]>; userId: string }) {
+/** `viewAllHref` is null when the caller has no tracker surface that can show this person's list. */
+export function TasksSection({ tracker, viewAllHref }: { tracker: NonNullable<StaffProfile["tracker"]>; viewAllHref: string | null }) {
   return (
-    <SectionCard title="Tracker tasks" action={viewAll(`/dashboard/tracker?tab=myTasks&owner=${userId}`)}>
+    <SectionCard title="Tracker tasks" action={viewAllHref ? viewAll(viewAllHref) : undefined}>
       {tracker.tasks.length === 0 ? <p style={muted}>No tasks in the current period.</p> : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
