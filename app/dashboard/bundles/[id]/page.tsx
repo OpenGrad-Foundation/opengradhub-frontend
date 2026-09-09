@@ -32,6 +32,7 @@ import {
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { Tabs, type TabDef } from "@/app/dashboard/_components/Tabs";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,95 @@ export default function BundleDetailPage() {
     return <Shell><div style={glassCard}><p style={{ color: "#e53e3e", fontWeight: 600 }}>{globalError ?? "Bundle not found."}</p></div></Shell>;
   }
 
+  // Panels are declared up front so the conditional Settings tab stays typed;
+  // <Tabs> renders only the active one.
+  const tabs: TabDef[] = [
+    {
+      key: "courses",
+      label: "Courses",
+      panel: (
+        <Section
+          title="Courses in this Bundle"
+          action={
+            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
+              + Add Course
+            </button>
+          }
+        >
+          <CourseList
+            bundleId={bundleId}
+            courses={bundle.courses}
+            studentCount={bundle.enrolled_students.length}
+            onRemoved={() => { void reload(); }}
+            onReordered={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "students",
+      label: "Students",
+      panel: (
+        <Section
+          title="Students Enrolled"
+          action={
+            <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
+              + Assign to Student
+            </button>
+          }
+        >
+          <StudentTable
+            bundleId={bundleId}
+            students={bundle.enrolled_students}
+            onRemoved={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+    {
+      key: "quizzes",
+      label: "Quizzes",
+      panel: (
+        <Section
+          title="Quizzes in this Bundle"
+          action={
+            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
+              + Add Quiz
+            </button>
+          }
+        >
+          <TestList
+            bundleId={bundleId}
+            tests={bundle.tests}
+            onRemoved={() => { void reload(); }}
+            setGlobalError={setGlobalError}
+          />
+        </Section>
+      ),
+    },
+  ];
+
+  if (has(PERM.bundles.delete)) {
+    tabs.push({
+      key: "settings",
+      label: "Settings",
+      panel: (
+        <Section title="Danger Zone">
+          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+            Deleting a bundle removes it and its course/quiz groupings, and drops it from
+            every batch that holds it. Students keep access to courses they were already
+            enrolled in. This cannot be undone.
+          </p>
+          <button onClick={handleDelete} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
+            {deleting ? "Deleting…" : "Delete Bundle"}
+          </button>
+        </Section>
+      ),
+    });
+  }
+
   return (
     <Shell>
       {/* ── Header ───────────────────────────────────────────── */}
@@ -132,67 +222,11 @@ export default function BundleDetailPage() {
             <Chip icon="📝" value={bundle.tests.length} label="quiz" />
           </div>
         </div>
-        {has(PERM.bundles.delete) && (
-          <button onClick={handleDelete} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
-            {deleting ? "Deleting…" : "Delete Bundle"}
-          </button>
-        )}
       </div>
 
       {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
-      {/* ── Section 1: Courses ───────────────────────────────── */}
-      <Section
-        title="Courses in this Bundle"
-        action={
-          <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
-            + Add Course
-          </button>
-        }
-      >
-        <CourseList
-          bundleId={bundleId}
-          courses={bundle.courses}
-          studentCount={bundle.enrolled_students.length}
-          onRemoved={() => { void reload(); }}
-          onReordered={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 2: Students ──────────────────────────────── */}
-      <Section
-        title="Students Enrolled"
-        action={
-          <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
-            + Assign to Student
-          </button>
-        }
-      >
-        <StudentTable
-          bundleId={bundleId}
-          students={bundle.enrolled_students}
-          onRemoved={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
-
-      {/* ── Section 3: Tests ─────────────────────────────────── */}
-      <Section
-        title="Quizzes in this Bundle"
-        action={
-          <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
-            + Add Quiz
-          </button>
-        }
-      >
-        <TestList
-          bundleId={bundleId}
-          tests={bundle.tests}
-          onRemoved={() => { void reload(); }}
-          setGlobalError={setGlobalError}
-        />
-      </Section>
+      <Tabs tabs={tabs} ariaLabel="Bundle sections" />
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addCourseOpen && (

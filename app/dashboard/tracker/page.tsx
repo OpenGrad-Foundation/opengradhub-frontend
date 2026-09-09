@@ -44,11 +44,24 @@ import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList, TaskListView } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
 import { TaskBreakdown } from "./_components/task-breakdown";
+import { useUrlFilters, useLocalFilters, type FilterControls } from "@/lib/filters/use-url-filters";
+import { applyFilters } from "@/lib/filters";
+import { taskStateFromLifecycle } from "@/lib/tracker-status";
+import { FilterBar } from "./_components/filter-bar";
+import { allTasksFilterSpec, gridFilterSpec, myTasksGroupFilterSpec, myTasksRecordFilterSpec } from "./_components/filter-specs";
+
+/** Filter state plus setters, as the grid panel consumes it. */
+type GridFilterControls = FilterControls;
 import { ZmView, AssignTaskButton } from "./_components/zm-view";
 import { NudgeButton } from "./_components/nudge-button";
 import PushNudge from "@/components/PushNudge";
 import { HierarchicalStudentsPanel } from "./_components/hierarchical-students";
 import { GraduationCap } from "lucide-react";
+
+/** URL vocabulary for each filterable surface. Options are filled in by the panels
+ *  themselves (they need facets); the hook only needs the keys and kinds. */
+const ALL_TASKS_URL_SPEC = allTasksFilterSpec();
+const MY_TASKS_URL_SPEC = [...myTasksGroupFilterSpec, ...myTasksRecordFilterSpec] as never;
 
 type TrackerTab = "allTasks" | "myTasks" | "blockers" | "builder" | "studentDetails" | "myStudents";
 
@@ -66,23 +79,31 @@ export default function TrackerPage() {
   const { has, isLoading: permLoading } = usePermissions();
   const canAuthor = has(PERM.tracker.author);
   const canFill = has(PERM.tracker.fill);
+  const canViewStudents = has(PERM.students.view);
   const canOverrideFill = has(PERM.tracker.fill_override);
   const canClear = has(PERM.tracker.blocker_clear);
   const canAdmin = has(PERM.tracker.admin);
   const isManagerView = canAuthor || canClear || canAdmin;
   const roleCode = currentUser?.role?.code ?? "";
-  const isPmOrAdmin = roleCode === "PROGRAM_MANAGER" || roleCode === "SUPER_ADMIN";
+  // Which tabs exist is an authorization question, so it is asked of
+  // permissions — and of the SAME ones the backend uses, so the screen cannot
+  // offer a surface the API will refuse. `assertPmOrAdmin` checks
+  // tracker.all_tasks and `assertManager` checks tracker.author
+  // (src/tracker/pm-view.guard.ts).
+  const canAllTasks = has(PERM.tracker.all_tasks);
 
   const tabs = useMemo<TrackerTab[]>(() => {
     const next: TrackerTab[] = [];
-    if (isPmOrAdmin || roleCode === "ZONAL_MANAGER") next.push("allTasks"); // task-first drill — PM/Admin/ZM
+    // tracker.all_tasks is PM/Admin; tracker.author additionally covers ZM,
+    // which is exactly the pair the backend's two guards accept.
+    if (canAllTasks || canAuthor) next.push("allTasks");
     if (canFill || isManagerView) next.push("myTasks");   // own task list — fellows + managers
     next.push("blockers");
-    if (canFill || isManagerView) next.push("myStudents"); // own students list
+    if (canViewStudents) next.push("myStudents"); // own students list
     if (canAuthor) next.push("builder");                   // new + manage templates
     if (canAuthor) next.push("studentDetails");            // student additional details setup
     return next;
-  }, [canAuthor, canFill, isManagerView, isPmOrAdmin, roleCode]);
+  }, [canAuthor, canFill, isManagerView, canAllTasks, canViewStudents]);
 
   /**
    * `?task=<templateId>` opens straight into that task's grid — the link a student
@@ -92,20 +113,31 @@ export default function TrackerPage() {
    */
   const searchParams = useSearchParams();
   const deepLinkTask = searchParams.get("task");
+  // `?tab=` seeds which surface opens, so a filtered link lands where it was copied
+  // from. Like `?task=`, it seeds only — switching tabs afterwards is local state.
+  const deepLinkTab = searchParams.get("tab") as TrackerTab | null;
+  // `?owner=` carries WHOSE rows a drilled grid is showing. Without it a copied grid
+  // link would silently open the reader's own rows instead. The server validates the
+  // id against the caller's staff scope, so an edited one is refused, not honoured.
+  const deepLinkOwner = searchParams.get("owner");
   // Where the deep link came from, so "back" returns there instead of dropping the
   // user in a tracker list they never chose. Validated against internal dashboard
   // paths by getBackHref.
   const deepLinkFrom = searchParams.get("from");
 
-  const [activeTab, setActiveTab] = useState<TrackerTab>("myTasks");
-  const [teamView, setTeamView] = useState<"zm" | "fellow">("zm");
+  const [activeTab, setActiveTab] = useState<TrackerTab>(deepLinkTab ?? "myTasks");
+  // One URL-backed filter state per filterable surface. Two surfaces would otherwise
+  // fight over `status` and `q` in the same query string.
+  const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
+  const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
+  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow">("zm");
   // Manager overview: when a status card is clicked, show only the tasks in that state
   // (replacing the team roster) until cleared. Null = no filter, show the roster.
   const [overviewState, setOverviewState] = useState<TaskState | null>(null);
   const [fillTemplateId, setFillTemplateId] = useState<string | null>(deepLinkTask);
   // Set when a manager drills into a task from one fellow's list, so the grid scopes to that
   // fellow's rows instead of the manager's whole scope. Null = caller's own scope.
-  const [fillFellowId, setFillFellowId] = useState<string | null>(null);
+  const [fillFellowId, setFillFellowId] = useState<string | null>(deepLinkOwner);
   // Their name, carried alongside the id purely so the fill-on-behalf banner can say WHO the
   // manager is writing as. Not every drill-in surface knows the id AND the name, so it is
   // optional and the banner falls back to a generic phrase.
@@ -177,21 +209,36 @@ export default function TrackerPage() {
                  different task inside the tracker, the origin is no longer where "back"
                  means, and the normal in-tracker back applies. */
               active={fillTemplateId === deepLinkTask}
-              label="Back to task"
+              label={drillTask ? `Back to ${drillTask.name}` : "Back to all tasks"}
               onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
             />
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : drillTask ? (
           <TaskBreakdown
             task={drillTask}
-            roleCode={roleCode}
             currentUserId={currentUser?.user.id ?? ""}
             canNudge={canAuthor}
             onBack={() => setDrillTask(null)}
+            onOpenTask={(templateId) => {
+              setSelectedTemplateId(templateId);
+              setFillTemplateId(templateId);
+              setFillFellowId(null);
+              setFillFellowName(null);
+            }}
           />
         ) : (
-          <AllTasksPanel onOpenDrill={(task) => setDrillTask(task)} />
+          <AllTasksPanel
+            onOpenDrill={(task) => setDrillTask(task)}
+            onOpenTask={(templateId) => {
+              setSelectedTemplateId(templateId);
+              setFillTemplateId(templateId);
+              setFillFellowId(null);
+              setFillFellowName(null);
+            }}
+            role={roleCode}
+            filters={allTasksFilters}
+          />
         )
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
@@ -205,7 +252,7 @@ export default function TrackerPage() {
               label="Back to my tasks"
               onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
             />
-            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} viewingOther={Boolean(fillFellowId)} canOverrideFill={canOverrideFill && Boolean(fillFellowId)} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
+            <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
         ) : (
           <div className="flex flex-col gap-4">
@@ -218,22 +265,46 @@ export default function TrackerPage() {
                   onClear={() => setOverviewState(null)}
                   onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
                 />
-              ) : isPmOrAdmin ? (
+              ) : canAllTasks ? (
                 <div className="flex flex-col gap-3">
                   <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+                    <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
                     <button type="button" onClick={() => setTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
                     <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
                   </div>
-                  {teamView === "zm"
-                    ? <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
-                    : <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />}
+                  {teamView === "my" ? (
+                    <MyTasksList
+                      filters={myTasksFilters}
+                      onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                    />
+                  ) : teamView === "zm" ? (
+                    <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  ) : (
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  )}
                 </div>
               ) : (
-                <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                <div className="flex flex-col gap-3">
+                  <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+                    <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
+                    <button type="button" onClick={() => setTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView !== "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
+                  </div>
+                  {teamView === "my" ? (
+                    <MyTasksList
+                      filters={myTasksFilters}
+                      onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                    />
+                  ) : (
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                  )}
+                </div>
               )}
               </>
             ) : (
-              <MyTasksList onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }} />
+              <MyTasksList
+                filters={myTasksFilters}
+                onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+              />
             )}
           </div>
         )
@@ -255,7 +326,7 @@ export default function TrackerPage() {
       ) : safeActiveTab === "myStudents" ? (
         <HierarchicalStudentsPanel />
       ) : (
-        <NewTaskPanel canAuthor={canAuthor} canFill={canFill} canClear={canClear} prefill={assignPrefill} />
+        <NewTaskPanel canAuthor={canAuthor} canShareExternally={has(PERM.tracker.share_external)} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} prefill={assignPrefill} />
       )}
     </div>
   );
@@ -415,10 +486,15 @@ function TeamPanel({ onOpen, onAssign }: {
   );
 }
 
-function NewTaskPanel({ canAuthor, canFill, canClear, prefill }: {
+function NewTaskPanel({ canAuthor, canShareExternally, canFill, canClear, canOverrideFill, prefill }: {
   canAuthor: boolean;
+  /** Sharing outside the organisation is its own permission — see the builder. */
+  canShareExternally: boolean;
   canFill: boolean;
   canClear: boolean;
+  /** tracker.fill.override. Passed here too, so a task's own grid behaves like every other
+   *  route into it — the ROW's capabilities decide whether the control is usable. */
+  canOverrideFill: boolean;
   /** Audience carried in from an "Assign task" click, which also opens the scratch builder. */
   prefill?: TrackerAssignPrefill | null;
 }) {
@@ -438,7 +514,7 @@ function NewTaskPanel({ canAuthor, canFill, canClear, prefill }: {
         <button type="button" onClick={() => setGridId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to template
         </button>
-        <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} />
+        <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} embedded />
       </div>
     );
   }
@@ -448,6 +524,7 @@ function NewTaskPanel({ canAuthor, canFill, canClear, prefill }: {
         templateId={detailId}
         fallback={templates.find((t) => t.id === detailId) ?? null}
         canAuthor={canAuthor}
+        canShareExternally={canShareExternally}
         onBack={() => setDetailId(null)}
         onOpenGrid={() => setGridId(detailId)}
       />
@@ -472,6 +549,7 @@ function NewTaskPanel({ canAuthor, canFill, canClear, prefill }: {
         ? <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={(id) => setDetailId(id)} />
         : (
           <TrackerBuilder
+            canShareExternally={canShareExternally}
             // Remount when the pre-selected audience changes — the builder only reads it on mount.
             key={prefill ? `prefill:${prefill.ids.join(",")}` : "blank"}
             canAuthor={canAuthor}
@@ -490,12 +568,15 @@ function TaskDetailRoute({
   templateId,
   fallback,
   canAuthor,
+  canShareExternally,
   onBack,
   onOpenGrid,
 }: {
   templateId: string;
   fallback: TrackerTemplate | null;
   canAuthor: boolean;
+  /** Sharing outside the organisation is its own permission — see the builder. */
+  canShareExternally: boolean;
   onBack: () => void;
   onOpenGrid: () => void;
 }) {
@@ -514,7 +595,7 @@ function TaskDetailRoute({
     );
   }
 
-  return <TaskDetail template={template} canAuthor={canAuthor} onBack={onBack} onOpenGrid={onOpenGrid} />;
+  return <TaskDetail template={template} canAuthor={canAuthor} canShareExternally={canShareExternally} onBack={onBack} onOpenGrid={onOpenGrid} />;
 }
 
 /** Global strip: counts TASKS (not records) bucketed by each task's rolled-up state.
@@ -626,22 +707,23 @@ function BackFromTask({
 function GridPanel({
   template,
   grid,
+  embedded,
   loading,
   error,
   canFill,
   canClear,
-  viewingOther = false,
   canOverrideFill = false,
   owner = null,
 }: {
   template: TrackerTemplate | null;
   grid: TrackerGrid | undefined;
+  /** Set where this grid is embedded in another view and must not own the URL. */
+  embedded?: boolean;
   loading: boolean;
   error: unknown;
   canFill: boolean;
   canClear: boolean;
   /** Drilled into another person's rows (a manager reviewing a fellow). */
-  viewingOther?: boolean;
   /** May the viewer take those rows over and fill them in the owner's name? */
   canOverrideFill?: boolean;
   /** Who those rows belong to, for the fill-on-behalf banner. */
@@ -659,17 +741,85 @@ function GridPanel({
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
   if (!grid || grid.rows.length === 0) return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
 
+  return (
+    <GridPanelBody
+      template={template} grid={grid} embedded={embedded}
+      canFill={canFill} canClear={canClear}
+      canOverrideGeo={canOverrideGeo} canGrantExtension={canGrantExtension}
+      canOverrideFill={canOverrideFill} canExport={canExport} owner={owner}
+    />
+  );
+}
+
+/** Split out so the filter hooks run unconditionally, after GridPanel's early returns. */
+function GridPanelBody({
+  template, grid, filters, canFill, canClear,
+  canOverrideGeo, canGrantExtension, canOverrideFill, canExport, owner, embedded,
+}: {
+  template: TrackerTemplate;
+  grid: TrackerGrid;
+  filters?: GridFilterControls;
+  canFill: boolean;
+  canClear: boolean;
+  canOverrideGeo: boolean;
+  canGrantExtension: boolean;
+  canOverrideFill: boolean;
+  canExport: boolean;
+  owner: { id: string; name: string } | null;
+  /** True where this grid is not the page's main surface and must not own the URL. */
+  embedded?: boolean;
+}) {
+  const spec = useMemo(
+    () => gridFilterSpec(grid.rows, grid.columns, template),
+    [grid.rows, grid.columns, template],
+  );
+  // Built here, not by the page: the value filters are derived from THIS template's
+  // columns, so only this component knows the full key set to read out of the URL.
+  const urlFilters = useUrlFilters(spec);
+  const local = useLocalFilters();
+  const f = filters ?? (embedded ? local : urlFilters);
+  const statusFilter = (f.state.status ?? "") as TaskState | "";
+
+  // Filters first, status last: the cards count what the OTHER filters admit, so
+  // every card shows a reachable number and picking one does not move the rest.
+  const beforeStatus = useMemo(
+    () => applyFilters(grid.rows, spec, f.state),
+    [grid.rows, spec, f.state],
+  );
+  const visibleRows = useMemo(
+    () => (statusFilter
+      ? beforeStatus.filter((r) => taskStateFromLifecycle(r.lifecycle) === statusFilter)
+      : beforeStatus),
+    [beforeStatus, statusFilter],
+  );
+
   // Per-task breakdown of THIS task's targets. Skipped for a single-target task (1/0/0/0 is noise).
-  const counts = grid.rows.length > 1 ? countByTaskState(grid.rows.map((r) => r.lifecycle)) : null;
+  const counts = grid.rows.length > 1 ? countByTaskState(beforeStatus.map((r) => r.lifecycle)) : null;
   return (
     <div className="flex flex-col gap-4">
-      {counts && <StatusCards counts={counts} />}
+      {counts && (
+        <StatusCards
+          counts={counts}
+          activeState={statusFilter || null}
+          onSelect={(s) => f.set({ status: statusFilter === s ? undefined : s })}
+        />
+      )}
       <TrackerEditableGrid
         template={template}
+        visibleRows={visibleRows}
+        statusFilter={statusFilter}
+        onStatusFilterChange={(s) => f.set({ status: s || undefined })}
+        filterBar={(
+          <FilterBar
+            spec={spec as never} state={f.state} set={f.set}
+            clear={f.clear} activeCount={f.activeCount}
+            primaryKeys={["q"]}
+          />
+        )}
         grid={grid}
         canFill={canFill}
         canClear={canClear}
-        viewingOther={viewingOther}
+       
         canOverrideGeo={canOverrideGeo}
         canGrantExtension={canGrantExtension}
         canOverrideFill={canOverrideFill}

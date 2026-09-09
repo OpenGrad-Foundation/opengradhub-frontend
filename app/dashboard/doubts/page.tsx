@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { BackLink } from "@/components/back-link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -10,6 +12,11 @@ import { useStaffDoubts } from "@/lib/queries/doubts";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
 export default function DoubtsPage() {
+  return <Suspense fallback={<LoadingState />}><DoubtsPageContent /></Suspense>;
+}
+
+function DoubtsPageContent() {
+  const programmeId = useSearchParams().get("programme_id");
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const queryClient = useQueryClient();
@@ -20,10 +27,17 @@ export default function DoubtsPage() {
   // Deep-link target from the dashboard tasks/activity bar (?focus=<doubtId>).
   // Read from window to avoid the useSearchParams Suspense requirement.
   const [focusId, setFocusId] = useState<string | null>(null);
+  // Which status the caller wants pre-selected (?status=OPEN|ANSWERED|ALL),
+  // sent by the doubts stat cards elsewhere in the dashboard so the count you
+  // clicked is the list you land on.
+  const [statusParam, setStatusParam] = useState<StaffFilter | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const f = new URLSearchParams(window.location.search).get("focus");
+    const q = new URLSearchParams(window.location.search);
+    const f = q.get("focus");
     if (f) setFocusId(f);
+    const s = (q.get("status") ?? "").toUpperCase();
+    if (s === "OPEN" || s === "ANSWERED" || s === "ALL") setStatusParam(s);
   }, []);
 
   // PBAC view gate:
@@ -33,11 +47,11 @@ export default function DoubtsPage() {
   const canSubmit  = has(PERM.doubts.submit);
   const canRespond = has(PERM.doubts.respond);
   const canDelete  = has(PERM.doubts.delete);
-  const isStaffViewer = canRespond || canDelete;
+  const isStaffViewer = canRespond || canDelete || has(PERM.students.view);
 
   // Single stable cache entry — `getDoubts` ignores its args and the backend
   // scopes the list by `req.auth`, so we never partition the cache by filters.
-  const { data: doubtsData, isPending, isError, error: queryError } = useStaffDoubts();
+  const { data: doubtsData, isPending, isError, error: queryError } = useStaffDoubts({ programme_id: programmeId ?? undefined });
   const doubts = doubtsData ?? [];
   const loading = isPending;
   const error = isError ? (queryError instanceof Error ? queryError.message : "Failed to load doubts.") : null;
@@ -60,12 +74,14 @@ export default function DoubtsPage() {
         canRespond={canRespond}
         canDelete={canDelete}
         focusId={focusId}
+        statusParam={statusParam}
       />
     );
   }
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <BackLink fallback="/dashboard" />
       {/* ── Header ─────────────────────────────────────────── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
         <div>
@@ -113,9 +129,9 @@ export default function DoubtsPage() {
 
 // ── Staff View ─────────────────────────────────────────────────
 
-type StaffFilter = 'ALL' | 'OPEN' | 'ESCALATED' | 'ANSWERED' | 'ORPHAN';
+type StaffFilter = 'ALL' | 'OPEN' | 'ANSWERED';
 
-function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId }: {
+function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDelete, focusId, statusParam }: {
   doubts: Doubt[];
   loading: boolean;
   error: string | null;
@@ -123,10 +139,20 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   canRespond: boolean;
   canDelete: boolean;
   focusId: string | null;
+  statusParam: StaffFilter | null;
 }) {
   // When deep-linked to a specific doubt, show ALL so it isn't hidden by the
-  // default OPEN filter (it may already be answered/escalated).
-  const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : 'OPEN');
+  // default OPEN filter (it may already be answered). An explicit ?status wins
+  // over the default but not over a focused doubt, which would otherwise be
+  // filtered out of the very list it asked to scroll to.
+  const [filter, setFilter] = useState<StaffFilter>(focusId ? 'ALL' : (statusParam ?? 'OPEN'));
+
+  // The params are read in an effect one tick after mount, so the initial state
+  // above misses them on the first render. Adopt them when they arrive.
+  useEffect(() => {
+    if (focusId) { setFilter('ALL'); return; }
+    if (statusParam) setFilter(statusParam);
+  }, [focusId, statusParam]);
   const [answering, setAnswering] = useState<Doubt | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const invalidate = useInvalidate();
@@ -160,21 +186,20 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   const filtered = doubts.filter((d) => {
     switch (filter) {
       case 'OPEN':      return d.status === 'OPEN';
-      case 'ESCALATED': return d.status === 'OPEN' && (d.escalated_to_zm_at || d.escalated_to_pm_at);
       case 'ANSWERED':  return d.status === 'ANSWERED';
-      case 'ORPHAN':    return d.school_name == null;
       default:          return true;
     }
   });
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+      <BackLink fallback="/dashboard" />
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        {(["ALL", "OPEN", "ESCALATED", "ANSWERED", "ORPHAN"] as StaffFilter[]).map((f) => (
+        {(["ALL", "OPEN", "ANSWERED"] as StaffFilter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -231,11 +256,19 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
   deleting: boolean;
 }) {
   const daysOpen = Math.floor((Date.now() - new Date(doubt.created_at).getTime()) / (1000 * 60 * 60 * 24));
+
+  // Age, stated directly, where the escalation tier used to be.
+  //
+  // The badge always meant "how neglected is this" — it just said so through
+  // the ladder, because the ladder was the only thing that measured neglect.
+  // With escalation gone the in-charge, their ZM and their PM all see a doubt
+  // from the moment it is asked, so the colour reads off the age instead. The
+  // old thresholds are kept: 3 days was when it used to reach a ZM, 6 a PM.
   const tier =
-    doubt.status === "ANSWERED"    ? { label: "Answered",         color: "#0abe62", bg: "rgba(10,190,98,0.1)" } :
-    doubt.escalated_to_pm_at       ? { label: "Escalated to PM",  color: "#c53030", bg: "rgba(229,62,62,0.1)" } :
-    doubt.escalated_to_zm_at       ? { label: "Escalated to ZM",  color: "#d97706", bg: "rgba(217,119,6,0.1)" } :
-                                     { label: `Open · ${daysOpen}d`, color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
+    doubt.status === "ANSWERED" ? { label: "Answered",             color: "#0abe62",           bg: "rgba(10,190,98,0.1)" } :
+    daysOpen >= 6               ? { label: `Open · ${daysOpen}d`,  color: "#c53030",           bg: "rgba(229,62,62,0.1)" } :
+    daysOpen >= 3               ? { label: `Open · ${daysOpen}d`,  color: "#d97706",           bg: "rgba(217,119,6,0.1)" } :
+                                  { label: `Open · ${daysOpen}d`,  color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
 
   return (
     <div id={`doubt-${doubt.id}`} style={{
@@ -246,7 +279,7 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
-            {doubt.student_name ?? "—"}{doubt.school_name ? ` · ${doubt.school_name}` : " · (orphan)"}
+            {doubt.student_name ?? "—"}{doubt.school_name ? ` · ${doubt.school_name}` : " · no school"}
           </p>
           <h3 style={{ margin: "3px 0 6px", fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 700, color: "#034852" }}>
             {doubt.subject}

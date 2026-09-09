@@ -7,6 +7,7 @@ import {
   addTrackerFields,
   assignTrackerTargets,
   createTrackerTemplate,
+  updateTrackerTemplate,
   type TrackerCompletionStyle,
   type TrackerField,
   type TrackerFieldSource,
@@ -16,6 +17,7 @@ import {
   type TrackerPriority,
   profilePathLabel,
 } from "@/lib/tracker-api";
+import { useTrackerMyProgrammes } from "@/lib/queries/tracker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
 import { useBatches } from "@/lib/queries/batches";
@@ -74,10 +76,25 @@ export type TrackerAssignPrefill = {
 
 export function TrackerBuilder({
   canAuthor,
+  canShareExternally = false,
   onCreated,
   prefill,
 }: {
   canAuthor: boolean;
+  /**
+   * May this author share a task outside the organisation? A permission of its
+   * own (tracker.share_external, migration 124) because tracker.author includes
+   * Zonal Managers, and authoring a task is not the same decision as publishing
+   * its proof photographs to a funder.
+   *
+   * Passed in rather than read from a hook here: this component is rendered bare
+   * in tests, and reaching for auth inside it would drag Clerk into every one of
+   * them. The page above already knows.
+   *
+   * Defaults to false — if a caller forgets to pass it, the control that shares
+   * data outside the building is the one that stays hidden.
+   */
+  canShareExternally?: boolean;
   /** Called with the new task's id once it is created (and assigned) so the caller can
    *  open that task instead of leaving the author on an empty form. */
   onCreated?: (templateId: string) => void;
@@ -95,6 +112,25 @@ export function TrackerBuilder({
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [requirePhoto, setRequirePhoto] = useState(false);
   const [requireGeo, setRequireGeo] = useState(false);
+  const [partnerVisible, setPartnerVisible] = useState(false);
+  const [programmeId, setProgrammeId] = useState("");
+
+  // Which programme this task type belongs to. The server derives it from the
+  // author's membership when we send nothing, and refuses outright when the author
+  // sits in more than one ("say which one this task type is for") — so an author in
+  // two programmes could not create a task at all from this form. The picker exists
+  // to answer that question before it becomes an error.
+  const myProgrammes = useTrackerMyProgrammes(canAuthor);
+  const programmeOpts = myProgrammes.data ?? [];
+  // A single seat needs no choosing, so it is applied rather than asked. Derived,
+  // not written into state by an effect: the list arrives asynchronously, and an
+  // effect would let one render see an empty value the submit path could read.
+  const effectiveProgrammeId = programmeId || (programmeOpts.length === 1 ? programmeOpts[0].id : "");
+  const mustPickProgramme = programmeOpts.length > 1 && !programmeId;
+  // No seat means no programme, which is a valid task type — it just can never be
+  // shared outside the organisation, because partners are seated per programme.
+  const canAttachProgramme = programmeOpts.length > 0;
+
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
@@ -203,6 +239,9 @@ export function TrackerBuilder({
           throw new Error(`"${f.label}" needs at least one choice.`);
       }
 
+      if (mustPickProgramme)
+        throw new Error("Choose which programme this task type is for.");
+
       // Code is an internal unique key — auto-derived from the name so authors only type a name.
       const autoCode = `${slug(name)}-${Date.now().toString(36)}`.toUpperCase();
       const { id } = await createTrackerTemplate({
@@ -218,9 +257,23 @@ export function TrackerBuilder({
         recurrence_frequency: recurrence || undefined,
         require_photo: requirePhoto,
         require_geo_verification: requireGeo && targetType !== "fellow",
+        // Omitted, not null, when there is nothing to send: the server's own
+        // derivation is the right answer for a single-seat author, and passing an
+        // explicit null would be a different instruction.
+        programme_id: effectiveProgrammeId || undefined,
         status: saveAsDraft ? "draft" : "active",
       });
       if (fields.length > 0) await addTrackerFields(id, { fields });
+
+      // Sharing stays a PATCH after the fact, not part of the create.
+      //
+      // The create route has no partner_visible field, and giving it one would put
+      // the "may you share outside the organisation" check — which is a different
+      // permission from authoring, deliberately (migration 124) — in two places.
+      // The picker above means the precondition it enforces (a task type must have
+      // a programme) is now knowable before submit rather than only in the reply.
+      if (partnerVisible && canShareExternally && effectiveProgrammeId)
+        await updateTrackerTemplate(id, { partner_visible: true });
 
       const targetIds = Array.from(selectedIds);
       let assigned = 0;
@@ -229,9 +282,16 @@ export function TrackerBuilder({
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
-      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility;
+      // Same condition as the PATCH above, not just `partnerVisible` — a ticked box
+      // on a task that ended up with no programme was never shared, and saying so
+      // would be the one lie this feature cannot afford.
+      const shared = partnerVisible && canShareExternally && effectiveProgrammeId
+        ? " Shared with this programme's government and funding officials." : "";
+      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
+      setPartnerVisible(false);
+      setProgrammeId("");
       setColumns([emptyColumn(profilePaths[0] ?? "")]);
       setSelectedIds(new Set());
       if (onCreated) {
@@ -345,6 +405,80 @@ export function TrackerBuilder({
             </>
           )}
         </div>
+
+        {/* Which programme owns this task type.
+            Placed immediately above the sharing block because it is that block's
+            precondition: partners are seated per programme, so a task with no
+            programme can never be shared. Hidden entirely for an author with no
+            seat — there is nothing to choose, and an empty dropdown would read as
+            a missing option rather than a state of the world. */}
+        {canAttachProgramme && (
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+            Programme
+            <select
+              value={effectiveProgrammeId}
+              onChange={(e) => setProgrammeId(e.target.value)}
+              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+            >
+              {/* Only offered when there is a real choice to make. With one seat the
+                  value is already applied, and an "unassigned" option would invite
+                  an author to opt out of something they cannot opt back into. */}
+              {programmeOpts.length > 1 && <option value="">Choose a programme…</option>}
+              {programmeOpts.map((pr) => (
+                <option key={pr.id} value={pr.id}>{pr.name}</option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-gray-500">
+              {programmeOpts.length === 1
+                ? "This task type belongs to your programme. It decides who can see it, and which officials it can be shared with."
+                : "Decides who can see this task type, and which officials it can be shared with. It cannot be changed later."}
+            </span>
+          </label>
+        )}
+
+        {/* Sharing outside the organisation.
+            Its own block, phrased as a warning rather than a setting, because it
+            is the only control on this page whose effect leaves the building. The
+            copy names exactly what a partner would receive — the same list the
+            server exposes — since "share with partners" reads as a summary and
+            this is not something to summarise. */}
+        {canShareExternally && (
+        <div className="flex flex-col gap-2 sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
+          <label className="flex items-start gap-2 text-sm text-amber-900">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={partnerVisible}
+              disabled={!effectiveProgrammeId}
+              onChange={(e) => setPartnerVisible(e.target.checked)}
+            />
+            <span>
+              Let government and funding officials seated in this programme follow this task
+            </span>
+          </label>
+          {/* Disabled rather than hidden, with the reason stated. The control
+              vanishing would leave an author who expected to share wondering
+              whether the feature exists; this tells them what to fix. */}
+          {!effectiveProgrammeId && (
+            <p className="ml-6 text-xs text-amber-800">
+              {canAttachProgramme
+                ? "Choose a programme above first — officials are seated per programme."
+                : "You are not seated in a programme, so there are no officials to share this with."}
+            </p>
+          )}
+          {partnerVisible && effectiveProgrammeId && (
+            <p className="ml-6 text-xs text-amber-800">
+              They will see every record of this task: the school, the {IN_CHARGE_LOWER} who
+              last updated it, what they filled in, whether it is late or blocked, and —
+              where this task requires them — the proof photographs and their GPS
+              coordinates. Only officials already seated in this programme, and only this
+              task. You can switch it off again, but anything already downloaded stays
+              downloaded.
+            </p>
+          )}
+        </div>
+        )}
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">

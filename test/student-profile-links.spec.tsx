@@ -1,5 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, cleanup } from "@testing-library/react";
+
+let grants = ['students.view', 'analytics.view'];
+vi.mock('@/hooks/use-permission', () => ({
+  usePermissions: () => ({ has: (p: string) => grants.includes(p) }),
+  useAnyPermission: (...p: string[]) => p.some(x => grants.includes(x)),
+}));
+afterEach(() => { cleanup(); grants = ['students.view', 'analytics.view']; });
 
 vi.mock("@/lib/useCurrentUrl", () => ({ useCurrentUrl: () => "/dashboard/analytics" }));
 
@@ -31,6 +38,11 @@ const needsAttentionData = {
 } as any;
 
 describe("at-risk student links", () => {
+  it('does not turn analytics permission into a student profile grant', () => {
+    grants = ['analytics.view'];
+    const { getByText } = render(<NeedsAttention data={needsAttentionData} />);
+    expect(getByText('Asha').closest('a')).toBeNull();
+  });
   it("points an at-risk row at that student's profile page", () => {
     const { getByText } = render(<NeedsAttention data={needsAttentionData} />);
     const link = getByText("Asha").closest("a") as HTMLAnchorElement;

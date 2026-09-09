@@ -17,7 +17,7 @@ import {
 import { QuizPreviewEditor } from "@/components/quiz-preview-editor";
 import { QuizSourceEditor } from "@/components/quiz-source-editor";
 import { hasStructuralIssue } from "@/lib/quiz-import-diagnostics";
-import { withFrom } from "@/lib/nav";
+import { getBackHref } from "@/lib/nav";
 
 // PDF parsing runs as a background job on the server; the page polls its
 // status until completion instead of holding one long HTTP request open.
@@ -106,6 +106,9 @@ export default function BulkImportQuizPage() {
   // carried alongside its content would be editable too.
   const moduleId = params.get("module_id");
   const courseIdParam = params.get("course_id");
+  // Where the author came from. Validated by getBackHref before it is used, so
+  // a crafted link cannot bounce them off-site after a save.
+  const fromParam = params.get("from");
   const destination: QuizDestination = moduleId
     ? { kind: "MODULE", moduleId }
     : { kind: "GLOBAL" };
@@ -330,21 +333,14 @@ export default function BulkImportQuizPage() {
       const done = await pollJobUntilDone(result.jobId, "Quiz saving", () => undefined);
       if (!done) return;
 
-      // The finished job reports the quiz it wrote, so land the author in the
-      // builder for it — the next thing they want after an import. `from`
-      // points Back at where the quiz lives.
-      const quizId = (done.result as { quiz_id?: string } | undefined)?.quiz_id;
+      // Return the author to where they started — the module's curriculum or
+      // the quiz bank — rather than dropping them into the new quiz's builder.
+      // The import is finished at this point; the list is where they can see
+      // it alongside everything else, and it is the page they left.
       const listHref = verifiedCourseId
         ? `/dashboard/course-management/${verifiedCourseId}?tab=curriculum`
         : `/dashboard/test-bank?uploadJobId=${result.jobId}`;
-      router.push(
-        quizId
-          ? withFrom(
-              `/dashboard/quiz-builder/${quizId}${verifiedCourseId ? `?course_id=${verifiedCourseId}` : ""}`,
-              listHref,
-            )
-          : listHref,
-      );
+      router.push(getBackHref(fromParam, listHref));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to queue quiz for saving");
       setSaving(false);

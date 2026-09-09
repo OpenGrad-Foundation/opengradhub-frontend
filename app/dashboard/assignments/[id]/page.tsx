@@ -6,6 +6,7 @@ import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 import { useParams } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasEffectiveSelfScope, PERM } from "@/lib/permissions";
 import {
   getAssignmentById,
   getSubmissionDownloadUrl,
@@ -22,8 +23,8 @@ export default function AssignmentDetailPage() {
   const { id: assignmentId } = useParams<{ id: string }>();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const studentId = userData?.user?.id ?? "";
-  const roleCode = (userData?.role?.code ?? "") as string;
-  const isStudent = roleCode === "STUDENT";
+  const isStudent = hasEffectiveSelfScope(userData?.permissions);
+  const canSubmit = isStudent && !!userData?.permissions.includes(PERM.assignments.submit);
 
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [loading, setLoading]       = useState(true);
@@ -133,7 +134,7 @@ export default function AssignmentDetailPage() {
       )}
 
       {/* Submission form — only for students, hidden once GRADED */}
-      {!isGraded && isStudent && (
+      {!isGraded && canSubmit && (
         <SubmissionForm
           assignmentId={assignmentId}
           studentId={studentId}

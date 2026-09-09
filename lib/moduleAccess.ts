@@ -6,7 +6,7 @@
 // human label and href — keyed by the DB `modules.code`. There is no role→module
 // table here any more; that lived in the old RBAC world.
 
-import { TRACKER_NAME } from "./labels";
+import { TRACKER_NAME, PARTNER_TRACKER_NAME } from "./labels";
 
 export type RoleCode =
   | "SUPER_ADMIN"
@@ -35,12 +35,14 @@ export type ModuleKey =
   | "analytics"
   | "reports"
   | "student_export"
+  | "students"
   | "user_management"
   | "role_management"
   | "programmes"
   | "schools"
   | "batches"
   | "tracker"
+  | "shared_tracker"
   | "attendance";
 
 export type ModuleMeta = { label: string; href: string };
@@ -60,12 +62,19 @@ export const MODULE_META: Record<ModuleKey, ModuleMeta> = {
   analytics:        { label: "Analytics",       href: "/dashboard/analytics" },
   reports:          { label: "Reports",         href: "/dashboard/reports" },
   student_export:   { label: "Student Export",  href: "/dashboard/student-export" },
+  students:         { label: "Students",        href: "/dashboard/students" },
   user_management:  { label: "User Management", href: "/dashboard/user-management" },
   role_management:  { label: "Role Management", href: "/dashboard/role-management" },
   programmes:       { label: "Programmes",      href: "/dashboard/programmes" },
   schools:          { label: "Schools",         href: "/dashboard/schools" },
   batches:          { label: "Batches",         href: "/dashboard/batches" },
   tracker:          { label: TRACKER_NAME,      href: "/dashboard/tracker" },
+  // Its own module, not a view of the tracker's. The nav is built from effective
+  // MODULES, so filing the partner permission under `tracker` would have pointed
+  // a funding official at /dashboard/tracker — the internal page their
+  // permissions refuse. Same label now, different href: one module, one link,
+  // somewhere they can actually read.
+  shared_tracker:   { label: PARTNER_TRACKER_NAME, href: "/dashboard/shared-tracker" },
   attendance:       { label: "Attendance",      href: "/dashboard/attendance" },
 };
 
@@ -137,6 +146,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: "Management",
     storageKey: "sidebar.management.open",
     members: new Set<ModuleKey>([
+      "students",
       "user_management",
       "role_management",
       "programmes",

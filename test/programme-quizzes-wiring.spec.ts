@@ -30,16 +30,15 @@ describe('assessments-overview query key', () => {
   });
 });
 
-describe('the monitor view decides programme mode from membership', () => {
-  it('filters the programme list on my_level rather than trusting visibility', () => {
-    // GET /programmes returns every programme to a PROGRAM_MANAGER, with
-    // my_level null on the ones they are not in.
-    expect(page).toMatch(/my_level != null/);
+describe('the monitor view uses effective scope and backend programme reach', () => {
+  it('keeps backend-reachable programmes including assigned-batch nonmembers', () => {
+    expect(page).not.toMatch(/allProgrammes\.filter\(\(p\) => p\.is_member\)/);
+    expect(page).toMatch(/myProgrammes = allProgrammes/);
   });
 
-  it('treats SUPER_ADMIN as the explicit exception, not as a member', () => {
-    expect(page).toMatch(/isSuperAdmin\s*\?\s*allProgrammes/);
-    expect(page).toMatch(/inProgrammeMode = !isSuperAdmin/);
+  it('uses effective unrestricted scope for the broad picker', () => {
+    expect(page).toContain('has(PERM.scope.unrestricted)');
+    expect(page).toMatch(/inProgrammeMode = !isUnrestricted/);
   });
 
   it('sends programme_id through to the overview query', () => {
@@ -53,7 +52,7 @@ describe('the monitor view decides programme mode from membership', () => {
   });
 
   it('offers an all-programmes option that sends no filter', () => {
-    expect(page).toMatch(/<option value="">\{isSuperAdmin \? 'All programmes'/);
+    expect(page).toMatch(/<option value="">\{isUnrestricted \? 'All programmes'/);
   });
 
   it('points an empty programme list at the content tab instead of falling back', () => {

@@ -11,6 +11,8 @@
  * would make the widget noise, and a widget people learn to ignore is worse
  * than no widget.
  */
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import React from "react";
 import Link from "next/link";
 import ListCard from "@/components/dashboard/primitives/ListCard";
@@ -37,7 +39,10 @@ function gapReason(row: RegisterGapRow, dueMonth: string): string {
 }
 
 export default function RegisterGaps() {
-  const { data, isLoading, error, refetch } = useRegisterGaps();
+  const { has } = usePermissions();
+  const canUseRegisters = has(PERM.attendance.view) && has(PERM.attendance.manage) && has(PERM.students.view) && (has(PERM.schools.view) || has(PERM.user_management.create));
+  const { data, isLoading, error, refetch } = useRegisterGaps(canUseRegisters);
+  if (!canUseRegisters) return null;
 
   if (error) {
     return <WidgetError message="Could not load register status." onRetry={() => void refetch()} />;

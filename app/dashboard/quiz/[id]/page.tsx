@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { hasEffectiveSelfScope, PERM } from "@/lib/permissions";
 import {
   getQuizById,
   startQuizAttempt,
@@ -211,6 +213,10 @@ export default function QuizTakingPage() {
   const from = useSearchParams().get("from");
   const currentUrl = useCurrentUrl();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const canAttempt = hasEffectiveSelfScope(userData?.permissions) && !!userData?.permissions.includes(PERM.assessments.attempt);
+  // Stamped onto every draft so startup recovery only ever offers this
+  // account's own pending submits back — IndexedDB is shared per browser.
+  const { userId: clerkUserId } = useAuth();
   const invalidate = useInvalidate();
 
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -433,6 +439,7 @@ export default function QuizTakingPage() {
     draftTimerRef.current = setTimeout(() => {
       void saveDraft({
         attempt_id: attempt.attempt_id,
+        user_id: clerkUserId ?? undefined,
         answers,
         flagged: [...flagged],
         current_idx: currentIdx,
@@ -445,14 +452,14 @@ export default function QuizTakingPage() {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     };
-  }, [answers, flagged, currentIdx, phase, attempt, sections, currentSectionIdx, quiz?.is_sectioned, quiz?.sequential_sections]);
+  }, [answers, flagged, currentIdx, phase, attempt, sections, currentSectionIdx, quiz?.is_sectioned, quiz?.sequential_sections, clerkUserId]);
 
   useEffect(() => {
     if (userLoading || !userData || hasLoadedRef.current) return;
     hasLoadedRef.current = true;
 
-    if (userData.role.code !== "STUDENT") {
-      setError("Only students can take quizzes.");
+    if (!hasEffectiveSelfScope(userData.permissions)) {
+      setError("Quiz attempts require your own learning scope.");
       setPhase("error");
       return;
     }
@@ -479,6 +486,7 @@ export default function QuizTakingPage() {
   }, [userLoading, userData, quizId]);
 
   async function handleStart() {
+    if (!canAttempt) return;
     retrySubmitRef.current = null;
     try {
       if (quiz?.require_fullscreen) {
@@ -554,6 +562,7 @@ export default function QuizTakingPage() {
       // can be replayed on next launch without rebuilding from in-memory state.
       await saveDraft({
         attempt_id: attempt.attempt_id,
+        user_id: clerkUserId ?? undefined,
         answers,
         flagged: Array.from(flagged),
         current_idx: currentIdx,
@@ -661,6 +670,7 @@ export default function QuizTakingPage() {
           // Final-section advance IS the submit — persist its payload for crash replay.
           await saveDraft({
             attempt_id: attempt.attempt_id,
+            user_id: clerkUserId ?? undefined,
             answers,
             flagged: Array.from(flagged),
             current_idx: currentIdx,
@@ -799,7 +809,7 @@ export default function QuizTakingPage() {
             </div>
           )}
 
-          {(() => {
+          {canAttempt && (() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
             const fsBlockMobile = fsRequired && !fsSupported;

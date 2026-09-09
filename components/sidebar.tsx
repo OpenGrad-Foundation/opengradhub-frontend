@@ -22,6 +22,7 @@ import {
   FileBarChart,
   Download,
   Users,
+  UsersRound,
   Shield,
   School,
   Layers,
@@ -65,6 +66,7 @@ const MODULE_ICONS: Record<string, LucideIcon> = {
   analytics:       BarChart2,
   reports:         FileBarChart,
   student_export:  Download,
+  students:        UsersRound,
   user_management: Users,
   role_management: Shield,
   programmes:      GraduationCap,
@@ -110,7 +112,12 @@ export default function Sidebar({
     (data?.modules ?? []).map((m: { code: string }) => m.code),
   );
   const granted = MODULE_ORDER.filter((key) => grantedCodes.has(key)).map(
-    (key) => ({ key, ...MODULE_META[key] }),
+    (key) => {
+      const permissions = new Set(data?.permissions ?? []);
+      if (key === "courses" && !permissions.has("courses.view") && permissions.has("courses.create")) return { key, label: "Duplicate courses", href: "/dashboard/courses/duplicate" };
+      if (key === "test_bank" && !permissions.has("test_bank.view") && permissions.has("test_bank.create")) return { key, label: "Duplicate quizzes", href: "/dashboard/test-bank/duplicate" };
+      return { key, ...MODULE_META[key] };
+    },
   );
 
   // Dashboard is pinned at top; grouped keys nest into their collapsible group;

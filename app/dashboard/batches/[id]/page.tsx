@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { BackLink } from "@/components/back-link";
@@ -24,7 +24,7 @@ import {
   getCourses,
   getBundles,
   getQuizzes,
-  getStudentsList,
+  getStudentRoster,
   fetchSchools,
   type BatchDetail,
   type BatchTestEntry,
@@ -306,7 +306,6 @@ export default function BatchDetailPage() {
       {addMembersOpen && (
         <AddMembersModal
           batchId={batchId}
-          existingMemberIds={batch.members.map((m) => m.id)}
           onClose={() => setAddMembersOpen(false)}
           onAdded={(msg) => { setAddMembersOpen(false); invalidate('batches', 'enrolment'); void refetch(); showToast(msg); }}
         />
@@ -688,37 +687,98 @@ function TestWindowModal({
 
 // ── Add Members Modal (multi-select) ──────────────────────────────────────────
 
+const ROSTER_PAGE_SIZE = 100;
+/** Mirrors ADD_MEMBERS_MAX in the backend's batches service. */
+const ADD_MEMBERS_CHUNK = 500;
+const INDEPENDENT = "__INDEPENDENT__"; // students with no school
+
 function AddMembersModal({
-  batchId, existingMemberIds, onClose, onAdded,
+  batchId, onClose, onAdded,
 }: {
   batchId: string;
-  existingMemberIds: string[];
   onClose: () => void;
   onAdded: (msg: string) => void;
 }) {
   const [students, setStudents] = useState<StudentRosterItem[]>([]);
   const [rosterTotal, setRosterTotal] = useState(0);
-  const [rosterTruncated, setRosterTruncated] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [scopeLimited, setScopeLimited] = useState(false);
   const [schools, setSchools] = useState<SchoolOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterState, setFilterState] = useState("");
   const [filterDistrict, setFilterDistrict] = useState("");
   const [filterSchoolId, setFilterSchoolId] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Discards responses to superseded queries — filters change faster than the network. */
+  const requestSeq = useRef(0);
 
+  // Typing must not fire a request per keystroke, and the server is the only
+  // thing that can see past the current page.
   useEffect(() => {
-    getStudentsList()
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const query = useMemo(() => ({
+    search:           debouncedSearch || undefined,
+    state:            filterState || undefined,
+    district:         filterDistrict || undefined,
+    school_id:        filterSchoolId === INDEPENDENT ? "none" : (filterSchoolId || undefined),
+    // Members are excluded server-side so "showing N of M" and "Select all (N)"
+    // count the same set. Subtracting them in the browser made the two disagree.
+    exclude_batch_id: batchId,
+    limit:            ROSTER_PAGE_SIZE,
+  }), [debouncedSearch, filterState, filterDistrict, filterSchoolId, batchId]);
+
+  // Any filter change is a NEW result set: reset to the first page and replace.
+  useEffect(() => {
+    const seq = ++requestSeq.current;
+    setLoading(true);
+    getStudentRoster({ ...query, offset: 0 })
       .then((page) => {
-        setStudents(page.items.filter((u) => !existingMemberIds.includes(u.id)));
+        if (seq !== requestSeq.current) return;   // a newer query already answered
+        setStudents(page.items);
         setRosterTotal(page.total);
-        setRosterTruncated(page.truncated);
+        setHasMore(page.has_more);
+        setScopeLimited(page.scope_limited);
+        setError(null);
       })
-      .catch((e) => { setError(e instanceof Error ? e.message : "Failed to load students."); setStudents([]); })
-      .finally(() => setLoading(false));
-  }, [existingMemberIds]);
+      .catch((e) => {
+        if (seq !== requestSeq.current) return;
+        setError(e instanceof Error ? e.message : "Failed to load students.");
+        setStudents([]);
+        setRosterTotal(0);
+        setHasMore(false);
+      })
+      .finally(() => { if (seq === requestSeq.current) setLoading(false); });
+  }, [query]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    const seq = requestSeq.current;
+    setLoadingMore(true);
+    try {
+      const page = await getStudentRoster({ ...query, offset: students.length });
+      if (seq !== requestSeq.current) return;     // filters moved while in flight
+      setStudents((prev) => {
+        const seen = new Set(prev.map((u) => u.id));
+        return [...prev, ...page.items.filter((u) => !seen.has(u.id))];
+      });
+      setRosterTotal(page.total);
+      setHasMore(page.has_more);
+    } catch (e) {
+      if (seq === requestSeq.current) {
+        setError(e instanceof Error ? e.message : "Failed to load more students.");
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -727,8 +787,6 @@ function AddMembersModal({
       .catch(() => { if (!cancelled) setSchools([]); });
     return () => { cancelled = true; };
   }, []);
-
-  const INDEPENDENT = "__INDEPENDENT__"; // students with no school
 
   // School options follow the state/district filter so the list stays scoped.
   const schoolOptions = schools.filter((s) => {
@@ -741,19 +799,14 @@ function AddMembersModal({
   function changeState(v: string) { setFilterState(v); setFilterDistrict(""); setFilterSchoolId(""); }
   function changeDistrict(v: string) { setFilterDistrict(v); setFilterSchoolId(""); }
 
-  const filtered = students.filter((u) => {
-    const q = search.toLowerCase();
-    if (q && !((u.name ?? "").toLowerCase().includes(q) || (u.roll_number ?? "").toLowerCase().includes(q) || (u.email ?? "").toLowerCase().includes(q))) return false;
-    if (filterSchoolId === INDEPENDENT) { if (u.school_id) return false; }
-    else if (filterSchoolId && u.school_id !== filterSchoolId) return false;
-    if (filterState && normState(u.state) !== filterState) return false;
-    if (filterDistrict && (u.district ?? "") !== filterDistrict) return false;
-    return true;
-  });
+  // No client-side filtering: `students` IS the server's answer to the current
+  // filters. Filtering again here is what made the picker unable to reach
+  // anyone outside the first page it happened to have loaded.
+  const anyFilterActive = Boolean(debouncedSearch || filterState || filterDistrict || filterSchoolId);
 
-  // Select-all operates on the current filtered set: checked when every
-  // filtered student is selected (and there is at least one).
-  const allFilteredSelected = filtered.length > 0 && filtered.every((u) => selectedIds.has(u.id));
+  // Select-all operates on what is loaded, and says so — the alternative was
+  // disabling it whenever more rows existed, which made large cohorts unusable.
+  const allLoadedSelected = students.length > 0 && students.every((u) => selectedIds.has(u.id));
 
   function toggle(id: string) {
     setSelectedIds((prev) => {
@@ -765,11 +818,11 @@ function AddMembersModal({
     setError(null);
   }
 
-  function toggleAllFiltered() {
+  function toggleAllLoaded() {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (allFilteredSelected) filtered.forEach((u) => next.delete(u.id));
-      else filtered.forEach((u) => next.add(u.id));
+      if (allLoadedSelected) students.forEach((u) => next.delete(u.id));
+      else students.forEach((u) => next.add(u.id));
       return next;
     });
     setError(null);
@@ -779,11 +832,28 @@ function AddMembersModal({
     if (selectedIds.size === 0) return;
     setSubmitting(true);
     setError(null);
+    const ids = Array.from(selectedIds);
+    let added = 0;
     try {
-      const result = await addBatchMembers(batchId, Array.from(selectedIds));
-      onAdded(`${result.enrolled} student${result.enrolled !== 1 ? "s" : ""} added to batch.`);
+      // The server refuses more than ADD_MEMBERS_CHUNK ids per request, and
+      // "Select all loaded" can exceed that after a few Load mores — so send it
+      // in chunks rather than letting the advertised workflow 400.
+      for (let i = 0; i < ids.length; i += ADD_MEMBERS_CHUNK) {
+        const result = await addBatchMembers(batchId, ids.slice(i, i + ADD_MEMBERS_CHUNK));
+        added += result.enrolled;
+      }
+      onAdded(`${added} student${added !== 1 ? "s" : ""} added to batch.`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to add students.");
+      const msg = e instanceof Error ? e.message : "Failed to add students.";
+      if (added > 0) {
+        // Earlier chunks are already committed. Closing through onAdded is what
+        // refetches the batch — leaving the modal open on an error would show a
+        // roster that no longer matches the database, and the picker excludes
+        // members server-side so its own list would be stale too.
+        onAdded(`${added} student${added !== 1 ? "s" : ""} added, then failed: ${msg}`);
+        return;
+      }
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -825,35 +895,40 @@ function AddMembersModal({
           ))}
         </select>
       </div>
-      {rosterTruncated && (
-        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(229,62,62,0.08)", border: "1px solid rgba(229,62,62,0.25)", fontSize: "12px", fontWeight: 600, color: "#9b2c2c" }}>
-          Showing {students.length} of {rosterTotal} students. The rest are not
-          loaded and cannot be found by searching — narrow by state, district or
-          school, or add the remainder in a second pass. &ldquo;Select all&rdquo;
-          is disabled while the list is incomplete.
+      {hasMore && (
+        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(3,72,82,0.05)", border: "1px solid rgba(3,72,82,0.12)", fontSize: "12px", fontWeight: 600, color: "#034852" }}>
+          Showing {students.length} of {rosterTotal} matching students. Search
+          and the filters run on the server, so narrowing them reaches every
+          student — or load the rest below.
         </p>
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: filtered.length && !rosterTruncated ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: filtered.length && !rosterTruncated ? "#034852" : "rgba(3,72,82,0.4)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: students.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: students.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
           <input
             type="checkbox"
-            checked={allFilteredSelected}
-            onChange={toggleAllFiltered}
-            disabled={filtered.length === 0 || rosterTruncated}
+            checked={allLoadedSelected}
+            onChange={toggleAllLoaded}
+            disabled={students.length === 0}
             style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
           />
-          Select all{filtered.length ? ` (${filtered.length})` : ""}
+          Select all{students.length ? ` loaded (${students.length})` : ""}
         </label>
         <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)" }}>{selectedIds.size} selected</span>
       </div>
       <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
         {loading ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading students…</p>
-        ) : filtered.length === 0 ? (
+        ) : students.length === 0 ? (
           <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
-            {search || filterState || filterDistrict ? "No matching students." : "No students available."}
+            {anyFilterActive
+              ? "No matching students."
+              : scopeLimited
+                // An empty roster and an out-of-scope roster look identical to a
+                // user, and they call for completely different next steps.
+                ? "No students in your scope. This school may not be attached to a programme you belong to — ask an admin to attach it, or to give you access."
+                : "No students available."}
           </p>
-        ) : filtered.map((u) => {
+        ) : students.map((u) => {
           const checked = selectedIds.has(u.id);
           return (
             <label
@@ -881,6 +956,15 @@ function AddMembersModal({
           );
         })}
       </div>
+      {hasMore && !loading && (
+        <button
+          onClick={() => void loadMore()}
+          disabled={loadingMore}
+          style={{ ...ghostBtnSm, width: "100%", marginBottom: "10px", opacity: loadingMore ? 0.5 : 1 }}
+        >
+          {loadingMore ? "Loading…" : `Load more (${rosterTotal - students.length} left)`}
+        </button>
+      )}
       {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
       <div style={{ display: "flex", gap: "10px" }}>
         <button onClick={onClose} style={ghostBtnSm} disabled={submitting}>Cancel</button>

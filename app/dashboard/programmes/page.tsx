@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, type MouseEvent } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { usePermissions } from "@/hooks/use-permission";
+import { EntityLink } from "./_components/entity-link";
+import { useRowNavigation } from "./_components/use-row-navigation";
 import { PERM } from "@/lib/permissions";
 import { useProgrammes } from "@/lib/queries/programmes";
 import { useCreateProgramme } from "@/lib/mutations/programmes";
 import { ApiError } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, levelBadge,
-  noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
+  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
+  primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "./styles";
 
 /** Slug a display name into the A-Z0-9_ shape the API requires. */
@@ -24,38 +24,9 @@ function suggestCode(name: string, state: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-/**
- * Row-level navigation that does not cost the anchor's behaviour.
- *
- * The name stays a real `<Link>`, so keyboard tabbing, cmd/middle-click into a
- * new tab, "copy link address" and screen-reader link semantics all keep
- * working — a `<tr onClick>` alone silently removes every one of those. This
- * only adds the convenience click, and stands aside whenever the browser is
- * already doing something better:
- *
- *   - a modifier or non-left button  -> the anchor's own new-tab handling
- *   - a click on any interactive child -> that control's job, not ours
- *   - a click that ends a text selection -> the user was selecting, not navigating
- *
- * No tabIndex/role on the row: that would add a second tab stop announcing the
- * same destination the name link already announces.
- */
-function useRowNavigation() {
-  const router = useRouter();
-  return (href: string) => ({
-    onClick: (e: MouseEvent<HTMLTableRowElement>) => {
-      if (e.defaultPrevented || e.button !== 0) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      if ((e.target as HTMLElement).closest("a, button, input, select, textarea, label")) return;
-      if (window.getSelection()?.toString()) return;
-      router.push(href);
-    },
-  });
-}
-
 export default function ProgrammesPage() {
   const { has } = usePermissions();
-  const canEdit = has(PERM.programmes.edit);
+  const canCreate = has(PERM.programmes.create);
   const rowNav = useRowNavigation();
   const [hovered, setHovered] = useState<string | null>(null);
 
@@ -80,29 +51,12 @@ export default function ProgrammesPage() {
             />
             Show archived
           </label>
-          {canEdit && (
+          {canCreate && (
             <button style={primaryButton} onClick={() => setShowCreate(true)}>
               New programme
             </button>
           )}
         </div>
-      </div>
-
-      {/*
-        This notice used to say membership granted nothing. That stopped being
-        true when the content-edit resolver shipped, and a banner that
-        understates a grant is worse than none: someone adds a fellow to
-        "UG Kerala" believing it is bookkeeping. State exactly what it does and
-        does not hand over. (programmes-wiring.spec.ts fails if the old wording
-        comes back.)
-      */}
-      <div style={noticeStyle}>
-        <strong>What membership grants.</strong> OWNERs and EDITORs can edit the courses and
-        assignments a programme owns; VIEWERs cannot. Owning content is not always enough to
-        edit it: if another programme&apos;s batch or students also use it, it stays read-only
-        for everyone but its creator. Membership never grants student data — rosters,
-        progress, attempts and scores stay with the school and batch hierarchy. It also never
-        grants a permission the member&apos;s role lacks.
       </div>
 
       {error && (
@@ -119,7 +73,7 @@ export default function ProgrammesPage() {
               <th style={thStyle}>Code</th>
               <th style={thStyle}>Kind</th>
               <th style={thStyle}>State</th>
-              <th style={thStyle}>Your level</th>
+              <th style={thStyle}>You</th>
               <th style={thStyle}>Status</th>
             </tr>
           </thead>
@@ -130,7 +84,7 @@ export default function ProgrammesPage() {
             {!isLoading && programmes.length === 0 && (
               <tr>
                 <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={6}>
-                  No programmes yet.{canEdit ? " Create one to get started." : ""}
+                  No programmes yet.{canCreate ? " Create one to get started." : ""}
                 </td>
               </tr>
             )}
@@ -148,9 +102,9 @@ export default function ProgrammesPage() {
                 }}
               >
                 <td style={tdStyle}>
-                  <Link href={`/dashboard/programmes/${p.id}`} style={{ color: "#0abe62", fontWeight: 700, textDecoration: "none" }}>
+                  <EntityLink permissions={[PERM.programmes.view]} href={`/dashboard/programmes/${p.id}`} style={{ color: "#0abe62", fontWeight: 700, textDecoration: "none" }}>
                     {p.name}
-                  </Link>
+                  </EntityLink>
                   {p.cohort_label && (
                     <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(3,72,82,0.5)" }}>
                       {p.cohort_label}
@@ -161,8 +115,8 @@ export default function ProgrammesPage() {
                 <td style={tdStyle}>{p.kind}</td>
                 <td style={tdStyle}>{p.state ?? "—"}</td>
                 <td style={tdStyle}>
-                  {p.my_level
-                    ? <span style={levelBadge(p.my_level)}>{p.my_level}</span>
+                  {p.is_member
+                    ? <span style={memberBadge()}>Member</span>
                     : <span style={{ color: "rgba(3,72,82,0.4)" }}>not a member</span>}
                 </td>
                 <td style={tdStyle}>

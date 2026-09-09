@@ -31,11 +31,13 @@ const row = (over: Partial<TrackerGridRow> = {}): TrackerGridRow =>
   ({
     record_id: "r1", status: "not_started", cells: [], blocked: false, blocker: null,
     school_name: "Govt HSS Coimbatore", school_id: "s1", target_name: null,
+    doer_id: "me", doer_name: "Me", can_fill_self: true, can_fill_override: false,
+    can_evidence: true, can_blocker: true, fill_reason: null,
     lifecycle: "not_started", ...over,
   }) as TrackerGridRow;
 
 const verification = (over: Partial<TrackerGeoVerification> = {}): TrackerGeoVerification => ({
-  id: "v1", school_id: "s1", status: "verified", accepted: true,
+  id: "v1", school_id: "s1", doer_id: "me", status: "verified", accepted: true,
   distance_m: 34.2, radius_m: 200, accuracy_m: null,
   exif_captured_at: "2026-08-24T04:15:00.000Z",
   uploaded_at: "2026-08-24T09:00:00.000Z",
@@ -456,5 +458,32 @@ describe("GeoVerificationModal — manager view", () => {
     geoResult.data = [verification()];
     renderModal({ canFill: false, readOnly: true, canOverride: true });
     expect(screen.queryByRole("button", { name: /override/i })).toBeNull();
+  });
+});
+
+describe("one school, two In-Charges", () => {
+  const mineRow = row({ record_id: "mine", doer_id: "me", doer_name: "Me", can_evidence: true });
+  const theirsRow = row({
+    record_id: "theirs", doer_id: "A", doer_name: "Asha",
+    can_fill_self: false, can_fill_override: true, can_evidence: false, can_blocker: false,
+  });
+
+  it("lists the visit each of them owes separately", () => {
+    renderModal({ rows: [mineRow, theirsRow] });
+    expect(screen.getAllByRole("group").length).toBe(2);
+    expect(screen.getByText(/asha's visit/i)).toBeTruthy();
+  });
+
+  it("offers the upload only on the viewer's own visit", () => {
+    renderModal({ rows: [mineRow, theirsRow] });
+    // Uploading is doer-only: a supervisor reviews the evidence, never supplies it.
+    expect(screen.getAllByLabelText(/take visit photo/i).length).toBe(1);
+  });
+
+  it("does not let one In-Charge's accepted photo verify the other's visit", () => {
+    geoResult = { data: [verification({ doer_id: "A" })], isLoading: false };
+    renderChip({ rows: [mineRow, theirsRow] });
+    // Two visits owed, one verified — never "1/1" because the schools happen to match.
+    expect(screen.getByText("1/2")).toBeTruthy();
   });
 });

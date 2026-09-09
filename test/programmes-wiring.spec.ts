@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { qk } from '../lib/queries/keys';
 import { PERM, ROUTE_PERMISSION } from '../lib/permissions';
 import { MODULE_META } from '../lib/moduleAccess';
+import { DOMAIN_KEYS } from '../lib/mutations/invalidation';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -103,13 +104,15 @@ describe('content writes invalidate outside the programme family', () => {
     // Without this an EDITOR who was just granted a course keeps seeing it
     // read-only until the cache happens to expire.
     const fn = mutations.slice(mutations.indexOf('function useProgrammeContentInvalidation'));
-    expect(fn).toMatch(/'og', 'courses'/);
-    expect(fn).toMatch(/qk\.assignments\(\)/);
+    expect(fn).toContain('useProgrammeInvalidation');
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'courses']);
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'assignments']);
   });
 
   it('drops the resources cache too — resources are a content kind since 095', () => {
     const fn = mutations.slice(mutations.indexOf('function useProgrammeContentInvalidation'));
-    expect(fn).toMatch(/'og', 'resources'/);
+    expect(fn).toContain('useProgrammeInvalidation');
+    expect(DOMAIN_KEYS.programmes).toContainEqual(['og', 'resources']);
   });
 
   it('a resource write drops the programme caches, since retargeting changes editability', () => {
@@ -135,22 +138,18 @@ describe('content writes invalidate outside the programme family', () => {
   });
 });
 
-describe('the list-page notice describes the grant that exists', () => {
+describe('the list page makes no claim about what membership grants', () => {
   const page = fs.readFileSync(
     path.join(__dirname, '..', 'app', 'dashboard', 'programmes', 'page.tsx'),
     'utf-8',
   );
 
-  it('no longer claims membership grants nothing', () => {
-    // It said "Not wired to access yet" for one release after the content-edit
-    // resolver shipped. A banner that understates a grant is worse than none.
+  it('carries no grant-explanation notice', () => {
+    // The notice was removed on request. If one comes back it must not
+    // understate the grant the way the pre-resolver wording did.
     expect(page).not.toMatch(/not wired to access/i);
     expect(page).not.toMatch(/does not currently grant/i);
-  });
-
-  it('states both halves — what it grants and what it never grants', () => {
-    expect(page).toMatch(/EDITOR/);
-    expect(page).toMatch(/never grants student data/i);
+    expect(page).not.toMatch(/What membership grants/i);
   });
 });
 
@@ -173,26 +172,42 @@ describe('the member picker does not need a permission its users lack', () => {
     expect(detail).toMatch(/staffError/);
   });
 
-  it('does not promise EDITORs control over what the programme owns', () => {
-    // EDITOR edits content; deciding WHICH content the programme owns is OWNER
-    // only. "Manages the programme's content" implied both.
-    expect(detail).not.toMatch(/EDITOR:\s*"Manages the programme's content\."/);
-    expect(detail).toMatch(/EDITOR:\s*"Can edit the courses, assignments and resources/);
+  it('does not promise the membership control it does not carry', () => {
+    // Was: "does not promise EDITORs control over what the programme owns" —
+    // EDITOR edited content, OWNER decided what the programme owned, and the
+    // copy had conflated the two. Migration 119 removed both levels, so the
+    // screen must not offer a level control at all, and the help text has to
+    // say where the authority actually comes from.
+    expect(detail).not.toMatch(/const LEVELS/);
+    expect(detail).not.toMatch(/LEVEL_HELP/);
+    expect(detail).toContain('Actions follow their effective permissions');
+    expect(detail).toContain('assigned batches and permitted scope');
   });
 
   it('tells an archived programme’s owner that they can undo it', () => {
     // levelFor stops at ARCHIVED but administration does not, so the old
     // "grants nothing" wording described a lockout that no longer happens.
     expect(detail).not.toMatch(/Membership grants nothing while it stays archived/);
-    expect(detail).toMatch(/Owners keep administrative access/);
+    expect(detail).toMatch(/Programme administrators keep administrative access/);
   });
 });
 
 describe('the courses list routes on the right authority', () => {
+  // The catalogue moved into a component when browse-to-duplicate needed a
+  // second mode of it (2026-09-04); /dashboard/courses is now a thin wrapper.
+  // The routing rule travelled with the body, so the assertions follow it.
   const coursesPage = fs.readFileSync(
-    path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
+    path.join(__dirname, '..', 'app', 'dashboard', 'courses', '_components', 'CourseCatalogue.tsx'),
     'utf-8',
   );
+
+  it('the route still renders the catalogue — a wrapper that forgot it would pass every assertion below', () => {
+    const wrapper = fs.readFileSync(
+      path.join(__dirname, '..', 'app', 'dashboard', 'courses', 'page.tsx'),
+      'utf-8',
+    );
+    expect(wrapper).toMatch(/<CourseCatalogue \/>/);
+  });
 
   it('sends Manage to the management view only for can_manage', () => {
     // /dashboard/course-management is gated by canManageCourse, which excludes

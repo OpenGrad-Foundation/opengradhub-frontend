@@ -29,6 +29,8 @@ export function AddStudentsPanel({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StudentForBulk[]>([]);
   const [searching, setSearching] = useState(false);
+  /** Matches the server did NOT return because the page was capped. */
+  const [omitted, setOmitted] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [err, setErr] = useState<string | null>(null);
@@ -43,7 +45,13 @@ export function AddStudentsPanel({
     setErr(null);
     const t = setTimeout(() => {
       getStudentsForBulk(q ? { search: q } : {})
-        .then((rows) => { if (!cancelled) setResults(rows); })
+        .then((page) => {
+          if (cancelled) return;
+          setResults(page.items);
+          // The server caps the page. Saying so beats rendering a prefix as if
+          // it were every match.
+          setOmitted(page.has_more ? page.total - page.items.length : 0);
+        })
         .catch((e) => { if (!cancelled) setErr(e instanceof Error ? e.message : "Search failed."); })
         .finally(() => { if (!cancelled) setSearching(false); });
     }, q ? 300 : 0);
@@ -109,6 +117,11 @@ export function AddStudentsPanel({
             style={inputStyle}
           />
           {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: "10px 0 0" }}>{err}</p>}
+          {omitted > 0 && (
+            <p style={{ margin: "10px 0 0", fontSize: "12px", fontWeight: 600, color: "#9b2c2c" }}>
+              {omitted} more student{omitted !== 1 ? "s" : ""} match but were not loaded — narrow the search.
+            </p>
+          )}
 
           <div style={{ marginTop: "14px", display: "grid", gap: "8px" }}>
             {searching ? (

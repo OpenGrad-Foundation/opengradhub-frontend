@@ -51,6 +51,9 @@ export default function AttendancePage() {
   }
 
   const canManage = has(PERM.attendance.manage);
+  const canViewStudents = has(PERM.students.view);
+  const canViewClasses = has(PERM.live_classes.view);
+  const canChooseSchools = has(PERM.schools.view) || has(PERM.user_management.create);
 
   return (
     <div className="p-4 sm:p-6">
@@ -65,9 +68,9 @@ export default function AttendancePage() {
         <Tabs
           ariaLabel="Attendance tabs"
           tabs={[
-            { key: "records", label: "Records", panel: <RecordsTab /> },
-            { key: "confirmations", label: "School confirmations", panel: <SchoolConfirmationsTab canManage={canManage} /> },
-            { key: "registers", label: "Registers", panel: <RegistersTab canManage={canManage} /> },
+            { key: "records", label: "Records", panel: canViewStudents ? <RecordsTab /> : <p>View Students permission is required to read attendance records.</p> },
+            { key: "confirmations", label: "School confirmations", panel: canViewClasses ? <SchoolConfirmationsTab canManage={canManage} /> : <p>View Live Classes permission is required to open school confirmations.</p> },
+            { key: "registers", label: "Registers", panel: !canViewStudents ? <p>View Students permission is required to use registers.</p> : canManage && !canChooseSchools ? <p>View Schools permission is required to choose a register school.</p> : <RegistersTab canManage={canManage} /> },
           ]}
         />
       </div>

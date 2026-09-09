@@ -30,6 +30,7 @@ import {
 } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { usePermissions } from "@/hooks/use-permission";
+import { StudentCreationDestination, type StudentDestination } from "@/components/student-creation-destination";
 import { PERM } from "@/lib/permissions";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
 import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
@@ -478,6 +479,7 @@ export default function UserManagementPage() {
 function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
+  const [destination, setDestination] = useState<StudentDestination>({});
   const [role, setRole] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -578,6 +580,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
 
   function handleRoleChange(newRole: string) {
     setRole(newRole);
+    setDestination({});
     setProgramme("");
     setSchoolId("");
     setState("");
@@ -603,6 +606,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
         manager_id: (isZM || isFellow) ? (managerId || null) : null,
       };
       if (isStudent) {
+        Object.assign(payload, destination);
         if (programme) payload.programme_type = programme;
         if (state) payload.state = state;
         if (district.trim()) payload.district = district.trim();
@@ -677,6 +681,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                 {/* STUDENT-only fields */}
                 {isStudent && (
                   <>
+                    <StudentCreationDestination value={destination} onChange={setDestination} />
                     <Row>
                       <Field label="Roll Number" id="user-roll-number">
                         <input id="user-roll-number" value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} style={inputStyle} placeholder="Leave blank to auto-generate" />
@@ -1454,6 +1459,8 @@ function BulkAssignPanel({
   const [searching,   setSearching]   = useState(false);
   const [searchErr,   setSearchErr]   = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  /** Matches the server did NOT return because the page was capped. */
+  const [omitted,     setOmitted]     = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Step 2 — multi-select courses + bundles
@@ -1486,14 +1493,17 @@ function BulkAssignPanel({
     setSearchErr(null);
     setSelectedIds(new Set());
     try {
-      const results = await getStudentsForBulk({
+      const page = await getStudentsForBulk({
         state:          filterState    || undefined,
         district:       filterDistrict || undefined,
         school_id:      filterSchool   || undefined,
         programme_type: filterProg     || undefined,
         search:         filterSearch   || undefined,
       });
-      setStudents(results);
+      setStudents(page.items);
+      // A silent prefix of the matches reads as the whole result set and gets
+      // bulk-enrolled as one.
+      setOmitted(page.has_more ? page.total - page.items.length : 0);
       setHasSearched(true);
     } catch (e) {
       setSearchErr(e instanceof Error ? e.message : "Search failed.");
@@ -1667,6 +1677,11 @@ function BulkAssignPanel({
                 {students.length === 0 ? "No students found" : `${selectedCount} of ${students.length} selected`}
               </span>
             </label>
+            {omitted > 0 && (
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#9b2c2c" }}>
+                {omitted} more match but were not loaded — narrow the filters.
+              </span>
+            )}
           </div>
 
           {students.length > 0 && (
@@ -1889,6 +1904,9 @@ const CSV_FIELD_LABELS: Record<string, string> = {
   email:          "Email",
   role:           "Role",
   programme_type: "Programme Type",
+  programme_id: "Programme ID",
+  batch_id: "Initial Batch ID",
+  fellow_id: "Batch Responsible Staff ID",
   state:          "State",
   district:       ZONE,
   school_name:    "School",
@@ -1982,6 +2000,7 @@ function csvEscape(val: string): string {
 function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const invalidate = useInvalidate();
   const isMobile = useIsMobile(640);
+  const [destination, setDestination] = useState<StudentDestination>({});
   const [file,         setFile]         = useState<File | null>(null);
   const [uploading,    setUploading]    = useState(false);
   const [result,       setResult]       = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>>; credentials?: Array<{ name: string; rollNumber: string; tempPassword?: string }> } | null>(null);
@@ -2069,9 +2088,15 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
     if (!rowsToUpload.length) return;
     setUploading(true);
     try {
+      const headers = [...new Set([...csvHeaders, "programme_id", "batch_id"])];
+      const withDestinations = rowsToUpload.map(row => row.role?.trim().toUpperCase() === "STUDENT" ? {
+        ...row,
+        // A row's explicit destination wins; defaults apply only to unassigned rows.
+        ...(row.programme_id?.trim() || row.batch_id?.trim() ? {} : destination),
+      } : row);
       const csvContent = [
-        csvHeaders.join(","),
-        ...rowsToUpload.map((row) => csvHeaders.map((h) => csvEscape(row[h] ?? "")).join(",")),
+        headers.join(","),
+        ...withDestinations.map((row) => headers.map((h) => csvEscape(row[h] ?? "")).join(",")),
       ].join("\n");
       const blob    = new Blob([csvContent], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "upload.csv", { type: "text/csv" });
@@ -2146,6 +2171,12 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           Role templates hide irrelevant columns, but uploads can still mix roles as long as each row includes a valid <strong>role</strong>.
         </p>
       </div>
+
+      {(templateRole === "COMMON" || templateRole === "STUDENT" || editableRows.some(row => row.role?.toUpperCase() === "STUDENT")) && <div style={{ marginTop: 16 }}>
+        <p style={formLabelStyle}>Default student destination</p>
+        <StudentCreationDestination value={destination} onChange={setDestination} optional />
+        <p style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>Used for student rows with no programme_id or batch_id. Each row may supply its own destination. With one available destination, the server can select it automatically.</p>
+      </div>}
 
       {/* File input */}
       <div style={{ marginTop: "20px" }}>
