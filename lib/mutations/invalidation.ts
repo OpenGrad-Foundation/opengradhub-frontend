@@ -39,15 +39,15 @@ export const DOMAIN_KEYS = {
     ['analytics'],
   ],
   // course content: lists, detail, overview, lessons, plus anything derived
-  courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
+  courses: [['og', 'courses'], ['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'user']],
   // user CRUD / role / archive — busts the managers list and authz-derived views
   users: [['og', 'user'], ['og', 'student'], ['og', 'students'], ['og', 'managers'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'programme'], ['og', 'programmes'], ['og', 'batches'], ['og', 'courses'], ['og', 'course'], ['og', 'bundles'], ['og', 'attendance'], ['analytics']],
   // school CRUD / fellow assignment
-  schools: [['og', 'schools'], ['og', 'students'], ['og', 'managers'], ['og', 'analytics']],
+  schools: [['og', 'schools'], ['og', 'students'], ['og', 'managers'], ['og', 'analytics'], ['og', 'user']],
   // announcement writes update the inbox + dashboard announcements card, not analytics aggregates
   announcements: [['og', 'announcements'], ['og', 'dashboard'], ['og', 'inbox']],
   // quiz authoring (create/update/publish/sections/questions)
-  quizzes: [['og', 'quizzes'], ['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'analytics'], ['og', 'dashboard']],
+  quizzes: [['og', 'quizzes'], ['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'user']],
   // a student submitting an attempt
   quizAttempt: [['og', 'quiz'], ['og', 'quiz-attempts'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // bundle enrol changes a student's item list, not analytics/dashboard aggregates
@@ -57,22 +57,22 @@ export const DOMAIN_KEYS = {
   // 'attendance' and 'live-classes' are here because membership decides who is
   // IN a cohort: adding or removing a member changes both the canonical report's
   // rows and every class roster they appear on.
-  batches: [['og', 'batches'], ['og', 'students'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard']],
+  batches: [['og', 'batches'], ['og', 'students'], ['og', 'bundles'], ['og', 'student'], ['og', 'courses'], ['og', 'course'], ['og', 'attendance'], ['og', 'live-classes'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'user']],
   assignments: [['og', 'assignments'], ['og', 'analytics'], ['og', 'dashboard']],
   // calendar/live-class changes affect the calendar + dashboard "upcoming" card.
   // 'attendance' is in here because a live class IS an occasion in the canonical
   // report: deleting or retargeting an ended class changes Records, the
   // drill-downs and My Attendance, all of which cache under 'attendance'.
-  calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'attendance'], ['og', 'dashboard']],
+  calendar: [['og', 'calendar'], ['og', 'live-classes'], ['og', 'attendance'], ['og', 'dashboard'], ['og', 'user']],
   // manual attendance marking — the roster it was made on AND the canonical
   // report, which now reads the same rows through /attendance/records
-  liveClassAttendance: [['og', 'live-classes'], ['og', 'attendance'], ['og', 'analytics'], ['og', 'dashboard']],
+  liveClassAttendance: [['og', 'live-classes'], ['og', 'attendance'], ['og', 'analytics'], ['og', 'dashboard'], ['og', 'user']],
   // retargeting a resource changes whether its owning programme may still edit
   // it (the closure is evaluated over the targets), so the programme Content
   // tab and its assignable picker go stale on every resource write
   resources: [['og', 'resources'], ['og', 'programme']],
   // doubts have their own dashboard card; keep dashboard, drop analytics
-  doubts: [['og', 'doubts'], ['og', 'dashboard']],
+  doubts: [['og', 'doubts'], ['og', 'dashboard'], ['og', 'user']],
   // notifications sent (send-notification write) — bust the recipient lists and counts
   notifications: [['og', 'notifications'], ['og', 'inbox']],
   // enrolment changes (assign course, bulk enrol/remove) — affect both the
@@ -81,14 +81,14 @@ export const DOMAIN_KEYS = {
   // lesson progress tick — affects course overview, student dashboards, analytics
   lessonProgress: [['og', 'course'], ['og', 'lesson'], ['og', 'student'], ['og', 'analytics'], ['og', 'dashboard']],
   // tracker has its own surfaces + a dashboard tasks card; not analytics
-  tracker: [['og', 'tracker'], ['og', 'dashboard']],
+  tracker: [['og', 'tracker'], ['og', 'dashboard'], ['og', 'user']],
   // resolving/dismissing a student question report — busts the Test Bank badge
   // counts and the dashboard "Reported Questions" card
   questionReports: [['og', 'question-reports'], ['og', 'dashboard']],
   // attendance writes (link marks/overrides, register commits) — a committed
   // register is what the canonical report reads for school-based cohorts, and
   // the live-class roster renders it too, so both families go stale
-  attendance: [['og', 'attendance'], ['og', 'live-classes'], ['og', 'dashboard']],
+  attendance: [['og', 'attendance'], ['og', 'live-classes'], ['og', 'dashboard'], ['og', 'user']],
 } as const;
 
 export type MutationDomain = keyof typeof DOMAIN_KEYS;
