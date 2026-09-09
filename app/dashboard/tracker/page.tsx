@@ -130,7 +130,9 @@ export default function TrackerPage() {
   // fight over `status` and `q` in the same query string.
   const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
   const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
-  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow" | "manage">("zm");
+  // `?owner=` lands on the per-person list (TeamPanel), which only mounts under the
+  // "fellow" view — the default "zm" view would swallow the deep link.
+  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow" | "manage">(deepLinkOwner ? "fellow" : "zm");
   // The task open in the Tasks tab's Manage view (edit / archive / delete). Lives here so a
   // freshly-created task can land straight on its own detail from the New task tab.
   const [manageDetailId, setManageDetailId] = useState<string | null>(null);

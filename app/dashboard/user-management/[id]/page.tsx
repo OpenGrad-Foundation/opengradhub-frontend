@@ -65,14 +65,14 @@ export default function StaffProfilePage() {
             {user.name}
           </h1>
           <RoleBadge role={user.role} />
-          {data.caps.edit && data.edit_user && (
+          {data.caps.manage && data.edit_user && (
             <button
               type="button"
               onClick={() => setEditing(true)}
               style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: "10px", border: "1px solid rgba(3,72,82,0.15)",
                        background: "#fff", fontWeight: 700, fontSize: "13px", color: BRAND.dark, cursor: "pointer" }}
             >
-              Edit user
+              Manage user
             </button>
           )}
         </div>

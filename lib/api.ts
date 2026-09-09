@@ -3030,7 +3030,8 @@ export type StaffProfile = {
     programmes: { id: string; name: string }[];
     email?: string | null; phone?: string | null;
   };
-  caps: { edit: boolean };
+  /** manage: caller may open the user-management drawer (its actions gate themselves). */
+  caps: { manage: boolean };
   edit_user?: SafeUser;
   org: {
     manager: { id: string; name: string; role: string } | null; manager_hidden: boolean;

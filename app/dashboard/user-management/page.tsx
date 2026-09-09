@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -466,6 +467,15 @@ export default function UserManagementPage() {
                         }}>
                           {isSelected ? "Open ›" : u.role === "STUDENT" ? "Manage →" : "Profile →"}
                         </span>
+                        {u.role === "STUDENT" && (
+                          <Link
+                            href={`/dashboard/students/${u.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            style={{ marginLeft: "10px", fontSize: "11px", fontWeight: 600, color: "#209379", textDecoration: "none" }}
+                          >
+                            Profile →
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );
