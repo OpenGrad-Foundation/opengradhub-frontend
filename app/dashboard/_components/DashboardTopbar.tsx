@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, UserRound } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import { roleLabel } from "@/lib/labels";
@@ -35,6 +36,8 @@ export default function DashboardTopbar({
   const userId   = data?.user?.id      ?? "";
   const userName = data?.user?.fullName ?? "";
   const roleName = roleLabel(data?.role?.name);
+  // Students have their own profile surface; the staff page 404s them.
+  const canOpenStaffProfile = !!data?.role?.name && roleLabel(data.role.name) !== "Student";
 
   // One SSE stream per authenticated user: pushes notification/announcement
   // change signals → invalidates the relevant React Query caches (replaces 30s
@@ -122,6 +125,17 @@ export default function DashboardTopbar({
                     <p className="truncate text-xs text-gray-500">{roleName}</p>
                   )}
                 </div>
+                {canOpenStaffProfile && (
+                  <Link
+                    href="/dashboard/user-management/me"
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+                  >
+                    <UserRound size={16} aria-hidden="true" />
+                    My profile
+                  </Link>
+                )}
                 <button
                   id="topbar-sign-out-btn"
                   type="button"

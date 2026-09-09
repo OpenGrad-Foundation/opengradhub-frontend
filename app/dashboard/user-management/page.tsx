@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -54,6 +55,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const router = useRouter();
   const canCreate = has(PERM.user_management.create);
   const canDelete = has(PERM.user_management.delete);
   const invalidate = useInvalidate();
@@ -407,7 +409,9 @@ export default function UserManagementPage() {
                   return (
                     <tr
                       key={u.id}
-                      onClick={() => setSelectedUser(u)}
+                      // Students keep the drawer (course/bundle/batch assignment lives there);
+                      // staff open their one-page profile, which hosts the same drawer via "Edit user".
+                      onClick={() => (u.role === "STUDENT" ? setSelectedUser(u) : router.push(`/dashboard/user-management/${u.id}`))}
                       style={{
                         borderBottom: "1px solid rgba(3,72,82,0.05)",
                         cursor: "pointer",
@@ -460,7 +464,7 @@ export default function UserManagementPage() {
                           fontSize: "11px", fontWeight: 600, color: "#209379",
                           opacity: isSelected ? 1 : 0.5,
                         }}>
-                          {isSelected ? "Open ›" : "Manage →"}
+                          {isSelected ? "Open ›" : u.role === "STUDENT" ? "Manage →" : "Profile →"}
                         </span>
                       </td>
                     </tr>

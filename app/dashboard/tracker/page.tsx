@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -294,7 +294,7 @@ export default function TrackerPage() {
                   ) : teamView === "zm" ? (
                     <ZmView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
                   ) : (
-                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
                   )}
                 </div>
               ) : (
@@ -320,7 +320,7 @@ export default function TrackerPage() {
                       onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
                     />
                   ) : (
-                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} />
+                    <TeamPanel onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
                   )}
                 </div>
               )}
@@ -433,13 +433,22 @@ function TasksPanel({
   );
 }
 
-function TeamPanel({ onOpen, onAssign }: {
+function TeamPanel({ onOpen, onAssign, initialOwnerId }: {
   onOpen: (templateId: string, fellowId: string, fellowName?: string) => void;
   /** Jump to the task builder with this person pre-selected as the audience. */
   onAssign?: (person: { id: string; name: string }) => void;
+  /** `?owner=` deep link (e.g. from a staff profile): pre-select this person's list once loaded. */
+  initialOwnerId?: string | null;
 }) {
   const { data: fellows = [], isLoading } = useTrackerFellows();
   const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
+  const [seeded, setSeeded] = useState(false);
+  useEffect(() => {
+    if (seeded || !initialOwnerId || fellows.length === 0) return;
+    const hit = fellows.find((f) => f.id === initialOwnerId);
+    if (hit) setSel({ id: hit.id, name: hit.name });
+    setSeeded(true);
+  }, [fellows, initialOwnerId, seeded]);
   const [q, setQ] = useState("");
   const tasks = useTrackerFellowTasks(sel?.id);
   const canNudge = usePermissions().has(PERM.tracker.author);
