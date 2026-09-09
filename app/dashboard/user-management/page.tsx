@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import Link from "next/link";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -463,14 +462,6 @@ export default function UserManagementPage() {
                         }}>
                           {isSelected ? "Open ›" : "Manage →"}
                         </span>
-                        {/* Row click keeps the drawer; the one-page profile is its own link. */}
-                        <Link
-                          href={u.role === "STUDENT" ? `/dashboard/students/${u.id}` : `/dashboard/user-management/${u.id}`}
-                          onClick={(e) => e.stopPropagation()}
-                          style={{ marginLeft: "10px", fontSize: "11px", fontWeight: 600, color: "#209379", textDecoration: "none" }}
-                        >
-                          Profile →
-                        </Link>
                       </td>
                     </tr>
                   );
