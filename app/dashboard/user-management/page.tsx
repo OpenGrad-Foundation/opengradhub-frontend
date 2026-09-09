@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
@@ -54,6 +55,7 @@ const ALL_ROLES: { code: string; label: string }[] = [
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
+  const router = useRouter();
   const canCreate = has(PERM.user_management.create);
   const canDelete = has(PERM.user_management.delete);
   const invalidate = useInvalidate();
@@ -407,7 +409,8 @@ export default function UserManagementPage() {
                   return (
                     <tr
                       key={u.id}
-                      onClick={() => setSelectedUser(u)}
+                      // Row = open the person's page; the "Manage →" cell keeps the drawer.
+                      onClick={() => router.push(u.role === "STUDENT" ? `/dashboard/students/${u.id}` : `/dashboard/user-management/${u.id}`)}
                       style={{
                         borderBottom: "1px solid rgba(3,72,82,0.05)",
                         cursor: "pointer",
@@ -456,12 +459,16 @@ export default function UserManagementPage() {
                       <td style={tdStyle}><StatusBadge status={u.status} /></td>
                       <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <span style={{
-                          fontSize: "11px", fontWeight: 600, color: "#209379",
-                          opacity: isSelected ? 1 : 0.5,
-                        }}>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedUser(u); }}
+                          style={{
+                            fontSize: "11px", fontWeight: 600, color: "#209379", background: "none", border: "none",
+                            cursor: "pointer", padding: "4px 6px", opacity: isSelected ? 1 : 0.7,
+                          }}
+                        >
                           {isSelected ? "Open ›" : "Manage →"}
-                        </span>
+                        </button>
                       </td>
                     </tr>
                   );
