@@ -282,6 +282,47 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEmail = identifier.includes("@");
+  // Roll-number path: only ask for DOB once we know no email code can be sent.
+  const [needsDob, setNeedsDob] = useState(false);
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+
+  function handleIdentifierChange(value: string) {
+    setIdentifier(value);
+    setNeedsDob(false);
+    setError(null);
+  }
+
+  /**
+   * Try Clerk's email-code reset for any identifier (email or roll number /
+   * Clerk username). Returns true when a code was sent and the flow advanced.
+   * Returns false when the account has no email factor, so the caller can
+   * fall back to the fellow-approved DOB path.
+   */
+  async function trySendEmailCode(): Promise<boolean> {
+    if (!signIn) return false;
+    const { error: createError } = await signIn.create({ identifier: identifier.trim() });
+    if (createError) {
+      if (isEmail) setError(createError.message ?? "Could not start the reset.");
+      return false;
+    }
+    const emailFactor = signIn.supportedFirstFactors.find(
+      (f) => f.strategy === "reset_password_email_code",
+    );
+    if (!emailFactor) {
+      if (isEmail) setError("No email address is available for this account.");
+      return false;
+    }
+    const { error: sendError } = await signIn.resetPasswordEmailCode.sendCode();
+    if (sendError) {
+      setError(sendError.message ?? "Could not send the reset code.");
+      // A real send failure on an email-capable account should surface, not
+      // silently downgrade to the DOB path.
+      return true;
+    }
+    setCodeSentTo("safeIdentifier" in emailFactor ? emailFactor.safeIdentifier : identifier.trim());
+    setStep("emailCode");
+    return true;
+  }
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -290,26 +331,23 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       if (isEmail) {
-        const { error: createError } = await signIn.create({ identifier: identifier.trim() });
-        if (createError) {
-          setError(createError.message ?? "Could not start the reset.");
-          return;
-        }
-        const { error: sendError } = await signIn.resetPasswordEmailCode.sendCode();
-        if (sendError) {
-          setError(sendError.message ?? "Could not send the reset code.");
-          return;
-        }
-        setStep("emailCode");
-      } else {
-        if (!dob) {
-          setError("Please enter your date of birth.");
-          return;
-        }
-        const { message } = await requestUgPasswordReset(identifier.trim(), dob);
-        setInfo(message);
-        setStep("ugDone");
+        await trySendEmailCode();
+        return;
       }
+      if (!needsDob) {
+        const sent = await trySendEmailCode();
+        if (sent) return;
+        // No email on the account: fall back to DOB + fellow approval.
+        setNeedsDob(true);
+        return;
+      }
+      if (!dob) {
+        setError("Please enter your date of birth.");
+        return;
+      }
+      const { message } = await requestUgPasswordReset(identifier.trim(), dob);
+      setInfo(message);
+      setStep("ugDone");
     } catch (err: unknown) {
       const clerkErrors = (err as { errors?: Array<{ message: string }> })?.errors;
       setError(clerkErrors?.[0]?.message ?? "Something went wrong. Please try again.");
@@ -380,7 +418,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
                 name="identifier"
                 type="text"
                 value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
+                onChange={(e) => handleIdentifierChange(e.target.value)}
                 placeholder="name@opengrad.edu or OG-STU-001"
                 className={`${inputClass} pl-11 pr-4`}
                 autoComplete="email"
@@ -389,8 +427,11 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
             </div>
           </div>
 
-          {!isEmail && identifier.trim().length > 0 ? (
+          {!isEmail && needsDob ? (
             <div>
+              <p className="mb-3 text-[13px] text-black/60">
+                We couldn&apos;t send a code to an email for this roll number. Enter your date of birth to request a reset instead.
+              </p>
               <label htmlFor="forgot-dob" className={labelClass}>
                 Date of birth
               </label>
@@ -420,7 +461,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
 
           <SubmitButton
             isSubmitting={isSubmitting}
-            label={isEmail ? "Send reset code" : "Request password reset"}
+            label={isEmail || !needsDob ? "Send reset code" : "Request password reset"}
             loadingLabel="Submitting…"
           />
         </form>
@@ -429,7 +470,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
       {step === "emailCode" ? (
         <form onSubmit={handleEmailReset} className="space-y-5">
           <p className="text-sm text-black/70">
-            We sent a 6-digit code to <strong>{identifier}</strong>
+            We sent a 6-digit code to <strong>{codeSentTo ?? identifier}</strong>
           </p>
 
           <div>
