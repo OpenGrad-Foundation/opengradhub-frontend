@@ -2097,11 +2097,16 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
     setUploading(true);
     try {
       const headers = [...new Set([...csvHeaders, "programme_id", "batch_id"])];
-      const withDestinations = rowsToUpload.map(row => row.role?.trim().toUpperCase() === "STUDENT" ? {
-        ...row,
-        // A row's explicit destination wins; defaults apply only to unassigned rows.
-        ...(row.programme_id?.trim() || row.batch_id?.trim() ? {} : destination),
-      } : row);
+      // A row's explicit destination wins; defaults apply only to unassigned rows.
+      // Students take programme + batch; every other role takes the programme
+      // only (seated as a programme member on the server).
+      const withDestinations = rowsToUpload.map(row => {
+        if (row.programme_id?.trim() || row.batch_id?.trim()) return row;
+        const isStudent = row.role?.trim().toUpperCase() === "STUDENT";
+        return isStudent
+          ? { ...row, ...destination }
+          : (destination.programme_id ? { ...row, programme_id: destination.programme_id } : row);
+      });
       const csvContent = [
         headers.join(","),
         ...withDestinations.map((row) => headers.map((h) => csvEscape(row[h] ?? "")).join(",")),
@@ -2180,11 +2185,11 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
         </p>
       </div>
 
-      {(templateRole === "COMMON" || templateRole === "STUDENT" || editableRows.some(row => row.role?.toUpperCase() === "STUDENT")) && <div style={{ marginTop: 16 }}>
-        <p style={formLabelStyle}>Default student destination</p>
+      <div style={{ marginTop: 16 }}>
+        <p style={formLabelStyle}>Default programme</p>
         <StudentCreationDestination value={destination} onChange={setDestination} optional />
-        <p style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>Used for student rows with no programme_id or batch_id. Each row may supply its own destination. With one available destination, the server can select it automatically.</p>
-      </div>}
+        <p style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>Applies to every row with no programme_id. Students join the programme (and the initial batch, if chosen); staff are added as programme members. Each row may supply its own programme_id. With one available programme, the server can select it automatically for students.</p>
+      </div>
 
       {/* File input */}
       <div style={{ marginTop: "20px" }}>

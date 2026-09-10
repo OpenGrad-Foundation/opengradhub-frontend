@@ -152,4 +152,26 @@ describe("SearchMultiPicker", () => {
     // No client filtering: all options remain (parent owns narrowing).
     expect(queryByText("Asha PM")).toBeTruthy();
   });
+
+  it("selects every match of the current filter in one click, and clears them again", () => {
+    const { getByPlaceholderText, getByText, getAllByRole, queryAllByRole, queryByText } = render(<Harness />);
+    openPicker(getByPlaceholderText);
+    // Narrow to the two '@x.in' PM/ZM rows by a shared token, then bulk-select.
+    fireEvent.change(getByPlaceholderText("Search…"), { target: { value: "M" } });
+    fireEvent.click(getByText(/Select all 2 matching/));
+    const chips = getAllByRole("button", { name: /^Remove / }).map((b) => b.getAttribute("aria-label"));
+    expect(chips).toEqual(["Remove Asha PM", "Remove Binu ZM"]);
+    // Clear only what the filter covers; nothing else was selected here.
+    fireEvent.click(getByText("Clear 2"));
+    expect(queryByText("Remove Asha PM")).toBeNull();
+    expect(queryAllByRole("button", { name: /^Remove / })).toHaveLength(0);
+  });
+
+  it("selects beyond the rendered cap — every match, not just the first rows", () => {
+    const many: MultiPickOption[] = Array.from({ length: 250 }, (_, i) => ({ id: `s${i}`, label: `School ${i}` }));
+    const { getByPlaceholderText, getByText, getAllByRole } = render(<Harness options={many} />);
+    openPicker(getByPlaceholderText);
+    fireEvent.click(getByText("Select all 250"));
+    expect(getAllByRole("button", { name: /^Remove / })).toHaveLength(250);
+  });
 });

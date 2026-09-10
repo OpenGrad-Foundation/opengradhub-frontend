@@ -1,7 +1,7 @@
 "use client";
 
 import { BatchImpactNotice, mergeBatchImpacts } from "@/components/programme-batch-impact";
-import { ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
+import { IN_CHARGE, ROLE_LABELS, ZONE, ZONE_LOWER, roleLabel } from "@/lib/labels";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -1071,13 +1071,15 @@ function SchoolsSection({
               <th style={thStyle}>School</th>
               <th style={thStyle}>{ZONE}</th>
               <th style={thStyle}>State</th>
+              <th style={thStyle}>{IN_CHARGE}</th>
+              <th style={thStyle}>{ROLE_LABELS.ZONAL_MANAGER}</th>
               {canManage && <th style={thStyle} />}
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
+            {isLoading && <tr><td style={tdStyle} colSpan={6}>Loading…</td></tr>}
             {!isLoading && attached.length === 0 && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No schools attached.</td></tr>
+              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={6}>No schools attached.</td></tr>
             )}
             {attached.map((s) => (
               <tr
@@ -1092,6 +1094,8 @@ function SchoolsSection({
                 </td>
                 <td style={tdStyle}>{s.district ?? "—"}</td>
                 <td style={tdStyle}>{s.state ?? "—"}</td>
+                <td style={tdStyle}>{s.fellow_name ?? "—"}</td>
+                <td style={tdStyle}>{s.zm_name ?? "—"}</td>
                 {canManage && (
                   <td style={{ ...tdStyle, textAlign: "right" }}>
                     <button

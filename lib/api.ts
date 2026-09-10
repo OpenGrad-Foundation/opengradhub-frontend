@@ -3363,6 +3363,9 @@ export type SchoolOption = {
   code: string | null;
   fellow_id: string | null;
   fellow_name: string | null;
+  /** The in-charge's manager (Zonal Manager); null when unassigned or unmanaged. */
+  zm_id?: string | null;
+  zm_name?: string | null;
   /** Optional school-visit verification geometry; null until an admin sets it.
    *  Optional on the type so payloads cached before migration 096 still typecheck. */
   latitude?: number | null;
@@ -3452,9 +3455,13 @@ export async function updateSchool(
 /** Bulk-upload schools from a CSV file. */
 export async function bulkUploadSchools(
   file: File,
+  programmeId?: string | null,
 ): Promise<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
+  // Optional: every created school is attached to this programme (server checks
+  // the same authority as the hub's attach button).
+  if (programmeId) formData.append("programme_id", programmeId);
   const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
     method: "POST",
     body: formData,
@@ -3500,7 +3507,7 @@ export type SchoolRosterStudent = {
 };
 
 export type SchoolRosterDetail = {
-  school: SchoolOption & { fellow_email: string | null };
+  school: SchoolOption & { fellow_email: string | null; zm_email?: string | null };
   stats: {
     student_count: number;
     programmes: { programme: string | null; count: number }[];
@@ -5149,6 +5156,9 @@ export interface ProgrammeSchool {
   name: string;
   district: string | null;
   state: string | null;
+  /** Assigned in-charge and their zonal manager; null when unassigned. */
+  fellow_name?: string | null;
+  zm_name?: string | null;
 }
 
 async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
