@@ -18,12 +18,12 @@ import {
 import {
   useAssignableBatches, useAssignableContent, useEligibleProgrammeMembers, useProgramme,
   useProgrammeBatches, useProgrammeContent, useProgrammeMembers, useProgrammeSchools,
-  useProgrammeOverview, useProgrammeStudents,
+  useProgrammeOverview, useProgrammeStudents, useEligibleProgrammeStudents,
 } from "@/lib/queries/programmes";
 import {
   useAssignProgrammeContent, useAttachProgrammeBatch, useAttachProgrammeSchool,
   useDetachProgrammeBatch, useDetachProgrammeSchool, useReleaseProgrammeContent,
-  useAddProgrammeMember, useRemoveProgrammeMember, useUpdateProgramme,
+  useAddProgrammeMember, useAddProgrammeStudents, useRemoveProgrammeMember, useUpdateProgramme,
 } from "@/lib/mutations/programmes";
 import {
   cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
@@ -116,6 +116,10 @@ export default function ProgrammeDetailPage() {
   const isMember = Boolean(programme?.is_member);
   const capabilities = programmeCapabilities(has, isMember);
   const mayAdminister = capabilities.manage;
+  // Assigning a student writes users.programme_id, so the button needs the user
+  // edit right on top of administering this programme. The server enforces the
+  // same three; this only decides whether the control is worth showing.
+  const mayAssignStudents = mayAdminister && capabilities.students && has(PERM.user_management.edit);
 
   if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
   if (error || !programme) {
@@ -188,7 +192,7 @@ export default function ProgrammeDetailPage() {
           onError={notify}
         />
       )}
-      {tab === "students" && (capabilities.students ? <StudentsSection programmeId={id} /> : <div style={noticeStyle}>Student access requires the View Students permission.</div>)}
+      {tab === "students" && (capabilities.students ? <StudentsSection programmeId={id} canAssign={mayAssignStudents} onError={notify} /> : <div style={noticeStyle}>Student access requires the View Students permission.</div>)}
       {tab === "overview" && <OverviewSection programmeId={id} />}
       {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
       {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
@@ -590,7 +594,109 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
  * belongs to it, whereas a BATCH student is reached through an owned batch and
  * would stop being reachable if that batch moved.
  */
-function StudentsSection({ programmeId }: { programmeId: string }) {
+/**
+ * Assign existing students to this programme.
+ *
+ * Server-side search: the candidate set is every unassigned student the caller
+ * reaches, which at programme scale is far too large to filter in the browser.
+ * The picker reports the needle and renders whatever comes back, and the
+ * select-all control acts on the matches for the CURRENT needle — so "every
+ * unassigned student at this school" is one search and one click.
+ *
+ * Partial success is the normal outcome, not an error: students sitting in
+ * another programme's batch, or carrying a different programme type, are
+ * refused individually and named here.
+ */
+function AddStudentsPanel({
+  programmeId, onClose, onError,
+}: { programmeId: string; onClose: () => void; onError: Notify }) {
+  const [query, setQuery] = useState("");
+  const [picks, setPicks] = useState<string[]>([]);
+  const [report, setReport] = useState<{ assigned: number; failed: Array<{ name: string; reason: string }> } | null>(null);
+  const { data, isFetching, error } = useEligibleProgrammeStudents(programmeId, query, true);
+  const addStudents = useAddProgrammeStudents();
+
+  const rows = data?.rows ?? [];
+  const options = rows.map((r) => ({
+    id: r.user_id,
+    label: r.name,
+    sublabel: [
+      r.roll_number,
+      r.school_name,
+      r.programme_type,
+      r.reached ? "already reached by this programme" : null,
+    ].filter(Boolean).join(" · ") || undefined,
+  }));
+
+  return (
+    <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+        <label style={formLabelStyle}>Add students</label>
+        <button style={linkBtnStyle} onClick={onClose}>Cancel</button>
+      </div>
+
+      <SearchMultiPicker
+        options={options}
+        value={picks}
+        onChange={setPicks}
+        onQueryChange={setQuery}
+        isLoading={isFetching}
+        disabled={Boolean(error)}
+        placeholder="Search unassigned students by name, roll number or school…"
+        emptyText="No unassigned students to add."
+      />
+
+      {error && (
+        <div style={{ fontSize: 12, color: "#b91c1c" }}>
+          {error instanceof ApiError ? error.message : "Failed to load students."}
+        </div>
+      )}
+
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, color: "rgba(3,72,82,0.5)" }}>
+          Only students who belong to no programme yet are listed. A student in another
+          programme&rsquo;s batch, or of a different programme type, is refused and named.
+        </span>
+        <button
+          style={{ ...primaryButton, marginLeft: "auto", opacity: picks.length === 0 || addStudents.isPending ? 0.6 : 1 }}
+          disabled={picks.length === 0 || addStudents.isPending}
+          onClick={async () => {
+            onError(null);
+            setReport(null);
+            try {
+              const res = await addStudents.mutateAsync({ id: programmeId, userIds: picks });
+              setPicks([]);
+              setReport({ assigned: res.assigned, failed: res.failed });
+              if (res.failed.length === 0) onClose();
+            } catch (e) {
+              onError(e instanceof ApiError ? e.message : "Failed to add students.");
+            }
+          }}
+        >
+          {addStudents.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
+        </button>
+      </div>
+
+      {report && (
+        <div style={noticeStyle}>
+          <strong>{report.assigned} student{report.assigned === 1 ? "" : "s"} added.</strong>
+          {report.failed.length > 0 && (
+            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, color: "#b91c1c" }}>
+              {report.failed.map((f) => (
+                <li key={f.name}>{f.name} — {f.reason}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentsSection({
+  programmeId, canAssign, onError,
+}: { programmeId: string; canAssign: boolean; onError: Notify }) {
+  const [adding, setAdding] = useState(false);
   const rowNav = useRowNavigation();
   const canSeeStudent = usePermission(PERM.students.view);
   const canReadProfile = useAnyPermission(...STUDENT_PROFILE_PERMISSIONS);
@@ -644,6 +750,9 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <h2 style={{ ...titleStyle, fontSize: 17 }}>Students</h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {canAssign && !adding && (
+            <button style={secondaryButton} onClick={() => setAdding(true)}>Add students</button>
+          )}
           <input
             style={{ ...inputStyle, width: 240 }}
             placeholder="Search name, roll number or school"
@@ -672,6 +781,14 @@ function StudentsSection({ programmeId }: { programmeId: string }) {
           </select>
         </div>
       </div>
+
+      {canAssign && adding && (
+        <AddStudentsPanel
+          programmeId={programmeId}
+          onClose={() => setAdding(false)}
+          onError={onError}
+        />
+      )}
 
       {error && <div style={errorStyle}>Failed to load students.</div>}
 
