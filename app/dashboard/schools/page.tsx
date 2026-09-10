@@ -7,7 +7,7 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { SchoolBulkUploadPanel } from "./BulkUploadPanel";
 import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPicker";
-import { IN_CHARGE, IN_CHARGE_LOWER, ZONE, ZONE_LOWER } from "@/lib/labels";
+import { IN_CHARGE, IN_CHARGE_LOWER, ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
 import { normState } from "@/lib/geo";
 import { SchoolFormModal } from "./SchoolFormModal";
 import { titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
@@ -34,7 +34,7 @@ export default function SchoolsPage() {
 
   const q = query.trim().toLowerCase();
   const visibleSchools = schools.filter((s) => {
-    if (q && ![s.name, s.district, s.state, s.code, s.fellow_name]
+    if (q && ![s.name, s.district, s.state, s.code, s.fellow_name, s.zm_name]
       .some((v) => (v ?? "").toLowerCase().includes(q))) return false;
     if (filterState && normState(s.state) !== filterState) return false;
     if (filterDistrict && (s.district ?? "") !== filterDistrict) return false;
@@ -140,14 +140,15 @@ export default function SchoolsPage() {
                   <th style={thStyle}>State</th>
                   <th style={thStyle}>Code</th>
                   <th style={thStyle}>{IN_CHARGE}</th>
+                  <th style={thStyle}>{ROLE_LABELS.ZONAL_MANAGER}</th>
                   {canEdit && <th style={thStyle} />}
                 </tr>
               </thead>
               <tbody>
                 {schools.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
                 ) : visibleSchools.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 6 : 5} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools match &ldquo;{query}&rdquo;.</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools match &ldquo;{query}&rdquo;.</td></tr>
                 ) : visibleSchools.map((s) => (
                   <tr key={s.id} onClick={() => router.push(withFrom(`/dashboard/schools/${s.id}`, currentUrl))} style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}>
                     <td style={tdStyle}>{s.name}</td>
@@ -155,6 +156,7 @@ export default function SchoolsPage() {
                     <td style={tdStyle}>{s.state ?? "—"}</td>
                     <td style={tdStyle}>{s.code ?? "—"}</td>
                     <td style={tdStyle}>{s.fellow_name ?? "—"}</td>
+                    <td style={tdStyle}>{s.zm_name ?? "—"}</td>
                     {canEdit && (
                       <td style={{ ...tdStyle, textAlign: "right" }}>
                         <button onClick={(e) => { e.stopPropagation(); setEditSchool(s); }} style={linkBtnStyle}>Edit</button>

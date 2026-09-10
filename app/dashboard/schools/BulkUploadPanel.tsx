@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Papa from "papaparse";
-import { bulkUploadSchools, getSchoolTemplateUrl } from "@/lib/api";
+import { bulkUploadSchools, getProgrammes, getSchoolTemplateUrl, type Programme } from "@/lib/api";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { ZONE } from "@/lib/labels";
@@ -50,6 +52,21 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   const [rows, setRows] = useState<Array<Record<string, string>>>([]);
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> } | null>(null);
   const invalidate = useInvalidate();
+  // Optional: attach every created school to one programme. Only offered to
+  // callers who can administer programmes; the server re-checks per programme.
+  const { has } = usePermissions();
+  const canAttachProgramme = has(PERM.programmes.manage);
+  const [programmes, setProgrammes] = useState<Programme[]>([]);
+  const [programmeId, setProgrammeId] = useState<string>("");
+  useEffect(() => {
+    if (!canAttachProgramme) return;
+    let cancelled = false;
+    getProgrammes(false)
+      .then((list) => { if (!cancelled) setProgrammes(list.filter((p) => p.is_member || has(PERM.scope.unrestricted))); })
+      .catch(() => { if (!cancelled) setProgrammes([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAttachProgramme]);
 
   useEffect(() => {
     if (!file) { setRows([]); setParseError(null); return; }
@@ -146,8 +163,9 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
       ].join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
       const newFile = new File([blob], file?.name ?? "schools.csv", { type: "text/csv" });
-      const res = await bulkUploadSchools(newFile);
+      const res = await bulkUploadSchools(newFile, programmeId || null);
       invalidate('schools');
+      if (programmeId) invalidate('programmes');
       setResult(res);
       onDone();
     } catch (err) {
@@ -170,6 +188,22 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
         style={{ ...primaryButton, display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "10px 20px", background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}>
         ↓ Download Template CSV
       </a>
+
+      {canAttachProgramme && (
+        <div style={{ marginTop: "20px" }}>
+          <label style={formLabelStyle} htmlFor="bulk-programme">Attach to programme (optional)</label>
+          <select id="bulk-programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)}
+            style={{ ...inputStyle, padding: "10px" }}>
+            <option value="">— No programme —</option>
+            {programmes.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}{p.cohort_label ? ` · ${p.cohort_label}` : ""}</option>
+            ))}
+          </select>
+          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+            Every school created by this upload is attached to the selected programme.
+          </p>
+        </div>
+      )}
 
       <div style={{ marginTop: "20px" }}>
         <label style={formLabelStyle}>Upload CSV File</label>

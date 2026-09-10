@@ -12,7 +12,7 @@ vi.mock('@/lib/mutations/invalidation', () => ({ useInvalidate: () => vi.fn() })
 vi.mock('@/lib/api', async original => ({
   ...(await original<typeof import('@/lib/api')>()),
   fetchSchoolRosterDetail: async () => { state.roster(); return ({
-    school: { id: 'school', name: 'School name', fellow_name: 'Staff name', fellow_email: 'staff@example.test' },
+    school: { id: 'school', name: 'School name', fellow_name: 'Staff name', fellow_email: 'staff@example.test', zm_name: 'Zonal name', zm_email: 'zm@example.test' },
     stats: { student_count: 1, programmes: [] },
     students: [{ id: 's1', name: 'Student name', email: 'student@example.test' }],
     batches: [{ id: 'b1', name: 'Batch name', students: [] }],
@@ -31,6 +31,7 @@ describe('merged school detail data and destination gates', () => {
     expect(screen.queryByText('Student name')).toBeNull();
     expect(screen.queryByText('student@example.test')).toBeNull();
     expect(screen.queryByText('staff@example.test')).toBeNull();
+    expect(screen.queryByText('zm@example.test')).toBeNull();
     expect(state.analytics).not.toHaveBeenCalled();
   });
 
@@ -39,6 +40,8 @@ describe('merged school detail data and destination gates', () => {
     render(<SchoolDetailPage />);
     expect((await screen.findByText('Student name')).closest('a')).toBeNull();
     expect(screen.getByText('staff@example.test')).toBeTruthy();
+    expect(screen.getByText('Zonal name')).toBeTruthy();
+    expect(screen.getByText('zm@example.test')).toBeTruthy();
     expect(screen.queryByText('student@example.test')).toBeNull();
   });
 
