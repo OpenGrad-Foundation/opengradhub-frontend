@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   grants: [] as string[], member: true, params: '', replace: vi.fn(), students: vi.fn(),
+  addStudents: vi.fn(), eligible: [] as unknown[],
 }));
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'p1' }), usePathname: () => '/dashboard/programmes/p1',
@@ -24,13 +25,16 @@ vi.mock('../lib/queries/programmes', () => ({
   useProgrammeContent: () => ({ data: [{ id: 'q1', title: 'Quiz one', kind: 'quizzes' }, { id: 'r1', title: 'Resource one', kind: 'resources' }] }),
   useProgrammeOverview: () => ({ data: { reachable_students: 0, assigned_students: 0, schools: 0, batches: 0, staff: 0, content: { courses: 0, assignments: 0, resources: 0, quizzes: 0 }, activity: { attempts: 0, avg_score: null, attendance_marks: 0, tracker_records: 0 } } }),
   useAssignableBatches: () => ({ data: [] }), useAssignableContent: () => ({ data: [] }), useEligibleProgrammeMembers: () => ({ data: [] }),
+  useEligibleProgrammeStudents: () => ({ data: { rows: state.eligible, total: state.eligible.length } }),
 }));
 vi.mock('../lib/mutations/programmes', () => Object.fromEntries([
   'useAssignProgrammeContent', 'useAttachProgrammeBatch', 'useAttachProgrammeSchool', 'useDetachProgrammeBatch', 'useDetachProgrammeSchool', 'useReleaseProgrammeContent', 'useAddProgrammeMember', 'useRemoveProgrammeMember', 'useUpdateProgramme',
-].map(name => [name, () => ({ mutateAsync: vi.fn() })])));
+].map(name => [name, () => ({ mutateAsync: vi.fn() })]).concat([
+  ['useAddProgrammeStudents', () => ({ mutateAsync: state.addStudents, isPending: false })],
+])));
 
 import ProgrammeDetailPage from '../app/dashboard/programmes/[id]/page';
-afterEach(() => { cleanup(); state.grants = []; state.member = true; state.params = ''; state.replace.mockReset(); state.students.mockReset(); });
+afterEach(() => { cleanup(); state.grants = []; state.member = true; state.params = ''; state.replace.mockReset(); state.students.mockReset(); state.addStudents.mockReset(); state.eligible = []; });
 
 describe('rendered programme access and navigation', () => {
   it('never requests student identities from a view-only deep link', () => {
@@ -66,5 +70,41 @@ describe('rendered programme access and navigation', () => {
     render(<ProgrammeDetailPage />);
     expect(screen.getByRole('link', { name: 'Quiz one' }).getAttribute('href')).toContain('/dashboard/quiz-builder/q1');
     expect(screen.getByRole('link', { name: 'Resource one' }).getAttribute('href')).toContain('/dashboard/resources?focus=r1');
+  });
+
+  it('hides Add students unless the caller administers the programme AND may edit users', () => {
+    state.params = 'tab=students';
+    // Student view alone: the roster renders, the write control does not.
+    state.grants = ['programmes.view', 'students.view'];
+    render(<ProgrammeDetailPage />);
+    expect(screen.queryByText('Add students')).toBeNull();
+    cleanup();
+    // Programme administration without user_management.edit is still not enough.
+    state.grants = ['programmes.view', 'students.view', 'programmes.manage'];
+    render(<ProgrammeDetailPage />);
+    expect(screen.queryByText('Add students')).toBeNull();
+    cleanup();
+    state.grants = ['programmes.view', 'students.view', 'programmes.manage', 'user_management.edit'];
+    render(<ProgrammeDetailPage />);
+    expect(screen.getByText('Add students')).toBeTruthy();
+  });
+
+  it('assigns the picked students and reports each refusal by name', async () => {
+    state.params = 'tab=students';
+    state.grants = ['programmes.view', 'students.view', 'programmes.manage', 'user_management.edit'];
+    state.eligible = [
+      { user_id: 's1', name: 'Priya R', roll_number: 'R-1', school_name: 'GHSS Nilambur', programme_type: 'UG', reached: true },
+      { user_id: 's2', name: 'Arun K', roll_number: 'R-2', school_name: null, programme_type: 'PG', reached: false },
+    ];
+    state.addStudents.mockResolvedValue({ assigned: 1, failed: [{ user_id: 's2', name: 'Arun K', reason: 'Programme type PG does not match UG.' }] });
+    render(<ProgrammeDetailPage />);
+    fireEvent.click(screen.getByText('Add students'));
+    fireEvent.focus(screen.getByPlaceholderText(/Search unassigned students/));
+    fireEvent.click(screen.getByText('Select all 2'));
+    fireEvent.click(screen.getByText('Add 2'));
+    await screen.findByText(/1 student added/);
+    expect(state.addStudents).toHaveBeenCalledWith({ id: 'p1', userIds: ['s1', 's2'] });
+    expect(screen.getByText(/Arun K — Programme type/)).toBeTruthy();
+    expect(screen.getByText(/does not match UG/)).toBeTruthy();
   });
 });

@@ -11,6 +11,7 @@ import {
   releaseProgrammeContent,
   removeProgrammeMember,
   addProgrammeMember,
+  addProgrammeStudents,
   updateProgramme,
   type ProgrammeContentKind,
 } from '../api';
@@ -46,6 +47,15 @@ export function useAddProgrammeMember() {
   return useMutation({
     mutationFn: (args: { id: string; userId: string }) =>
       addProgrammeMember(args.id, args.userId),
+    onSuccess: (_d, args) => invalidate(args.id),
+  });
+}
+
+export function useAddProgrammeStudents() {
+  const invalidate = useProgrammeInvalidation();
+  return useMutation({
+    mutationFn: (args: { id: string; userIds: string[] }) =>
+      addProgrammeStudents(args.id, args.userIds),
     onSuccess: (_d, args) => invalidate(args.id),
   });
 }

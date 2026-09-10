@@ -5,6 +5,7 @@ import {
   getAssignableBatches,
   getAssignableContent,
   getEligibleProgrammeMembers,
+  getEligibleProgrammeStudents,
   getProgramme,
   getProgrammeBatches,
   getProgrammeContent,
@@ -100,6 +101,21 @@ export function useEligibleProgrammeMembers(id: string | undefined, enabled: boo
     queryKey: qk.programmeEligibleMembers(id ?? ''),
     queryFn: () => getEligibleProgrammeMembers(id as string),
     enabled: Boolean(id) && enabled,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Assignable students, searched on the server. Keyed by query so each needle is
+ * its own cache entry; only fetched while the picker is open, because the
+ * endpoint requires programme administration and would 403 for a plain viewer.
+ */
+export function useEligibleProgrammeStudents(id: string | undefined, q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.programmeEligibleStudents(id ?? '', q),
+    queryFn: () => getEligibleProgrammeStudents(id as string, q),
+    enabled: Boolean(id) && enabled,
+    placeholderData: (prev) => prev,
     staleTime: 30_000,
   });
 }

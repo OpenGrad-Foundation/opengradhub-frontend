@@ -3363,6 +3363,9 @@ export type SchoolOption = {
   code: string | null;
   fellow_id: string | null;
   fellow_name: string | null;
+  /** The in-charge's manager (Zonal Manager); null when unassigned or unmanaged. */
+  zm_id?: string | null;
+  zm_name?: string | null;
   /** Optional school-visit verification geometry; null until an admin sets it.
    *  Optional on the type so payloads cached before migration 096 still typecheck. */
   latitude?: number | null;
@@ -3452,9 +3455,13 @@ export async function updateSchool(
 /** Bulk-upload schools from a CSV file. */
 export async function bulkUploadSchools(
   file: File,
+  programmeId?: string | null,
 ): Promise<{ created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> }> {
   const formData = new FormData();
   formData.append("file", file);
+  // Optional: every created school is attached to this programme (server checks
+  // the same authority as the hub's attach button).
+  if (programmeId) formData.append("programme_id", programmeId);
   const response = await apiFetch(`${API_BASE_URL}/schools/bulk`, {
     method: "POST",
     body: formData,
@@ -3500,7 +3507,7 @@ export type SchoolRosterStudent = {
 };
 
 export type SchoolRosterDetail = {
-  school: SchoolOption & { fellow_email: string | null };
+  school: SchoolOption & { fellow_email: string | null; zm_email?: string | null };
   stats: {
     student_count: number;
     programmes: { programme: string | null; count: number }[];
@@ -5149,6 +5156,9 @@ export interface ProgrammeSchool {
   name: string;
   district: string | null;
   state: string | null;
+  /** Assigned in-charge and their zonal manager; null when unassigned. */
+  fellow_name?: string | null;
+  zm_name?: string | null;
 }
 
 async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
@@ -5251,6 +5261,42 @@ export async function getEligibleProgrammeMembers(
   return programmeJson(
     await apiFetch(`${API_BASE_URL}/programmes/${id}/members/eligible`),
     "Failed to load staff.",
+  );
+}
+
+export type EligibleProgrammeStudent = {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_name: string | null;
+  programme_type: string | null;
+  /** Already reached through this programme's schools or batches. */
+  reached: boolean;
+};
+
+export async function getEligibleProgrammeStudents(
+  id: string,
+  q?: string,
+): Promise<{ rows: EligibleProgrammeStudent[]; total: number }> {
+  const url = new URL(`${API_BASE_URL}/programmes/${id}/students/eligible`);
+  if (q?.trim()) url.searchParams.set("q", q.trim());
+  // Server-side search, so the picker asks for a page rather than the roster.
+  url.searchParams.set("limit", "200");
+  return programmeJson(await apiFetch(url.toString()), "Failed to load students.");
+}
+
+/** Assign students. Partial success is normal — `failed` names each refusal. */
+export async function addProgrammeStudents(
+  id: string,
+  userIds: string[],
+): Promise<{ assigned: number; failed: Array<{ user_id: string; name: string; reason: string }> }> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+    "Failed to add students.",
   );
 }
 
