@@ -166,6 +166,7 @@ export const qk = {
   programmeEligibleMembers: (id: string) => ['og', 'programme', id, 'eligible-members'] as const,
   programmeOverview: (id: string) => ['og', 'programme', id, 'overview'] as const,
   programmeStudents: (id: string) => ['og', 'programme', id, 'students'] as const,
+  programmeEligibleStudents: (id: string, q: string) => ['og', 'programme', id, 'eligible-students', q] as const,
   programmeSchools: (id: string) => ['og', 'programme', id, 'schools'] as const,
   programmeContent: (id: string) => ['og', 'programme', id, 'content'] as const,
   programmeBatches: (id: string) => ['og', 'programme', id, 'batches'] as const,

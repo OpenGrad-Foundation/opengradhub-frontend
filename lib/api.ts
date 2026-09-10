@@ -5264,6 +5264,42 @@ export async function getEligibleProgrammeMembers(
   );
 }
 
+export type EligibleProgrammeStudent = {
+  user_id: string;
+  name: string;
+  roll_number: string | null;
+  school_name: string | null;
+  programme_type: string | null;
+  /** Already reached through this programme's schools or batches. */
+  reached: boolean;
+};
+
+export async function getEligibleProgrammeStudents(
+  id: string,
+  q?: string,
+): Promise<{ rows: EligibleProgrammeStudent[]; total: number }> {
+  const url = new URL(`${API_BASE_URL}/programmes/${id}/students/eligible`);
+  if (q?.trim()) url.searchParams.set("q", q.trim());
+  // Server-side search, so the picker asks for a page rather than the roster.
+  url.searchParams.set("limit", "200");
+  return programmeJson(await apiFetch(url.toString()), "Failed to load students.");
+}
+
+/** Assign students. Partial success is normal — `failed` names each refusal. */
+export async function addProgrammeStudents(
+  id: string,
+  userIds: string[],
+): Promise<{ assigned: number; failed: Array<{ user_id: string; name: string; reason: string }> }> {
+  return programmeJson(
+    await apiFetch(`${API_BASE_URL}/programmes/${id}/students`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_ids: userIds }),
+    }),
+    "Failed to add students.",
+  );
+}
+
 export async function addProgrammeMember(
   id: string,
   userId: string,
