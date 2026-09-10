@@ -151,18 +151,32 @@ export function SearchMultiPicker({
   );
 
   const q = query.trim().toLowerCase();
-  const { matches, totalMatches } = useMemo(() => {
+  const { matches, allMatches, totalMatches } = useMemo(() => {
     const list =
       onQueryChange || !q
         ? options
         : options.filter((o) =>
             [o.label, o.sublabel].some((f) => (f ?? "").toLowerCase().includes(q)),
           );
-    return { matches: list.slice(0, MAX_ROWS), totalMatches: list.length };
+    return { matches: list.slice(0, MAX_ROWS), allMatches: list, totalMatches: list.length };
   }, [options, q, onQueryChange]);
 
   function toggle(id: string) {
     onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+  }
+
+  // Bulk over the CURRENT filter — every match, not just the rows rendered —
+  // so "everything in this district" is one click rather than one per school.
+  const unselectedMatches = allMatches.filter((o) => !value.includes(o.id)).length;
+  const selectedMatches = allMatches.length - unselectedMatches;
+  function selectAllMatches() {
+    const ids = new Set(value);
+    for (const o of allMatches) ids.add(o.id);
+    onChange([...ids]);
+  }
+  function clearMatches() {
+    const drop = new Set(allMatches.map((o) => o.id));
+    onChange(value.filter((v) => !drop.has(v)));
   }
 
   const baseInput: React.CSSProperties = {
@@ -236,7 +250,41 @@ export function SearchMultiPicker({
           <p style={{ padding: "12px", margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.5)" }}>
             {q ? "No matches." : emptyText}
           </p>
-        ) : matches.map((o) => {
+        ) : (
+          <>
+            <div
+              style={{
+                position: "sticky", top: 0, zIndex: 1,
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+                padding: "6px 12px", background: "rgba(3,72,82,0.04)",
+                borderBottom: "1px solid rgba(3,72,82,0.08)", fontSize: "12px",
+              }}
+            >
+              <span style={{ color: "rgba(3,72,82,0.55)" }}>
+                {q ? `${totalMatches} match${totalMatches === 1 ? "" : "es"}` : `${totalMatches} available`}
+              </span>
+              <span style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  disabled={disabled || unselectedMatches === 0}
+                  onClick={selectAllMatches}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 700, color: unselectedMatches === 0 ? "rgba(3,72,82,0.3)" : "#0abe62" }}
+                >
+                  {q ? `Select all ${totalMatches} matching` : `Select all ${totalMatches}`}
+                </button>
+                {selectedMatches > 0 && (
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={clearMatches}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 700, color: "rgba(3,72,82,0.55)" }}
+                  >
+                    Clear {selectedMatches}
+                  </button>
+                )}
+              </span>
+            </div>
+            {matches.map((o) => {
           const checked = value.includes(o.id);
           return (
             <label
@@ -264,6 +312,8 @@ export function SearchMultiPicker({
             </label>
           );
         })}
+          </>
+        )}
         {!isLoading && totalMatches > matches.length && (
           <p style={{ margin: 0, padding: "8px 12px", fontSize: "11px", color: "rgba(3,72,82,0.5)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
             Showing first {matches.length} of {totalMatches} — keep typing to narrow.
