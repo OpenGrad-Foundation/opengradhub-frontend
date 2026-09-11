@@ -22,7 +22,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
 import { useBatches } from "@/lib/queries/batches";
 import { AudiencePicker } from "./audience-picker";
-import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL } from "@/lib/labels";
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 
 // Fallback mirror of the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts),
 // used only when GET /tracker/profile-paths fails. The API is the source of truth and
@@ -72,6 +72,23 @@ export type TrackerAssignPrefill = {
   ids: string[];
   /** Human name of the pre-selected target, shown as a hint above the picker. */
   label?: string;
+};
+
+/** Who ends up filling the entry in, per granularity. Students are never doers. */
+const DOER_HINT: Record<TrackerTargetType, string> = {
+  fellow: `The assigned staff (${IN_CHARGE_LOWER_PLURAL} or zonal managers) fill in their own entry.`,
+  school: `The ${IN_CHARGE_LOWER} of each school fills in that school's entry.`,
+  student: `Each student's ${IN_CHARGE_LOWER} fills in the entry. Students do not see or do this task.`,
+};
+const AUDIENCE_HEADING: Record<TrackerTargetType, string> = {
+  fellow: "Who fills this in?",
+  school: "Which schools?",
+  student: "Which students?",
+};
+const AUDIENCE_HINT: Record<TrackerTargetType, string> = {
+  fellow: `${IN_CHARGE_PLURAL} or zonal managers you manage. Leave empty to assign later.`,
+  school: "Leave empty to assign later.",
+  student: "Leave empty to assign later.",
 };
 
 export function TrackerBuilder({
@@ -325,14 +342,20 @@ export function TrackerBuilder({
           Description
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-          Who does this task?
-          <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-            <option value="fellow">Each {IN_CHARGE_LOWER}</option>
-            <option value="school">Each school</option>
-            <option value="student">Each student</option>
-          </select>
-        </label>
+        {/* Granularity, not doer. Staff always fill the tracker in — students never do —
+            so the question is what each entry is about, and the helper line says who
+            ends up filling it for that choice. */}
+        <div className="flex flex-col gap-1 sm:col-span-2">
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            What is each entry about?
+            <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
+              <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
+              <option value="school">A school — one entry per school</option>
+              <option value="student">A student — one entry per student</option>
+            </select>
+          </label>
+          <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
+        </div>
         {targetType === "student" && (
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             Assign to a batch (optional)
@@ -535,14 +558,14 @@ export function TrackerBuilder({
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-1 text-sm font-semibold text-gray-950">Assign to {targetWord}</h3>
+        <h3 className="mb-1 text-sm font-semibold text-gray-950">{AUDIENCE_HEADING[targetType]}</h3>
+        <p className="mb-2 text-xs text-gray-500">{AUDIENCE_HINT[targetType]}</p>
         {prefill?.label && (
           <p className="mb-2 text-xs text-gray-500">
             Pre-selected <span className="font-semibold text-gray-700">{prefill.label}</span>. Add or remove anyone below.
           </p>
         )}
         <AudiencePicker key={`${targetType}:${batchId}`} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} batchId={batchId || undefined} />
-        <p className="mt-2 text-xs text-gray-500">Leave empty to assign later.</p>
       </section>
 
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
