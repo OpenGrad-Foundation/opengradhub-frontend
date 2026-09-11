@@ -6,6 +6,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 vi.mock("@/lib/queries/tracker", () => ({
   useProfilePaths: () => ({ data: { paths: [] } }),
   useTrackerAssignable: () => ({ data: [], isLoading: false }),
+  useTrackerMyProgrammes: () => ({ data: [] }),
   useTrackerTemplates: () => ({ data: [], isLoading: false }),
   useCreateTrackerTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -19,11 +20,11 @@ const setup = () => render(<TrackerBuilder canAuthor />);
 const geoToggle = () =>
   screen.queryByLabelText(/verify school visit using photo location metadata/i);
 
-// Selected by option value, not by label: the on-screen labels for the staff and
-// school targets both contain the word "school" ("Each school in-charge" vs
-// "Each school"), so a text match cannot tell them apart.
+// Selected by option value, not by label: the on-screen option text is prose
+// ("A school — one entry per school") that also appears in the helper copy, so a
+// text match cannot tell the options apart.
 function chooseTarget(value: "fellow" | "school" | "student") {
-  const select = screen.getByLabelText(/who does this task/i) as HTMLSelectElement;
+  const select = screen.getByLabelText(/what is each entry about/i) as HTMLSelectElement;
   if (![...select.options].some((o) => o.value === value)) {
     throw new Error(`no target option with value ${value}`);
   }
