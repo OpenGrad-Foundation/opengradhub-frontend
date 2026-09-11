@@ -155,6 +155,12 @@ export function TeamView({ onOpen, onAssign, initialOwnerId }: {
                 {canAuthor && m.own_pending > 0 && (
                   <NudgeButton doerId={m.id} lastNudgedAt={m.last_nudged_all_at} label="Nudge all" />
                 )}
+                {canAuthor && onAssign && (
+                  <button type="button" onClick={() => onAssign({ id: m.id, name: m.name })} aria-label={`Assign task to ${m.name}`} title="Assign task"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 transition hover:border-teal-400 hover:text-teal-700">
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                )}
               </li>
             ))}
           </ul>
