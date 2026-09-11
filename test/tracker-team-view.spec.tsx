@@ -83,3 +83,13 @@ describe("TeamView — by-team drill", () => {
     expect(screen.getByText(/Anita IC.s tasks/)).toBeTruthy();
   });
 });
+
+describe("TeamView — assign from the row", () => {
+  it("row-level Assign task hands the person to onAssign without drilling in", () => {
+    const onAssign = vi.fn();
+    render(<TeamView onOpen={vi.fn()} onAssign={onAssign} />);
+    fireEvent.click(screen.getByRole("button", { name: /assign task to Ravi ZM/i }));
+    expect(onAssign).toHaveBeenCalledWith({ id: "zm1", name: "Ravi ZM" });
+    expect(screen.getByText("Priya PM")).toBeTruthy(); // still at root
+  });
+});
