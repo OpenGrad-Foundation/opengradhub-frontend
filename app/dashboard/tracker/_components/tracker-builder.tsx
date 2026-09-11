@@ -349,7 +349,7 @@ export function TrackerBuilder({
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             What is each entry about?
             <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-              <option value="fellow">A staff member — one entry per person assigned</option>
+              <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
               <option value="school">A school — one entry per school</option>
               <option value="student">A student — one entry per student</option>
             </select>
