@@ -107,13 +107,12 @@ export function TrackerEditableGrid({
   const onBehalfMode = Boolean(onBehalf);
   const doneStatus = template.completion_style === "workflow" ? (template.done_status ?? "done") : "done";
 
-  // An override FILLS outstanding work; the server refuses a row that is already complete.
-  // Both of these read the SERVER status, never the draft — otherwise ticking a row in an
-  // on-behalf session would immediately lock the control the manager just used.
+  // An override fills outstanding work AND corrects finished work — the server accepts both,
+  // flagging the latter as a correction in the history. Reads the SERVER status, never the
+  // draft, so the hint reflects what the save will actually be recorded as.
   const rowComplete = (row: TrackerGridRow) => row.status === doneStatus;
-  // Nothing outstanding anywhere in the task means there is nothing to fill on behalf of,
-  // so the session must not be enterable at all rather than dead-ending at Save.
-  const overridableCount = grid.rows.filter((r) => rowAuthority(r).override && !rowComplete(r)).length;
+  const overridableRows = grid.rows.filter((r) => rowAuthority(r).override);
+  const outstandingCount = overridableRows.filter((r) => !rowComplete(r)).length;
 
   // Authority is a property of the ROW, not of the route that reached this grid. The server
   // sends it per row because its view scope is deliberately wider than its fill scope: a
@@ -125,7 +124,7 @@ export function TrackerEditableGrid({
   /** Per row: an on-behalf session may only touch outstanding rows the viewer may override. */
   const overridingRow = (row: TrackerGridRow) => onBehalfMode && authorityOf(row).override;
   const canEditRow = (row: TrackerGridRow) =>
-    (canFill && authorityOf(row).self) || (overridingRow(row) && !rowComplete(row));
+    (canFill && authorityOf(row).self) || overridingRow(row);
   /** Does the viewer own ANY row here? Gates the doer-only menus (proofs, bulk round trip). */
   const anyOwnRow = canFill && grid.rows.some((r) => authorityOf(r).evidence);
   /** May the viewer save anything the ordinary way? Wider than `anyOwnRow`: an admin fills a
@@ -397,9 +396,11 @@ export function TrackerEditableGrid({
     const blocked = gated && !overriding;
     const waiving = gated && overriding;
     const openGate = () => setGeoModal({ schoolId: row.school_id ?? null, blocking: true });
-    const lockedComplete = overriding && rowComplete(row);
-    const hint = lockedComplete
-      ? "Already complete — an override fills outstanding work, it does not rewrite finished work"
+    // Rewriting a finished row is allowed but is a different act: say so before Save, since
+    // the doer is told and the history names it a correction.
+    const correcting = overriding && rowComplete(row);
+    const hint = correcting
+      ? "Already complete — saving will be recorded as a correction with your reason"
       : waiving
         ? "Completing this waives its requirements — recorded in the history"
         : blockedHint;
@@ -417,7 +418,7 @@ export function TrackerEditableGrid({
           >
             {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={blocked && s === doneStatus}>{s}</option>)}
           </select>
-          {(blocked || waiving || gateable || lockedComplete) && <p className="text-xs text-amber-700">{hint}</p>}
+          {(blocked || waiving || gateable || correcting) && <p className="text-xs text-amber-700">{hint}</p>}
         </div>
       );
     }
@@ -437,12 +438,12 @@ export function TrackerEditableGrid({
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
-          {(proofBlocking || waiving || gateable || lockedComplete) && <p className="text-center text-xs text-amber-700">{hint}</p>}
+          {(proofBlocking || waiving || gateable || correcting) && <p className="text-center text-xs text-amber-700">{hint}</p>}
         </div>
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking || waiving || gateable || lockedComplete ? hint : undefined}>
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking || waiving || gateable || correcting ? hint : undefined}>
         <input
           type="checkbox"
           disabled={!canEditRow(row) || proofBlocking}
@@ -573,10 +574,9 @@ export function TrackerEditableGrid({
           <button
             type="button"
             onClick={() => setReasonPrompt("")}
-            disabled={overridableCount === 0}
-            title={overridableCount === 0
-              ? "Every row here is already complete — there is nothing to fill on their behalf"
-              : `Fill ${overridableCount} outstanding row${overridableCount === 1 ? "" : "s"} in their name`}
+            title={outstandingCount === 0
+              ? "Every row here is complete — correct an entry in their name"
+              : `Fill ${outstandingCount} outstanding row${outstandingCount === 1 ? "" : "s"} in their name`}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1007,9 +1007,13 @@ function describeEvent(ev: TrackerEvent): string {
         status?.to ? `status → ${status.to}` : null,
         changed.length ? `updated ${changed.join(", ")}` : null,
       ].filter(Boolean).join("; ");
+      // A correction rewrote a row the doer had already completed; the evidence attached to
+      // it (photo, location, visit verification) was taken before this change.
+      const correction = d.correction === true;
       return [
-        `Filled on behalf of ${who}`,
+        correction ? `Corrected a completed entry on behalf of ${who}` : `Filled on behalf of ${who}`,
         what ? ` (${what})` : "",
+        correction ? " · earlier proof, if any, predates this correction" : "",
         ` — "${String(d.reason ?? "")}"`,
         skipped.length ? ` · skipped: ${skipped.map(gateLabel).join(", ")}` : "",
       ].join("");

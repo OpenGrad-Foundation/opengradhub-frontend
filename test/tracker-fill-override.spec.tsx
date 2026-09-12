@@ -115,12 +115,12 @@ describe("drilled into someone else's rows", () => {
   });
 });
 
-describe("what the server would refuse is never offered", () => {
-  it("cannot start a session when every row is already complete", () => {
+describe("completed rows can be corrected", () => {
+  it("can start a session when every row is already complete — to correct an entry", () => {
     renderGrid({ grid: grid([row({ status: "done", lifecycle: "done" })]) });
     const btn = screen.getByRole("button", { name: /fill on behalf/i }) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-    expect(btn.title).toMatch(/already complete/i);
+    expect(btn.disabled).toBe(false);
+    expect(btn.title).toMatch(/correct an entry/i);
   });
 
   it("can start when at least one row is still outstanding", () => {
@@ -132,16 +132,16 @@ describe("what the server would refuse is never offered", () => {
     expect(btn.title).toMatch(/1 outstanding row/i);
   });
 
-  it("locks the already-complete rows inside a session and says why", async () => {
+  it("keeps the already-complete rows editable inside a session and warns it is a correction", async () => {
     renderGrid({
       grid: grid([row({ record_id: "r1", status: "done", lifecycle: "done" }), row({ record_id: "r2" })]),
     });
     await startSession();
     const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
-    // Desktop table + mobile card render each row once: one complete, one outstanding.
-    expect(boxes.filter((b) => b.disabled).length).toBeGreaterThan(0);
-    expect(boxes.filter((b) => !b.disabled).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/does not rewrite finished work/i).length).toBeGreaterThan(0);
+    // Desktop table + mobile card render each row once; every one is editable.
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(boxes.every((b) => !b.disabled)).toBe(true);
+    expect(screen.getAllByText(/recorded as a correction/i).length).toBeGreaterThan(0);
   });
 
   it("keeps a row the manager just ticked editable — the lock reads the saved status", async () => {
