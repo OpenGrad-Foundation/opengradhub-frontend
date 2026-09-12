@@ -184,6 +184,7 @@ export function QuestionSlideOver({
           _key: nextKey(),
           question_type: c.question_type as "MCQ" | "FILL" | "NUMERICAL",
           content_html: c.content_html || "",
+          instruction_html: c.instruction_html ?? undefined,
           correct_answer: c.correct_answer ?? "",
           tolerance: c.tolerance ?? undefined,
           marks: c.marks ?? undefined,
@@ -413,7 +414,7 @@ export function QuestionSlideOver({
       section_id: null,
       question_type: c.question_type,
       content_html: c.content_html || "<p style='color: #aaa'>Sub-question content...</p>",
-      instruction_html: null,
+      instruction_html: c.instruction_html ?? null,
       tolerance: c.tolerance ?? null,
       image_url: c.image_url ?? null,
       options: c.options.filter(o => o.option_text.trim()).map(o => ({ id: String(o._key), option_text: o.option_text })),
@@ -474,7 +475,7 @@ export function QuestionSlideOver({
           ) : (
             qType === "GROUP" ? (
               <div>
-                <PassageCard html={content || "<p style='color: #aaa'>Question content...</p>"} imageUrl={imageUrl || null} />
+                <PassageCard html={content || "<p style='color: #aaa'>Question content...</p>"} imageUrl={imageUrl || null} instructionHtml={instruction || null} />
                 {children.map((child, i) => {
                   const studentAns = previewAnswers[String(child._key)] ?? null;
                   let isCorrect: boolean | null = null;
@@ -489,9 +490,11 @@ export function QuestionSlideOver({
                     section_id: null,
                     question_type: child.question_type,
                     content_html: child.content_html || "<p style='color: #aaa'>Sub-question content...</p>",
+                    instruction_html: child.instruction_html ?? null,
                     image_url: child.image_url ?? null,
                     parent_snapshot_id: "preview",
                     parent_content_html: content,
+                    parent_instruction_html: instruction || null,
                     parent_image_url: imageUrl,
                     student_answer: studentAns,
                     correct_answer: child.correct_answer || null,
@@ -522,9 +525,11 @@ export function QuestionSlideOver({
                   section_id: null,
                   question_type: qType,
                   content_html: content || "<p style='color: #aaa'>Question content...</p>",
+                  instruction_html: instruction || null,
                   image_url: imageUrl || null,
                   parent_snapshot_id: null,
                   parent_content_html: null,
+                  parent_instruction_html: null,
                   parent_image_url: null,
                   student_answer: studentAns,
                   correct_answer: correctAnswer || null,

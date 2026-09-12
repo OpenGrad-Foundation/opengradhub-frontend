@@ -7,6 +7,7 @@ import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { getAttemptReview, getMyQuestionReports, type AttemptReview, type AttemptReviewQuestion, type AttemptReviewSection } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { PassageCard, QuestionReviewCard, label } from "@/components/question-review-card";
+import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { ReportQuestionButton } from "@/components/report-question-modal";
 
 // ── Styles ────────────────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ export default function AttemptReviewPage() {
               key={`passage-${q.parent_snapshot_id}`}
               html={q.parent_content_html ?? ""}
               imageUrl={q.parent_image_url ?? null}
+              instructionHtml={q.parent_instruction_html ?? null}
             />
           );
         }
@@ -213,6 +215,16 @@ export default function AttemptReviewPage() {
           </div>
         </div>
       </div>
+
+      {/* Quiz-level instructions — same box the intro card shows before the attempt */}
+      {review.description != null && review.description.trim() !== "" && (
+        <div style={{ ...card, background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.1)", borderLeft: "3px solid #209379" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+            Test Instructions
+          </p>
+          <MathContent html={review.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+        </div>
+      )}
 
       {/* Reveal-all toggle */}
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
