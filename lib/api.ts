@@ -2867,9 +2867,11 @@ export type AttemptReviewQuestion = {
   section_id: string | null;
   question_type: string;
   content_html: string;
+  instruction_html: string | null;
   image_url: string | null;
   parent_snapshot_id: string | null;
   parent_content_html: string | null;
+  parent_instruction_html: string | null;
   parent_image_url: string | null;
   student_answer: string | null;
   correct_answer: string | null;
@@ -2900,6 +2902,8 @@ export type AttemptReview = {
   max_score: number;
   passed: boolean | null;
   submitted_at: string;
+  /** Quiz-level "Test Instructions" (quizzes.description), read live. */
+  description: string | null;
   questions: AttemptReviewQuestion[];
   sections: AttemptReviewSection[];   // ← new
 };
