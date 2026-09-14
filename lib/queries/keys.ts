@@ -151,6 +151,7 @@ export const qk = {
   ) => ['og', 'tracker', 'task-breakdown', templateId, level, parentId, q, status, page] as const,
   trackerFacets: () => ['og', 'tracker', 'facets'] as const,
   trackerZms: () => ['og', 'tracker', 'zms'] as const,
+  trackerTeam: (managerId: string) => ['og', 'tracker', 'team', managerId] as const,
   trackerZmFellows: (zmId: string) => ['og', 'tracker', 'zm-fellows', zmId] as const,
   trackerFellowSchools: (fellowId: string) => ['og', 'tracker', 'fellow-schools', fellowId] as const,
   trackerSchoolStudents: (schoolId: string) => ['og', 'tracker', 'school-students', schoolId] as const,

@@ -31,6 +31,7 @@ import {
   getTrackerFellowSchools,
   getTrackerSchoolStudents,
   getTrackerPms,
+  getTrackerTeam,
   getTrackerPmZms,
   type TrackerAllTasksFilters,
   getTrackerMyTasks,
@@ -219,6 +220,16 @@ export function useTrackerSchoolStudents(schoolId: string | undefined) {
     queryKey: qk.trackerSchoolStudents(schoolId ?? ''),
     queryFn: () => getTrackerSchoolStudents(schoolId as string),
     enabled: Boolean(schoolId),
+    staleTime: 30_000,
+  });
+}
+
+/** "By team" drill. `managerId` null = the caller's root; `enabled` false skips the fetch. */
+export function useTrackerTeam(managerId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: qk.trackerTeam(managerId ?? 'root'),
+    queryFn: () => getTrackerTeam(managerId),
+    enabled,
     staleTime: 30_000,
   });
 }

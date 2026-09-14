@@ -87,7 +87,17 @@ export function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
   );
 }
 
-export function PassageCard({ html, imageUrl }: { html: string; imageUrl: string | null }) {
+/** Matches the instruction block <QuestionView/> renders during the attempt. */
+const instructionBox: React.CSSProperties = {
+  background: "rgba(3,72,82,0.04)",
+  border: "1px solid rgba(3,72,82,0.12)",
+  borderLeft: "3px solid #209379",
+  borderRadius: "8px",
+  padding: "12px 16px",
+  marginBottom: "14px",
+};
+
+export function PassageCard({ html, imageUrl, instructionHtml }: { html: string; imageUrl: string | null; instructionHtml: string | null }) {
   return (
     <div style={{
       ...card,
@@ -96,6 +106,11 @@ export function PassageCard({ html, imageUrl }: { html: string; imageUrl: string
       marginBottom: "8px",
     }}>
       <p style={{ ...label, marginBottom: "10px" }}>Reading Passage</p>
+      {instructionHtml != null && instructionHtml.trim() !== "" && (
+        <div style={instructionBox}>
+          <MathContent html={instructionHtml} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+        </div>
+      )}
       <MathContent html={html} style={{ fontSize: "15px", lineHeight: 1.7, color: "#034852" }} />
       {imageUrl && (
         <img
@@ -154,6 +169,12 @@ export function QuestionReviewCard({ q, idx, revealed, questionLabel, reportButt
               </span>
             </div>
           </div>
+
+          {q.instruction_html != null && q.instruction_html.trim() !== "" && (
+            <div style={instructionBox}>
+              <MathContent html={q.instruction_html} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
+            </div>
+          )}
 
           <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: q.image_url ? "10px" : "14px" }} />
 

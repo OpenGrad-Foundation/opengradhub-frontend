@@ -19,7 +19,7 @@ vi.mock('@/app/dashboard/tracker/_components/nudge-button', () => ({ NudgeButton
 vi.mock('@/components/PushNudge', () => ({ default: () => null }));
 vi.mock('@/app/dashboard/tracker/_components/all-tasks', () => ({ AllTasksPanel: ({ onOpenTask, onOpenDrill }: any) => <div>All task list<button onClick={() => onOpenTask('t1')}>Open first task</button><button onClick={() => onOpenDrill({ template_id: 't1', name: 'Task One', target_type: 'student', done: 0, total: 1 })}>Open breakdown</button></div> }));
 vi.mock('@/app/dashboard/tracker/_components/task-breakdown', () => ({ TaskBreakdown: ({ onBack, onOpenTask }: any) => <div>Task breakdown<button onClick={onBack}>Back to tasks</button><button onClick={() => onOpenTask('t1')}>Open task data</button></div> }));
-vi.mock('@/app/dashboard/tracker/_components/zm-view', () => ({ AssignTaskButton: () => null, ZmView: ({ onOpen, onAssign, initialOwnerId }: any) => <div>Team list {initialOwnerId}<button onClick={() => onOpen('t2', 'f1', 'Fellow One')}>Open fellow task</button><button onClick={() => onAssign({ id: 'f1', name: 'Fellow One' })}>Assign task</button></div> }));
+vi.mock('@/app/dashboard/tracker/_components/team-view', () => ({ AssignTaskButton: () => null, TeamView: ({ onOpen, onAssign, initialOwnerId }: any) => <div>Team list {initialOwnerId}<button onClick={() => onOpen('t2', 'f1', 'Fellow One')}>Open fellow task</button><button onClick={() => onAssign({ id: 'f1', name: 'Fellow One' })}>Assign task</button></div> }));
 vi.mock('@/app/dashboard/tracker/_components/my-tasks', () => ({ TaskListView: () => <div>Fellow task list</div>, MyTasksList: ({ onOpen }: any) => <div>My task list<button onClick={() => onOpen('t1')}>Open own task</button></div> }));
 vi.mock('@/app/dashboard/tracker/_components/tracker-grid', () => ({ TrackerEditableGrid: ({ template, owner }: any) => <div>Grid: {template.name} {owner?.name}</div> }));
 vi.mock('@/app/dashboard/tracker/_components/tracker-builder', () => ({ TrackerBuilder: ({ onCreated, prefill }: any) => <div>Task builder {prefill?.label}<button onClick={() => onCreated('new-task')}>Create task</button></div> }));
@@ -75,7 +75,8 @@ describe('tracker navigation', () => {
   });
   it('returns to the same team member and clears that owner on a top-level tab click', () => {
     render(<TrackerPage />); tab('Tasks'); click('Open fellow task'); click('Back to team tasks');
-    expect(screen.getByText('Fellow task list')).toBeTruthy(); expect(state.params.has('task')).toBe(false);
+    // By team reopens that person's list from the owner kept in the URL.
+    expect(screen.getByText('Team list f1')).toBeTruthy(); expect(state.params.has('task')).toBe(false);
     tab('Tasks'); expect(screen.getByText('Team list')).toBeTruthy(); expect(state.params.has('owner')).toBe(false);
   });
   it('does not reset an open task or owner when only filters change', () => {

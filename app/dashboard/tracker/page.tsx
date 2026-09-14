@@ -12,6 +12,7 @@ import {
   Loader2,
   PencilRuler,
   Send,
+  Settings2,
   Table2,
   X,
   Users,
@@ -23,8 +24,6 @@ import {
   useAddBlockerComment,
   useBlockerThread,
   useClearTrackerBlocker,
-  useTrackerFellows,
-  useTrackerFellowTasks,
   useTrackerGrid,
   useTrackerMineBlockers,
   useTrackerOverview,
@@ -33,7 +32,7 @@ import {
   useTrackerTemplates,
 } from "@/lib/queries/tracker";
 import type { TrackerBlocker, TrackerEvent, TrackerGrid, TrackerTaskSummaryRow, TrackerTemplate } from "@/lib/tracker-api";
-import { IN_CHARGE, roleLabel, TRACKER_NAME } from "@/lib/labels";
+import { roleLabel, TRACKER_NAME } from "@/lib/labels";
 import { getBackHref } from "@/lib/nav";
 import { TrackerBuilder, type TrackerAssignPrefill } from "./_components/tracker-builder";
 import { StudentFieldsManager } from "./_components/student-fields-manager";
@@ -41,7 +40,7 @@ import { TrackerEditableGrid } from "./_components/tracker-grid";
 import { StatusCards } from "./_components/status-cards";
 import { countByTaskState, rollupFromCounts, TASK_STATE_META, type StateCounts, type TaskState } from "@/lib/tracker-status";
 import { TaskDetail } from "./_components/task-detail";
-import { MyTasksList, TaskListView } from "./_components/my-tasks";
+import { MyTasksList } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
 import { TaskBreakdown } from "./_components/task-breakdown";
 import { useUrlFilters, useLocalFilters, type FilterControls } from "@/lib/filters/use-url-filters";
@@ -52,8 +51,7 @@ import { allTasksFilterSpec, gridFilterSpec, myTasksGroupFilterSpec, myTasksReco
 
 /** Filter state plus setters, as the grid panel consumes it. */
 type GridFilterControls = FilterControls;
-import { ZmView, AssignTaskButton } from "./_components/zm-view";
-import { NudgeButton } from "./_components/nudge-button";
+import { TeamView } from "./_components/team-view";
 import PushNudge from "@/components/PushNudge";
 import { HierarchicalStudentsPanel } from "./_components/hierarchical-students";
 import { GraduationCap } from "lucide-react";
@@ -126,12 +124,11 @@ export default function TrackerPage() {
   // fight over `status` and `q` in the same query string.
   const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
   const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
-  // `?owner=` lands on the per-person list (TeamPanel), which only mounts under the
-  // "fellow" view — the default "zm" view would swallow the deep link.
+  // Legacy `?view=zm|fellow` links predate the merged By-team drill and land there.
   const deepLinkView = searchParams.get("view");
-  const initialView = deepLinkView === "my" || deepLinkView === "manage" || deepLinkView === "zm" || deepLinkView === "fellow"
-    ? deepLinkView : deepLinkOwner ? "fellow" : "zm";
-  const [teamView, setTeamView] = useState<"my" | "zm" | "fellow" | "manage">(initialView);
+  const initialView: "my" | "team" | "manage" =
+    deepLinkView === "my" || deepLinkView === "manage" ? deepLinkView : "team";
+  const [teamView, setTeamView] = useState<"my" | "team" | "manage">(initialView);
   const [sectionVersion, setSectionVersion] = useState(0);
   // The task open in the Tasks tab's Manage view (edit / archive / delete). Lives here so a
   // freshly-created task can land straight on its own detail from the New task tab.
@@ -202,7 +199,7 @@ export default function TrackerPage() {
     setManageDetailId(null);
     setOverviewState(null);
     setAssignPrefill(null);
-    setTeamView("zm");
+    setTeamView("team");
     // Reselecting a tab also resets state held by its nested panels.
     setSectionVersion(v => v + 1);
     writeNavigation(new URLSearchParams({ tab }));
@@ -212,11 +209,11 @@ export default function TrackerPage() {
     setFillTemplateId(id);
     setFillFellowId(owner ?? null);
     setFillFellowName(ownerName ?? null);
-    if (owner && safeActiveTab === "myTasks") setTeamView("fellow");
+    if (owner && safeActiveTab === "myTasks") setTeamView("team");
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", safeActiveTab);
     params.set("task", id);
-    if (owner && safeActiveTab === "myTasks") params.set("view", "fellow");
+    if (owner && safeActiveTab === "myTasks") params.set("view", "team");
     owner ? params.set("owner", owner) : params.delete("owner");
     params.delete("from");
     params.delete("manage");
@@ -234,7 +231,7 @@ export default function TrackerPage() {
     writeNavigation(params);
   }
 
-  function selectTeamView(view: "my" | "zm" | "fellow" | "manage") {
+  function selectTeamView(view: "my" | "team" | "manage") {
     setTeamView(view);
     setManageDetailId(null);
     setSectionVersion(v => v + 1);
@@ -358,41 +355,19 @@ export default function TrackerPage() {
                   onClear={() => setOverviewState(null)}
                   onOpen={openTask}
                 />
-              ) : canAllTasks ? (
-                <div className="flex flex-col gap-3">
-                  <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-                    <button type="button" onClick={() => selectTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
-                    <button type="button" onClick={() => selectTeamView("zm")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By Zonal Manager</button>
-                    <button type="button" onClick={() => selectTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
-                    <button type="button" onClick={() => selectTeamView("manage")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>Manage</button>
-                  </div>
-                  {teamView === "manage" ? (
-                    <ManageTasksPanel
-                      canAuthor={canAuthor}
-                      canShareExternally={has(PERM.tracker.share_external)}
-                      canFill={canFill}
-                      canClear={canClear}
-                      canOverrideFill={canOverrideFill}
-                      detailId={manageDetailId}
-                      onDetailChange={openManageDetail}
-                    />
-                  ) : teamView === "my" ? (
-                    <MyTasksList
-                      filters={myTasksFilters}
-                      onOpen={openTask}
-                    />
-                  ) : teamView === "zm" ? (
-                    <ZmView onOpen={openTask} onAssign={canAuthor ? assignTo : undefined} />
-                  ) : (
-                    <TeamPanel onOpen={openTask} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
-                  )}
-                </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
-                    <button type="button" onClick={() => selectTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
-                    <button type="button" onClick={() => selectTeamView("fellow")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "fellow" || teamView === "zm" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By {IN_CHARGE}</button>
-                    <button type="button" onClick={() => selectTeamView("manage")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>Manage</button>
+                  {/* Two people-views in the pill group; "Manage tasks" sits apart because it is
+                      a different axis — task definitions, not whose tasks — so it reads as a
+                      tool, not a third way of listing people. */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                      <button type="button" onClick={() => selectTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
+                      <button type="button" onClick={() => selectTeamView("team")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "team" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By team</button>
+                    </div>
+                    <button type="button" onClick={() => selectTeamView("manage")} aria-pressed={teamView === "manage"} className={"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "border-teal-600 bg-teal-600 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
+                      <Settings2 className="h-4 w-4" aria-hidden="true" /> Manage tasks
+                    </button>
                   </div>
                   {teamView === "manage" ? (
                     <ManageTasksPanel
@@ -410,7 +385,7 @@ export default function TrackerPage() {
                       onOpen={openTask}
                     />
                   ) : (
-                    <TeamPanel onOpen={openTask} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
+                    <TeamView onOpen={openTask} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
                   )}
                 </div>
               )}
@@ -525,100 +500,6 @@ function TasksPanel({
         </div>
       </section>
     </div>
-  );
-}
-
-function TeamPanel({ onOpen, onAssign, initialOwnerId }: {
-  onOpen: (templateId: string, fellowId: string, fellowName?: string) => void;
-  /** Jump to the task builder with this person pre-selected as the audience. */
-  onAssign?: (person: { id: string; name: string }) => void;
-  /** `?owner=` deep link (e.g. from a staff profile): pre-select this person's list once loaded. */
-  initialOwnerId?: string | null;
-}) {
-  const { data: fellows = [], isLoading } = useTrackerFellows();
-  const [sel, setSel] = useState<{ id: string; name: string } | null>(null);
-  const [seeded, setSeeded] = useState(false);
-  useEffect(() => {
-    if (seeded || !initialOwnerId || fellows.length === 0) return;
-    const hit = fellows.find((f) => f.id === initialOwnerId);
-    if (hit) setSel({ id: hit.id, name: hit.name });
-    setSeeded(true);
-  }, [fellows, initialOwnerId, seeded]);
-  const [q, setQ] = useState("");
-  const tasks = useTrackerFellowTasks(sel?.id);
-  const canNudge = usePermissions().has(PERM.tracker.author);
-
-  if (sel) {
-    return (
-      <div className="flex flex-col gap-3">
-        <button type="button" onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to team
-        </button>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-semibold text-gray-950">{sel.name}&apos;s tasks</h3>
-          {onAssign && <AssignTaskButton onClick={() => onAssign(sel)} />}
-        </div>
-        {tasks.isLoading ? <TrackerLoading /> : <TaskListView tasks={tasks.data ?? []} onOpen={(tid) => onOpen(tid, sel.id, sel.name)} emptyTitle="No tasks" emptyDetail={`${sel.name} has no tasks yet.`} />}
-      </div>
-    );
-  }
-
-  if (isLoading) return <TrackerLoading />;
-  if (fellows.length === 0) return <EmptyPanel title="No team members" detail="Staff you manage will appear here." />;
-
-  const shown = fellows.filter((f) => f.name.toLowerCase().includes(q.trim().toLowerCase()));
-
-  return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
-        <div>
-          <h3 className="text-base font-semibold text-gray-950">Your team</h3>
-        </div>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search team…" className="h-9 w-48 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500" />
-      </div>
-      {shown.length === 0 ? (
-        <p className="px-4 py-8 text-sm text-gray-500">No team members match “{q}”.</p>
-      ) : (
-        <ul className="divide-y divide-gray-100">
-          {shown.map((f) => (
-            <li key={f.id} className="flex items-center gap-2 px-1">
-              <button
-                type="button"
-                onClick={() => setSel({ id: f.id, name: f.name })}
-                className="group flex w-full cursor-pointer items-center justify-between gap-3 rounded-md px-3 py-3.5 text-left text-sm transition-colors hover:bg-teal-50"
-              >
-                <span className="flex min-w-0 items-center gap-2 font-medium text-gray-900">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-semibold text-teal-700">
-                    {f.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
-                  </span>
-                  <span className="truncate">{f.name}</span>
-                  {f.role && f.role !== "FELLOW" && (
-                    <span className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
-                      {f.role === "ZONAL_MANAGER" ? "ZM" : f.role === "PROGRAM_MANAGER" ? "PM" : f.role}
-                    </span>
-                  )}
-                </span>
-                <span className="flex shrink-0 items-center gap-3">
-                  <span className="hidden items-center gap-2 text-xs sm:flex">
-                    <span className="font-semibold text-emerald-700">{f.done} done</span>
-                    <span className="text-gray-300">·</span>
-                    <span className="text-gray-500">{f.total} assigned</span>
-                    <span className="text-gray-300">·</span>
-                    <span className="font-semibold text-amber-700">{f.pending} left</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 transition group-hover:bg-teal-100">
-                    View tasks <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                  </span>
-                </span>
-              </button>
-              {canNudge && f.pending > 0 && (
-                <NudgeButton doerId={f.id} lastNudgedAt={f.last_nudged_all_at} label="Nudge all" />
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   );
 }
 

@@ -36,9 +36,11 @@ function toReviewQ(q: Question, answers: AnswerMap, parentQ?: Question): Attempt
     section_id: null,
     question_type: q.question_type,
     content_html: q.content_html,
+    instruction_html: q.instruction_html ?? null,
     image_url: q.image_url ?? null,
     parent_snapshot_id: parentQ?.id ?? null,
     parent_content_html: parentQ?.content_html ?? null,
+    parent_instruction_html: parentQ?.instruction_html ?? null,
     parent_image_url: parentQ?.image_url ?? null,
     student_answer: studentAns,
     correct_answer: q.correct_answer ?? null,
@@ -225,7 +227,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
             return (
               <div key={rq.snapshot_id}>
                 {isFirstOfParent && (
-                  <PassageCard html={rq.parent_content_html ?? ""} imageUrl={rq.parent_image_url ?? null} />
+                  <PassageCard html={rq.parent_content_html ?? ""} imageUrl={rq.parent_image_url ?? null} instructionHtml={rq.parent_instruction_html ?? null} />
                 )}
                 <QuestionReviewCard q={rq} idx={idx} revealed={true} questionLabel={`Q${idx + 1}`} />
               </div>

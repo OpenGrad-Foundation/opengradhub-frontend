@@ -144,10 +144,23 @@ export function AudiencePicker({
         <p className="py-4 text-sm text-gray-500">No {targetWord} in your scope for this filter.</p>
       ) : (
         <>
-          <div className="mb-2 flex items-center gap-3">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => onChange(new Set([...selected, ...visibleTargets.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
               Select all {visibleTargets.length}
             </button>
+            {/* One-click "everyone in this role" — the common case for a staff task is "all
+                ZMs" or "all in-charges", which the Role filter + Select all needs three
+                clicks for. Adds to the selection, ignores the other filters on purpose. */}
+            {roleOpts.length > 1 && roleOpts.map((r) => {
+              const ids = all.filter((t) => t.role === r).map((t) => t.id);
+              const label = prettyRole(r);
+              return (
+                <button key={r} type="button" onClick={() => onChange(new Set([...selected, ...ids]))}
+                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  All {label.toLowerCase().endsWith("s") ? label : `${label}s`} ({ids.length})
+                </button>
+              );
+            })}
             {selected.size > 0 && (
               <button type="button" onClick={() => onChange(new Set())} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
             )}

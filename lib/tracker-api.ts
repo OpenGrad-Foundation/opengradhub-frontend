@@ -502,6 +502,20 @@ export function getTrackerPmZms(pmId: string) {
   return trackerJson<TrackerZmRosterRow[]>(`/tracker/pms/${encodeURIComponent(pmId)}/zms`);
 }
 
+export type TrackerTeamMember = {
+  id: string; name: string; role: string;
+  /** Direct reports within the caller's reach. */
+  report_count: number;
+  own_total: number; own_done: number; own_pending: number;
+  last_nudged_all_at: string | null;
+};
+
+/** Direct reports of `managerId`, or of the caller's root when omitted. */
+export function getTrackerTeam(managerId?: string | null) {
+  const qs = managerId ? `?manager=${encodeURIComponent(managerId)}` : "";
+  return trackerJson<TrackerTeamMember[]>(`/tracker/team${qs}`);
+}
+
 // --- Task-first list + task-scoped org drill (redesigned All Tasks tab) --------
 
 export type TrackerTaskState = "done" | "pending" | "overdue" | "blocked";
