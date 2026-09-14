@@ -1097,7 +1097,7 @@ function MultiSelectCell({
   inputClass: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -1111,8 +1111,10 @@ function MultiSelectCell({
       const above = r.top - 16;
       const openUp = below < 200 && above > below;
       const maxHeight = Math.min(280, Math.max(140, openUp ? above : below));
+      // Opening upward anchors the menu's BOTTOM to the trigger: a short list would otherwise
+      // be placed maxHeight above it and float with a gap.
       setPos({
-        top: openUp ? Math.max(8, r.top - 4 - maxHeight) : r.bottom + 4,
+        ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
         left: r.left,
         width: Math.max(r.width, 220),
         maxHeight,
@@ -1168,7 +1170,7 @@ function MultiSelectCell({
           ref={menuRef}
           role="group"
           aria-label={label}
-          style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+          style={{ position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
           className="z-[1000] overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white py-1 shadow-lg"
         >
           {options.length === 0 ? (
