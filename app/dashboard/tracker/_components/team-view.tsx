@@ -10,7 +10,12 @@ import { NudgeButton } from "./nudge-button";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 
-type Person = { id: string; name: string };
+type Person = { id: string; name: string; role?: string | null };
+
+/** Tasks are delegated down to zonal managers and in-charges only — the server drops a
+ *  programme manager or admin from any assignment, so offering "Assign task" on them would
+ *  create a task nobody holds. Unknown role (a bare deep link) stays permissive. */
+const canReceiveTask = (role?: string | null) => role !== "PROGRAM_MANAGER" && role !== "SUPER_ADMIN";
 
 function Loading() {
   return <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
@@ -46,14 +51,14 @@ export function TeamView({ onOpen, onAssign, initialOwnerId }: {
     if (seeded || !initialOwnerId) return;
     const hit = (flat.data ?? []).find((f) => f.id === initialOwnerId);
     if (!hit) return;
-    setPerson({ id: hit.id, name: hit.name });
+    setPerson({ id: hit.id, name: hit.name, role: hit.role });
     setSeeded(true);
   }, [flat.data, initialOwnerId, seeded]);
 
   const goTo = (depth: number) => { setPerson(null); setPath((p) => p.slice(0, depth)); setQ(""); setRoleFilter(""); };
   const openRow = (m: TrackerTeamMember) => {
-    if (m.report_count > 0) { setPath((p) => [...p, { id: m.id, name: m.name }]); setQ(""); setRoleFilter(""); }
-    else setPerson({ id: m.id, name: m.name });
+    if (m.report_count > 0) { setPath((p) => [...p, { id: m.id, name: m.name, role: m.role }]); setQ(""); setRoleFilter(""); }
+    else setPerson({ id: m.id, name: m.name, role: m.role });
   };
 
   const crumbs = (
@@ -80,7 +85,7 @@ export function TeamView({ onOpen, onAssign, initialOwnerId }: {
         {crumbs}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-950">{person.name}&apos;s tasks</h3>
-          {canAuthor && onAssign && <AssignTaskButton onClick={() => onAssign(person)} />}
+          {canAuthor && onAssign && canReceiveTask(person.role) && <AssignTaskButton onClick={() => onAssign(person)} />}
         </div>
         {ownTasks.isLoading ? <Loading /> : <TaskListView tasks={ownTasks.data ?? []} onOpen={(tid) => onOpen(tid, person.id, person.name)} emptyTitle="No tasks" emptyDetail={`${person.name} has no tasks yet.`} />}
       </div>
@@ -100,7 +105,7 @@ export function TeamView({ onOpen, onAssign, initialOwnerId }: {
         <div>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-semibold text-gray-950">{current.name}&apos;s own tasks</h3>
-            {canAuthor && onAssign && <AssignTaskButton onClick={() => onAssign(current)} />}
+            {canAuthor && onAssign && canReceiveTask(current.role) && <AssignTaskButton onClick={() => onAssign(current)} />}
           </div>
           {ownTasks.isLoading ? <Loading /> : <TaskListView tasks={ownTasks.data ?? []} onOpen={(tid) => onOpen(tid, current.id, current.name)} emptyTitle="No tasks" emptyDetail={`${current.name} has no tasks assigned directly.`} />}
         </div>
@@ -155,7 +160,7 @@ export function TeamView({ onOpen, onAssign, initialOwnerId }: {
                 {canAuthor && m.own_pending > 0 && (
                   <NudgeButton doerId={m.id} lastNudgedAt={m.last_nudged_all_at} label="Nudge all" />
                 )}
-                {canAuthor && onAssign && (
+                {canAuthor && onAssign && canReceiveTask(m.role) && (
                   <button type="button" onClick={() => onAssign({ id: m.id, name: m.name })} aria-label={`Assign task to ${m.name}`} title="Assign task"
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 transition hover:border-teal-400 hover:text-teal-700">
                     <Plus className="h-4 w-4" aria-hidden="true" />
