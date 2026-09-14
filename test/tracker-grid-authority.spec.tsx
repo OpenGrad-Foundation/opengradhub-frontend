@@ -114,10 +114,11 @@ describe("a grid mixing doers", () => {
     expect(btn.title).toMatch(/1 outstanding row/i);
   });
 
-  it("offers nothing to override when every foreign row is already complete", () => {
+  it("still offers the override when every foreign row is complete — a correction", () => {
     renderGrid([mine(), theirs({ status: "done", lifecycle: "done" })]);
     const btn = screen.getByRole("button", { name: /fill on behalf/i }) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
+    expect(btn.disabled).toBe(false);
+    expect(btn.title).toMatch(/correct an entry/i);
   });
 
   it("hides the override button on a grid of the viewer's own rows", () => {

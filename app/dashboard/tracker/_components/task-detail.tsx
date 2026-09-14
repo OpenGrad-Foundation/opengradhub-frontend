@@ -9,9 +9,9 @@ import { AudiencePicker } from "./audience-picker";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 
 const TARGET_LABEL: Record<string, string> = {
-  student: "One row per student",
-  fellow: `One task per ${IN_CHARGE_LOWER}`,
-  school: "One task per school",
+  student: `One entry per student, filled in by their ${IN_CHARGE_LOWER}`,
+  fellow: "One entry per staff member assigned",
+  school: `One entry per school, filled in by its ${IN_CHARGE_LOWER}`,
 };
 
 // Mirrors the backend PROFILE_ALLOWLIST + the builder, so fields added here match new-task fields.
