@@ -1,6 +1,8 @@
 export default function DashboardLoading() {
   return (
     <div
+      role="status"
+      aria-live="polite"
       style={{
         minHeight: "60vh",
         display: "flex",

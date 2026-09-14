@@ -9,7 +9,8 @@ vi.mock("@/app/dashboard/analytics/_components/NeedsAttention", () => ({ NeedsAt
 vi.mock("@/app/dashboard/analytics/_components/SchoolDetail", () => ({ default: () => null }));
 vi.mock("@/app/dashboard/analytics/_components/ManagerDrill", () => ({ default: () => null }));
 
-let scopeKind: "partner" | "global" = "partner";
+let scopeKind: "partner" | "global" | "programme" | "school" = "partner";
+const geoCalls: unknown[][] = [];
 const insightsCalls: Array<{ programme?: string; programmeId?: string }> = [];
 vi.mock("@/lib/queries/analytics", () => ({
   useProgrammeInsights: (filters: any) => {
@@ -22,20 +23,20 @@ vi.mock("@/lib/queries/analytics", () => ({
       isPending: false, error: null,
     };
   },
-  useAnalyticsFilterProgrammes: () => ({ data: [{ id: "p1", name: "CAT Kerala 2026" }] }),
-  useAnalyticsFilterStates: () => ({ data: [] }),
-  useAnalyticsFilterDistricts: () => ({ data: [] }),
-  useAnalyticsFilterSchools: () => ({ data: [] }),
+  useAnalyticsFilterProgrammes: () => ({ data: [{ id: "p1", name: "CAT Kerala 2026" }, { id: "p2", name: "UG Karnataka 2026" }] }),
+  useAnalyticsFilterStates: (...args: unknown[]) => { geoCalls.push(args); return { data: [] }; },
+  useAnalyticsFilterDistricts: (...args: unknown[]) => { geoCalls.push(args); return { data: [] }; },
+  useAnalyticsFilterSchools: (...args: unknown[]) => { geoCalls.push(args); return { data: [] }; },
 }));
 
 import ProgrammeInsights from "@/app/dashboard/analytics/_components/ProgrammeInsights";
 
 afterEach(() => {
   cleanup();
-  insightsCalls.length = 0;
+  insightsCalls.length = 0; geoCalls.length = 0;
 });
 
-describe("ProgrammeInsights programme control — the two-state-variable invariant", () => {
+describe("ProgrammeInsights programme records and dependent filters", () => {
   it("writes programmeId, never programme, for a partner scope", () => {
     scopeKind = "partner";
     const { getByText } = render(<ProgrammeInsights />);
@@ -46,13 +47,17 @@ describe("ProgrammeInsights programme control — the two-state-variable invaria
     expect(last.programme).toBeUndefined();
   });
 
-  it("writes programme, never programmeId, for a global scope", () => {
-    scopeKind = "global";
-    const { getByText } = render(<ProgrammeInsights />);
+  it.each(["global", "programme", "school"] as const)("uses current programme records for a %s scope", kind => {
+    scopeKind = kind;
+    const { getByText, queryByText, getByPlaceholderText } = render(<ProgrammeInsights />);
     fireEvent.click(getByText("All programmes"));
-    fireEvent.click(getByText("UG"));
+    expect(queryByText("UG")).toBeNull();
+    fireEvent.change(getByPlaceholderText("Search…"), { target: { value: "karnataka" } });
+    expect(queryByText("CAT Kerala 2026")).toBeNull();
+    fireEvent.click(getByText("UG Karnataka 2026"));
     const last = insightsCalls[insightsCalls.length - 1];
-    expect(last.programme).toBe("UG");
-    expect(last.programmeId).toBeUndefined();
+    expect(last.programmeId).toBe("p2");
+    expect(last.programme).toBeUndefined();
+    expect(geoCalls.slice(-3)).toEqual([["p2"], [undefined, "p2"], [undefined, undefined, "p2"]]);
   });
 });

@@ -16,15 +16,9 @@ import { ScopeChip } from "./ScopeChip";
 import { SearchableSelect } from "./SearchableSelect";
 import SchoolDetail from "./SchoolDetail";
 import ManagerDrill from "./ManagerDrill";
-import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 export default function ProgrammeInsights() {
-  // "" means no filter; otherwise any PROGRAMME_KINDS value. Pinning this to
-  // the two literals is what forced the `as` cast below, and the cast is what
-  // let the domain widen without a single type error anywhere.
-  const [programme, setProgramme] = useState<string>("");
-  // A programme ENTITY id, for a partner. The two filters are different axes and
-  // the client never sends both: the backend rejects that pair with a 400.
+  // Programme records are the same filter for every analytics viewer.
   const [programmeId, setProgrammeId] = useState<string>("");
   const [state, setState] = useState<string>("");
   const [district, setDistrict] = useState<string>("");
@@ -32,16 +26,15 @@ export default function ProgrammeInsights() {
   const [drilledSchoolId, setDrilledSchoolId] = useState<string | null>(null);
   const [drilledCourse, setDrilledCourse] = useState<{ id: string; title: string } | null>(null);
   const { data, isPending, error } = useProgrammeInsights({
-    programme:   programme   || undefined,
     programmeId: programmeId || undefined,
     state:       state       || undefined,
     district:    district    || undefined,
     schoolId:    schoolId    || undefined,
   });
   const programmesQ = useAnalyticsFilterProgrammes();
-  const statesQ    = useAnalyticsFilterStates();
-  const districtsQ = useAnalyticsFilterDistricts(state || undefined);
-  const schoolsQ   = useAnalyticsFilterSchools(state || undefined, district || undefined);
+  const statesQ    = useAnalyticsFilterStates(programmeId || undefined);
+  const districtsQ = useAnalyticsFilterDistricts(state || undefined, programmeId || undefined);
+  const schoolsQ   = useAnalyticsFilterSchools(state || undefined, district || undefined, programmeId || undefined);
 
   if (drilledSchoolId) {
     return (
@@ -65,10 +58,8 @@ export default function ProgrammeInsights() {
   if (error)     return <Err msg={(error as Error).message} />;
   if (!data)     return null;
 
-  // A partner keeps the filter bar. Without this arm, the moment their scope
-  // stopped being 'global' they lost every control on the page.
   const isPartner = data.scope.kind === "partner";
-  const showFilter = data.scope.kind === "global" || isPartner;
+  const selectedProgramme = programmesQ.data?.find(p => p.id === programmeId);
   const noSeats = isPartner && (data.scope.programme_ids?.length ?? 0) === 0;
 
   return (
@@ -93,22 +84,19 @@ export default function ProgrammeInsights() {
         </div>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <ScopeChip scope={data.scope} />
-          {showFilter && (
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <ScopeChip scope={selectedProgramme ? { ...data.scope, label: selectedProgramme.name } : data.scope} />
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <SearchableSelect
                 placeholder="All programmes"
-                value={isPartner ? programmeId : programme}
+                value={programmeId}
+                disabled={programmesQ.isPending || !!programmesQ.error}
                 onChange={(v) => {
-                  if (isPartner) setProgrammeId(v); else setProgramme(v);
+                  setProgrammeId(v);
                   setState(""); setDistrict(""); setSchoolId("");
                 }}
-                options={
-                  isPartner
-                    ? (programmesQ.data ?? []).map((p) => ({ value: p.id, label: p.name }))
-                    : PROGRAMME_KINDS
-                }
+                options={(programmesQ.data ?? []).map(p => ({ value: p.id, label: p.name }))}
               />
+              {programmesQ.error && <p role="alert" className="self-center text-sm text-red-700">Could not load programmes. <button type="button" className="underline" onClick={() => void programmesQ.refetch()}>Retry</button></p>}
               <SearchableSelect
                 placeholder="All states"
                 value={state}
@@ -134,8 +122,7 @@ export default function ProgrammeInsights() {
                 onChange={setSchoolId}
                 options={(schoolsQ.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
               />
-            </div>
-          )}
+          </div>
         </div>
       </div>
 

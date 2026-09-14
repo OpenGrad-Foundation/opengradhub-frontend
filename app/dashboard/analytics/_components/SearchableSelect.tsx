@@ -50,7 +50,7 @@ export function SearchableSelect({
 
   const selectedLabel = options.find((o) => o.value === value)?.label ?? "";
   const filtered = query
-    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+    ? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
     : options;
 
   return (
@@ -58,6 +58,7 @@ export function SearchableSelect({
       <button
         type="button"
         disabled={disabled}
+        aria-expanded={open}
         onClick={() => {
           if (!disabled) {
             setOpen((v) => {
@@ -128,6 +129,7 @@ export function SearchableSelect({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search…"
+            aria-label={`Search ${placeholder.replace(/^All /, "").toLowerCase()}`}
             style={{
               width: "100%",
               padding: "10px 14px",

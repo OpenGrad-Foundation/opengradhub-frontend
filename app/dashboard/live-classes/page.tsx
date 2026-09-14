@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -55,6 +55,12 @@ function LiveClassesInner() {
   const { data: classes = [], isPending: loading, error: queryError, refetch } =
     useLiveClasses(isStaff ? apiFilters : { view: state.view });
   const error = queryError ? (queryError as Error).message : null;
+  // The API returns the full filtered list. Sort a copy so other cache consumers
+  // keep their own ordering (e.g. school confirmations and the class editor).
+  const sortedClasses = useMemo(() => [...classes].sort((a, b) => {
+    const difference = new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+    return (state.sort === "newest" ? -difference : difference) || a.id.localeCompare(b.id);
+  }), [classes, state.sort]);
 
   const [joining, setJoining] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -188,7 +194,7 @@ function LiveClassesInner() {
         <EmptyState isPast={isPast} canCreate={canCreate} isStaff={isStaff} />
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {classes.map((cls) => (
+          {sortedClasses.map((cls) => (
             <ClassCard
               key={cls.id}
               cls={cls}

@@ -18,6 +18,12 @@ it('shows reachable schoolless students for custom staff and preserves the separ
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><HierarchicalStudentsPanel /></QueryClientProvider>);
   fireEvent.click(await screen.findByRole('button', { name: /Schoolless student/ }));
   expect(screen.getByText('Read only details')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Bulk Upload' })).toBeNull();
+});
+it('offers bulk upload to custom staff with fill permission', async () => {
+  state.permissions.push('tracker.fill');
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><HierarchicalStudentsPanel /></QueryClientProvider>);
+  expect(await screen.findByRole('button', { name: 'Bulk Upload' })).toBeTruthy();
 });
 it('does not mount the roster without students.view', () => {
   state.permissions = ['scope.subtree', 'tracker.view', 'tracker.author'];
