@@ -28,14 +28,14 @@ beforeEach(() => {
 describe("useClassFilters — reading the URL", () => {
   it("defaults to upcoming with no search, audience or archived", () => {
     const { result } = renderHook(() => useClassFilters());
-    expect(result.current.state).toEqual({ view: "upcoming", q: "", audience: "", archived: false });
+    expect(result.current.state).toEqual({ view: "upcoming", q: "", audience: "", archived: false, sort: "oldest" });
   });
 
   it("hydrates every control from the query string", () => {
     search = "view=past&q=algebra&audience=batch:b-1&archived=1";
     const { result } = renderHook(() => useClassFilters());
     expect(result.current.state).toEqual({
-      view: "past", q: "algebra", audience: "batch:b-1", archived: true,
+      view: "past", q: "algebra", audience: "batch:b-1", archived: true, sort: "newest",
     });
   });
 
@@ -90,5 +90,31 @@ describe("useClassFilters — what the API is asked for", () => {
     const { result } = renderHook(() => useClassFilters());
     expect(result.current.apiFilters.audience_type).toBeUndefined();
     expect(result.current.apiFilters.audience_id).toBeUndefined();
+  });
+});
+
+describe('class sort order', () => {
+  it('defaults past classes to newest first', () => {
+    search = 'view=past';
+    const { result } = renderHook(() => useClassFilters());
+    expect(result.current.state.sort).toBe('newest');
+  });
+  it('persists an explicit sort without dropping other filters', () => {
+    search = 'view=past&q=algebra&audience=batch:b-1';
+    const { result } = renderHook(() => useClassFilters());
+    act(() => result.current.set({ sort: 'oldest' }));
+    const params = new URLSearchParams(replace.mock.calls[0][0].split('?')[1]);
+    expect(params.get('sort')).toBe('oldest'); expect(params.get('q')).toBe('algebra'); expect(params.get('audience')).toBe('batch:b-1');
+  });
+  it('uses the appropriate default after switching time tabs', () => {
+    search = 'view=past&sort=oldest';
+    const { result } = renderHook(() => useClassFilters());
+    act(() => result.current.set({ view: 'upcoming' }));
+    expect(replace).toHaveBeenCalledWith('/dashboard/live-classes', { scroll: false });
+  });
+  it('ignores an invalid sort value', () => {
+    search = 'view=past&sort=invalid';
+    const { result } = renderHook(() => useClassFilters());
+    expect(result.current.state.sort).toBe('newest');
   });
 });

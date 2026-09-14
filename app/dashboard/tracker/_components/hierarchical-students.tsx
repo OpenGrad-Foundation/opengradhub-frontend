@@ -17,6 +17,7 @@ import {
   useTrackerZms,
 } from "@/lib/queries/tracker";
 import { StudentDetailsForm } from "./student-details-form";
+import { StudentDetailsBulkUpload } from "./student-details-bulk-upload";
 import { IN_CHARGE_PLURAL } from "@/lib/labels";
 
 type Level = "pm" | "zm" | "fellow" | "school" | "student";
@@ -64,6 +65,7 @@ export function HierarchicalStudentsPanel() {
 
 function ScopedStudentsPanel() {
   const canFill = usePermissions().has(PERM.tracker.fill);
+  const [bulkUploadOpen, setBulkUploadOpen] = useState(false);
   const [startLevel, setStartLevel] = useState<Level>("student");
   const { data: user, isLoading: userLoading } = useCurrentUser();
   const [path, setPath] = useState<Crumb[]>([]);
@@ -89,11 +91,15 @@ function ScopedStudentsPanel() {
 
   return (
     <div className="flex flex-col gap-4">
-      <label className="flex items-center gap-2 text-sm text-gray-600">Browse
-        <select aria-label="Browse team and students" value={startLevel} onChange={event => { setStartLevel(event.target.value as Level); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
-          {(["student", "pm", "zm", "fellow"] as Level[]).map(level => <option key={level} value={level}>{getHomeLabel(level)}</option>)}
-        </select>
-      </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm text-gray-600">Browse
+          <select aria-label="Browse team and students" value={startLevel} onChange={event => { setStartLevel(event.target.value as Level); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+            {(["student", "pm", "zm", "fellow"] as Level[]).map(level => <option key={level} value={level}>{getHomeLabel(level)}</option>)}
+          </select>
+        </label>
+        {canFill && <button type="button" onClick={() => setBulkUploadOpen(true)} className="min-h-11 shrink-0 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Bulk Upload</button>}
+      </div>
+      {bulkUploadOpen && <StudentDetailsBulkUpload onClose={() => setBulkUploadOpen(false)} />}
       {path.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-600 px-1">
           <button

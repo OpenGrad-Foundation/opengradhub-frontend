@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
@@ -103,16 +103,12 @@ export default function TrackerPage() {
     return next;
   }, [canAuthor, canFill, isManagerView, canAllTasks, canViewStudents]);
 
-  /**
-   * `?task=<templateId>` opens straight into that task's grid — the link a student
-   * profile (or any other page) uses to hand off to the tracker. It only seeds the
-   * initial state: once here, the tab and task are ordinary local state again, so
-   * navigating away from the task does not fight the URL.
-   */
+  // Task and tab navigation update the URL. Filter-only changes must not reset
+  // the open task, while new deep links and browser history must restore it.
+  const router = useRouter();
   const searchParams = useSearchParams();
   const deepLinkTask = searchParams.get("task");
-  // `?tab=` seeds which surface opens, so a filtered link lands where it was copied
-  // from. Like `?task=`, it seeds only — switching tabs afterwards is local state.
+  const deepLinkDrill = searchParams.get("drill");
   const deepLinkTab = searchParams.get("tab") as TrackerTab | null;
   // `?owner=` carries WHOSE rows a drilled grid is showing. Without it a copied grid
   // link would silently open the reader's own rows instead. The server validates the
@@ -128,12 +124,15 @@ export default function TrackerPage() {
   // fight over `status` and `q` in the same query string.
   const allTasksFilters = useUrlFilters(ALL_TASKS_URL_SPEC);
   const myTasksFilters = useUrlFilters(MY_TASKS_URL_SPEC);
-  // `?owner=` lands on the per-person list (TeamPanel), which only mounts under the
-  // "fellow" view — the default "zm" view would swallow the deep link.
-  const [teamView, setTeamView] = useState<"my" | "team" | "manage">(deepLinkOwner ? "team" : "team");
+  // Legacy `?view=zm|fellow` links predate the merged By-team drill and land there.
+  const deepLinkView = searchParams.get("view");
+  const initialView: "my" | "team" | "manage" =
+    deepLinkView === "my" || deepLinkView === "manage" ? deepLinkView : "team";
+  const [teamView, setTeamView] = useState<"my" | "team" | "manage">(initialView);
+  const [sectionVersion, setSectionVersion] = useState(0);
   // The task open in the Tasks tab's Manage view (edit / archive / delete). Lives here so a
   // freshly-created task can land straight on its own detail from the New task tab.
-  const [manageDetailId, setManageDetailId] = useState<string | null>(null);
+  const [manageDetailId, setManageDetailId] = useState<string | null>(searchParams.get("manage"));
   // Manager overview: when a status card is clicked, show only the tasks in that state
   // (replacing the team roster) until cleared. Null = no filter, show the roster.
   const [overviewState, setOverviewState] = useState<TaskState | null>(null);
@@ -152,17 +151,108 @@ export default function TrackerPage() {
   // a later visit to the builder starts blank.
   const [assignPrefill, setAssignPrefill] = useState<TrackerAssignPrefill | null>(null);
   const assignTo = (person: { id: string; name: string }) => {
+    selectTab("builder");
     setAssignPrefill({ targetType: "fellow", ids: [person.id], label: person.name });
-    setActiveTab("builder");
   };
   const safeActiveTab = tabs.includes(activeTab) ? activeTab : tabs[0];
 
   const { data: templates = [], error: templatesError } = useTrackerTemplates();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(deepLinkTask ?? "");
-  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId) ?? templates[0] ?? null;
-  const templateId = selectedTemplate?.id;
+  const drillTemplate = useTrackerTemplate(deepLinkDrill ?? undefined);
+  const drillDefinition = drillTemplate.data?.template;
+  const currentDrill = drillTask ?? (deepLinkDrill && drillDefinition ? {
+    template_id: deepLinkDrill, name: drillDefinition.name, target_type: drillDefinition.target_type,
+  } : null);
+  const grid = useTrackerGrid(fillTemplateId ?? undefined, fillFellowId ?? undefined);
+  const navigationKey = (params: { get: (key: string) => string | null }) =>
+    JSON.stringify(["tab", "task", "owner", "from", "view", "manage", "drill"].map(key => params.get(key)));
+  const urlKey = navigationKey(searchParams);
+  const appliedUrlKey = useRef(urlKey);
 
-  const grid = useTrackerGrid(templateId, fillFellowId ?? undefined);
+  // In-app actions apply state immediately. URL changes from Back/Forward or a
+  // different deep link apply it here; changing a filter leaves it alone.
+  useEffect(() => {
+    if (appliedUrlKey.current === urlKey) return;
+    appliedUrlKey.current = urlKey;
+    setActiveTab(deepLinkTab ?? "myTasks");
+    setFillTemplateId(deepLinkTask);
+    setFillFellowId(deepLinkOwner);
+    setFillFellowName(null);
+    setDrillTask(null);
+    setAssignPrefill(null);
+    setOverviewState(null);
+    setManageDetailId(searchParams.get("manage"));
+    setTeamView(initialView);
+    setSectionVersion(v => v + 1);
+  }, [urlKey, deepLinkTab, deepLinkTask, deepLinkOwner, initialView, searchParams]);
+
+  function writeNavigation(params: URLSearchParams) {
+    appliedUrlKey.current = navigationKey(params);
+    router.push(`/dashboard/tracker?${params}`, { scroll: false });
+  }
+
+  function selectTab(tab: TrackerTab) {
+    setActiveTab(tab);
+    setFillTemplateId(null);
+    setFillFellowId(null);
+    setFillFellowName(null);
+    setDrillTask(null);
+    setManageDetailId(null);
+    setOverviewState(null);
+    setAssignPrefill(null);
+    setTeamView("team");
+    // Reselecting a tab also resets state held by its nested panels.
+    setSectionVersion(v => v + 1);
+    writeNavigation(new URLSearchParams({ tab }));
+  }
+
+  function openTask(id: string, owner?: string, ownerName?: string) {
+    setFillTemplateId(id);
+    setFillFellowId(owner ?? null);
+    setFillFellowName(ownerName ?? null);
+    if (owner && safeActiveTab === "myTasks") setTeamView("team");
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", safeActiveTab);
+    params.set("task", id);
+    if (owner && safeActiveTab === "myTasks") params.set("view", "team");
+    owner ? params.set("owner", owner) : params.delete("owner");
+    params.delete("from");
+    params.delete("manage");
+    writeNavigation(params);
+  }
+
+  function closeTask() {
+    setFillTemplateId(null);
+    setFillFellowId(null);
+    setFillFellowName(null);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("task");
+    params.delete("from");
+    // Keep the owner so a team task returns to that person's list.
+    writeNavigation(params);
+  }
+
+  function selectTeamView(view: "my" | "team" | "manage") {
+    setTeamView(view);
+    setManageDetailId(null);
+    setSectionVersion(v => v + 1);
+    writeNavigation(new URLSearchParams({ tab: "myTasks", view }));
+  }
+
+  function openManageDetail(id: string | null) {
+    setManageDetailId(id);
+    const params = new URLSearchParams({ tab: "myTasks", view: "manage" });
+    if (id) params.set("manage", id);
+    writeNavigation(params);
+  }
+
+  function openDrill(task: TrackerTaskSummaryRow | null) {
+    setDrillTask(task);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "allTasks");
+    task ? params.set("drill", task.template_id) : params.delete("drill");
+    writeNavigation(params);
+  }
+
   const mine = useTrackerMineBlockers();
   const queue = useTrackerQueueBlockers();
 
@@ -187,7 +277,8 @@ export default function TrackerPage() {
           <button
             key={tab}
             type="button"
-            onClick={() => { setAssignPrefill(null); setActiveTab(tab); }}
+            onClick={() => selectTab(tab)}
+            aria-current={safeActiveTab === tab ? "page" : undefined}
             className={
               "flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors " +
               (safeActiveTab === tab
@@ -201,6 +292,7 @@ export default function TrackerPage() {
         ))}
       </nav>
 
+      <section key={sectionVersion}>
       {templatesError ? (
         <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
       ) : safeActiveTab === "allTasks" ? (
@@ -212,33 +304,28 @@ export default function TrackerPage() {
                  different task inside the tracker, the origin is no longer where "back"
                  means, and the normal in-tracker back applies. */
               active={fillTemplateId === deepLinkTask}
-              label={drillTask ? `Back to ${drillTask.name}` : "Back to all tasks"}
-              onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
+              label={currentDrill ? `Back to ${currentDrill.name}` : "Back to all tasks"}
+              onStay={closeTask}
             />
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
-        ) : drillTask ? (
+        ) : currentDrill ? (
           <TaskBreakdown
-            task={drillTask}
+            task={currentDrill}
             currentUserId={currentUser?.user.id ?? ""}
             canNudge={canAuthor}
-            onBack={() => setDrillTask(null)}
-            onOpenTask={(templateId) => {
-              setSelectedTemplateId(templateId);
-              setFillTemplateId(templateId);
-              setFillFellowId(null);
-              setFillFellowName(null);
-            }}
+            onBack={() => openDrill(null)}
+            onOpenTask={openTask}
           />
+        ) : deepLinkDrill ? (
+          <div className="flex flex-col gap-3">
+            <button type="button" onClick={() => openDrill(null)} className="self-start text-sm text-teal-700">Back to all tasks</button>
+            {drillTemplate.isLoading ? <TrackerLoading /> : <ErrorPanel message="Could not load this task." />}
+          </div>
         ) : (
           <AllTasksPanel
-            onOpenDrill={(task) => setDrillTask(task)}
-            onOpenTask={(templateId) => {
-              setSelectedTemplateId(templateId);
-              setFillTemplateId(templateId);
-              setFillFellowId(null);
-              setFillFellowName(null);
-            }}
+            onOpenDrill={openDrill}
+            onOpenTask={openTask}
             role={roleCode}
             filters={allTasksFilters}
           />
@@ -252,8 +339,8 @@ export default function TrackerPage() {
                  different task inside the tracker, the origin is no longer where "back"
                  means, and the normal in-tracker back applies. */
               active={fillTemplateId === deepLinkTask}
-              label="Back to my tasks"
-              onStay={() => { setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null); }}
+              label={fillFellowId ? "Back to team tasks" : "Back to my tasks"}
+              onStay={closeTask}
             />
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
@@ -266,7 +353,7 @@ export default function TrackerPage() {
                 <OverviewFilteredTasks
                   state={overviewState}
                   onClear={() => setOverviewState(null)}
-                  onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                  onOpen={openTask}
                 />
               ) : (
                 <div className="flex flex-col gap-3">
@@ -275,10 +362,10 @@ export default function TrackerPage() {
                       tool, not a third way of listing people. */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-                      <button type="button" onClick={() => setTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
-                      <button type="button" onClick={() => setTeamView("team")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "team" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By team</button>
+                      <button type="button" onClick={() => selectTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
+                      <button type="button" onClick={() => selectTeamView("team")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "team" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By team</button>
                     </div>
-                    <button type="button" onClick={() => setTeamView("manage")} aria-pressed={teamView === "manage"} className={"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "border-teal-600 bg-teal-600 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
+                    <button type="button" onClick={() => selectTeamView("manage")} aria-pressed={teamView === "manage"} className={"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "border-teal-600 bg-teal-600 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
                       <Settings2 className="h-4 w-4" aria-hidden="true" /> Manage tasks
                     </button>
                   </div>
@@ -290,15 +377,15 @@ export default function TrackerPage() {
                       canClear={canClear}
                       canOverrideFill={canOverrideFill}
                       detailId={manageDetailId}
-                      onDetailChange={setManageDetailId}
+                      onDetailChange={openManageDetail}
                     />
                   ) : teamView === "my" ? (
                     <MyTasksList
                       filters={myTasksFilters}
-                      onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                      onOpen={openTask}
                     />
                   ) : (
-                    <TeamView onOpen={(tid, fid, fname) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(fid); setFillFellowName(fname ?? null); }} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
+                    <TeamView onOpen={openTask} onAssign={canAuthor ? assignTo : undefined} initialOwnerId={deepLinkOwner} />
                   )}
                 </div>
               )}
@@ -306,7 +393,7 @@ export default function TrackerPage() {
             ) : (
               <MyTasksList
                 filters={myTasksFilters}
-                onOpen={(tid) => { setSelectedTemplateId(tid); setFillTemplateId(tid); setFillFellowId(null); setFillFellowName(null); }}
+                onOpen={openTask}
               />
             )}
           </div>
@@ -335,9 +422,14 @@ export default function TrackerPage() {
           prefill={assignPrefill}
           // Land the author on the task they just made — in the Tasks tab's Manage view, where
           // editing, archiving and deleting live.
-          onCreated={(id) => { setAssignPrefill(null); setManageDetailId(id); setTeamView("manage"); setOverviewState(null); setActiveTab("myTasks"); }}
+          onCreated={(id) => {
+            setAssignPrefill(null); setFillTemplateId(null); setFillFellowId(null); setFillFellowName(null);
+            setManageDetailId(id); setTeamView("manage"); setOverviewState(null); setActiveTab("myTasks");
+            writeNavigation(new URLSearchParams({ tab: "myTasks", view: "manage", manage: id }));
+          }}
         />
       )}
+      </section>
     </div>
   );
 }

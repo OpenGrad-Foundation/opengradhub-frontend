@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Clock, Download, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Check, ChevronDown, Clock, Download, ExternalLink, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
@@ -20,7 +21,7 @@ import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
 import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
-import { displayCellValue as display } from "@/lib/tracker-value";
+import { displayCellValue as display, trackerLinkHref } from "@/lib/tracker-value";
 import { groupEditsByAuthority, rowAuthority } from "@/lib/tracker-authority";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
@@ -482,7 +483,10 @@ export function TrackerEditableGrid({
         }
         return <span className="text-gray-400">Not set</span>;
       }
-      return <span>{display(value)}</span>;
+      const href = trackerLinkHref(value);
+      return href
+        ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="break-all text-teal-700 underline underline-offset-2 hover:text-teal-900">{display(value)}</a>
+        : <span>{display(value)}</span>;
     }
     return <EditableCell col={col} value={value} onChange={(v) => setCell(row.record_id, col.field_key, v)} inputClass={inputClass} />;
   };
@@ -1064,29 +1068,155 @@ function EditableCell({
           {(col.options ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
       );
-    case "multiselect": {
-      const selected = Array.isArray(value) ? (value as string[]) : [];
+    case "multiselect":
       return (
-        <div className="flex flex-wrap gap-1.5">
-          {(col.options ?? []).map((o) => {
-            const on = selected.includes(o);
-            return (
-              <button
-                key={o}
-                type="button"
-                onClick={() => onChange(on ? selected.filter((x) => x !== o) : [...selected, o])}
-                className={"rounded-full border px-2 py-0.5 text-xs " + (on ? "border-teal-500 bg-teal-50 text-teal-700" : "border-gray-300 text-gray-600")}
-              >
-                {o}
-              </button>
-            );
-          })}
-        </div>
+        <MultiSelectCell
+          label={col.label}
+          options={col.options ?? []}
+          selected={Array.isArray(value) ? (value as string[]) : []}
+          onChange={onChange}
+          inputClass={inputClass}
+        />
       );
+    default: {
+      const href = trackerLinkHref(value);
+      return <div className="flex items-center gap-1">
+        <input aria-label={col.label} type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+        {href && <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${col.label}`} title="Open link in a new tab" onClick={event => event.stopPropagation()} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 hover:text-teal-900">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>}
+      </div>;
     }
-    default:
-      return <input type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />;
   }
+}
+
+/**
+ * A multiselect cell as one select-height trigger plus a checkbox menu, so a field with
+ * several options no longer stacks a column of chips and stretches every row.
+ *
+ * The menu renders through a portal with fixed positioning: the grid scrolls inside an
+ * `overflow-x-auto` wrapper, which would clip an absolutely-positioned menu.
+ */
+function MultiSelectCell({
+  label,
+  options,
+  selected,
+  onChange,
+  inputClass,
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (v: unknown) => void;
+  inputClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const el = triggerRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const below = window.innerHeight - r.bottom - 16;
+      const above = r.top - 16;
+      const openUp = below < 200 && above > below;
+      const maxHeight = Math.min(280, Math.max(140, openUp ? above : below));
+      // Opening upward anchors the menu's BOTTOM to the trigger: a short list would otherwise
+      // be placed maxHeight above it and float with a gap.
+      setPos({
+        ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+        left: r.left,
+        width: Math.max(r.width, 220),
+        maxHeight,
+      });
+    };
+    measure();
+    const onPointer = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (triggerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    // Capture-phase scroll catches the grid's own horizontal scroller, not just the page.
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Keep the options' authored order rather than click order in the summary.
+  const picked = options.filter((o) => selected.includes(o));
+  const summary = picked.length === 0 ? "—" : picked.length === 1 ? picked[0] : `${picked[0]} +${picked.length - 1}`;
+  const toggle = (o: string) => onChange(selected.includes(o) ? selected.filter((x) => x !== o) : [...selected, o]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={`${label}: ${picked.length ? picked.join(", ") : "none selected"}`}
+        title={picked.join(", ") || undefined}
+        className={inputClass + " flex min-w-[9rem] items-center justify-between gap-2 text-left"}
+      >
+        <span className={"truncate " + (picked.length ? "text-gray-900" : "text-gray-400")}>{summary}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+      </button>
+      {open && pos && typeof document !== "undefined" && createPortal(
+        <div
+          ref={menuRef}
+          role="group"
+          aria-label={label}
+          style={{ position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
+          className="z-[1000] overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {options.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400">No options</p>
+          ) : (
+            options.map((o) => {
+              const on = selected.includes(o);
+              return (
+                <label
+                  key={o}
+                  className={"flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 " + (on ? "text-teal-800" : "text-gray-700")}
+                >
+                  <input type="checkbox" checked={on} onChange={() => toggle(o)} className="h-4 w-4 accent-teal-600" />
+                  {o}
+                </label>
+              );
+            })
+          )}
+          {picked.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="mt-1 w-full border-t border-gray-100 px-3 py-2 text-left text-xs text-gray-500 hover:bg-gray-50"
+            >
+              Clear selection
+            </button>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
 
 /** Why a row is blocked by the shared school-visit verification. */

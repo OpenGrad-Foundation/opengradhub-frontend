@@ -10,6 +10,7 @@ export type ClassFilterState = {
   /** `course:<id>` | `batch:<id>`, or "" for no filter. */
   audience: string;
   archived: boolean;
+  sort: "newest" | "oldest";
 };
 
 export const DEFAULTS: ClassFilterState = {
@@ -17,6 +18,7 @@ export const DEFAULTS: ClassFilterState = {
   q: "",
   audience: "",
   archived: false,
+  sort: "oldest",
 };
 
 /**
@@ -35,17 +37,22 @@ export function useClassFilters() {
 
   const state = useMemo<ClassFilterState>(() => {
     const view = params.get("view");
+    const sort = params.get("sort");
     return {
       view: view === "past" ? "past" : "upcoming",
       q: params.get("q") ?? "",
       audience: params.get("audience") ?? "",
       archived: params.get("archived") === "1",
+      sort: sort === "newest" || sort === "oldest" ? sort : view === "past" ? "newest" : "oldest",
     };
   }, [params]);
 
   const set = useCallback(
     (patch: Partial<ClassFilterState>) => {
       const next = { ...state, ...patch };
+      if (patch.view && patch.view !== state.view && !patch.sort) {
+        next.sort = patch.view === "past" ? "newest" : "oldest";
+      }
       const qs = new URLSearchParams(params.toString());
       const write = (key: string, value: string, isDefault: boolean) => {
         if (isDefault) qs.delete(key);
@@ -55,6 +62,7 @@ export function useClassFilters() {
       write("q", next.q, next.q.trim() === "");
       write("audience", next.audience, next.audience === "");
       write("archived", "1", !next.archived);
+      write("sort", next.sort, next.sort === (next.view === "past" ? "newest" : "oldest"));
       const s = qs.toString();
       router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
     },

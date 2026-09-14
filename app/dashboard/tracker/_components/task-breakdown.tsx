@@ -39,7 +39,7 @@ export function TaskBreakdown({
   onBack,
   onOpenTask,
 }: {
-  task: TrackerTaskSummaryRow;
+  task: Pick<TrackerTaskSummaryRow, "template_id" | "name" | "target_type"> & Partial<Pick<TrackerTaskSummaryRow, "done" | "total">>;
   currentUserId: string;
   canNudge: boolean;
   onBack: () => void;
@@ -74,7 +74,7 @@ export function TaskBreakdown({
           )}
           <div className="text-right">
             <p className="text-sm font-semibold text-gray-950">{task.name}</p>
-            <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>
+            {task.done != null && task.total != null && <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>}
           </div>
         </div>
       </div>
