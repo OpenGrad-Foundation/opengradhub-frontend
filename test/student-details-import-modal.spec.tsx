@@ -30,8 +30,8 @@ async function review(wait = true) {
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
   fireEvent.change(screen.getByLabelText('Map Phone'), { target: { value: 'phone' } });
   fireEvent.click(screen.getByRole('button', { name: 'Next' }));
-  fireEvent.change(screen.getByLabelText('Identifier column'), { target: { value: '0' } });
-  fireEvent.change(screen.getByLabelText('Match against'), { target: { value: 'roll_number' } });
+  fireEvent.change(screen.getByLabelText('CSV column'), { target: { value: '0' } });
+  fireEvent.change(screen.getByLabelText('Contains'), { target: { value: 'roll_number' } });
   fireEvent.click(screen.getByRole('button', { name: 'Match students' }));
   if (wait) await screen.findByText('Student One');
 }
@@ -39,14 +39,14 @@ describe('student bulk upload modal', () => {
   it('locks identifier and overwrite choices while matches are loading', async () => {
     api.preview.mockReturnValue(new Promise(() => {}));
     await review(false);
-    expect((screen.getByLabelText('Identifier column') as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText('Match against') as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByRole('checkbox', { name: /Overwrite existing/ }) as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText('CSV column') as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Contains') as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByRole('checkbox', { name: /Replace existing details/ }) as HTMLInputElement).disabled).toBe(true);
   });
   it('reviews scoped matches, selects eligible students across filters, and commits only the chosen match', async () => {
     await review();
     expect(screen.queryByLabelText('Select 003')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Select all eligible' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select all ready' }));
     fireEvent.change(screen.getByLabelText('Filter by school'), { target: { value: 'School A' } });
     expect(screen.queryByText('Student Two')).toBeNull();
     expect(screen.getByRole('button', { name: 'Update 2 students' })).toBeTruthy();
@@ -58,7 +58,7 @@ describe('student bulk upload modal', () => {
   });
   it('invalidates review when going back to change the matching configuration', async () => {
     await review();
-    fireEvent.click(screen.getByRole('button', { name: 'Select all eligible' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Select all ready' }));
     fireEvent.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.queryByRole('button', { name: /Update .* student/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Match students' }));

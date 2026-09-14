@@ -11,7 +11,9 @@ import { buildStudentImport, readStudentCsv, downloadStudentImportReport,
 
 const control = 'min-h-11 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm disabled:opacity-50';
 const primary = 'min-h-11 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50';
-const steps = ['Upload CSV', 'Map fields', 'Identify students', 'Select & review'];
+const steps = ['Upload', 'Choose fields', 'Match students', 'Review'];
+const fieldTypes: Record<string, string> = { text: 'Text', number: 'Number', date: 'Date', select: 'Choice', multiselect: 'Multiple choices', boolean: 'Yes/no', url: 'Link' };
+const rowStatuses: Record<StudentImportRow['status'], string> = { ready: 'Ready', invalid: 'Needs fixing', duplicate: 'Duplicate', unmatched: 'Not found', unchanged: 'No changes', saved: 'Updated' };
 const showValue = (value: unknown): string => value == null ? 'Empty' : Array.isArray(value) ? value.join('; ') : String(value);
 
 export function StudentDetailsBulkUpload({ onClose }: { onClose: () => void }) {
@@ -68,76 +70,79 @@ export function StudentDetailsBulkUpload({ onClose }: { onClose: () => void }) {
       setResult(response);
       void queryClient.invalidateQueries({ queryKey: ['og', 'tracker'] });
     } catch (error) {
-      setError(`${error instanceof Error ? error.message : 'Could not finish the import.'} Review matches again before retrying; the connection may have interrupted after saving.`);
+      setError(`${error instanceof Error ? error.message : 'Could not finish the upload.'} Some changes may be saved. Go back and match students again before retrying.`);
       setRequest(null); setSelected(new Set());
     } finally { setBusy(false); }
   }
   function back() { setError(null); setPreview([]); setSelected(new Set()); setRequest(null); setStep(s => s - 1); }
   function toggle(row: number) { setSelected(current => { const next = new Set(current); if (next.has(row)) next.delete(row); else next.add(row); return next; }); }
 
-  return <Modal title={<h2 className="text-lg font-semibold text-gray-950">Bulk upload student details</h2>} onClose={close} maxWidth="1000px">
+  return <Modal title={<h2 className="text-lg font-semibold text-gray-950">Bulk upload</h2>} onClose={close} maxWidth="1000px">
     <div className="flex max-h-[75dvh] min-h-0 flex-col gap-4">
       {!result && <ol aria-label="Upload progress" className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
         {steps.map((label, index) => <li key={label} aria-current={step === index ? 'step' : undefined}
           className={`border-b-2 pb-2 ${step === index ? 'border-teal-600 font-semibold text-teal-800' : 'border-gray-200 text-gray-500'}`}>{index + 1}. {label}</li>)}
       </ol>}
       {error && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-      {busy && <p role="status" className="flex items-center gap-2 text-sm text-teal-800"><Loader2 className="h-4 w-4 animate-spin" />{step === 3 ? 'Saving student details…' : 'Preparing your upload…'}</p>}
+      {busy && <p role="status" className="flex items-center gap-2 text-sm text-teal-800"><Loader2 className="h-4 w-4 animate-spin" />{step === 3 ? 'Saving…' : step === 2 ? 'Finding students…' : 'Reading CSV…'}</p>}
       <div className="min-h-0 overflow-auto">
         {result ? <div className="space-y-4">
-          <p role="status" className="text-lg font-semibold text-teal-800">{result.saved} {result.saved === 1 ? 'student updated' : 'students updated'} · {result.saved_cells} fields saved</p>
-          <p className="text-sm text-gray-600">{result.rows.length - result.saved} selected rows had no changes or could not be saved. Students you did not select were left unchanged.</p>
+          <p role="status" className="text-lg font-semibold text-teal-800">{result.saved} {result.saved === 1 ? 'student updated' : 'students updated'}</p>
+          {result.rows.length > result.saved && <p className="text-sm text-gray-600">{result.rows.length - result.saved} skipped. See details below.</p>}
           <ReviewTable rows={result.rows} />
           <button className={control} onClick={() => downloadStudentImportReport(result.rows)}>Download results</button>
         </div> : <>
           {step === 0 && <div className="space-y-4">
-            <p className="text-sm text-gray-600">Upload a CSV with a Student ID or Roll Number column and the additional details you want to update. Up to 1,000 students and 2 MB.</p>
+            <p className="text-sm text-gray-600">Include a student ID or roll number and the details to update.</p>
             <label className="block text-sm font-medium">CSV file<input aria-label="CSV file" type="file" accept=".csv,text/csv" disabled={busy}
               className="mt-2 block w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border-0 file:bg-teal-50 file:px-4 file:text-teal-800"
               onChange={event => { void pick(event.target.files?.[0]); event.target.value = ''; }} /></label>
+            <p className="text-xs text-gray-500">Max. 1,000 rows · 2 MB</p>
             {csv && <><p className="text-sm font-medium">{filename} · {csv.rows.length} rows · {csv.headers.length} columns</p>
               <CsvPreview csv={csv} /></>}
           </div>}
           {step === 1 && csv && <div className="space-y-4">
-            <p className="text-sm text-gray-600">Choose a destination for each column to include it. Columns marked “Do not import” are ignored.</p>
-            {fieldsQuery.isLoading ? <p role="status">Loading student fields…</p> : fieldsQuery.error ? <p role="alert">Could not load student fields. <button className="underline" onClick={() => void fieldsQuery.refetch()}>Retry</button></p> : !fields.length ? <p>No additional student fields are configured. A Program Manager can add them in Field Setup.</p> :
+            <p className="text-sm text-gray-600">Match columns to fields. Skip any you don’t need.</p>
+            {fieldsQuery.isLoading ? <p role="status">Loading fields…</p> : fieldsQuery.error ? <p role="alert">Could not load fields. <button className="underline" onClick={() => void fieldsQuery.refetch()}>Retry</button></p> : !fields.length ? <p>No fields yet. Ask your Program Manager to add them in Field Setup.</p> :
               <div className="divide-y divide-gray-100">{csv.headers.map((header, i) => {
                 const field = fields.find(f => f.field_key === mapping[String(i)]);
                 return <div key={header} className="grid gap-2 py-3 sm:grid-cols-2 sm:items-center">
                   <div><p className="text-sm font-medium">{header}</p><p className="max-w-80 truncate text-xs text-gray-500">Example: {csv.rows[0]?.cells[i] || 'Empty'}</p></div>
                   <div><select aria-label={`Map ${header}`} className={`${control} w-full`} value={mapping[String(i)] ?? ''}
                     onChange={event => setMapping(current => ({ ...current, [i]: event.target.value }))}>
-                    <option value="">Do not import</option>{fields.map(f => <option key={f.id} value={f.field_key} disabled={mapped.includes(f.field_key) && mapping[String(i)] !== f.field_key}>{f.label} ({f.field_type})</option>)}
-                  </select>{field?.options?.length ? <p className="mt-1 text-xs text-gray-500">Options: {field.options.join('; ')}</p> : null}</div>
+                    <option value="">Skip this column</option>{fields.map(f => <option key={f.id} value={f.field_key} disabled={mapped.includes(f.field_key) && mapping[String(i)] !== f.field_key}>{f.label} ({fieldTypes[f.field_type] ?? f.field_type})</option>)}
+                  </select>{field?.options?.length ? <p className="mt-1 text-xs text-gray-500">Options: {field.options.join('; ')}</p> : null}
+                  {field?.field_type === 'date' && <p className="mt-1 text-xs text-gray-500">Use YYYY-MM-DD.</p>}
+                  {field?.field_type === 'boolean' && <p className="mt-1 text-xs text-gray-500">Use yes/no, true/false, or 1/0.</p>}
+                  {field?.field_type === 'multiselect' && <p className="mt-1 text-xs text-gray-500">Separate choices with semicolons.</p>}</div>
                 </div>;
               })}</div>}
-            <p className="text-xs text-gray-500">Dates: YYYY-MM-DD. Yes/no fields: yes/no, true/false, or 1/0. Multiple choices: separate options with semicolons, or use a JSON array.</p>
           </div>}
           {step === 2 && csv && <div className="space-y-5">
-            <p className="text-sm text-gray-600">Each CSV row must identify one existing student. Duplicate or unmatched identifiers will be excluded.</p>
+            <p className="text-sm text-gray-600">Which column contains the student ID or roll number?</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium">Identifier column<select aria-label="Identifier column" disabled={busy} className={control} value={identifierColumn} onChange={e => setIdentifierColumn(Number(e.target.value))}>
-                <option value={-1}>Choose a CSV column</option>{csv.headers.map((h, i) => <option value={i} key={h}>{h}</option>)}
+              <label className="grid gap-2 text-sm font-medium">CSV column<select aria-label="CSV column" disabled={busy} className={control} value={identifierColumn} onChange={e => setIdentifierColumn(Number(e.target.value))}>
+                <option value={-1}>Choose a column</option>{csv.headers.map((h, i) => <option value={i} key={h}>{h}</option>)}
               </select></label>
-              <label className="grid gap-2 text-sm font-medium">Match against<select aria-label="Match against" disabled={busy} className={control} value={identifierType} onChange={e => setIdentifierType(e.target.value as StudentImportRequest['identifier_type'])}>
+              <label className="grid gap-2 text-sm font-medium">Contains<select aria-label="Contains" disabled={busy} className={control} value={identifierType} onChange={e => setIdentifierType(e.target.value as StudentImportRequest['identifier_type'])}>
                 <option value="student_id">Student ID</option><option value="roll_number">Roll Number</option>
               </select></label>
             </div>
-            <p className="text-xs text-gray-500">Student ID is the platform’s UUID. Roll Number must match exactly, including leading zeroes and letter case.</p>
-            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" disabled={busy} checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />Overwrite existing values with non-empty CSV values</label>
-            <p className="text-sm text-gray-600">{overwrite ? 'Existing values in mapped fields can be replaced. Review the changes before saving.' : 'Only missing values will be filled.'} Blank CSV cells always leave existing values unchanged.</p>
+            <p className="text-xs text-gray-500">{identifierType === 'roll_number' ? 'Roll numbers must match exactly, including capitals and leading zeros.' : 'Use the student ID from OpenGrad.'}</p>
+            <label className="flex min-h-11 items-center gap-3 text-sm"><input type="checkbox" disabled={busy} checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />Replace existing details</label>
+            <p className="text-xs text-gray-500">{overwrite ? 'Blank cells won’t erase existing details.' : 'Only fills empty fields. Blank cells are skipped.'}</p>
           </div>}
           {step === 3 && <div className="space-y-4">
-            <p className="text-sm text-gray-600">{eligible.length} eligible · {preview.length - eligible.length} skipped · {count} selected. Only students matched within your permitted scope can be updated.</p>
+            <p className="text-sm text-gray-600">{eligible.length} ready · {preview.length - eligible.length} skipped · {count} selected</p>
             <div className="flex flex-wrap gap-2">
-              <input aria-label="Search matched students" placeholder="Search name or identifier" className={`${control} min-w-0 flex-1`} value={search} onChange={e => setSearch(e.target.value)} disabled={busy} />
+              <input aria-label="Search matched students" placeholder="Search students" className={`${control} min-w-0 flex-1`} value={search} onChange={e => setSearch(e.target.value)} disabled={busy} />
               <select aria-label="Filter by school" className={control} value={school} onChange={e => setSchool(e.target.value)} disabled={busy}><option value="">All schools</option>{schools.map(s => <option key={s}>{s}</option>)}</select>
             </div>
-            <div className="flex flex-wrap items-center gap-2"><button className={control} disabled={busy || !eligible.length} onClick={() => setSelected(new Set(eligible.map(r => r.row_number)))}>Select all eligible</button>
-              <button className={control} disabled={busy || !count} onClick={() => setSelected(new Set())}>Clear selection</button><span className="text-xs text-gray-500">Select all includes matches hidden by filters.</span></div>
+            <div className="flex flex-wrap items-center gap-2"><button className={control} disabled={busy || !eligible.length} onClick={() => setSelected(new Set(eligible.map(r => r.row_number)))}>Select all ready</button>
+              <button className={control} disabled={busy || !count} onClick={() => setSelected(new Set())}>Clear</button>{(school || search) && <span className="text-xs text-gray-500">Includes students hidden by filters.</span>}</div>
             <ReviewTable rows={shown} selected={selected} toggle={toggle} disabled={busy} />
-            {!shown.length && <p className="text-sm text-gray-500">No rows match these filters.</p>}
-            {preview.some(r => r.status !== 'ready') && <button className="min-h-11 text-sm text-teal-700 underline" onClick={() => downloadStudentImportReport(preview.filter(r => r.status !== 'ready'))}>Download skipped rows report</button>}
+            {!shown.length && <p className="text-sm text-gray-500">No matches.</p>}
+            {preview.some(r => r.status !== 'ready') && <button className="min-h-11 text-sm text-teal-700 underline" onClick={() => downloadStudentImportReport(preview.filter(r => r.status !== 'ready'))}>Download skipped rows</button>}
           </div>}
         </>}
       </div>
@@ -157,12 +162,12 @@ function ReviewTable({ rows, selected, toggle, disabled }: { rows: StudentImport
   const [page, setPage] = useState(0);
   const current = Math.min(page, Math.max(0, Math.ceil(rows.length / 25) - 1));
   return <><div tabIndex={0} role="region" aria-label="Student import review" className="max-h-80 overflow-auto rounded-md border border-gray-200">
-    <table className="w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-gray-50"><tr>{toggle && <th className="p-3"><span className="sr-only">Select</span></th>}<th className="p-3">Student / CSV row</th><th className="p-3">Changes</th><th className="p-3">Status</th></tr></thead>
+    <table className="w-full text-left text-sm"><thead className="sticky top-0 z-10 bg-gray-50"><tr>{toggle && <th className="p-3"><span className="sr-only">Select</span></th>}<th className="p-3">Student</th><th className="p-3">Changes</th><th className="p-3">Status</th></tr></thead>
       <tbody>{rows.slice(current * 25, (current + 1) * 25).map(row => <tr key={row.row_number} className="border-t border-gray-100 align-top">
         {toggle && <td className="p-3">{row.status === 'ready' && <label className="flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" aria-label={`Select ${row.student_name ?? row.identifier}`} checked={selected?.has(row.row_number) ?? false} disabled={disabled} onChange={() => toggle(row.row_number)} /></label>}</td>}
         <td className="p-3"><p className="font-medium">{row.student_name ?? row.identifier}</p><p className="text-xs text-gray-500">Row {row.row_number} · {row.identifier}</p>{row.school_name && <p className="text-xs text-gray-500">{row.school_name}</p>}</td>
         <td className="min-w-48 p-3">{row.changes.map(change => <div key={change.field_key} className="mb-2 max-w-sm break-words text-xs"><span className="font-medium">{change.label}: </span>{showValue(change.previous)} → <span className="text-teal-800">{showValue(change.value)}</span></div>)}{row.messages.map(message => <p key={message} className="max-w-sm text-xs text-gray-600">{message}</p>)}</td>
-        <td className="p-3 text-xs capitalize">{row.status}</td>
+        <td className="p-3 text-xs">{rowStatuses[row.status]}</td>
       </tr>)}</tbody></table>
   </div><PreviewPages page={current} setPage={setPage} total={rows.length} label="review" disabled={disabled} /></>;
 }

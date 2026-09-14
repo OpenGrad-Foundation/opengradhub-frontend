@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { usePermissions } from "@/hooks/use-permission";
 import { canAccessDashboardPath } from "@/lib/permissions";
+import DashboardLoading from "@/app/dashboard/loading";
 
 // ── Reusable wrapper ─────────────────────────────────────────────────────────
 // Gates a subtree behind one or more permission codes (ANY-of). While the
@@ -47,7 +48,7 @@ export function DashboardRouteGuard({ children }: { children: React.ReactNode })
     }
   }, [isLoading, allowed, router]);
 
-  if (isLoading) return null;
+  if (isLoading) return <DashboardLoading />;
   if (!allowed) return <NoAccess />;
   return <>{children}</>;
 }
