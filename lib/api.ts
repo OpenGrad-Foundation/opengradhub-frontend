@@ -569,7 +569,7 @@ export type InsightsResponse = {
 
 export type ProgrammeInsightsFilters = {
   programme?: string;
-  /** A programme ENTITY id (partner callers). Mutually exclusive with `programme`. */
+  /** A programme record ID. Mutually exclusive with the legacy kind filter. */
   programmeId?: string;
   state?: string;
   district?: string;
@@ -597,15 +597,18 @@ export async function getAnalyticsFilterProgrammes(): Promise<Array<{ id: string
   return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
-export async function getAnalyticsFilterStates(): Promise<string[]> {
-  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/states`);
+export async function getAnalyticsFilterStates(programmeId?: string): Promise<string[]> {
+  const qs = programmeId ? `?programme_id=${encodeURIComponent(programmeId)}` : "";
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/states${qs}`);
   if (!res.ok) throw new ApiError("Failed to fetch states.", res.status);
   return (await res.json()) as string[];
 }
 
-export async function getAnalyticsFilterDistricts(state?: string): Promise<string[]> {
-  const qs = state ? `?state=${encodeURIComponent(state)}` : "";
-  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/districts${qs}`);
+export async function getAnalyticsFilterDistricts(state?: string, programmeId?: string): Promise<string[]> {
+  const qs = new URLSearchParams();
+  if (state) qs.set("state", state);
+  if (programmeId) qs.set("programme_id", programmeId);
+  const res = await apiFetch(`${API_BASE_URL}/analytics/filters/districts${qs.size ? `?${qs}` : ""}`);
   if (!res.ok) throw new ApiError("Failed to fetch districts.", res.status);
   return (await res.json()) as string[];
 }
@@ -613,10 +616,12 @@ export async function getAnalyticsFilterDistricts(state?: string): Promise<strin
 export async function getAnalyticsFilterSchools(
   state?: string,
   district?: string,
+  programmeId?: string,
 ): Promise<Array<{ id: string; name: string }>> {
   const qs = new URLSearchParams();
   if (state)    qs.set("state", state);
   if (district) qs.set("district", district);
+  if (programmeId) qs.set("programme_id", programmeId);
   const path = qs.toString() ? `?${qs}` : "";
   const res = await apiFetch(`${API_BASE_URL}/analytics/filters/schools${path}`);
   if (!res.ok) throw new ApiError("Failed to fetch schools.", res.status);

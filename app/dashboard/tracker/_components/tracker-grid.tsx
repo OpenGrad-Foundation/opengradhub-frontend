@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Clock, Download, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
+import { Check, ChevronDown, Clock, Download, ExternalLink, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
 import {
   useClearTrackerBlocker,
   useRaiseTrackerBlocker,
@@ -21,7 +21,7 @@ import { ExtensionPanel } from "./extension-panel";
 import { PeriodHistory } from "./period-history";
 import { GeoStatusChip, GeoVerificationModal } from "./geo-verification-modal";
 import { StudentDetailsForm } from "./student-details-form";
-import { displayCellValue as display } from "@/lib/tracker-value";
+import { displayCellValue as display, trackerLinkHref } from "@/lib/tracker-value";
 import { groupEditsByAuthority, rowAuthority } from "@/lib/tracker-authority";
 import { TrackerBulkUploadPanel } from "./tracker-bulk-upload-panel";
 
@@ -482,7 +482,10 @@ export function TrackerEditableGrid({
         }
         return <span className="text-gray-400">Not set</span>;
       }
-      return <span>{display(value)}</span>;
+      const href = trackerLinkHref(value);
+      return href
+        ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="break-all text-teal-700 underline underline-offset-2 hover:text-teal-900">{display(value)}</a>
+        : <span>{display(value)}</span>;
     }
     return <EditableCell col={col} value={value} onChange={(v) => setCell(row.record_id, col.field_key, v)} inputClass={inputClass} />;
   };
@@ -1071,8 +1074,15 @@ function EditableCell({
           inputClass={inputClass}
         />
       );
-    default:
-      return <input type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />;
+    default: {
+      const href = trackerLinkHref(value);
+      return <div className="flex items-center gap-1">
+        <input aria-label={col.label} type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />
+        {href && <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${col.label}`} title="Open link in a new tab" onClick={event => event.stopPropagation()} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 hover:text-teal-900">
+          <ExternalLink className="h-4 w-4" aria-hidden="true" />
+        </a>}
+      </div>;
+    }
   }
 }
 

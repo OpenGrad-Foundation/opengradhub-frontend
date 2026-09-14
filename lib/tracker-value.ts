@@ -10,3 +10,16 @@ export function displayCellValue(value: unknown): string {
   if (typeof value === "boolean") return value ? "Yes" : "No";
   return String(value);
 }
+
+/** Only web addresses become links; other cell values remain ordinary text. */
+export function trackerLinkHref(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const href = value.trim();
+  if (!/^https?:\/\//i.test(href)) return null;
+  try {
+    const url = new URL(href);
+    return url.hostname ? href : null;
+  } catch {
+    return null;
+  }
+}

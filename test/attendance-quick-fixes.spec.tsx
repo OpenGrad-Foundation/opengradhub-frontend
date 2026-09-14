@@ -156,7 +156,7 @@ describe("a cohort with no marks is not a cohort at 0%", () => {
 describe("the audience picker admits when it could not load", () => {
   it("offers a retry instead of showing an empty list", () => {
     batchesState = { data: [], isError: true, refetch: vi.fn() };
-    render(<ClassFilterBar state={{ view: "upcoming", q: "", audience: "", archived: false }} set={vi.fn()} />);
+    render(<ClassFilterBar state={{ view: "upcoming", q: "", audience: "", archived: false, sort: "oldest" }} set={vi.fn()} />);
 
     expect(screen.getByText(/Couldn't load audiences/i)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();

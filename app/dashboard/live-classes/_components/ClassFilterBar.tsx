@@ -51,6 +51,11 @@ export function ClassFilterBar({ state, set }: {
 
       <AudiencePicker value={state.audience} onChange={(audience) => set({ audience })} />
 
+      <select aria-label="Sort classes" value={state.sort} onChange={event => set({ sort: event.target.value as ClassFilterState["sort"] })} style={S.control}>
+        <option value="newest">{state.view === "past" ? "Newest first" : "Latest first"}</option>
+        <option value="oldest">{state.view === "past" ? "Oldest first" : "Soonest first"}</option>
+      </select>
+
       <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#034852" }}>
         <input
           type="checkbox"

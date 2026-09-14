@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
-import { getProgrammeInsights, getAnalyticsFilterProgrammes } from "@/lib/api";
+import { getProgrammeInsights, getAnalyticsFilterProgrammes, getAnalyticsFilterStates, getAnalyticsFilterDistricts, getAnalyticsFilterSchools } from "@/lib/api";
 
 const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
 
@@ -50,3 +50,11 @@ describe("programme option list", () => {
     expect(out).toEqual([{ id: "p1", name: "CAT Kerala 2026" }]);
   });
 });
+
+ it.each([
+   ['states', () => getAnalyticsFilterStates('p1')],
+   ['districts', () => getAnalyticsFilterDistricts('KERALA', 'p1')],
+   ['schools', () => getAnalyticsFilterSchools('KERALA', 'Kochi', 'p1')],
+ ] as const)('narrows %s options to the selected programme', async (_name, call) => {
+   await call(); expect(urlOf()).toContain('programme_id=p1');
+ });
