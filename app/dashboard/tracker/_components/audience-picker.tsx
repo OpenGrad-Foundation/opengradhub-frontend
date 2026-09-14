@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
 import type { TrackerAssignable, TrackerTargetType } from "@/lib/tracker-api";
-import { ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
 
 function prettyState(s: string | null): string {
   if (!s) return "";
@@ -79,6 +79,38 @@ export function AudiencePicker({
     [inProgramme, stateFilter, districtFilter, schoolFilter, roleFilter],
   );
 
+  // A school / student task is picked by WHO fills it in, not by the entry itself: the
+  // author ticks in-charges, and each tick stands for every visible school / student that
+  // in-charge owns. The parent still receives target ids, so assignment is unchanged. An
+  // entry with no in-charge has no doer and cannot be picked.
+  const byDoer = targetType !== "fellow";
+  const doers = useMemo(() => {
+    if (!byDoer) return [];
+    const m = new Map<string, { id: string; name: string; ids: string[] }>();
+    for (const t of visibleTargets) {
+      if (!t.doer_id) continue;
+      const d = m.get(t.doer_id) ?? { id: t.doer_id, name: t.doer_name ?? "Unnamed", ids: [] };
+      d.ids.push(t.id);
+      m.set(t.doer_id, d);
+    }
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [byDoer, visibleTargets]);
+  const unowned = byDoer ? visibleTargets.filter((t) => !t.doer_id).length : 0;
+  const pickable = byDoer ? doers.flatMap((d) => d.ids) : visibleTargets.map((t) => t.id);
+  const toggleDoer = (ids: string[]) => {
+    const next = new Set(selected);
+    if (ids.every((id) => next.has(id))) ids.forEach((id) => next.delete(id));
+    else ids.forEach((id) => next.add(id));
+    onChange(next);
+  };
+  // Counted over the WHOLE audience, not the filtered view: a pick hidden by a filter is
+  // still assigned on submit, so the footer must still count its in-charge.
+  const pickedDoers = byDoer
+    ? new Set(all.filter((t) => t.doer_id && selected.has(t.id)).map((t) => t.doer_id)).size
+    : 0;
+  const hiddenPicks = Array.from(selected).filter((id) => !visibleTargets.some((t) => t.id === id)).length;
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
   // Narrowing the programme can strip the downstream selections of their meaning —
   // a state the new programme does not run in would filter everything to nothing
   // while still reading as an active choice. Clear them, as State already does.
@@ -140,13 +172,17 @@ export function AudiencePicker({
 
       {assignable.isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
-      ) : visibleTargets.length === 0 ? (
-        <p className="py-4 text-sm text-gray-500">No {targetWord} in your scope for this filter.</p>
+      ) : pickable.length === 0 ? (
+        <p className="py-4 text-sm text-gray-500">
+          {byDoer
+            ? `No ${IN_CHARGE_LOWER_PLURAL} own ${targetWord} in your scope for this filter.`
+            : `No ${targetWord} in your scope for this filter.`}
+        </p>
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onChange(new Set([...selected, ...visibleTargets.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
-              Select all {visibleTargets.length}
+            <button type="button" onClick={() => onChange(new Set([...selected, ...pickable]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
+              Select all {byDoer ? doers.length : visibleTargets.length}
             </button>
             {/* One-click "everyone in this role" — the common case for a staff task is "all
                 ZMs" or "all in-charges", which the Role filter + Select all needs three
@@ -161,10 +197,26 @@ export function AudiencePicker({
                 </button>
               );
             })}
-            {selected.size > 0 && (
-              <button type="button" onClick={() => onChange(new Set())} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
-            )}
           </div>
+          {byDoer ? (
+          <div className="grid max-h-56 gap-1 overflow-auto sm:grid-cols-2">
+            {doers.map((d) => {
+              const n = d.ids.filter((id) => selected.has(id)).length;
+              return (
+                <label key={d.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={n === d.ids.length}
+                    ref={(el) => { if (el) el.indeterminate = n > 0 && n < d.ids.length; }}
+                    onChange={() => toggleDoer(d.ids)}
+                  />
+                  <span className="text-gray-900">{d.name}</span>
+                  <span className="text-xs text-gray-400">{d.ids.length} {plural(d.ids.length, targetWord.replace(/s$/, ""), targetWord)}</span>
+                </label>
+              );
+            })}
+          </div>
+          ) : (
           <div className="grid max-h-56 gap-1 overflow-auto sm:grid-cols-2">
             {visibleTargets.map((t) => (
               <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
@@ -178,9 +230,27 @@ export function AudiencePicker({
               </label>
             ))}
           </div>
+          )}
         </>
       )}
-      <p className="mt-2 text-xs text-gray-500">{selected.size} selected.</p>
+      {byDoer && unowned > 0 && (
+        <p className="mt-2 text-xs text-amber-700">
+          {unowned} {plural(unowned, targetWord.replace(/s$/, ""), targetWord)} with no {IN_CHARGE_LOWER} cannot be assigned.
+        </p>
+      )}
+      {/* Clear lives outside the list so a filter that empties the view cannot strand
+          picks the author can no longer see. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>
+          {byDoer
+            ? `${pickedDoers} ${plural(pickedDoers, IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL)} · ${selected.size} ${plural(selected.size, targetWord.replace(/s$/, ""), targetWord)} selected.`
+            : `${selected.size} selected.`}
+          {hiddenPicks > 0 && ` ${hiddenPicks} hidden by the filters above.`}
+        </span>
+        {selected.size > 0 && (
+          <button type="button" onClick={() => onChange(new Set())} className="font-medium text-gray-500 hover:text-gray-800">Clear</button>
+        )}
+      </div>
     </div>
   );
 }

@@ -24,7 +24,7 @@ const geoToggle = () =>
 // ("A school — one entry per school") that also appears in the helper copy, so a
 // text match cannot tell the options apart.
 function chooseTarget(value: "fellow" | "school" | "student") {
-  const select = screen.getByLabelText(/what is each entry about/i) as HTMLSelectElement;
+  const select = screen.getByLabelText(/task target/i) as HTMLSelectElement;
   if (![...select.options].some((o) => o.value === value)) {
     throw new Error(`no target option with value ${value}`);
   }
