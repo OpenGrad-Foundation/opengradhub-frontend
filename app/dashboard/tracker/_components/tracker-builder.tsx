@@ -80,15 +80,13 @@ const DOER_HINT: Record<TrackerTargetType, string> = {
   school: `The ${IN_CHARGE_LOWER} of each school fills in that school's entry.`,
   student: `Each student's ${IN_CHARGE_LOWER} fills in the entry. Students do not see or do this task.`,
 };
-const AUDIENCE_HEADING: Record<TrackerTargetType, string> = {
-  fellow: "Who fills this in?",
-  school: "Which schools?",
-  student: "Which students?",
-};
+/** The bottom picker always answers "who fills this in?" — the Task Target only decides
+ *  which staff qualify: any ZM / in-charge for a staff task, only in-charges for a school or
+ *  student task (ticking one assigns every school / student they own). */
 const AUDIENCE_HINT: Record<TrackerTargetType, string> = {
   fellow: `${IN_CHARGE_PLURAL} or zonal managers you manage. Leave empty to assign later.`,
-  school: "Leave empty to assign later.",
-  student: "Leave empty to assign later.",
+  school: `${IN_CHARGE_PLURAL} only — each gets one entry per school they run. Leave empty to assign later.`,
+  student: `${IN_CHARGE_PLURAL} only — each gets one entry per student they look after. Leave empty to assign later.`,
 };
 
 export function TrackerBuilder({
@@ -294,8 +292,9 @@ export function TrackerBuilder({
 
       const targetIds = Array.from(selectedIds);
       let assigned = 0;
+      let skipped = 0;
       if (targetIds.length > 0)
-        assigned = (await assignTrackerTargets(id, targetIds, batchId || undefined)).created;
+        ({ created: assigned, skipped } = await assignTrackerTargets(id, targetIds, batchId || undefined));
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
@@ -304,7 +303,10 @@ export function TrackerBuilder({
       // would be the one lie this feature cannot afford.
       const shared = partnerVisible && canShareExternally && effectiveProgrammeId
         ? " Shared with this programme's government and funding officials." : "";
-      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility + shared;
+      // Skipped = picks the server would not assign (out of reach, not a valid doer, or
+      // already assigned). Said out loud: a quiet "Created" read as if everyone got it.
+      const notAssigned = skipped > 0 ? ` ${skipped} of the ${targetIds.length} picked could not be assigned.` : "";
+      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + notAssigned + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
       setPartnerVisible(false);
@@ -347,7 +349,7 @@ export function TrackerBuilder({
             ends up filling it for that choice. */}
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            What is each entry about?
+            Task Target
             <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
               <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
               <option value="school">A school — one entry per school</option>
@@ -558,7 +560,7 @@ export function TrackerBuilder({
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-1 text-sm font-semibold text-gray-950">{AUDIENCE_HEADING[targetType]}</h3>
+        <h3 className="mb-1 text-sm font-semibold text-gray-950">Who fills this in?</h3>
         <p className="mb-2 text-xs text-gray-500">{AUDIENCE_HINT[targetType]}</p>
         {prefill?.label && (
           <p className="mb-2 text-xs text-gray-500">

@@ -380,6 +380,10 @@ export type TrackerAssignable = {
   programmes: TrackerTargetProgramme[];
   school_id?: string | null;
   school_name?: string | null;
+  /** For a school / student target: the in-charge who fills the entry in (a batch member's
+   *  batch-fellow, else their school's in-charge). Null when nobody would own it. */
+  doer_id?: string | null;
+  doer_name?: string | null;
 };
 
 export type TrackerTargetProgramme = { id: string; name: string };
