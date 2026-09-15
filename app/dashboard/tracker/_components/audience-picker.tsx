@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
 import type { TrackerAssignable } from "@/lib/tracker-api";
 import { ROLE_LABELS, ZONE } from "@/lib/labels";
+import { SearchableSelect } from "@/app/dashboard/analytics/_components/SearchableSelect";
 
 function prettyState(s: string | null): string {
   if (!s) return "";
@@ -39,6 +40,7 @@ export function AudiencePicker({
   const [districtFilter, setDistrictFilter] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
   const all = useMemo(() => assignable.data ?? [], [assignable.data]);
@@ -48,6 +50,9 @@ export function AudiencePicker({
   const byState = (t: TrackerAssignable) => !stateFilter || t.state === stateFilter;
   const byDistrict = (t: TrackerAssignable) => !districtFilter || t.district === districtFilter;
   const byRole = (t: TrackerAssignable) => !roleFilter || t.role === roleFilter;
+  // A person "has" a school when a pick of them would cover it — their own schools and
+  // their subordinates' (server-computed), so a ZM matches the schools under their in-charges.
+  const bySchool = (t: TrackerAssignable) => !schoolFilter || (t.schools ?? []).some((s) => s.id === schoolFilter);
 
   // Programme's own options are computed over every person, unfiltered: it is the
   // outermost filter, so nothing downstream may remove a programme from its list.
@@ -63,17 +68,25 @@ export function AudiencePicker({
   // Role filter only appears when the list actually mixes roles — i.e. a PM/Admin seeing ZMs
   // alongside in-charges. A ZM's list is in-charges only, so it stays hidden.
   const roleOpts = useMemo(() => uniq(all.map((t) => t.role)), [all]);
+  // School options come from the people left after the geographic filters, so the
+  // dropdown never offers a school that would match nobody in view.
+  const schoolOpts = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) for (const s of t.schools ?? []) m.set(s.id, s.name);
+    return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [inProgramme, stateFilter, districtFilter]);
   const visible = useMemo(
-    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t)),
-    [inProgramme, stateFilter, districtFilter, roleFilter],
+    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t)),
+    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
   );
   const hiddenPicks = Array.from(selected).filter((id) => !visible.some((t) => t.id === id)).length;
 
   // Narrowing the programme can strip the downstream selections of their meaning —
   // a state the new programme does not run in would filter everything to nothing
   // while still reading as an active choice. Clear them, as State already does.
-  const onProgramme = (v: string) => { setProgrammeFilter(v); setStateFilter(""); setDistrictFilter(""); };
-  const onState = (v: string) => { setStateFilter(v); setDistrictFilter(""); };
+  const onProgramme = (v: string) => { setProgrammeFilter(v); setStateFilter(""); setDistrictFilter(""); setSchoolFilter(""); };
+  const onState = (v: string) => { setStateFilter(v); setDistrictFilter(""); setSchoolFilter(""); };
+  const onDistrict = (v: string) => { setDistrictFilter(v); setSchoolFilter(""); };
   const toggle = (id: string) => {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -111,11 +124,16 @@ export function AudiencePicker({
         )}
         {districtOpts.length > 0 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">{ZONE}
-            <select value={districtFilter} onChange={(e) => setDistrictFilter(e.target.value)} className={filterClass}>
+            <select value={districtFilter} onChange={(e) => onDistrict(e.target.value)} className={filterClass}>
               <option value="">All districts</option>
               {districtOpts.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
           </label>
+        )}
+        {schoolOpts.length > 0 && (
+          <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">School
+            <SearchableSelect value={schoolFilter} onChange={setSchoolFilter} options={schoolOpts} placeholder="All schools" />
+          </div>
         )}
       </div>
 

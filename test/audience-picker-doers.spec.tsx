@@ -41,6 +41,32 @@ describe("AudiencePicker — who fills this in, independent of the Task Target",
     expect(onChange).toHaveBeenCalledWith(new Set(["z1", "f1", "f2"]));
   });
 
+  it("school filter keeps the people whose reach covers that school — the ZM above the in-charge too", () => {
+    const cbe = { id: "s1", name: "GHSS Coimbatore" };
+    const mdu = { id: "s2", name: "GHSS Madurai" };
+    assignable.mockReturnValue({
+      data: [
+        { ...staff("z1", "Ravi", "ZONAL_MANAGER"), schools: [cbe, mdu] },
+        { ...staff("f1", "Anita", "FELLOW"), schools: [cbe] },
+        { ...staff("f2", "Bala", "FELLOW"), schools: [mdu] },
+      ],
+      isLoading: false,
+    });
+    render(<AudiencePicker canAuthor selected={new Set()} onChange={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /all schools/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search/i), { target: { value: "coim" } });
+    expect(screen.queryByRole("button", { name: /ghss madurai/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /ghss coimbatore/i }));
+    expect(screen.getByLabelText(/ravi/i)).toBeTruthy();
+    expect(screen.getByLabelText(/anita/i)).toBeTruthy();
+    expect(screen.queryByLabelText(/bala/i)).toBeNull();
+  });
+
+  it("no school filter when nobody carries schools", () => {
+    render(<AudiencePicker canAuthor selected={new Set()} onChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /all schools/i })).toBeNull();
+  });
+
   it("counts picks hidden by a filter and keeps Clear reachable", () => {
     assignable.mockReturnValue({
       data: [{ ...staff("f1", "Anita", "FELLOW"), state: "KERALA" }, { ...staff("f2", "Bala", "FELLOW"), state: "TAMIL_NADU" }],
