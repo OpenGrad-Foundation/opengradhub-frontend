@@ -395,7 +395,12 @@ export type TrackerAssignable = {
    *  batch-fellow, else their school's in-charge). Null when nobody would own it. */
   doer_id?: string | null;
   doer_name?: string | null;
+  /** For a staff row: the schools a pick of this person would cover — the ones they run
+   *  plus those run by anyone beneath them. Feeds the picker's School filter. */
+  schools?: TrackerTargetSchool[];
 };
+
+export type TrackerTargetSchool = { id: string; name: string };
 
 export type TrackerTargetProgramme = { id: string; name: string };
 
