@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
 import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, useTrackerSummary, useTrackerTemplate, useUpdateTrackerField, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
-import { assignTrackerTargets, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerPriority, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
+import { assignTrackerDoers, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerPriority, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
@@ -313,7 +313,7 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
     if (selected.size === 0) return;
     setBusy(true); setError(null); setResult(null);
     try {
-      const { created } = await assignTrackerTargets(template.id, Array.from(selected));
+      const { created } = await assignTrackerDoers(template.id, Array.from(selected));
       await invalidate("tracker");
       setResult(`Assigned to ${created} ${word}.`);
       setSelected(new Set());
@@ -326,8 +326,8 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <h3 className="mb-1 text-base font-semibold text-gray-950">Assign to more {word}</h3>
-      <AudiencePicker targetType={template.target_type} canAuthor={canAuthor} selected={selected} onChange={setSelected} />
+      <h3 className="mb-1 text-base font-semibold text-gray-950">Assign to more people</h3>
+      <AudiencePicker canAuthor={canAuthor} selected={selected} onChange={setSelected} />
       {error && <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {result && <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
       <div className="mt-3">
