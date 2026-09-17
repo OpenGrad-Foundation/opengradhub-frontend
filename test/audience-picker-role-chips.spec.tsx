@@ -18,13 +18,13 @@ beforeEach(() => {
 describe("AudiencePicker — role chips", () => {
   it("one click selects everyone with that role", () => {
     const onChange = vi.fn();
-    render(<AudiencePicker targetType="fellow" canAuthor selected={new Set()} onChange={onChange} />);
+    render(<AudiencePicker canAuthor selected={new Set()} onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: /all zonal managers/i }));
     expect(onChange).toHaveBeenCalledWith(new Set(["z1", "z2"]));
   });
   it("no chips when the list has a single role", () => {
     assignable.mockReturnValue({ data: [row("f1", "Anita", "FELLOW")], isLoading: false });
-    render(<AudiencePicker targetType="fellow" canAuthor selected={new Set()} onChange={vi.fn()} />);
+    render(<AudiencePicker canAuthor selected={new Set()} onChange={vi.fn()} />);
     expect(screen.queryByRole("button", { name: /^all school in-charges/i })).toBeNull();
   });
 });
