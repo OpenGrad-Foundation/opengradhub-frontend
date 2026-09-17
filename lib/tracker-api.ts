@@ -280,6 +280,17 @@ export function assignTrackerTargets(templateId: string, targetIds: string[], ba
   );
 }
 
+/** Assign by WHO fills the task in. The picked people are the doers whatever the Task
+ *  Target: for a staff task that is their own row; for a school / student task each
+ *  person receives one entry per school / student inside their reach, owned by them.
+ *  `skipped` counts picked people who ended up with no entry. */
+export function assignTrackerDoers(templateId: string, doerIds: string[], batchId?: string) {
+  return trackerJson<{ created: number; skipped: number }>(
+    `/tracker/templates/${encodeURIComponent(templateId)}/assign`,
+    jsonInit("POST", batchId ? { doerIds, batchId } : { doerIds }),
+  );
+}
+
 export function getTrackerGrid(templateId: string, fellowId?: string) {
   const q = fellowId ? `?fellowId=${encodeURIComponent(fellowId)}` : "";
   return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${q}`);
@@ -380,7 +391,16 @@ export type TrackerAssignable = {
   programmes: TrackerTargetProgramme[];
   school_id?: string | null;
   school_name?: string | null;
+  /** For a school / student target: the in-charge who fills the entry in (a batch member's
+   *  batch-fellow, else their school's in-charge). Null when nobody would own it. */
+  doer_id?: string | null;
+  doer_name?: string | null;
+  /** For a staff row: the schools a pick of this person would cover — the ones they run
+   *  plus those run by anyone beneath them. Feeds the picker's School filter. */
+  schools?: TrackerTargetSchool[];
 };
+
+export type TrackerTargetSchool = { id: string; name: string };
 
 export type TrackerTargetProgramme = { id: string; name: string };
 

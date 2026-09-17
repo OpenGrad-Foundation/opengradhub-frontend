@@ -61,32 +61,32 @@ export function useProgrammeInsights(filters: ProgrammeInsightsFilters = {}) {
 
 export function useAnalyticsFilterProgrammes() {
   return useQuery({
-    queryKey: ["analytics", "filters", "programmes"],
+    queryKey: ["analytics", "filters", "programmes", "v2"],
     queryFn: getAnalyticsFilterProgrammes,
     staleTime: 5 * 60_000,
   });
 }
 
-export function useAnalyticsFilterStates() {
+export function useAnalyticsFilterStates(programmeId?: string) {
   return useQuery({
-    queryKey: ["analytics", "filters", "states"],
-    queryFn: getAnalyticsFilterStates,
+    queryKey: ["analytics", "filters", "states", programmeId ?? "all"],
+    queryFn: () => getAnalyticsFilterStates(programmeId),
     staleTime: 5 * 60_000,
   });
 }
 
-export function useAnalyticsFilterDistricts(state?: string) {
+export function useAnalyticsFilterDistricts(state?: string, programmeId?: string) {
   return useQuery({
-    queryKey: ["analytics", "filters", "districts", state ?? "all"],
-    queryFn: () => getAnalyticsFilterDistricts(state),
+    queryKey: ["analytics", "filters", "districts", state ?? "all", programmeId ?? "all"],
+    queryFn: () => getAnalyticsFilterDistricts(state, programmeId),
     staleTime: 5 * 60_000,
   });
 }
 
-export function useAnalyticsFilterSchools(state?: string, district?: string) {
+export function useAnalyticsFilterSchools(state?: string, district?: string, programmeId?: string) {
   return useQuery({
-    queryKey: ["analytics", "filters", "schools", state ?? "all", district ?? "all"],
-    queryFn: () => getAnalyticsFilterSchools(state, district),
+    queryKey: ["analytics", "filters", "schools", state ?? "all", district ?? "all", programmeId ?? "all"],
+    queryFn: () => getAnalyticsFilterSchools(state, district, programmeId),
     staleTime: 5 * 60_000,
   });
 }

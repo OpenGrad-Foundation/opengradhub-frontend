@@ -14,7 +14,7 @@
 
 export type ProgrammeKindOption = { value: string; label: string };
 
-/** Single source of truth for every programme dropdown and validator. */
+/** Category options for programme kind metadata. Programme pickers must load record IDs from the API. */
 export const PROGRAMME_KINDS: ProgrammeKindOption[] = [
   { value: "UG", label: "UG" },
   { value: "PG", label: "PG" },

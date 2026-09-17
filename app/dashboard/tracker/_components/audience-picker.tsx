@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTrackerAssignable } from "@/lib/queries/tracker";
-import type { TrackerAssignable, TrackerTargetType } from "@/lib/tracker-api";
-import { ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
+import type { TrackerAssignable } from "@/lib/tracker-api";
+import { ROLE_LABELS, ZONE } from "@/lib/labels";
+import { SearchableSelect } from "@/app/dashboard/analytics/_components/SearchableSelect";
 
 function prettyState(s: string | null): string {
   if (!s) return "";
@@ -13,49 +14,47 @@ function prettyState(s: string | null): string {
 
 const prettyRole = (r?: string | null) => (r ? ROLE_LABELS[r] ?? prettyState(r) : "");
 
-/** Audience filters over the caller's assignable targets, plus a checkbox list +
- *  Select-all. Reused by the scratch builder and the "use a template" flow. Parent
- *  owns the selected set.
+/** "Who fills this in?" — the staff the caller may hand a task to (zonal managers and
+ *  in-charges), with filters and a checkbox list + Select-all. The same list for every
+ *  Task Target: a tick is a person, and the server turns that person into entries
+ *  (their own row for a staff task, one row per school / student they reach otherwise).
+ *  Reused by the builder and the "assign to more" flow. Parent owns the selected set.
  *
- *  Programme sits OUTSIDE the State → Zone → School cascade and ahead of it. It is
- *  the broadest real scope now that it reads the `programmes` entity rather than the
- *  legacy `users.programme` text, so it narrows the geographic options rather than
- *  being narrowed by them — picking a programme should shorten the state list, not
- *  leave it offering states the programme does not run in. */
+ *  Programme sits OUTSIDE the State → Zone cascade and ahead of it. It is the broadest
+ *  real scope now that it reads the `programmes` entity rather than the legacy
+ *  `users.programme` text, so it narrows the geographic options rather than being
+ *  narrowed by them — picking a programme should shorten the state list, not leave it
+ *  offering states the programme does not run in. */
 export function AudiencePicker({
-  targetType,
   canAuthor,
   selected,
   onChange,
-  batchId,
 }: {
-  targetType: TrackerTargetType;
   canAuthor: boolean;
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
-  batchId?: string;
 }) {
-  const assignable = useTrackerAssignable(targetType, canAuthor, batchId);
-  const targetWord = targetType === "school" ? "schools" : targetType === "student" ? "students" : "staff";
+  const assignable = useTrackerAssignable("fellow", canAuthor);
 
   const [stateFilter, setStateFilter] = useState("");
   const [districtFilter, setDistrictFilter] = useState("");
   const [programmeFilter, setProgrammeFilter] = useState("");
-  const [schoolFilter, setSchoolFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [schoolFilter, setSchoolFilter] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
   const all = useMemo(() => assignable.data ?? [], [assignable.data]);
-  // A target can sit in several programmes (staff seats, school hosting), so this is
-  // membership, not equality. Students carry at most one, in the same array shape.
+  // A person can sit in several programmes (staff seats), so this is membership, not equality.
   const byProgramme = (t: TrackerAssignable) =>
     !programmeFilter || t.programmes.some((p) => p.id === programmeFilter);
   const byState = (t: TrackerAssignable) => !stateFilter || t.state === stateFilter;
   const byDistrict = (t: TrackerAssignable) => !districtFilter || t.district === districtFilter;
-  const bySchool = (t: TrackerAssignable) => !schoolFilter || t.school_id === schoolFilter;
   const byRole = (t: TrackerAssignable) => !roleFilter || t.role === roleFilter;
+  // A person "has" a school when a pick of them would cover it — their own schools and
+  // their subordinates' (server-computed), so a ZM matches the schools under their in-charges.
+  const bySchool = (t: TrackerAssignable) => !schoolFilter || (t.schools ?? []).some((s) => s.id === schoolFilter);
 
-  // Programme's own options are computed over every target, unfiltered: it is the
+  // Programme's own options are computed over every person, unfiltered: it is the
   // outermost filter, so nothing downstream may remove a programme from its list.
   const programmeOpts = useMemo(() => {
     const m = new Map<string, string>();
@@ -66,18 +65,21 @@ export function AudiencePicker({
 
   const stateOpts = useMemo(() => uniq(inProgramme.map((t) => t.state)), [inProgramme]);
   const districtOpts = useMemo(() => uniq(inProgramme.filter(byState).map((t) => t.district)), [inProgramme, stateFilter]);
-  // Role filter only appears for a staff (user-doer) target that actually mixes roles — i.e. a
-  // PM/Admin seeing ZMs alongside fellows. A ZM's list is fellows-only, so it stays hidden.
+  // Role filter only appears when the list actually mixes roles — i.e. a PM/Admin seeing ZMs
+  // alongside in-charges. A ZM's list is in-charges only, so it stays hidden.
   const roleOpts = useMemo(() => uniq(all.map((t) => t.role)), [all]);
+  // School options come from the people left after the geographic filters, so the
+  // dropdown never offers a school that would match nobody in view.
   const schoolOpts = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) if (t.school_id) m.set(t.school_id, t.school_name ?? t.school_id);
-    return Array.from(m, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) for (const s of t.schools ?? []) m.set(s.id, s.name);
+    return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
   }, [inProgramme, stateFilter, districtFilter]);
-  const visibleTargets = useMemo(
-    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && bySchool(t) && byRole(t)),
-    [inProgramme, stateFilter, districtFilter, schoolFilter, roleFilter],
+  const visible = useMemo(
+    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t)),
+    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
   );
+  const hiddenPicks = Array.from(selected).filter((id) => !visible.some((t) => t.id === id)).length;
 
   // Narrowing the programme can strip the downstream selections of their meaning —
   // a state the new programme does not run in would filter everything to nothing
@@ -129,28 +131,25 @@ export function AudiencePicker({
           </label>
         )}
         {schoolOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">School
-            <select value={schoolFilter} onChange={(e) => setSchoolFilter(e.target.value)} className={filterClass}>
-              <option value="">All schools</option>
-              {schoolOpts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </label>
+          <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">School
+            <SearchableSelect value={schoolFilter} onChange={setSchoolFilter} options={schoolOpts} placeholder="All schools" />
+          </div>
         )}
       </div>
 
       {assignable.isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
-      ) : visibleTargets.length === 0 ? (
-        <p className="py-4 text-sm text-gray-500">No {targetWord} in your scope for this filter.</p>
+      ) : visible.length === 0 ? (
+        <p className="py-4 text-sm text-gray-500">No staff in your scope for this filter.</p>
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onChange(new Set([...selected, ...visibleTargets.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
-              Select all {visibleTargets.length}
+            <button type="button" onClick={() => onChange(new Set([...selected, ...visible.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
+              Select all {visible.length}
             </button>
-            {/* One-click "everyone in this role" — the common case for a staff task is "all
-                ZMs" or "all in-charges", which the Role filter + Select all needs three
-                clicks for. Adds to the selection, ignores the other filters on purpose. */}
+            {/* One-click "everyone in this role" — the common case is "all ZMs" or "all
+                in-charges", which the Role filter + Select all needs three clicks for. Adds to
+                the selection, ignores the other filters on purpose. */}
             {roleOpts.length > 1 && roleOpts.map((r) => {
               const ids = all.filter((t) => t.role === r).map((t) => t.id);
               const label = prettyRole(r);
@@ -161,26 +160,32 @@ export function AudiencePicker({
                 </button>
               );
             })}
-            {selected.size > 0 && (
-              <button type="button" onClick={() => onChange(new Set())} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
-            )}
           </div>
           <div className="grid max-h-56 gap-1 overflow-auto sm:grid-cols-2">
-            {visibleTargets.map((t) => (
+            {visible.map((t) => (
               <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
                 <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
                 <span className="text-gray-900">{t.name}</span>
                 {roleOpts.length > 1 && t.role && (
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">{prettyRole(t.role)}</span>
                 )}
-                {t.school_name && <span className="text-xs text-gray-400">{t.school_name}</span>}
-                {!t.school_name && t.state && <span className="text-xs text-gray-400">{prettyState(t.state)}</span>}
+                {t.state && <span className="text-xs text-gray-400">{prettyState(t.state)}</span>}
               </label>
             ))}
           </div>
         </>
       )}
-      <p className="mt-2 text-xs text-gray-500">{selected.size} selected.</p>
+      {/* Clear lives outside the list so a filter that empties the view cannot strand
+          picks the author can no longer see. */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+        <span>
+          {selected.size} selected.
+          {hiddenPicks > 0 && ` ${hiddenPicks} hidden by the filters above.`}
+        </span>
+        {selected.size > 0 && (
+          <button type="button" onClick={() => onChange(new Set())} className="font-medium text-gray-500 hover:text-gray-800">Clear</button>
+        )}
+      </div>
     </div>
   );
 }

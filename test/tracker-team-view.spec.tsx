@@ -59,6 +59,13 @@ describe("TeamView — by-team drill", () => {
     expect(screen.queryByText(/own tasks/)).toBeNull();
   });
 
+  it("offers Assign task on ZMs and in-charges but never on a programme manager", () => {
+    render(<TeamView onOpen={vi.fn()} onAssign={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /assign task to priya pm/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /assign task to ravi zm/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /assign task to anita ic/i })).toBeTruthy();
+  });
+
   it("breadcrumb root click returns to the root list", () => {
     render(<TeamView onOpen={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Ravi ZM/ }));

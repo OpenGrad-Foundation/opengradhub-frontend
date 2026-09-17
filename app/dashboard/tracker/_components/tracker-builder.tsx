@@ -5,7 +5,7 @@ import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   addTrackerFields,
-  assignTrackerTargets,
+  assignTrackerDoers,
   createTrackerTemplate,
   updateTrackerTemplate,
   type TrackerCompletionStyle,
@@ -74,22 +74,15 @@ export type TrackerAssignPrefill = {
   label?: string;
 };
 
-/** Who ends up filling the entry in, per granularity. Students are never doers. */
+/** What the Task Target means for the people picked below. Students are never doers. */
 const DOER_HINT: Record<TrackerTargetType, string> = {
-  fellow: `The assigned staff (${IN_CHARGE_LOWER_PLURAL} or zonal managers) fill in their own entry.`,
-  school: `The ${IN_CHARGE_LOWER} of each school fills in that school's entry.`,
-  student: `Each student's ${IN_CHARGE_LOWER} fills in the entry. Students do not see or do this task.`,
+  fellow: `Each person you pick below fills in one entry of their own.`,
+  school: `Each person you pick below fills in one entry per school they look after.`,
+  student: `Each person you pick below fills in one entry per student they look after. Students do not see or do this task.`,
 };
-const AUDIENCE_HEADING: Record<TrackerTargetType, string> = {
-  fellow: "Who fills this in?",
-  school: "Which schools?",
-  student: "Which students?",
-};
-const AUDIENCE_HINT: Record<TrackerTargetType, string> = {
-  fellow: `${IN_CHARGE_PLURAL} or zonal managers you manage. Leave empty to assign later.`,
-  school: "Leave empty to assign later.",
-  student: "Leave empty to assign later.",
-};
+/** The bottom picker always answers "who fills this in?" with the same staff list,
+ *  whatever the Task Target — the target only decides how many entries a pick becomes. */
+const AUDIENCE_HINT = `${IN_CHARGE_PLURAL} or zonal managers you manage. Leave empty to assign later.`;
 
 export function TrackerBuilder({
   canAuthor,
@@ -151,8 +144,8 @@ export function TrackerBuilder({
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
-  // Batch audience (student tasks only): assign to the members of a batch so ownership routes to
-  // each member's batch-fellow. Empty = ordinary student audience.
+  // Batch audience (student tasks only): each picked person gets the batch members they reach,
+  // stamped with the batch. Empty = every student they reach.
   const [batchId, setBatchId] = useState<string>("");
   const batches = useBatches("ACTIVE").data ?? [];
 
@@ -193,9 +186,10 @@ export function TrackerBuilder({
     });
   }
 
+  // Picks survive a target switch on purpose: they are people, not entries, and the
+  // same people qualify for every target.
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
-    setSelectedIds(new Set());
     if (next !== "student") setBatchId("");
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
@@ -292,10 +286,11 @@ export function TrackerBuilder({
       if (partnerVisible && canShareExternally && effectiveProgrammeId)
         await updateTrackerTemplate(id, { partner_visible: true });
 
-      const targetIds = Array.from(selectedIds);
+      const doerIds = Array.from(selectedIds);
       let assigned = 0;
-      if (targetIds.length > 0)
-        assigned = (await assignTrackerTargets(id, targetIds, batchId || undefined)).created;
+      let skipped = 0;
+      if (doerIds.length > 0)
+        ({ created: assigned, skipped } = await assignTrackerDoers(id, doerIds, batchId || undefined));
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
@@ -304,7 +299,14 @@ export function TrackerBuilder({
       // would be the one lie this feature cannot afford.
       const shared = partnerVisible && canShareExternally && effectiveProgrammeId
         ? " Shared with this programme's government and funding officials." : "";
-      const message = `Created "${name.trim()}"` + (assigned ? ` and assigned to ${assigned} ${targetWord}.` : ".") + visibility + shared;
+      // Skipped = people the server gave nothing to (out of reach, not a valid doer, or
+      // every entry already taken). Said out loud: a quiet "Created" read as if everyone got it.
+      const notAssigned = skipped > 0 ? ` ${skipped} of the ${doerIds.length} people picked could not be assigned.` : "";
+      // A staff task assigns people; a school / student task assigns entries to people.
+      const assignedText = !assigned ? "."
+        : targetType === "fellow" ? ` and assigned to ${assigned} staff.`
+        : ` and assigned ${assigned} ${targetWord.replace(/s$/, "")} ${assigned === 1 ? "entry" : "entries"}.`;
+      const message = `Created "${name.trim()}"` + assignedText + notAssigned + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
       setPartnerVisible(false);
@@ -347,7 +349,7 @@ export function TrackerBuilder({
             ends up filling it for that choice. */}
         <div className="flex flex-col gap-1 sm:col-span-2">
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            What is each entry about?
+            Task Target
             <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
               <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
               <option value="school">A school — one entry per school</option>
@@ -358,8 +360,8 @@ export function TrackerBuilder({
         </div>
         {targetType === "student" && (
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Assign to a batch (optional)
-            <select value={batchId} onChange={(e) => { setBatchId(e.target.value); setSelectedIds(new Set()); }} className={inputClass}>
+            Assign to a batch (optional){/* picks are people, so they survive a batch change too */}
+            <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass}>
               <option value="">All my students</option>
               {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -558,14 +560,14 @@ export function TrackerBuilder({
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-1 text-sm font-semibold text-gray-950">{AUDIENCE_HEADING[targetType]}</h3>
-        <p className="mb-2 text-xs text-gray-500">{AUDIENCE_HINT[targetType]}</p>
+        <h3 className="mb-1 text-sm font-semibold text-gray-950">Who fills this in?</h3>
+        <p className="mb-2 text-xs text-gray-500">{AUDIENCE_HINT}</p>
         {prefill?.label && (
           <p className="mb-2 text-xs text-gray-500">
             Pre-selected <span className="font-semibold text-gray-700">{prefill.label}</span>. Add or remove anyone below.
           </p>
         )}
-        <AudiencePicker key={`${targetType}:${batchId}`} targetType={targetType} canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} batchId={batchId || undefined} />
+        <AudiencePicker canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} />
       </section>
 
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
