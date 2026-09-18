@@ -2834,6 +2834,12 @@ export type StartedAttempt = {
   questions: QuizAttemptQuestion[];
   sections: StartedAttemptSection[];
   current_section_index?: number;
+  /** Server clock when the response was built — the timer corrects the device clock against it. */
+  server_now?: string;
+  /** Resume only: answers autosaved on the server, for a device with no local draft. */
+  saved_answers?: Record<string, string | null>;
+  /** Resume of a sequential sectioned attempt: when the active section's timer started. */
+  current_section_started_at?: string;
 };
 
 export async function startQuizAttempt(quizId: string): Promise<StartedAttempt> {
@@ -2863,6 +2869,19 @@ export async function submitQuizAttempt(
     throw new ApiError(err?.message ?? "Failed to submit quiz attempt.", r.status);
   }
   return await r.json() as { attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string };
+}
+
+/** Autosave of in-progress answers (ungraded). Not for sequential sectioned quizzes. */
+export async function saveQuizAnswers(
+  attemptId: string,
+  answers: { snapshot_id: string; student_answer: string | null }[],
+): Promise<void> {
+  const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/answers`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ answers }),
+  });
+  if (!r.ok) throw new ApiError("Failed to save answers.", r.status);
 }
 
 // ── Analytics — new endpoints ──────────────────────────────────
