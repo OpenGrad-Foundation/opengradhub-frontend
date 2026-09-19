@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { getBackHref, withFrom } from "@/lib/nav";
@@ -12,6 +12,8 @@ import {
   getQuizById,
   startQuizAttempt,
   submitQuizAttempt,
+  saveQuizAnswers,
+  ApiError,
   getQuizAttempts,
   getAttemptExplanations,
   advanceQuizSection,
@@ -26,6 +28,7 @@ import {
   type StudentReportPdf,
   getMyQuestionReports,
 } from "@/lib/api";
+import { isTerminalSubmitError } from "@/lib/quiz-submit-recovery";
 import { ReportQuestionButton } from "@/components/report-question-modal";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
@@ -265,6 +268,14 @@ export default function QuizTakingPage() {
   const beforeUnloadRef    = useRef<((e: BeforeUnloadEvent) => void) | null>(null);
   const draftTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sectionStartRef    = useRef<number>(Date.now());
+  // Server clock minus device clock (ms). A phone whose clock is wrong would
+  // otherwise gain or lose quiz time, since started_at is a server timestamp.
+  const clockOffsetRef     = useRef(0);
+  const answersRef         = useRef<Record<string, string | null>>({});
+  const serverSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const serverSavingRef    = useRef(false);
+  const lastServerSaveRef  = useRef("");
+  const autosaveAttemptIdRef = useRef<string | null>(null);
   const suppressFsExitRef  = useRef(false);
   // Set once the student confirms "Leave Quiz" so the navigation guards below
   // stop intercepting (otherwise history.back() re-fires popstate → re-opens the
@@ -351,12 +362,20 @@ export default function QuizTakingPage() {
     };
   }, [phase]);
 
-  // Count-up / countdown timer
+  // Count-up / countdown timer. Derived from the wall clock, never `s + 1`:
+  // browsers throttle or suspend intervals in background tabs and on locked
+  // phones, so a tick counter falls behind the server's deadline and the
+  // student's final submit is rejected as late.
+  const attemptStartedAt = attempt?.started_at;
   useEffect(() => {
-    if (phase !== "taking") return;
-    const iv = setInterval(() => setTimeElapsed((s) => s + 1), 1000);
+    if (phase !== "taking" || !attemptStartedAt) return;
+    const startedMs = new Date(attemptStartedAt).getTime();
+    const iv = setInterval(
+      () => setTimeElapsed(Math.max(0, Math.floor((Date.now() + clockOffsetRef.current - startedMs) / 1000))),
+      1000,
+    );
     return () => clearInterval(iv);
-  }, [phase]);
+  }, [phase, attemptStartedAt]);
 
   // Auto-submit when time limit reached
   const timeLimitSeconds = quiz?.duration_minutes ? quiz.duration_minutes * 60 : null;
@@ -431,6 +450,60 @@ export default function QuizTakingPage() {
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, [phase, quiz?.require_fullscreen, attempt]);
 
+  // Autosave answers to the server, at most once per 10s. Throttled rather than
+  // debounced: a student answering steadily would never let a debounce fire.
+  // Lets the attempt resume on another device and lets the server finalize it
+  // if the student never returns. Sequential sectioned quizzes are excluded
+  // server-side (their sections persist on advance).
+  //
+  // One request in flight at a time, so an older save can never land after a
+  // newer one; a failed save stays dirty and is retried on the next tick.
+  answersRef.current = answers;
+  const autosaveAttemptId = phase === "taking" && !quiz?.sequential_sections ? attempt?.attempt_id ?? null : null;
+  autosaveAttemptIdRef.current = autosaveAttemptId;
+  const queueServerSave = useCallback(() => {
+    if (serverSaveTimerRef.current || serverSavingRef.current) return;
+    serverSaveTimerRef.current = setTimeout(async () => {
+      serverSaveTimerRef.current = null;
+      const attemptId = autosaveAttemptIdRef.current;
+      const snapshot = JSON.stringify(answersRef.current);
+      if (!attemptId || snapshot === lastServerSaveRef.current) return;
+      serverSavingRef.current = true;
+      let retry = true;
+      try {
+        await saveQuizAnswers(
+          attemptId,
+          Object.entries(answersRef.current).map(([snapshot_id, student_answer]) => ({ snapshot_id, student_answer })),
+        );
+        lastServerSaveRef.current = snapshot;
+      } catch (err) {
+        // Best-effort: the local draft and the final submit remain the source of
+        // truth. A 4xx will not get better on retry (attempt submitted/reset).
+        if (err instanceof ApiError && err.status >= 400 && err.status < 500 && err.status !== 429) retry = false;
+      } finally {
+        serverSavingRef.current = false;
+      }
+      if (retry && autosaveAttemptIdRef.current === attemptId && JSON.stringify(answersRef.current) !== lastServerSaveRef.current) {
+        queueServerSave();
+      }
+    }, 10_000);
+  }, []);
+  useEffect(() => {
+    if (!autosaveAttemptId || Object.keys(answers).length === 0) return;
+    queueServerSave();
+  }, [answers, autosaveAttemptId, queueServerSave]);
+  // Leaving the taking phase (submit, result, unmount) cancels a pending save —
+  // it must not race the final submit.
+  useEffect(() => {
+    if (autosaveAttemptId) return;
+    if (serverSaveTimerRef.current) { clearTimeout(serverSaveTimerRef.current); serverSaveTimerRef.current = null; }
+  }, [autosaveAttemptId]);
+  useEffect(() => () => {
+    if (serverSaveTimerRef.current) clearTimeout(serverSaveTimerRef.current);
+    // Also disarms the retry of a save still in flight: its guard compares against this ref.
+    autosaveAttemptIdRef.current = null;
+  }, []);
+
   // Debounced autosave of in-progress answers to IndexedDB.
   useEffect(() => {
     if (phase !== "taking" || !attempt) return;
@@ -501,7 +574,8 @@ export default function QuizTakingPage() {
       setPhase("loading");
       const started = await startQuizAttempt(quizId);
 
-      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - new Date(started.started_at).getTime()) / 1000));
+      clockOffsetRef.current = started.server_now ? new Date(started.server_now).getTime() - Date.now() : 0;
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() + clockOffsetRef.current - new Date(started.started_at).getTime()) / 1000));
 
       let draft: QuizDraft | null = null;
       try {
@@ -513,9 +587,20 @@ export default function QuizTakingPage() {
       setSections(started.sections);
       setCurrentSectionIdx(started.current_section_index ?? null);
       if (quiz?.sequential_sections) {
-        sectionStartRef.current = Date.now();
+        // On resume the section clock continues from its server start (shifted
+        // into device time) — a reload must not hand the section's time back.
+        sectionStartRef.current = started.current_section_started_at
+          ? new Date(started.current_section_started_at).getTime() - clockOffsetRef.current
+          : Date.now();
       }
-      setAnswers(draft?.answers ?? {});
+      // Server autosave fills whatever this device's draft lacks (new device,
+      // cleared storage); where both have a value the local draft wins.
+      // ponytail: no per-answer timestamps, so a stale draft on a second device
+      // still beats a newer server value for the same question. Add a server
+      // revision if two-device attempts turn out to be real.
+      const serverAnswers = quiz?.sequential_sections ? {} : started.saved_answers ?? {};
+      setAnswers({ ...serverAnswers, ...(draft?.answers ?? {}) });
+      lastServerSaveRef.current = "";
       setCurrentIdx(draft?.current_idx ?? 0);
       setFlagged(new Set(draft?.flagged ?? []));
       setTimeElapsed(elapsedSeconds);
@@ -593,7 +678,15 @@ export default function QuizTakingPage() {
       setPhase("result");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit quiz.");
-      retrySubmitRef.current = () => { void handleSubmit(); };
+      if (isTerminalSubmitError(err)) {
+        // Terminal: the attempt was discarded (expired with nothing answered),
+        // reset, or already submitted (e.g. by the server's finalize job).
+        // Retrying can never succeed — drop the draft so the next Start is fresh.
+        void clearDraft(attempt.attempt_id).catch(() => {});
+        setIncompleteAttempt(null);
+      } else {
+        retrySubmitRef.current = () => { void handleSubmit(); };
+      }
       setPhase("error");
     } finally {
       setSubmitting(false);
@@ -770,6 +863,9 @@ export default function QuizTakingPage() {
 
   if (phase === "intro" && quiz) {
     const exhausted = quiz.max_attempts != null && quiz.max_attempts > 0 && attemptsUsed >= quiz.max_attempts;
+    // Device clock only (no server offset before Start) — good enough to pick the wording.
+    const attemptTimeIsUp = !!incompleteAttempt && !!quiz.duration_minutes && !quiz.sequential_sections
+      && Date.now() - new Date(incompleteAttempt.started_at).getTime() > quiz.duration_minutes * 60_000;
     return (
       <div style={pageCentered}>
         <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
@@ -809,6 +905,14 @@ export default function QuizTakingPage() {
             </div>
           )}
 
+          {canAttempt && !!quiz.duration_minutes && (
+            <p style={{ ...subtext, marginTop: "20px", fontWeight: 600, color: attemptTimeIsUp ? "#e53e3e" : undefined }}>
+              {attemptTimeIsUp
+                ? "Time ran out on the attempt you started earlier. Your saved answers will be submitted now; if nothing was answered, the attempt is discarded and you can start again."
+                : "The timer starts when you press Start and keeps running even if you close this page or lock your phone. When it ends, your answers are submitted automatically."}
+            </p>
+          )}
+
           {canAttempt && (() => {
             const fsRequired = !!quiz?.require_fullscreen;
             const fsSupported = typeof document !== "undefined" && !!document.fullscreenEnabled;
@@ -827,7 +931,7 @@ export default function QuizTakingPage() {
             ) : (
               <button onClick={handleStart} style={{ ...primaryBtn, marginTop: "20px" }}>
                 {incompleteAttempt
-                  ? "Resume Attempt"
+                  ? attemptTimeIsUp ? "Submit My Answers" : "Resume Attempt"
                   : attemptsUsed > 0
                     ? "Retake Quiz"
                     : "Start Quiz"} →
