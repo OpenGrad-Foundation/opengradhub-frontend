@@ -377,12 +377,15 @@ export default function QuizTakingPage() {
     return () => clearInterval(iv);
   }, [phase, attemptStartedAt]);
 
-  // Auto-submit when time limit reached
+  // Auto-submit when time limit reached. Never for sequential sectioned quizzes:
+  // the server only accepts their sections through /sections/advance and rejects
+  // a whole-quiz submit, so firing it here dead-ends the student on an error
+  // screen. Their section timers (auto-advance below) are what ends the quiz.
   const timeLimitSeconds = quiz?.duration_minutes ? quiz.duration_minutes * 60 : null;
   useEffect(() => {
-    if (phase !== "taking" || !timeLimitSeconds || submittingRef.current) return;
+    if (phase !== "taking" || !timeLimitSeconds || submittingRef.current || quiz?.sequential_sections) return;
     if (timeElapsed >= timeLimitSeconds) void handleSubmitRef.current();
-  }, [timeElapsed, timeLimitSeconds, phase]);
+  }, [timeElapsed, timeLimitSeconds, phase, quiz?.sequential_sections]);
 
   // Per-section timer derivation (sequential sectioned quizzes)
   const activeSectionMeta = currentSectionIdx != null ? sections[currentSectionIdx] : null;
