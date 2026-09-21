@@ -123,7 +123,7 @@ function AudiencePicker({ value, onChange }: { value: string; onChange: (v: stri
 }
 
 const S = {
-  control: { padding: "8px 12px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.15)", fontSize: "13px", color: "#034852", background: "#fff", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  segment: { padding: "8px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852" } as React.CSSProperties,
-  segmentOn: { border: "none", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff" } as React.CSSProperties,
+  control: { minHeight: "44px", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--color-border-strong)", fontSize: "13px", color: "var(--color-text)", background: "var(--color-surface)" } as React.CSSProperties,
+  segment: { minHeight: "44px", padding: "8px 16px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-muted)" } as React.CSSProperties,
+  segmentOn: { borderColor: "var(--color-border-strong)", background: "var(--color-success-surface)", color: "var(--dark-teal)" } as React.CSSProperties,
 };
