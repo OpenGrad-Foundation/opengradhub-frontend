@@ -81,7 +81,7 @@ export function Modal({ title, onClose, children, maxWidth = "560px" }: {
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#fff", borderRadius: "20px", padding: "24px",
+          background: "#fff", borderRadius: "12px", padding: "24px",
           width: "100%", maxWidth, outline: "none",
           boxShadow: "0 10px 40px rgba(0,0,0,0.15)",
         }}

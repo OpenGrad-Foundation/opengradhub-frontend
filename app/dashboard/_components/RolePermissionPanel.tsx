@@ -307,10 +307,10 @@ function ToggleSwitch({ on, disabled, onChange }: { on: boolean; disabled?: bool
 }
 
 const S = {
-  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading: { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852", margin: 0 } as React.CSSProperties,
+  label: { fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading: { fontSize: "22px", fontWeight: 700, color: "#034852", margin: 0 } as React.CSSProperties,
   subtitle: { fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: 0 } as React.CSSProperties,
-  primaryBtn: { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,
+  primaryBtn: { padding: "10px 20px", border: "1px solid var(--green)", borderRadius: "10px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 700, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,
   ghostBtn: { padding: "10px 20px", background: "none", border: "1px solid rgba(3,72,82,0.2)", borderRadius: "10px", color: "#034852", fontWeight: 600, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,
   ghostDanger: { padding: "10px 16px", background: "none", border: "1px solid rgba(229,62,62,0.3)", borderRadius: "10px", color: "#c53030", fontWeight: 600, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,
   dangerBtn: { padding: "10px 16px", background: "#e53e3e", border: "none", borderRadius: "10px", color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" } as React.CSSProperties,

@@ -812,8 +812,7 @@ function PanelField({ label, children }: { label: string; children: React.ReactN
   return (
     <div>
       <p style={{
-        fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.06em", color: "rgba(3,72,82,0.5)",
+        fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.5)",
         margin: "0 0 5px",
       }}>
         {label}
@@ -862,13 +861,12 @@ function StatusBadge({ status }: { status: string }) {
 
 const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379",
+    fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)",
     margin: 0,
   } as React.CSSProperties,
 
   heading: {
-    fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852",
+    fontSize: "22px", fontWeight: 700, color: "#034852",
     margin: 0,
   } as React.CSSProperties,
 
@@ -894,11 +892,10 @@ const S = {
   } as React.CSSProperties,
 
   primaryBtn: {
-    padding: "10px 20px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700,
+    padding: "10px 20px", border: "1px solid var(--green)", borderRadius: "10px",
+    background: "var(--green)",
+    color: "var(--dark-teal)", fontWeight: 700,
     fontSize: "13px", cursor: "pointer",
-    boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
     transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
   } as React.CSSProperties,
 

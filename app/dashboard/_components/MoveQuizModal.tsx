@@ -206,7 +206,7 @@ const overlay: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "center", padding: "24px",
 };
 const panel: React.CSSProperties = {
-  background: "#ffffff", borderRadius: "24px", width: "100%", maxWidth: "520px",
+  background: "#ffffff", borderRadius: "12px", width: "100%", maxWidth: "520px",
   boxShadow: "0 24px 48px rgba(3,72,82,0.15)", overflow: "hidden",
   display: "flex", flexDirection: "column", maxHeight: "90vh",
 };
@@ -215,11 +215,10 @@ const header: React.CSSProperties = {
   display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "12px",
 };
 const eyebrow: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379", margin: 0,
+  fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", margin: 0,
 };
 const title: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852", margin: "4px 0 0",
+  fontSize: "22px", fontWeight: 700, color: "#034852", margin: "4px 0 0",
 };
 const iconBtn: React.CSSProperties = {
   background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)",
@@ -241,8 +240,7 @@ const fieldset: React.CSSProperties = {
   border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", padding: "14px 16px", margin: 0,
 };
 const legend: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)", padding: "0 6px",
+  fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.6)", padding: "0 6px",
 };
 const radioRow: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: "10px", padding: "6px 0",
@@ -267,8 +265,8 @@ const secondaryBtn: React.CSSProperties = {
   fontWeight: 600, fontSize: "14px", cursor: "pointer",
 };
 const primaryBtn: React.CSSProperties = {
-  padding: "10px 20px", border: "none", borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff",
-  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px",
+  padding: "10px 20px", border: "1px solid var(--green)", borderRadius: "10px",
+  background: "var(--green)", color: "var(--dark-teal)",
+  fontWeight: 700, fontSize: "14px",
   cursor: "pointer", display: "flex", alignItems: "center", gap: "8px",
 };

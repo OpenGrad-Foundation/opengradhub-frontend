@@ -213,7 +213,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)" }}>Loading permissions…</p>
           ) : (
             <>
-              <p style={{ fontFamily: "var(--font-heading)", fontSize: "15px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>{selectedModuleName}</p>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>{selectedModuleName}</p>
               <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                 {selectedModule === "scope" ? (
                   <>
@@ -251,7 +251,7 @@ export function UserOverrideEditor({ userId, callerId }: UserOverrideEditorProps
         <button
           onClick={() => void handleSave()}
           disabled={saving || !dirty}
-          style={{ padding: "9px 18px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: saving || !dirty ? 0.5 : 1 }}
+          style={{ padding: "9px 18px", border: "1px solid var(--green)", borderRadius: "10px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 700, fontSize: "13px", cursor: "pointer", opacity: saving || !dirty ? 0.5 : 1 }}
         >
           {saving ? "Saving…" : dirty ? `Save (${pendingCount})` : "Saved"}
         </button>
@@ -267,7 +267,7 @@ function PermissionRow({ action, state, isPending, onToggle, onDeny }: { action:
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: "10px", background: isPending ? "rgba(245,158,11,0.04)" : "rgba(3,72,82,0.02)", border: isPending ? "1px solid rgba(245,158,11,0.2)" : "1px solid transparent" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852", textTransform: "capitalize" }}>{action}</span>
-        {isPending && <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#92400e", background: "rgba(245,158,11,0.15)", padding: "2px 6px", borderRadius: "4px" }}>Unsaved</span>}
+        {isPending && <span style={{ fontSize: "12px", fontWeight: 600, color: "#92400e", background: "rgba(245,158,11,0.15)", padding: "2px 6px", borderRadius: "4px" }}>Unsaved</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         <button type="button" onClick={onDeny} title={isDeny ? "Click to clear deny override" : "Click to explicitly deny"} style={{ padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, cursor: "pointer", borderWidth: "1px", borderStyle: "solid", background: isDeny ? "rgba(229,62,62,0.12)" : "transparent", borderColor: isDeny ? "rgba(229,62,62,0.4)" : "rgba(3,72,82,0.15)", color: isDeny ? "#c53030" : "rgba(3,72,82,0.35)" }}>

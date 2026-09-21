@@ -542,20 +542,18 @@ function hoverOut(e: React.MouseEvent<HTMLButtonElement>) {
 
 const glassCard: React.CSSProperties = {
   background: "#ffffff",
-  border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
+  border: "1px solid rgba(255,255,255,0.3)", borderRadius: "12px", padding: "32px",
   boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379",
+  fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)",
 };
 
 const primaryButton: React.CSSProperties = {
-  padding: "10px 20px", border: "none", borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff",
-  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer",
-  boxShadow: "0 8px 16px rgba(10,190,98,0.2)", transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
+  padding: "10px 20px", border: "1px solid var(--green)", borderRadius: "10px",
+  background: "var(--green)", color: "var(--dark-teal)",
+  fontWeight: 700, fontSize: "13px", cursor: "pointer", transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
 };
 
 const closeBtnStyle: React.CSSProperties = {
@@ -564,8 +562,7 @@ const closeBtnStyle: React.CSSProperties = {
 };
 
 const formLabelStyle: React.CSSProperties = {
-  display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-  letterSpacing: "0.05em", color: "rgba(3,72,82,0.7)", marginBottom: "6px",
+  display: "block", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.7)", marginBottom: "6px",
 };
 
 const inputStyle: React.CSSProperties = {
