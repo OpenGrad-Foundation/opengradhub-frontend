@@ -26,7 +26,7 @@ export function SchoolBatchList({
 }) {
   if (batches.length === 0) {
     return (
-      <p style={{ margin: 0, fontSize: "14px", color: "rgba(3,72,82,0.5)" }}>
+      <p style={{ margin: 0, fontSize: "14px", color: "var(--color-text-muted)" }}>
         No batches at this school yet.
       </p>
     );
@@ -37,13 +37,13 @@ export function SchoolBatchList({
       {batches.map((b) => {
         const contents = <>
           <span style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-            <span style={{ ...titleStyle, fontSize: "16px" }}>{b.name}</span>
+            <span style={{ ...titleStyle, fontSize: "16px", fontWeight: 600 }}>{b.name}</span>
             {b.programme_type && <span style={chipStyle}>{b.programme_type}</span>}
-            {showStudentCounts && <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+            {showStudentCounts && <span style={{ fontSize: "13px", color: "var(--color-text-muted)" }}>
               {b.students.length} student{b.students.length === 1 ? "" : "s"}
             </span>}
           </span>
-          {canOpen && <span aria-hidden="true" style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>
+          {canOpen && <span aria-hidden="true" style={{ fontSize: "13px", fontWeight: 600, color: "#08784a" }}>
             View batch →
           </span>}
         </>;
@@ -62,9 +62,9 @@ const rowStyle: React.CSSProperties = {
   gap: "12px",
   flexWrap: "wrap",
   padding: "14px 18px",
-  borderRadius: "14px",
-  border: "1px solid rgba(3,72,82,0.08)",
-  background: "#fff",
+  borderRadius: "12px",
+  border: "1px solid var(--color-border)",
+  background: "var(--color-surface)",
   textDecoration: "none",
   color: "inherit",
 };
@@ -72,9 +72,9 @@ const rowStyle: React.CSSProperties = {
 const chipStyle: React.CSSProperties = {
   display: "inline-block",
   padding: "4px 10px",
-  borderRadius: "999px",
+  borderRadius: "6px",
   background: "rgba(3,72,82,0.06)",
   fontSize: "12px",
   fontWeight: 600,
-  color: "#034852",
+  color: "var(--color-text)",
 };

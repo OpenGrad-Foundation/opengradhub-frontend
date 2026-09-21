@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { Plus, Search, Upload } from "lucide-react";
 import { fetchSchools, type SchoolOption } from "@/lib/api";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -62,12 +63,12 @@ export default function SchoolsPage() {
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {canCreate && (
             <button onClick={() => { setShowAdd(true); setShowBulk(false); }} style={primaryButton}>
-              + Add School
+              <Plus size={18} aria-hidden="true" />Add School
             </button>
           )}
           {canBulk && (
             <button onClick={() => { setShowBulk(true); setShowAdd(false); }} style={secondaryButton}>
-              ↥ Bulk Upload
+              <Upload size={18} aria-hidden="true" />Bulk Upload
             </button>
           )}
         </div>
@@ -96,9 +97,9 @@ export default function SchoolsPage() {
       )}
 
       {loading ? (
-        <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading schools…</p>
+        <p style={{ color: "var(--color-text-muted)" }}>Loading schools…</p>
       ) : error ? (
-        <p style={{ color: "#c53030", fontWeight: 600 }}>{error}</p>
+        <p style={{ color: "#b83232", fontWeight: 600 }}>{error}</p>
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
@@ -111,7 +112,7 @@ export default function SchoolsPage() {
                 aria-label="Search schools"
                 style={{ ...inputStyle, paddingLeft: "36px" }}
               />
-              <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
+              <Search size={16} aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)", pointerEvents: "none" }} />
             </div>
             <div style={{ flex: "1 1 320px", maxWidth: "420px" }}>
               <StateDistrictPicker
@@ -123,17 +124,17 @@ export default function SchoolsPage() {
                 inputStyle={inputStyle}
               />
             </div>
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+            <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
               {q || filterState || filterDistrict
                 ? `${visibleSchools.length} of ${schools.length}`
                 : `${schools.length} school${schools.length === 1 ? "" : "s"}`}
             </span>
           </div>
 
-          <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
+          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
               <thead>
-                <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
+                <tr style={{ textAlign: "left" }}>
                   <th style={thStyle}>Name</th>
                   <th style={thStyle}>{ZONE}</th>
                   <th style={thStyle}>State</th>
@@ -145,11 +146,11 @@ export default function SchoolsPage() {
               </thead>
               <tbody>
                 {schools.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools yet.</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "var(--color-text-muted)" }}>No schools yet.</td></tr>
                 ) : visibleSchools.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No schools match &ldquo;{query}&rdquo;.</td></tr>
+                  <tr><td colSpan={canEdit ? 7 : 6} style={{ padding: "20px", color: "var(--color-text-muted)" }}>No schools match &ldquo;{query}&rdquo;.</td></tr>
                 ) : visibleSchools.map((s) => (
-                  <tr key={s.id} onClick={() => router.push(withFrom(`/dashboard/schools/${s.id}`, currentUrl))} style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}>
+                  <tr key={s.id} onClick={() => router.push(withFrom(`/dashboard/schools/${s.id}`, currentUrl))} style={{ borderTop: "1px solid var(--color-border)", cursor: "pointer" }}>
                     <td style={tdStyle}>{s.name}</td>
                     <td style={tdStyle}>{s.district ?? "—"}</td>
                     <td style={tdStyle}>{s.state ?? "—"}</td>

@@ -1,5 +1,6 @@
 import type { StudentDirectoryFilters, StudentFacets } from "@/lib/api";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
+import { Search } from "lucide-react";
 import { inputStyle } from "@/app/dashboard/schools/styles";
 
 export type DirectoryFilterValue = Pick<
@@ -29,7 +30,7 @@ export function Filters({ facets, value, onChange }: FiltersProps) {
           aria-label="Search students"
           style={{ ...inputStyle, paddingLeft: "36px" }}
         />
-        <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
+        <Search size={16} aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "var(--color-text-muted)", pointerEvents: "none" }} />
       </div>
 
       <select

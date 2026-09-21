@@ -122,17 +122,17 @@ export default function StudentsPage() {
       <Filters facets={facets} value={filters} onChange={updateFilters} />
 
       {isPending ? (
-        <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading students…</p>
+        <p style={{ color: "var(--color-text-muted)" }}>Loading students…</p>
       ) : error ? (
-        <p style={{ color: "#c53030", fontWeight: 600 }}>
+        <p style={{ color: "#b83232", fontWeight: 600 }}>
           {error instanceof Error ? error.message : "Failed to load students."}
         </p>
       ) : (
         <>
-          <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
+          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
               <thead>
-                <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
+                <tr style={{ textAlign: "left" }}>
                   <th style={thStyle}>Name</th>
                   <th style={thStyle}>Roll No</th>
                   <th style={thStyle}>School</th>
@@ -145,18 +145,18 @@ export default function StudentsPage() {
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={columnCount} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
+                    <td colSpan={columnCount} style={{ padding: "20px", color: "var(--color-text-muted)" }}>
                       No students in your scope.
                     </td>
                   </tr>
                 ) : rows.map((row) => (
-                  <tr key={row.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+                  <tr key={row.user_id} style={{ borderTop: "1px solid var(--color-border)" }}>
                     <td style={{ ...tdStyle, fontWeight: 600 }}>
                       <EntityLink
                         permissions={STUDENT_PROFILE_PERMISSIONS}
                         requiredPermissions={[PERM.students.view]}
                         href={`/dashboard/students/${row.user_id}`}
-                        style={{ color: "#0abe62", textDecoration: "none" }}
+                        style={{ color: "var(--color-text)", textDecoration: "none" }}
                       >
                         {row.name}
                       </EntityLink>
@@ -174,7 +174,7 @@ export default function StudentsPage() {
           </div>
 
           <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+            <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
               Showing {firstShown}-{lastShown} of {total}
             </span>
             <div style={{ display: "flex", gap: "8px" }}>

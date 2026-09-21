@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { ArrowLeft, Plus } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { IN_CHARGE, ROLE_LABELS } from "@/lib/labels";
 import {
@@ -23,7 +24,7 @@ import { AttachBatchPanel } from "./AttachBatchPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { SchoolBatchList } from "./SchoolBatchList";
 import {
-  labelStyle, titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle, inputStyle,
+  titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle, inputStyle, backButton, cardStyle as baseCard,
 } from "../styles";
 
 /** Section tabs. Batches/Students/Attendance used to stack, which buried
@@ -40,11 +41,11 @@ function tabStyle(active: boolean): React.CSSProperties {
     padding: "10px 18px",
     border: "none",
     borderRadius: "10px",
-    background: active ? "rgba(10,190,98,0.12)" : "transparent",
-    color: active ? "#046b45" : "rgba(3,72,82,0.65)",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 700,
-    fontSize: "13px",
+    minHeight: "44px",
+    background: active ? "var(--color-success-surface)" : "transparent",
+    color: active ? "var(--dark-teal)" : "var(--color-text-muted)",
+    fontWeight: 600,
+    fontSize: "14px",
     cursor: "pointer",
     whiteSpace: "nowrap",
   };
@@ -125,17 +126,17 @@ export default function SchoolDetailPage() {
   }
 
   if (!canViewStudents) return <div>
-    <BackLink fallback="/dashboard/schools" style={backLinkStyle} />
-    <p style={{ color: "rgba(3,72,82,0.6)", marginTop: 16 }}>Viewing school details requires permission to view students.</p>
+    <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
+    <p style={{ color: "var(--color-text-muted)", marginTop: 16 }}>Viewing school details requires permission to view students.</p>
   </div>;
 
-  if (loading) return <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading school…</p>;
+  if (loading) return <p style={{ color: "var(--color-text-muted)" }}>Loading school…</p>;
 
   if (error || !detail) {
     return (
       <div>
-        <BackLink fallback="/dashboard/schools" style={backLinkStyle} />
-        <p style={{ color: "#c53030", fontWeight: 600, marginTop: "16px" }}>
+        <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
+        <p style={{ color: "#b83232", fontWeight: 600, marginTop: "16px" }}>
           {error ?? "School not found."}
         </p>
       </div>
@@ -164,13 +165,12 @@ export default function SchoolDetailPage() {
 
   return (
     <div>
-      <BackLink fallback="/dashboard/schools" style={backLinkStyle} />
+      <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
 
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" style={{ margin: "12px 0 24px" }}>
         <div>
-          <p style={labelStyle}>School</p>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 8px" }}>{school.name}</h1>
+          <h1 style={{ ...titleStyle, fontSize: "28px", margin: "0 0 8px" }}>{school.name}</h1>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {school.code && <span style={chipStyle}>{school.code}</span>}
             {school.state && <span style={chipStyle}>{school.state}</span>}
@@ -199,11 +199,11 @@ export default function SchoolDetailPage() {
             <>
               <p style={cardValueStyle}>{school.fellow_name}</p>
               {canViewStaffContacts && school.fellow_email && (
-                <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>{school.fellow_email}</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>{school.fellow_email}</p>
               )}
             </>
           ) : (
-            <p style={{ ...cardValueStyle, color: "rgba(3,72,82,0.45)" }}>Unassigned</p>
+            <p style={{ ...cardValueStyle, color: "var(--color-text-muted)" }}>Unassigned</p>
           )}
         </div>
         <div style={cardStyle}>
@@ -212,11 +212,11 @@ export default function SchoolDetailPage() {
             <>
               <p style={cardValueStyle}>{school.zm_name}</p>
               {canViewStaffContacts && school.zm_email && (
-                <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>{school.zm_email}</p>
+                <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>{school.zm_email}</p>
               )}
             </>
           ) : (
-            <p style={{ ...cardValueStyle, color: "rgba(3,72,82,0.45)" }}>—</p>
+            <p style={{ ...cardValueStyle, color: "var(--color-text-muted)" }}>—</p>
           )}
         </div>
         <div style={cardStyle}>
@@ -234,7 +234,7 @@ export default function SchoolDetailPage() {
           <div style={cardStyle}>
             <p style={cardLabelStyle}>Avg Completion</p>
             <p style={cardValueStyle}>{analytics.avg_completion}%</p>
-            <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+            <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
               {analytics.at_risk_count} at-risk student{analytics.at_risk_count === 1 ? "" : "s"}
             </p>
           </div>
@@ -248,13 +248,13 @@ export default function SchoolDetailPage() {
           <div style={{ display: "grid", gap: "8px" }}>
             {analytics.section_scores.slice(0, 8).map((row) => (
               <div key={row.section} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ flex: "0 0 220px", fontSize: "13px", color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ flex: "0 0 220px", fontSize: "13px", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {row.section}
                 </span>
                 <div style={{ flex: 1, height: "8px", borderRadius: "4px", background: "rgba(3,72,82,0.08)" }}>
-                  <div style={{ width: `${Math.min(100, Math.max(0, row.avg_score))}%`, height: "100%", borderRadius: "4px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" }} />
+                  <div style={{ width: `${Math.min(100, Math.max(0, row.avg_score))}%`, height: "100%", borderRadius: "4px", background: "var(--green)" }} />
                 </div>
-                <span style={{ flex: "0 0 48px", fontSize: "13px", fontWeight: 700, color: "#034852", textAlign: "right" }}>
+                <span style={{ flex: "0 0 48px", fontSize: "13px", fontWeight: 700, color: "var(--color-text)", textAlign: "right" }}>
                   {row.avg_score}%
                 </span>
               </div>
@@ -267,7 +267,7 @@ export default function SchoolDetailPage() {
       <div
         role="tablist"
         aria-label="School sections"
-        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8, marginBottom: 20 }}
+        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid var(--color-border)", paddingBottom: 8, marginBottom: 20 }}
       >
         {TABS.filter((t) => t.key !== "attendance" || canViewAttendance).map((t) => (
           <button
@@ -289,7 +289,7 @@ export default function SchoolDetailPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>Batches</h2>
           {canAttachBatch && (
-            <button onClick={() => setShowAddBatch(true)} style={secondaryButton}>+ Add Batch</button>
+            <button onClick={() => setShowAddBatch(true)} style={secondaryButton}><Plus size={18} aria-hidden="true" />Add Batch</button>
           )}
         </div>
 
@@ -318,16 +318,16 @@ export default function SchoolDetailPage() {
               onChange={(e) => setStudentQuery(e.target.value)}
               placeholder={canViewStudentContacts ? "Search name, roll number, email…" : "Search name or roll number…"}
               aria-label="Search students"
-              style={{ ...inputStyle, maxWidth: "320px", padding: "8px 14px" }}
+              style={{ ...inputStyle, maxWidth: "320px" }}
             />
             {canEditRoster && (
-              <button onClick={() => setShowAdd(true)} style={{ ...primaryButton, whiteSpace: "nowrap" }}>+ Add Students</button>
+              <button onClick={() => setShowAdd(true)} style={primaryButton}><Plus size={18} aria-hidden="true" />Add Students</button>
             )}
           </div>
         </div>
 
         {rosterError && (
-          <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
+          <p style={{ color: "#b83232", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
         )}
 
         <RosterTable
@@ -385,10 +385,10 @@ function RosterTable({
   onCancelRemove: () => void;
 }) {
   return (
-    <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
+    <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
         <thead>
-          <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
+          <tr style={{ textAlign: "left" }}>
             <th style={thStyle}>Name</th>
             <th style={thStyle}>Roll Number</th>
             {canViewStudentContacts && <th style={thStyle}>Email</th>}
@@ -399,12 +399,12 @@ function RosterTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={3 + Number(canEditRoster) + Number(canViewStudentContacts)} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
+              <td colSpan={3 + Number(canEditRoster) + Number(canViewStudentContacts)} style={{ padding: "20px", color: "var(--color-text-muted)" }}>
                 {emptyMessage}
               </td>
             </tr>
           ) : rows.map((st) => (
-            <tr key={st.id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+            <tr key={st.id} style={{ borderTop: "1px solid var(--color-border)" }}>
               <td style={tdStyle}><EntityLink href={`/dashboard/students/${st.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{st.name}</EntityLink></td>
               <td style={tdStyle}>{st.roll_number ?? "—"}</td>
               {canViewStudentContacts && <td style={tdStyle}>{st.email ?? "—"}</td>}
@@ -412,16 +412,16 @@ function RosterTable({
               {canEditRoster && (
                 <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
                   {!schoolStudentIds.has(st.id) ? (
-                    <span style={{ color: "rgba(3,72,82,0.35)" }}>—</span>
+                    <span style={{ color: "var(--color-text-muted)" }}>—</span>
                   ) : confirmRemoveId === st.id ? (
                     <>
-                      <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.7)", marginRight: "8px" }}>
+                      <span style={{ fontSize: "12px", color: "var(--color-text-muted)", marginRight: "8px" }}>
                         Remove from school?
                       </span>
                       <button
                         onClick={() => onRemove(st.id)}
                         disabled={removingId === st.id}
-                        style={{ ...linkBtnStyle, color: "#c53030", opacity: removingId === st.id ? 0.5 : 1 }}
+                        style={{ ...linkBtnStyle, color: "#b83232", opacity: removingId === st.id ? 0.5 : 1 }}
                       >
                         {removingId === st.id ? "Removing…" : "Yes"}
                       </button>
@@ -430,7 +430,7 @@ function RosterTable({
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => onConfirmRemove(st.id)} style={{ ...linkBtnStyle, color: "#c53030" }}>
+                    <button onClick={() => onConfirmRemove(st.id)} style={{ ...linkBtnStyle, color: "#b83232" }}>
                       Remove
                     </button>
                   )}
@@ -444,8 +444,9 @@ function RosterTable({
   );
 }
 
-const backLinkStyle: React.CSSProperties = { fontSize: "13px", fontWeight: 700, color: "#0abe62", textDecoration: "none" };
-const chipStyle: React.CSSProperties = { display: "inline-block", padding: "4px 10px", borderRadius: "999px", background: "rgba(3,72,82,0.06)", fontSize: "12px", fontWeight: 600, color: "#034852" };
-const cardStyle: React.CSSProperties = { padding: "20px", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" };
-const cardLabelStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };
-const cardValueStyle: React.CSSProperties = { margin: "0 0 6px", fontFamily: "var(--font-heading)", fontSize: "24px", fontWeight: 700, color: "#034852" };
+const backLinkStyle: React.CSSProperties = backButton;
+const backLabel = <><ArrowLeft size={16} aria-hidden="true" />Back</>;
+const chipStyle: React.CSSProperties = { display: "inline-block", padding: "4px 10px", borderRadius: "6px", background: "rgba(3,72,82,0.06)", fontSize: "12px", fontWeight: 600, color: "var(--color-text)" };
+const cardStyle: React.CSSProperties = baseCard;
+const cardLabelStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" };
+const cardValueStyle: React.CSSProperties = { margin: "0 0 6px", fontSize: "24px", fontWeight: 700, color: "var(--color-text)" };

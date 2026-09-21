@@ -11,39 +11,38 @@ import { displayCellValue } from "@/lib/tracker-value";
 import { TASK_STATE_META, taskStateFromLifecycle, type StateTone } from "@/lib/tracker-status";
 import type { TrackerStudentTask } from "@/lib/tracker-api";
 
-const BRAND = { dark: "#034852", teal: "#006d6c", mid: "#209379", red: "#c53030" };
+const BRAND = { dark: "var(--color-text)", teal: "#006d6c", mid: "#08784a", red: "#b83232" };
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-  padding: "24px 28px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const sectionLabel: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, color: BRAND.mid,
-  letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px",
+  fontSize: "15px", fontWeight: 600, color: BRAND.dark,
+  margin: "0 0 12px",
 };
 
 const th: React.CSSProperties = {
-  padding: "10px 14px", fontSize: "11px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.22em",
-  color: "rgba(3,72,82,0.55)", textAlign: "left",
-  borderBottom: "1px solid rgba(3,72,82,0.08)", whiteSpace: "nowrap",
+  padding: "10px 14px", fontSize: "12px", fontWeight: 500, background: "#eef5f3",
+  color: "var(--color-text-muted)", textAlign: "left",
+  borderBottom: "1px solid var(--color-border)", whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
   padding: "12px 14px", fontSize: "13px", color: BRAND.dark,
-  borderBottom: "1px solid rgba(3,72,82,0.05)", verticalAlign: "top",
+  borderBottom: "1px solid var(--color-border)", verticalAlign: "top",
 };
 
-const muted: React.CSSProperties = { color: "rgba(3,72,82,0.45)", fontSize: "13px" };
+const muted: React.CSSProperties = { color: "var(--color-text-muted)", fontSize: "13px" };
 
 const TONE: Record<StateTone, { bg: string; fg: string }> = {
   green: { bg: "rgba(32,147,121,0.12)", fg: BRAND.mid },
-  gray: { bg: "rgba(3,72,82,0.08)", fg: "rgba(3,72,82,0.65)" },
+  gray: { bg: "rgba(3,72,82,0.08)", fg: "var(--color-text-muted)" },
   amber: { bg: "rgba(214,158,46,0.14)", fg: "#8a6116" },
-  red: { bg: "rgba(197,48,48,0.10)", fg: BRAND.red },
+  red: { bg: "rgba(184,50,50,0.10)", fg: BRAND.red },
 };
 
 /**
@@ -102,14 +101,13 @@ function TrackerDetailsCard({ studentId }: { studentId: string }) {
       }}>
         {filled.map((d) => (
           <div key={d.field.id}>
-            <dt style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em",
-                         textTransform: "uppercase", color: "rgba(3,72,82,0.5)" }}>
+            <dt style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>
               {d.field.label}
             </dt>
             <dd style={{ margin: "4px 0 0", fontSize: "14px", color: BRAND.dark, fontWeight: 600 }}>
               {displayCellValue(d.value)}
             </dd>
-            <dd style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.4)" }}>
+            <dd style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
               Updated {formatDate(d.updated_at)}
             </dd>
           </div>
@@ -199,15 +197,14 @@ function TaskRow({ task, studentId, currentUrl }: {
           )}
         </td>
         <td style={td}>
-          <span style={{ background: tone.bg, color: tone.fg, fontSize: "11px", fontWeight: 700,
-                         letterSpacing: "0.1em", textTransform: "uppercase",
-                         padding: "4px 10px", borderRadius: "999px", whiteSpace: "nowrap" }}>
+          <span style={{ background: tone.bg, color: tone.fg, fontSize: "12px", fontWeight: 600,
+                        padding: "4px 10px", borderRadius: "6px", whiteSpace: "nowrap" }}>
             {meta.label}
           </span>
           <WorkflowStep task={task} />
         </td>
         <td style={td}>{task.deadline ? formatDate(task.deadline) : "—"}</td>
-        <td style={{ ...td, color: "rgba(3,72,82,0.55)" }}>
+        <td style={{ ...td, color: "var(--color-text-muted)" }}>
           {/* Null while the row is untouched — the server refuses to attribute a
               spawned recurring row to whoever filled the previous period. */}
           {task.updated_at ? formatDate(task.updated_at) : "Not started"}
@@ -264,8 +261,7 @@ function TaskDetail({ task, studentId }: { task: TrackerStudentTask; studentId: 
         }}>
           {task.cells.map((c) => (
             <div key={c.field_key}>
-              <dt style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.12em",
-                           textTransform: "uppercase", color: "rgba(3,72,82,0.5)" }}>
+              <dt style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>
                 {c.label}
               </dt>
               <dd style={{ margin: "2px 0 0", fontSize: "13px", color: BRAND.dark }}>

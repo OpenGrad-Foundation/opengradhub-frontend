@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { EntityLink } from "../../programmes/_components/entity-link";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
@@ -12,35 +13,41 @@ import { useTopicStrength } from "@/lib/queries/analytics";
 import { useReportHistory } from "@/lib/queries/reports";
 import type { StudentProfile } from "@/lib/api";
 
-const BRAND = { dark: "#034852", teal: "#006d6c", mid: "#209379", red: "#c53030" };
+const BRAND = { dark: "var(--color-text)", teal: "#006d6c", mid: "var(--color-text-muted)", red: "#b83232" };
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-  padding: "24px 28px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const sectionLabel: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, color: BRAND.mid,
-  letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px",
+  fontSize: "15px", fontWeight: 600, color: BRAND.dark,
+  margin: "0 0 12px",
+};
+
+const kpiLabel: React.CSSProperties = {
+  fontSize: "13px", fontWeight: 500, color: BRAND.mid, margin: "0 0 6px",
 };
 
 const th: React.CSSProperties = {
-  padding: "10px 14px", fontSize: "11px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.22em",
-  color: "rgba(3,72,82,0.55)", textAlign: "left",
-  borderBottom: "1px solid rgba(3,72,82,0.08)", whiteSpace: "nowrap",
+  padding: "10px 14px", fontSize: "12px", fontWeight: 500, background: "#eef5f3",
+  color: "var(--color-text-muted)", textAlign: "left",
+  borderBottom: "1px solid var(--color-border)", whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
   padding: "12px 14px", fontSize: "13px", color: BRAND.dark,
-  borderBottom: "1px solid rgba(3,72,82,0.05)",
+  borderBottom: "1px solid var(--color-border)",
 };
 
 const backLinkStyle: React.CSSProperties = {
-  fontSize: "13px", fontWeight: 700, color: "#0abe62", textDecoration: "none",
+  display: "inline-flex", alignItems: "center", gap: "8px", alignSelf: "flex-start", minHeight: "44px", padding: "8px 16px",
+  borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)",
+  color: "var(--color-text)", fontSize: "14px", fontWeight: 600, textDecoration: "none",
 };
+const backLink = <BackLink fallback="/dashboard/analytics" style={backLinkStyle}><ArrowLeft size={16} aria-hidden="true" />Back</BackLink>;
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -60,7 +67,7 @@ export default function StudentProfilePage() {
   if (error) {
     return (
       <div>
-        <BackLink fallback="/dashboard/analytics" style={backLinkStyle} />
+        {backLink}
         <p style={{ color: BRAND.red, fontWeight: 600, marginTop: "16px" }}>
           {error instanceof Error ? error.message : "Failed to load student profile."}
         </p>
@@ -71,8 +78,8 @@ export default function StudentProfilePage() {
   if (isPending || !data) {
     return (
       <div>
-        <BackLink fallback="/dashboard/analytics" style={backLinkStyle} />
-        <p style={{ color: "rgba(3,72,82,0.6)", marginTop: "16px" }}>Loading student…</p>
+        {backLink}
+        <p style={{ color: "var(--color-text-muted)", marginTop: "16px" }}>Loading student…</p>
       </div>
     );
   }
@@ -81,7 +88,7 @@ export default function StudentProfilePage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <BackLink fallback="/dashboard/analytics" style={backLinkStyle} />
+      {backLink}
 
       <Header student={student} atRisk={kpis.at_risk} canViewContact={has(PERM.students.view_contact)} />
 
@@ -96,7 +103,7 @@ export default function StudentProfilePage() {
       <div style={card}>
         <p style={sectionLabel}>Enrolled courses</p>
         {courses.length === 0 ? (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>No course enrolments.</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>No course enrolments.</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -121,7 +128,7 @@ export default function StudentProfilePage() {
                     </td>
                     <td style={{ ...td, textAlign: "right" }}>{c.lessons_done} / {c.lessons_total}</td>
                     <td style={{ ...td, textAlign: "right" }}>{c.completion_pct}%</td>
-                    <td style={{ ...td, textAlign: "right", color: "rgba(3,72,82,0.55)" }}>
+                    <td style={{ ...td, textAlign: "right", color: "var(--color-text-muted)" }}>
                       {c.avg_score == null ? "—" : `${c.avg_score}%`}
                     </td>
                   </tr>
@@ -167,7 +174,7 @@ export default function StudentProfilePage() {
         {history && history.rows.length > 0 ? (
           <PerformanceHistoryTable rows={history.rows} />
         ) : (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>No completed attempts yet.</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>No completed attempts yet.</p>
         )}
       </div>
     </div>
@@ -187,20 +194,19 @@ function Header({
   return (
     <div style={card}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "24px", fontWeight: 700,
+        <h1 style={{ fontSize: "24px", fontWeight: 700,
                      color: BRAND.dark, margin: 0 }}>
           {student.name}
         </h1>
         {atRisk && (
-          <span style={{ background: "rgba(197,48,48,0.1)", color: BRAND.red, fontSize: "11px",
-                         fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase",
-                         padding: "4px 10px", borderRadius: "999px" }}>
+          <span style={{ background: "rgba(184,50,50,0.1)", color: BRAND.red, fontSize: "12px",
+                         fontWeight: 600, padding: "4px 10px", borderRadius: "6px" }}>
             At risk
           </span>
         )}
       </div>
 
-      <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "8px 0 0" }}>
+      <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "8px 0 0" }}>
         {student.school_id ? (
           <EntityLink
             href={`/dashboard/schools/${student.school_id}`} permissions={[PERM.schools.view]}
@@ -216,7 +222,7 @@ function Header({
       </p>
 
       {student.batches.length > 0 && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>
+        <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "6px 0 0" }}>
           Batches:{" "}
           {student.batches.map((b, i) => (
             <span key={b.id}>
@@ -238,8 +244,8 @@ function Header({
 function Kpi({ label, value }: { label: string; value: string }) {
   return (
     <div style={card}>
-      <p style={sectionLabel}>{label}</p>
-      <p style={{ fontFamily: "var(--font-heading)", fontSize: "26px", fontWeight: 700,
+      <p style={kpiLabel}>{label}</p>
+      <p style={{ fontSize: "26px", fontWeight: 700,
                   color: BRAND.dark, margin: 0 }}>
         {value}
       </p>

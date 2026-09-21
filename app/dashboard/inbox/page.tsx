@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Inbox, Plus, Undo2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
@@ -103,7 +104,7 @@ export default function InboxPage() {
           <div style={{ display: "flex", gap: "12px" }}>
             {hasUnread && (
               <button style={S.textButton} onClick={() => void handleMarkAllRead()}>
-                ✓ Mark all read
+                <Check size={16} aria-hidden="true" />Mark all read
               </button>
             )}
             {hasReadNotifications && (
@@ -112,17 +113,17 @@ export default function InboxPage() {
                 onClick={() => clearRead.mutate()}
                 title="Dismiss all read notifications"
               >
-                ✕ Clear read
+                <X size={16} aria-hidden="true" />Clear read
               </button>
             )}
             {hasAnything && (
               <button
-                style={{ ...S.textButton, color: "#e53e3e" }}
+                style={{ ...S.textButton, color: "#b83232" }}
                 onClick={() => void handleClearAll()}
                 disabled={clearAll.isPending}
                 title="Dismiss every notification, read or unread"
               >
-                {clearAll.isPending ? "Clearing…" : "✕ Clear all"}
+                {clearAll.isPending ? "Clearing…" : <><X size={16} aria-hidden="true" />Clear all</>}
               </button>
             )}
           </div>
@@ -130,16 +131,8 @@ export default function InboxPage() {
           <button
             style={S.primaryButton}
             onClick={() => setComposeOpen(true)}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform  = "translateY(-2px)";
-              e.currentTarget.style.boxShadow  = "0 12px 20px rgba(10,190,98,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform  = "translateY(0)";
-              e.currentTarget.style.boxShadow  = "0 8px 16px rgba(10,190,98,0.2)";
-            }}
           >
-            + Compose
+            <Plus size={18} aria-hidden="true" />Compose
           </button>
         )}
       </div>
@@ -156,16 +149,17 @@ export default function InboxPage() {
                 setVisibleCount(PAGE_SIZE);
               }}
               style={{
-                padding: "8px 18px",
+                minHeight: "44px",
+                padding: "8px 16px",
                 border: "1px solid",
-                borderRadius: "100px",
+                borderRadius: "12px",
                 fontSize: "13px",
                 fontWeight: 600,
                 cursor: "pointer",
                 transition: "all 150ms ease",
-                borderColor: active ? "rgba(10,190,98,0.3)" : "rgba(3,72,82,0.15)",
-                background:  active ? "rgba(10,190,98,0.12)" : "rgba(255,255,255,0.7)",
-                color:       active ? "#0a944e" : "#034852",
+                borderColor: active ? "var(--color-border-strong)" : "var(--color-border)",
+                background:  active ? "var(--color-success-surface)" : "var(--color-surface)",
+                color:       active ? "var(--dark-teal)" : "var(--color-text)",
               }}
             >
               {label}
@@ -179,7 +173,7 @@ export default function InboxPage() {
         <LoadingState message="Fetching messages…" />
       ) : filtered.length === 0 ? (
         <div style={{ ...S.glassCard, textAlign: "center", padding: "48px 32px" }}>
-          <p style={{ fontSize: "32px", marginBottom: "8px" }}>📬</p>
+          <Inbox size={32} aria-hidden="true" style={{ color: "var(--color-text-muted)", marginBottom: "8px" }} />
           <p style={{ ...S.heading, fontSize: "18px", margin: 0 }}>
             {filter === "all" ? "All caught up" : `No ${filter}`}
           </p>
@@ -211,7 +205,7 @@ export default function InboxPage() {
                   display: "flex",
                   gap: "14px",
                   padding: "16px 24px",
-                  borderBottom: idx < visible.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none",
+                  borderBottom: idx < visible.length - 1 ? "1px solid var(--color-border)" : "none",
                   background: isUnread ? "rgba(10,190,98,0.03)" : "transparent",
                   cursor: isClickable ? "pointer" : "default",
                   transition: "background 150ms",
@@ -238,18 +232,16 @@ export default function InboxPage() {
                     marginTop: "2px",
                     padding: "3px 8px",
                     borderRadius: "6px",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    letterSpacing: "0.05em",
-                    textTransform: "uppercase",
+                    fontSize: "12px",
+                    fontWeight: 600,
                     flexShrink: 0,
                     background: isAnn
                       ? "rgba(32,147,121,0.12)"
                       : "rgba(3,72,82,0.08)",
-                    color: isAnn ? "#0a944e" : "#034852",
+                    color: isAnn ? "#08784a" : "var(--color-text)",
                     border: isAnn
                       ? "1px solid rgba(10,190,98,0.2)"
-                      : "1px solid rgba(3,72,82,0.12)",
+                      : "1px solid var(--color-border)",
                   }}
                 >
                   {isAnn ? "Announcement" : "Notification"}
@@ -263,13 +255,13 @@ export default function InboxPage() {
                         margin: 0,
                         fontSize: "14px",
                         fontWeight: isUnread ? 700 : 600,
-                        color: "#034852",
+                        color: "var(--color-text)",
                         lineHeight: 1.3,
                       }}
                     >
                       {item.title}
                     </p>
-                    <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.4)", flexShrink: 0, whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: "11px", color: "var(--color-text-muted)", flexShrink: 0, whiteSpace: "nowrap" }}>
                       {dateStr} {timeStr}
                     </span>
                   </div>
@@ -277,7 +269,7 @@ export default function InboxPage() {
                     style={{
                       margin: "4px 0 0",
                       fontSize: "13px",
-                      color: "rgba(3,72,82,0.65)",
+                      color: "var(--color-text-muted)",
                       lineHeight: 1.5,
                       overflow: "hidden",
                       display: "-webkit-box",
@@ -313,7 +305,7 @@ export default function InboxPage() {
                       }
                       style={S.iconButton}
                     >
-                      {item.is_read ? "↩" : "✓"}
+                      {item.is_read ? <Undo2 size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}
                     </button>
                     <button
                       title="Dismiss"
@@ -321,7 +313,7 @@ export default function InboxPage() {
                       onClick={() => archiveNotif.mutate(item.id)}
                       style={S.iconButton}
                     >
-                      ✕
+                      <X size={14} aria-hidden="true" />
                     </button>
                   </div>
                 )}
@@ -329,7 +321,7 @@ export default function InboxPage() {
             );
           })}
           {filtered.length > visibleCount && (
-            <div style={{ padding: "14px", textAlign: "center", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+            <div style={{ padding: "14px", textAlign: "center", borderTop: "1px solid var(--color-border)" }}>
               <button
                 style={S.textButton}
                 onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
@@ -355,8 +347,7 @@ function LoadingState({ message }: { message: string }) {
   return (
     <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ ...S.glassCard, textAlign: "center" }}>
-        <p style={S.label}>Loading</p>
-        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>
+        <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--color-text)" }}>
           {message}
         </p>
       </div>
@@ -367,58 +358,61 @@ function LoadingState({ message }: { message: string }) {
 // ── Shared styles ───────────────────────────────────────────────
 
 const S = {
-  label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
-  } as React.CSSProperties,
-
   heading: {
-    fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+    fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
 
   subtitle: {
-    fontSize: "14px", color: "rgba(3,72,82,0.6)",
+    fontSize: "14px", color: "var(--color-text-muted)",
   } as React.CSSProperties,
 
   glassCard: {
-    background: "#ffffff",
-    border: "1px solid rgba(3,72,82,0.08)",
-    borderRadius: "24px",
-    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+    background: "var(--color-surface)",
+    border: "1px solid var(--color-border)",
+    borderRadius: "12px",
+    padding: "clamp(16px,4vw,24px)",
   } as React.CSSProperties,
 
   primaryButton: {
-    padding: "10px 20px",
-    border: "none",
-    borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#ffffff",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 700,
-    fontSize: "13px",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    minHeight: "44px",
+    padding: "8px 16px",
+    border: "1px solid var(--green)",
+    borderRadius: "12px",
+    background: "var(--green)",
+    color: "var(--dark-teal)",
+    fontWeight: 600,
+    fontSize: "14px",
     cursor: "pointer",
-    boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
-    transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
     whiteSpace: "nowrap",
   } as React.CSSProperties,
 
   textButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+    minHeight: "44px",
     background: "none",
     border: "none",
     padding: 0,
-    fontSize: "12px",
-    fontWeight: 700,
-    color: "#209379",
+    fontSize: "13px",
+    fontWeight: 600,
+    color: "#08784a",
     cursor: "pointer",
   } as React.CSSProperties,
 
   iconButton: {
-    width: "26px",
-    height: "26px",
-    border: "1px solid rgba(3,72,82,0.12)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "32px",
+    height: "32px",
+    border: "1px solid var(--color-border)",
     borderRadius: "8px",
-    background: "rgba(255,255,255,0.8)",
-    color: "#034852",
+    background: "var(--color-surface)",
+    color: "var(--color-text)",
     fontSize: "12px",
     lineHeight: 1,
     cursor: "pointer",
