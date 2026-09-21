@@ -292,7 +292,7 @@ export default function QuizBuilderPage() {
   const totalQuestions = (quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length;
 
   const settingsPanel = (
-    <form onSubmit={(e) => void saveSettings(e)} style={{ display: "grid", gap: "16px", maxWidth: "52rem" }}>
+    <form onSubmit={(e) => void saveSettings(e)} style={{ display: "grid", gap: "16px" }}>
       <SettingsSection title="Basics" description="What students see before they start.">
         <Field label="Title">
           <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
