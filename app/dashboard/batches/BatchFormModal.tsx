@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { type Batch } from "@/lib/api";
 import { useBatchForm, primaryButton, secondaryButton } from "./BatchForm";
 
@@ -25,7 +26,7 @@ export function BatchFormModal({
     <>
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }}
+        style={{ position: "fixed", inset: 0, background: "rgb(3 20 30 / 35%)", zIndex: 40 }}
       />
       <div
         role="dialog"
@@ -33,29 +34,29 @@ export function BatchFormModal({
         aria-label={mode === "create" ? "Add Batch" : "Edit Batch"}
         style={{
           position: "fixed", top: 0, right: 0, bottom: 0, width: "min(520px, 100vw)",
-          background: "#ffffff", borderLeft: "1px solid rgba(3,72,82,0.1)",
-          boxShadow: "-24px 0 64px rgba(3,72,82,0.12)", zIndex: 41,
+          background: "var(--color-surface)", borderLeft: "1px solid var(--color-border)",
+          zIndex: 41,
           display: "flex", flexDirection: "column", overflow: "hidden",
           animation: "batchPanelIn 240ms cubic-bezier(0.16,1,0.3,1)",
         }}
       >
         <style>{`@keyframes batchPanelIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
 
-        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid var(--color-border)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
-            <p style={labelStyle}>{mode === "create" ? "Add Batch" : "Edit Batch"}</p>
+            <h2 style={{ ...titleStyle, margin: 0 }}>{mode === "create" ? "Add Batch" : "Edit Batch"}</h2>
             {mode === "edit" && batch && (
-              <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 2px" }}>{batch.name}</h2>
+              <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>{batch.name}</p>
             )}
           </div>
-          <button onClick={onClose} style={closeBtnStyle} aria-label="Close panel">✕</button>
+          <button onClick={onClose} style={closeBtnStyle} aria-label="Close panel"><X size={20} aria-hidden="true" /></button>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
           {fields}
         </div>
 
-        <div style={{ padding: "16px 28px 24px", borderTop: "1px solid rgba(3,72,82,0.08)", flexShrink: 0, display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+        <div style={{ padding: "16px 28px 24px", borderTop: "1px solid var(--color-border)", flexShrink: 0, display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={secondaryButton}>Cancel</button>
           <button onClick={() => void save()} disabled={saving} style={{ ...primaryButton, opacity: saving ? 0.5 : 1 }}>
             {saving ? "Saving…" : "Save"}
@@ -66,6 +67,5 @@ export function BatchFormModal({
   );
 }
 
-const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
-const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
-const closeBtnStyle: React.CSSProperties = { background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.5)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px" };
+const titleStyle: React.CSSProperties = { fontSize: "18px", fontWeight: 600, color: "var(--color-text)" };
+const closeBtnStyle: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "44px", minHeight: "44px", background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", borderRadius: "8px" };

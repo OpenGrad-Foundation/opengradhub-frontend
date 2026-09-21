@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, ExternalLink, FileText, Link2, Paperclip, Pencil, PlayCircle, Plus, Trash2, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
@@ -19,11 +20,11 @@ import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ── Type → colour mapping ──────────────────────────────────────
 
-const TYPE_STYLES: Record<string, { bg: string; color: string; icon: string }> = {
-  PDF:   { bg: "rgba(220,38,38,0.10)", color: "#dc2626", icon: "📄" },
-  VIDEO: { bg: "rgba(10,190,98,0.10)", color: "#0abe62", icon: "▶️" },
-  LINK:  { bg: "rgba(0,109,108,0.10)", color: "#006d6c", icon: "🔗" },
-  DOC:   { bg: "rgba(59,130,246,0.10)", color: "#3b82f6", icon: "📝" },
+const TYPE_STYLES: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
+  PDF:   { bg: "rgba(184,50,50,0.08)", color: "#b83232", icon: <FileText size={14} aria-hidden="true" /> },
+  VIDEO: { bg: "var(--color-success-surface)", color: "#08784a", icon: <PlayCircle size={14} aria-hidden="true" /> },
+  LINK:  { bg: "rgba(0,109,108,0.10)", color: "#006d6c", icon: <Link2 size={14} aria-hidden="true" /> },
+  DOC:   { bg: "rgba(59,130,246,0.10)", color: "#2563eb", icon: <FileText size={14} aria-hidden="true" /> },
 };
 
 // ── Page ───────────────────────────────────────────────────────
@@ -55,8 +56,8 @@ function ResourcesPageContent() {
 
   return (
     <div>
-      <BackLink fallback="/dashboard" />
-      {focus && <p style={{ marginBlock: 12 }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
+      <BackLink fallback="/dashboard" style={backLinkStyle}><ArrowLeft size={18} aria-hidden="true" />Back</BackLink>
+      {focus && <p style={{ marginBlock: 12, fontSize: 14, color: "var(--color-text-muted)" }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
       {/* ── Header ──────────────────────────────────────────── */}
       {canCreate && (
         <div
@@ -64,7 +65,7 @@ function ResourcesPageContent() {
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
-            marginBottom: "28px",
+            margin: "16px 0 24px",
           }}
         >
           <button
@@ -73,19 +74,11 @@ function ResourcesPageContent() {
               setShowForm((prev) => !prev);
               setEditing(null);
             }}
-            style={primaryButton}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.boxShadow =
-                "0 12px 20px rgba(10,190,98,0.3)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 16px rgba(10,190,98,0.2)";
-            }}
+            style={showForm ? secondaryButton : primaryButton}
           >
-            {showForm ? "✕ Cancel" : "+ Add Resource"}
+            {showForm
+              ? <><X size={18} aria-hidden="true" />Cancel</>
+              : <><Plus size={18} aria-hidden="true" />Add Resource</>}
           </button>
         </div>
       )}
@@ -116,13 +109,11 @@ function ResourcesPageContent() {
         <LoadingState />
       ) : error ? (
         <div style={glassCard}>
-          <p style={labelStyle}>Error</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>{error}</p>
+          <p role="alert" style={{ ...titleStyle, color: "#b83232", margin: 0 }}>{error}</p>
         </div>
       ) : resources.length === 0 ? (
         <div style={glassCard}>
-          <p style={labelStyle}>No Resources</p>
-          <p style={{ ...titleStyle, marginTop: "8px" }}>
+          <p style={{ ...titleStyle, margin: 0 }}>
             No study materials available yet.
           </p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
@@ -135,8 +126,8 @@ function ResourcesPageContent() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-            gap: "24px",
+            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
+            gap: "16px",
           }}
         >
           {resources.map((r) => (
@@ -164,7 +155,6 @@ function ResourceCard({
   resource: Resource;
   onEdit: (resource: Resource) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Two independent gates, ANDed — the same split the server applies. The
   // permission answers "may this role edit resources at all"; the per-row flag
@@ -175,33 +165,23 @@ function ResourceCard({
   const canDelete = usePermission(PERM.resources.delete) && resource.can_delete;
   const { mutate: doDelete, isPending: deleting } = useDeleteResource();
   const typeInfo = TYPE_STYLES[resource.type ?? ""] ?? {
-    bg: "rgba(3,72,82,0.08)",
-    color: "#034852",
-    icon: "📎",
+    bg: "#eef5f3",
+    color: "var(--color-text)",
+    icon: <Paperclip size={14} aria-hidden="true" />,
   };
 
   return (
     <div
       id={`resource-card-${resource.id}`}
       style={{
-        background: "#ffffff",
-        border: hovered
-          ? "1px solid rgba(10,190,98,0.4)"
-          : "1px solid rgba(255,255,255,0.4)",
-        borderRadius: "24px",
-        padding: "28px",
-        boxShadow: hovered
-          ? "0 16px 48px rgba(10,190,98,0.12)"
-          : "0 2px 8px rgba(0,0,0,0.05)",
-        cursor: "default",
-        transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "12px",
+        padding: "clamp(16px,4vw,24px)",
         display: "flex",
         flexDirection: "column" as const,
-        gap: "14px",
+        gap: "12px",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
       {/* Badges row */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" as const }}>
@@ -211,16 +191,15 @@ function ResourceCard({
             display: "inline-flex",
             alignItems: "center",
             gap: "4px",
-            padding: "4px 12px",
-            borderRadius: "100px",
-            fontSize: "11px",
-            fontWeight: 700,
-            letterSpacing: "0.06em",
+            padding: "3px 8px",
+            borderRadius: "6px",
+            fontSize: "12px",
+            fontWeight: 600,
             background: typeInfo.bg,
             color: typeInfo.color,
           }}
         >
-          <span>{typeInfo.icon}</span>
+          {typeInfo.icon}
           {resource.type ?? "FILE"}
         </span>
 
@@ -229,13 +208,12 @@ function ResourceCard({
           <span
             style={{
               display: "inline-block",
-              padding: "4px 12px",
-              borderRadius: "100px",
-              fontSize: "11px",
-              fontWeight: 700,
-              letterSpacing: "0.08em",
-              background: "rgba(32,147,121,0.12)",
-              color: "#209379",
+              padding: "3px 8px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: 600,
+              background: "#eef5f3",
+              color: "var(--color-text-muted)",
             }}
           >
             {resource.programme_type}
@@ -246,12 +224,11 @@ function ResourceCard({
       {/* Title */}
       <h3
         style={{
-          fontFamily: "var(--font-heading)",
-          fontSize: "17px",
-          fontWeight: 700,
-          color: "#034852",
+          fontSize: "16px",
+          fontWeight: 600,
+          color: "var(--color-text)",
           margin: 0,
-          lineHeight: 1.35,
+          lineHeight: 1.4,
         }}
       >
         {resource.title}
@@ -262,7 +239,7 @@ function ResourceCard({
         <p
           style={{
             fontSize: "13px",
-            color: "rgba(3,72,82,0.6)",
+            color: "var(--color-text-muted)",
             lineHeight: 1.6,
             margin: 0,
             display: "-webkit-box",
@@ -281,6 +258,7 @@ function ResourceCard({
           marginTop: "auto",
           paddingTop: "4px",
           display: "flex",
+          flexWrap: "wrap",
           gap: "8px",
           alignItems: "center",
         }}
@@ -290,61 +268,19 @@ function ResourceCard({
           target="_blank"
           rel="noopener noreferrer"
           id={`open-resource-${resource.id}`}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "6px",
-            padding: "8px 20px",
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-            color: "#fff",
-            fontFamily: "var(--font-heading)",
-            fontWeight: 700,
-            fontSize: "12px",
-            letterSpacing: "0.03em",
-            textDecoration: "none",
-            boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
-            transition: "all 200ms ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-1px)";
-            e.currentTarget.style.boxShadow =
-              "0 6px 16px rgba(10,190,98,0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow =
-              "0 4px 12px rgba(10,190,98,0.2)";
-          }}
+          style={{ ...primaryButton, textDecoration: "none" }}
         >
           Open
-          <span style={{ fontSize: "14px" }}>↗</span>
+          <ExternalLink size={16} aria-hidden="true" />
         </a>
 
         {canEdit && (
           <button
             id={`edit-resource-${resource.id}`}
             onClick={() => onEdit(resource)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(3,72,82,0.06)",
-              border: "1px solid rgba(3,72,82,0.14)",
-              color: "#034852",
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: "12px",
-              letterSpacing: "0.03em",
-              cursor: "pointer",
-              transition: "all 200ms ease",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(3,72,82,0.12)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(3,72,82,0.06)"; }}
+            style={secondaryButton}
           >
-            ✏️ Edit
+            <Pencil size={16} aria-hidden="true" />Edit
           </button>
         )}
 
@@ -352,32 +288,15 @@ function ResourceCard({
           <button
             id={`delete-resource-${resource.id}`}
             onClick={() => setConfirmDelete(true)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "8px 16px",
-              borderRadius: "10px",
-              background: "rgba(220,38,38,0.06)",
-              border: "1px solid rgba(220,38,38,0.14)",
-              color: "#dc2626",
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: "12px",
-              letterSpacing: "0.03em",
-              cursor: "pointer",
-              transition: "all 200ms ease",
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.12)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.06)"; }}
+            style={{ ...secondaryButton, color: "#b83232" }}
           >
-            🗑 Delete
+            <Trash2 size={16} aria-hidden="true" />Delete
           </button>
         )}
 
         {canDelete && confirmDelete && (
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <span style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600 }}>
+            <span style={{ fontSize: "13px", color: "#b83232", fontWeight: 600 }}>
               Delete?
             </span>
             <button
@@ -385,14 +304,10 @@ function ResourceCard({
               onClick={() => doDelete(resource.id, { onSettled: () => setConfirmDelete(false) })}
               disabled={deleting}
               style={{
-                padding: "5px 12px",
-                borderRadius: "8px",
-                border: "none",
-                background: "#dc2626",
+                ...primaryButton,
+                border: "1px solid #b83232",
+                background: "#b83232",
                 color: "#fff",
-                fontFamily: "var(--font-heading)",
-                fontWeight: 700,
-                fontSize: "11px",
                 cursor: deleting ? "not-allowed" : "pointer",
                 opacity: deleting ? 0.6 : 1,
               }}
@@ -401,17 +316,7 @@ function ResourceCard({
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              style={{
-                padding: "5px 12px",
-                borderRadius: "8px",
-                border: "1px solid rgba(3,72,82,0.2)",
-                background: "transparent",
-                color: "#034852",
-                fontFamily: "var(--font-heading)",
-                fontWeight: 700,
-                fontSize: "11px",
-                cursor: "pointer",
-              }}
+              style={secondaryButton}
             >
               No
             </button>
@@ -478,13 +383,10 @@ function CreateResourceForm({
       style={{
         ...glassCard,
         textAlign: "left",
-        marginBottom: "28px",
-        animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards",
-        opacity: 0,
-        transform: "translateY(12px)",
+        marginBottom: "24px",
       }}
     >
-      <p style={labelStyle}>Add New Resource</p>
+      <h2 style={{ ...titleStyle, margin: 0 }}>Add New Resource</h2>
 
       <form onSubmit={handleSubmit} style={{ marginTop: "16px" }}>
         <ResourceFormFields
@@ -498,7 +400,7 @@ function CreateResourceForm({
         />
 
         {error && (
-          <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>
+          <p role="alert" style={{ marginTop: "12px", fontSize: "14px", color: "#b83232", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -570,27 +472,28 @@ function EditResourceForm({
       style={{
         ...glassCard,
         textAlign: "left",
-        marginBottom: "28px",
-        animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards",
-        opacity: 0,
-        transform: "translateY(12px)",
+        marginBottom: "24px",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <p style={labelStyle}>Edit Resource</p>
+        <h2 style={{ ...titleStyle, margin: 0 }}>Edit Resource</h2>
         <button
           onClick={onCancel}
           style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: "44px",
+            minHeight: "44px",
             background: "none",
             border: "none",
+            borderRadius: "8px",
             cursor: "pointer",
-            fontSize: "18px",
-            color: "rgba(3,72,82,0.5)",
-            lineHeight: 1,
+            color: "var(--color-text-muted)",
           }}
           aria-label="Cancel edit"
         >
-          ✕
+          <X size={20} aria-hidden="true" />
         </button>
       </div>
 
@@ -606,7 +509,7 @@ function EditResourceForm({
         />
 
         {error && (
-          <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>
+          <p role="alert" style={{ marginTop: "12px", fontSize: "14px", color: "#b83232", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -627,17 +530,7 @@ function EditResourceForm({
           <button
             type="button"
             onClick={onCancel}
-            style={{
-              padding: "12px 24px",
-              border: "1px solid rgba(3,72,82,0.2)",
-              borderRadius: "12px",
-              background: "transparent",
-              color: "#034852",
-              fontFamily: "var(--font-heading)",
-              fontWeight: 700,
-              fontSize: "14px",
-              cursor: "pointer",
-            }}
+            style={secondaryButton}
           >
             Cancel
           </button>
@@ -767,7 +660,7 @@ function ResourceFormFields({
           // neither of which is the permission that got the caller onto this
           // form. A role can legitimately hold one and not the other, so say so
           // rather than render an empty box that reads as broken.
-          <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
             Your role cannot browse the school list — target batches instead.
           </p>
         ) : (
@@ -780,7 +673,7 @@ function ResourceFormFields({
           />
         )}
         {schoolIds.length > 0 && (
-          <p style={{ margin: "6px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+          <p style={{ margin: "6px 0 0", fontSize: "13px", lineHeight: 1.5, color: "var(--color-text-muted)" }}>
             A school-targeted resource cannot be handed to a programme to manage — a school
             hosts programmes rather than belonging to one, so no programme can be said to
             bound who this reaches. Target batches instead if you need that.
@@ -803,14 +696,14 @@ function LoadingState() {
         justifyContent: "center",
       }}
     >
-      <div style={glassCard}>
-        <p style={labelStyle}>Loading</p>
+      <div style={{ ...glassCard, textAlign: "center" }}>
         <p
+          role="status"
           style={{
-            marginTop: "12px",
-            fontSize: "22px",
-            fontWeight: 700,
-            color: "#034852",
+            margin: 0,
+            fontSize: "18px",
+            fontWeight: 600,
+            color: "var(--color-text)",
           }}
         >
           Fetching resources
@@ -826,68 +719,72 @@ function LoadingState() {
 // ── Style constants ────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "24px",
-  padding: "40px 48px",
-  textAlign: "center",
-  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.28em",
-  color: "#209379",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-heading)",
-  fontSize: "22px",
-  fontWeight: 700,
-  color: "#034852",
+  fontSize: "18px",
+  fontWeight: 600,
+  color: "var(--color-text)",
 };
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: "14px",
-  color: "rgba(3,72,82,0.6)",
+  color: "var(--color-text-muted)",
+};
+
+const btnBase: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  minHeight: "44px",
+  padding: "8px 16px",
+  borderRadius: "12px",
+  fontWeight: 600,
+  fontSize: "14px",
+  cursor: "pointer",
+  whiteSpace: "nowrap",
 };
 
 const primaryButton: React.CSSProperties = {
-  padding: "12px 24px",
-  border: "none",
-  borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#ffffff",
-  fontFamily: "var(--font-heading)",
-  fontWeight: 700,
-  fontSize: "14px",
-  cursor: "pointer",
-  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
-  transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
-  whiteSpace: "nowrap",
+  ...btnBase,
+  border: "1px solid var(--green)",
+  background: "var(--green)",
+  color: "var(--dark-teal)",
+};
+
+const secondaryButton: React.CSSProperties = {
+  ...btnBase,
+  border: "1px solid var(--color-border)",
+  background: "var(--color-surface)",
+  color: "var(--color-text)",
+};
+
+const backLinkStyle: React.CSSProperties = {
+  ...secondaryButton,
+  textDecoration: "none",
 };
 
 const formLabelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: "11px",
-  fontWeight: 600,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "rgba(3,72,82,0.7)",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: "var(--color-text-muted)",
   marginBottom: "6px",
 };
 
 const formInputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 16px",
-  background: "rgba(0,0,0,0.04)",
-  border: "1px solid rgba(0,0,0,0.12)",
-  borderRadius: "12px",
-  color: "#034852",
-  fontFamily: "var(--font-body)",
+  minHeight: "44px",
+  padding: "8px 12px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border-strong)",
+  borderRadius: "8px",
+  color: "var(--color-text)",
   fontSize: "14px",
-  outline: "none",
-  transition: "border-color 200ms, box-shadow 200ms",
+  boxSizing: "border-box",
 };

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { CalendarDays, ClipboardList, FileText, Palmtree, Pencil, Pin, Plus, Video, Wrench, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -19,13 +20,13 @@ import { BatchMultiPicker } from "@/components/BatchMultiPicker";
 
 // ── Event type config ──────────────────────────────────────────────────────────
 
-const EVENT_CONFIG: Record<string, { emoji: string; color: string; bg: string; label: string }> = {
-  LIVE_CLASS:           { emoji: "🎥", color: "#034852",  bg: "rgba(3,72,82,0.08)",       label: "Live Class" },
-  ASSIGNMENT_DEADLINE:  { emoji: "📝", color: "#dc2626",  bg: "rgba(220,38,38,0.08)",     label: "Assignment Due" },
-  EXAM:                 { emoji: "📋", color: "#7c3aed",  bg: "rgba(124,58,237,0.08)",    label: "Exam" },
-  HOLIDAY:              { emoji: "🏖️", color: "#059669",  bg: "rgba(5,150,105,0.08)",     label: "Holiday" },
-  WORKSHOP:             { emoji: "🛠️", color: "#d97706",  bg: "rgba(217,119,6,0.08)",     label: "Workshop" },
-  OTHER:                { emoji: "📌", color: "#6b7280",  bg: "rgba(107,114,128,0.08)",   label: "Event" },
+const EVENT_CONFIG: Record<string, { Icon: typeof CalendarDays; color: string; bg: string; label: string }> = {
+  LIVE_CLASS:           { Icon: Video,         color: "var(--color-text)",  bg: "#eef5f3",                  label: "Live Class" },
+  ASSIGNMENT_DEADLINE:  { Icon: FileText,      color: "#b83232",  bg: "rgba(184,50,50,0.08)",     label: "Assignment Due" },
+  EXAM:                 { Icon: ClipboardList, color: "#7c3aed",  bg: "rgba(124,58,237,0.08)",    label: "Exam" },
+  HOLIDAY:              { Icon: Palmtree,      color: "#047857",  bg: "rgba(5,150,105,0.08)",     label: "Holiday" },
+  WORKSHOP:             { Icon: Wrench,        color: "#9a5a00",  bg: "rgba(217,119,6,0.08)",     label: "Workshop" },
+  OTHER:                { Icon: Pin,           color: "#4b5563",  bg: "rgba(107,114,128,0.08)",   label: "Event" },
 };
 
 function cfg(type: string) {
@@ -73,36 +74,36 @@ export default function CalendarPage() {
   return (
     <div>
       {canCreate && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "28px" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "24px" }}>
           <button onClick={() => setShowCreate(true)} style={primaryBtn}>
-            + Add Event
+            <Plus size={18} aria-hidden="true" />Add Event
           </button>
         </div>
       )}
 
       {error && (
-        <div style={{ ...glassCard, background: "rgba(229,62,62,0.07)", marginBottom: "20px" }}>
-          <p style={{ color: "#c53030", fontSize: "14px" }}>{error}</p>
+        <div role="alert" style={{ ...glassCard, background: "rgba(184,50,50,0.06)", borderColor: "rgba(184,50,50,0.2)", marginBottom: "20px" }}>
+          <p style={{ color: "#b83232", fontSize: "14px", margin: 0 }}>{error}</p>
         </div>
       )}
 
       {loading ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>Loading calendar…</p>
+          <p role="status" style={{ color: "var(--color-text-muted)", fontSize: "14px", margin: 0 }}>Loading calendar…</p>
         </div>
       ) : groups.size === 0 ? (
         <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-          <p style={S.label}>All Clear</p>
+          <CalendarDays size={24} aria-hidden="true" style={{ color: "var(--teal)", display: "block", margin: "0 auto" }} />
           <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>Nothing upcoming</p>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "8px" }}>
+          <p style={{ fontSize: "14px", color: "var(--color-text-muted)", marginTop: "8px" }}>
             No events, live classes, or deadlines in the next 90 days.
           </p>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {Array.from(groups.entries()).map(([dateLabel, evs]) => (
             <div key={dateLabel}>
-              <p style={{ ...S.label, marginBottom: "10px", borderBottom: "1px solid rgba(3,72,82,0.06)", paddingBottom: "8px" }}>{dateLabel}</p>
+              <h2 style={{ ...S.label, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", marginBottom: "10px", borderBottom: "1px solid var(--color-border)", paddingBottom: "8px" }}>{dateLabel}</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {evs.map((ev) => (
                   <EventRow
@@ -168,20 +169,20 @@ function EventRow({ item, canEdit, canDelete, onEdit, onDelete }: {
     null;
 
   const inner = (
-    <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "14px", padding: "14px 18px", cursor: href ? "pointer" : "default" }}>
-      <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: c.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", flexShrink: 0 }}>
-        {c.emoji}
+    <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "14px", padding: "12px 16px", cursor: href ? "pointer" : "default" }}>
+      <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: c.bg, color: c.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <c.Icon size={18} aria-hidden="true" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {item.title}
         </p>
         <p style={{ margin: "2px 0 0", fontSize: "12px", color: c.color, fontWeight: 600 }}>{c.label}</p>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{time}</p>
+        <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{time}</p>
         {item.ends_at && !item.is_all_day && (
-          <p style={{ margin: 0, fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>
+          <p style={{ margin: 0, fontSize: "12px", color: "var(--color-text-muted)" }}>
             → {new Date(item.ends_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
           </p>
         )}
@@ -189,16 +190,18 @@ function EventRow({ item, canEdit, canDelete, onEdit, onDelete }: {
       {canEdit && item.source === "custom" && (
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit(); }}
-          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "15px", color: "rgba(3,72,82,0.45)", padding: "4px", flexShrink: 0 }}
+          style={iconBtn}
           title="Edit event"
-        >✎</button>
+          aria-label="Edit event"
+        ><Pencil size={18} aria-hidden="true" /></button>
       )}
       {canDelete && item.source === "custom" && (
         <button
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "rgba(3,72,82,0.3)", padding: "4px", flexShrink: 0 }}
+          style={{ ...iconBtn, color: "#b83232" }}
           title="Delete event"
-        >✕</button>
+          aria-label="Delete event"
+        ><X size={18} aria-hidden="true" /></button>
       )}
       <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: c.color, flexShrink: 0 }} />
     </div>
@@ -260,14 +263,14 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "20px", padding: "clamp(20px, 5vw, 32px)", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgb(3 20 30 / 35%)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
+      <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px,4vw,24px)", width: "100%", maxWidth: "480px", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <h2 style={{ ...S.heading, fontSize: "20px", margin: 0 }}>Add Calendar Event</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "rgba(3,72,82,0.4)" }}>✕</button>
+          <h2 style={{ ...S.heading, fontSize: "18px", margin: 0 }}>Add Calendar Event</h2>
+          <button onClick={onClose} aria-label="Close" style={iconBtn}><X size={20} aria-hidden="true" /></button>
         </div>
 
-        {err && <p style={{ color: "#c53030", fontSize: "13px", marginBottom: "16px" }}>{err}</p>}
+        {err && <p role="alert" style={{ color: "#b83232", fontSize: "14px", marginBottom: "16px" }}>{err}</p>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <Field label="Title *">
@@ -293,12 +296,12 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </Field>
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#034852", fontWeight: 600, cursor: "pointer" }}>
-            <input type="checkbox" checked={form.is_all_day} onChange={(e) => set("is_all_day", e.target.checked)} />
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", minHeight: "44px", fontSize: "14px", color: "var(--color-text)", fontWeight: 500, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.is_all_day} onChange={(e) => set("is_all_day", e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--teal)" }} />
             All-day event
           </label>
 
-          <p style={{ ...S.label, marginTop: "8px" }}>Audience (leave blank = everyone)</p>
+          <p style={{ ...S.label, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", marginTop: "8px" }}>Audience (leave blank = everyone)</p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Programme">
@@ -325,7 +328,7 @@ function CreateEventModal({ onClose, onCreated }: { onClose: () => void; onCreat
             </Field>
           )}
 
-          <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
+          <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
             School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
@@ -398,14 +401,14 @@ function EditEventModal({ event, onClose, onSaved }: {
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
-      <div style={{ background: "#fff", borderRadius: "20px", padding: "clamp(20px, 5vw, 32px)", width: "100%", maxWidth: "480px", boxShadow: "0 20px 60px rgba(0,0,0,0.15)", maxHeight: "90vh", overflowY: "auto" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgb(3 20 30 / 35%)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
+      <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px,4vw,24px)", width: "100%", maxWidth: "480px", maxHeight: "90vh", overflowY: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <h2 style={{ ...S.heading, fontSize: "20px", margin: 0 }}>Edit Calendar Event</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "rgba(3,72,82,0.4)" }}>✕</button>
+          <h2 style={{ ...S.heading, fontSize: "18px", margin: 0 }}>Edit Calendar Event</h2>
+          <button onClick={onClose} aria-label="Close" style={iconBtn}><X size={20} aria-hidden="true" /></button>
         </div>
 
-        {err && <p style={{ color: "#c53030", fontSize: "13px", marginBottom: "16px" }}>{err}</p>}
+        {err && <p role="alert" style={{ color: "#b83232", fontSize: "14px", marginBottom: "16px" }}>{err}</p>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
           <Field label="Title *">
@@ -431,12 +434,12 @@ function EditEventModal({ event, onClose, onSaved }: {
             </Field>
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#034852", fontWeight: 600, cursor: "pointer" }}>
-            <input type="checkbox" checked={form.is_all_day} onChange={(e) => set("is_all_day", e.target.checked)} />
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", minHeight: "44px", fontSize: "14px", color: "var(--color-text)", fontWeight: 500, cursor: "pointer" }}>
+            <input type="checkbox" checked={form.is_all_day} onChange={(e) => set("is_all_day", e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--teal)" }} />
             All-day event
           </label>
 
-          <p style={{ ...S.label, marginTop: "8px" }}>Audience (leave blank = everyone)</p>
+          <p style={{ ...S.label, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", marginTop: "8px" }}>Audience (leave blank = everyone)</p>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
             <Field label="Programme">
@@ -463,7 +466,7 @@ function EditEventModal({ event, onClose, onSaved }: {
             </Field>
           )}
 
-          <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>
+          <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
             School / course targeting is managed through Batches. Leave filters blank to broadcast to all students.
           </p>
         </div>
@@ -482,7 +485,7 @@ function EditEventModal({ event, onClose, onSaved }: {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.6)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</p>
+      <p style={{ margin: "0 0 6px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</p>
       {children}
     </div>
   );
@@ -490,11 +493,13 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
-const glassCard: React.CSSProperties = { background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "16px", padding: "24px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 12px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.15)", fontSize: "13px", color: "#034852", outline: "none", boxSizing: "border-box", background: "#fff" };
-const primaryBtn: React.CSSProperties = { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg,#0abe62,#006d6c)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 4px 12px rgba(10,190,98,0.2)" };
-const secondaryBtn: React.CSSProperties = { padding: "10px 20px", border: "none", borderRadius: "10px", background: "rgba(3,72,82,0.07)", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer" };
+const glassCard: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px,4vw,24px)" };
+const inputStyle: React.CSSProperties = { width: "100%", minHeight: "44px", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--color-border-strong)", fontSize: "14px", color: "var(--color-text)", boxSizing: "border-box", background: "var(--color-surface)" };
+const btnBase: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", borderRadius: "12px", fontWeight: 600, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap" };
+const primaryBtn: React.CSSProperties = { ...btnBase, border: "1px solid var(--green)", background: "var(--green)", color: "var(--dark-teal)" };
+const secondaryBtn: React.CSSProperties = { ...btnBase, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" };
+const iconBtn: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "44px", minHeight: "44px", background: "none", border: "none", borderRadius: "8px", cursor: "pointer", color: "var(--color-text-muted)", flexShrink: 0 };
 const S = {
-  label:   { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading: { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
+  label:   { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading: { fontWeight: 600, color: "var(--color-text)" } as React.CSSProperties,
 };

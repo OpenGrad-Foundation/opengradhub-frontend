@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, BookOpen, Check, ClipboardList, Package, Pause, Plus, Users, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 import { withFrom } from "@/lib/nav";
@@ -95,8 +96,7 @@ export default function BatchDetailPage() {
     return (
       <Shell>
         <div style={glassCard}>
-          <p style={labelSt}>Access Denied</p>
-          <p style={{ ...headingSt, marginTop: "12px", fontSize: "18px" }}>
+          <p style={{ ...headingSt, fontSize: "18px" }}>
             You do not have permission to view batches.
           </p>
         </div>
@@ -107,7 +107,7 @@ export default function BatchDetailPage() {
     return (
       <Shell>
         <div style={glassCard}>
-          <p style={{ color: "#e53e3e", fontWeight: 600 }}>
+          <p style={{ color: "#b83232", fontWeight: 600, margin: 0 }}>
             {error instanceof Error ? error.message : "Batch not found."}
           </p>
         </div>
@@ -125,7 +125,7 @@ export default function BatchDetailPage() {
         <Section
           title="Students in this Batch"
           action={canEnrol && !archived ? (
-            <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
+            <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}><Plus size={18} aria-hidden="true" />Add Students</button>
           ) : undefined}
         >
           <MemberTable
@@ -145,7 +145,7 @@ export default function BatchDetailPage() {
         <Section
           title="Courses"
           action={canAssign && !archived ? (
-            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>+ Add Course</button>
+            <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}><Plus size={18} aria-hidden="true" />Add Course</button>
           ) : undefined}
         >
           {batch.courses.length === 0 ? (
@@ -186,7 +186,7 @@ export default function BatchDetailPage() {
         <Section
           title="Bundles"
           action={canAssign && !archived ? (
-            <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}>+ Add Bundle</button>
+            <button onClick={() => setAddBundleOpen(true)} style={primaryBtn}><Plus size={18} aria-hidden="true" />Add Bundle</button>
           ) : undefined}
         >
           {batch.bundles.length === 0 ? (
@@ -223,7 +223,7 @@ export default function BatchDetailPage() {
         <Section
           title="Quizzes"
           action={canAssign && !archived ? (
-            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>+ Add Quiz</button>
+            <button onClick={() => setAddTestOpen(true)} style={primaryBtn}><Plus size={18} aria-hidden="true" />Add Quiz</button>
           ) : undefined}
         >
           <TestList
@@ -257,7 +257,7 @@ export default function BatchDetailPage() {
           </Section>
           {canDelete && (
             <Section title="Danger Zone">
-              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+              <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
                 Deleting a batch is permanent. It only works while no students are enrolled &mdash; clear the cohort from the Students tab first.
               </p>
               <button onClick={() => void handleDelete()} disabled={deleting} style={{ ...dangerBtn, opacity: deleting ? 0.6 : 1 }}>
@@ -272,33 +272,32 @@ export default function BatchDetailPage() {
 
   return (
     <Shell>
-      <BackLink fallback="/dashboard/batches" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Back to Batches
+      <BackLink fallback="/dashboard/batches" style={{ ...ghostBtnSm, flex: "none", display: "inline-flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
+        <ArrowLeft size={18} aria-hidden="true" />Back to Batches
       </BackLink>
       <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
-          <p style={labelSt}>Batch</p>
-          <h1 style={{ ...headingSt, fontSize: "26px", margin: "4px 0 0" }}>{batch.name}</h1>
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "6px" }}>
+          <h1 style={{ ...headingSt, fontSize: "24px" }}>{batch.name}</h1>
+          <p style={{ fontSize: "14px", color: "var(--color-text-muted)", marginTop: "6px" }}>
             {batch.school_name ?? "Independent batch"}
             {batch.programme_type && ` · ${batch.programme_type}`}
             {(batch.starts_on || batch.ends_on) && ` · ${batch.starts_on ?? "…"} → ${batch.ends_on ?? "…"}`}
           </p>
           <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
             {archived && (
-              <span style={{ padding: "4px 10px", borderRadius: "100px", background: "rgba(3,72,82,0.08)", fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.6)" }}>
-                ⏸ Archived — changes blocked, student access preserved
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 8px", borderRadius: "6px", background: "#eef5f3", fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)" }}>
+                <Pause size={14} aria-hidden="true" />Archived — changes blocked, student access preserved
               </span>
             )}
-            <Chip icon="👤" value={batch.members.length} label="student" />
-            <Chip icon="📚" value={batch.courses.length} label="course" />
-            <Chip icon="📦" value={batch.bundles.length} label="bundle" />
-            <Chip icon="📝" value={batch.tests.length} label="quiz" plural="quizzes" />
+            <Chip icon={<Users size={14} aria-hidden="true" />} value={batch.members.length} label="student" />
+            <Chip icon={<BookOpen size={14} aria-hidden="true" />} value={batch.courses.length} label="course" />
+            <Chip icon={<Package size={14} aria-hidden="true" />} value={batch.bundles.length} label="bundle" />
+            <Chip icon={<ClipboardList size={14} aria-hidden="true" />} value={batch.tests.length} label="quiz" plural="quizzes" />
           </div>
         </div>
       </div>
 
-      {globalError && <div style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
+      {globalError && <div role="alert" style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
       <Tabs tabs={tabs} ariaLabel="Batch sections" />
 
@@ -340,13 +339,14 @@ export default function BatchDetailPage() {
       {toast && (
         <div style={{
           position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)",
-          background: "linear-gradient(135deg, #034852 0%, #006d6c 100%)",
-          color: "#fff", padding: "12px 24px", borderRadius: "100px",
-          fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-          boxShadow: "0 8px 24px rgba(3,72,82,0.3)", zIndex: 200,
+          display: "inline-flex", alignItems: "center", gap: "8px",
+          background: "var(--dark-teal)",
+          color: "#fff", padding: "12px 20px", borderRadius: "12px",
+          fontWeight: 600, fontSize: "14px",
+          zIndex: 200,
           animation: "floatIn 0.3s ease forwards",
         }}>
-          ✓ {toast}
+          <Check size={16} aria-hidden="true" />{toast}
         </div>
       )}
     </Shell>
@@ -450,27 +450,27 @@ function MemberTable({
   return (
     <>
       {canRemove && (
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px", minHeight: "32px" }}>
-          <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", fontWeight: 600 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", minHeight: "44px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "13px", color: "var(--color-text-muted)", fontWeight: 500 }}>
             {selectedIds.size > 0 ? `${selectedIds.size} selected` : `${members.length} student${members.length !== 1 ? "s" : ""}`}
           </span>
           {selectedIds.size > 0 && (
             <button
               onClick={handleRemoveSelected}
               disabled={removing}
-              style={{ ...dangerBtn, padding: "7px 14px", opacity: removing ? 0.6 : 1 }}
+              style={{ ...dangerBtn, opacity: removing ? 0.6 : 1 }}
             >
               {removing ? "Removing…" : `Remove ${selectedIds.size} Selected`}
             </button>
           )}
           {selectedIds.size > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexWrap: "wrap" }}>
               <select
                 value={fellowChoice}
                 onChange={(e) => setFellowChoice(e.target.value)}
                 disabled={assigning}
                 aria-label={`${IN_CHARGE} to assign`}
-                style={{ padding: "6px 10px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", fontSize: "12px" }}
+                style={{ ...inputSt, width: "auto" }}
               >
                 <option value="">Choose {IN_CHARGE_LOWER}…</option>
                 {fellows.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -478,14 +478,14 @@ function MemberTable({
               <button
                 onClick={() => void assignFellow(false)}
                 disabled={assigning || !fellowChoice}
-                style={{ ...primaryBtn, padding: "7px 14px", opacity: assigning || !fellowChoice ? 0.6 : 1 }}
+                style={{ ...primaryBtn, opacity: assigning || !fellowChoice ? 0.6 : 1 }}
               >
                 {assigning ? "Assigning…" : `Assign to ${selectedIds.size}`}
               </button>
               <button
                 onClick={() => void assignFellow(true)}
                 disabled={assigning}
-                style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852", fontSize: "12px", fontWeight: 600, cursor: "pointer", opacity: assigning ? 0.6 : 1 }}
+                style={{ ...ghostBtnSm, flex: "none", opacity: assigning ? 0.6 : 1 }}
               >
                 Clear
               </button>
@@ -493,23 +493,23 @@ function MemberTable({
           )}
         </div>
       )}
-      <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
+      <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
           <thead>
-            <tr style={{ background: "rgba(32,147,121,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+            <tr style={{ background: "#eef5f3" }}>
               {canRemove && (
-                <th style={{ padding: "11px 16px", textAlign: "left", width: "40px" }}>
+                <th scope="col" style={{ ...thSt, width: "40px" }}>
                   <input
                     type="checkbox"
                     checked={allSelected}
                     onChange={toggleAll}
                     aria-label="Select all students"
-                    style={{ accentColor: "#0abe62", width: "15px", height: "15px", cursor: "pointer" }}
+                    style={{ accentColor: "var(--teal)", width: "15px", height: "15px", cursor: "pointer" }}
                   />
                 </th>
               )}
               {["Name", "Roll Number", "Email", IN_CHARGE, "Joined"].map((h) => (
-                <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
+                <th key={h} scope="col" style={thSt}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -517,7 +517,7 @@ function MemberTable({
             {members.map((m) => {
               const checked = selectedIds.has(m.id);
               return (
-                <tr key={m.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)", background: checked ? "rgba(10,190,98,0.06)" : "transparent" }}>
+                <tr key={m.id} style={{ borderTop: "1px solid var(--color-border)", background: checked ? "var(--color-success-surface)" : "transparent" }}>
                   {canRemove && (
                     <td style={{ ...tdSt, width: "40px" }}>
                       <input
@@ -525,11 +525,11 @@ function MemberTable({
                         checked={checked}
                         onChange={() => toggle(m.id)}
                         aria-label={`Select ${m.name}`}
-                        style={{ accentColor: "#0abe62", width: "15px", height: "15px", cursor: "pointer" }}
+                        style={{ accentColor: "var(--teal)", width: "15px", height: "15px", cursor: "pointer" }}
                       />
                     </td>
                   )}
-                  <td style={tdSt}><strong style={{ color: "#034852" }}>{m.name}</strong></td>
+                  <td style={tdSt}><strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{m.name}</strong></td>
                   <td style={tdSt}>{m.roll_number ?? "—"}</td>
                   <td style={tdSt}>{m.email || "—"}</td>
                   <td style={tdSt}>{m.fellow_name ?? "—"}</td>
@@ -580,23 +580,23 @@ function TestList({
           <div key={t.id} style={{
             display: "flex", alignItems: "center", gap: "10px",
             padding: "12px 14px", borderRadius: "12px",
-            background: "rgba(3,72,82,0.025)", border: "1px solid rgba(3,72,82,0.07)",
+            background: "var(--color-surface)", border: "1px solid var(--color-border)",
           }}>
-            <span style={{ fontSize: "16px", flexShrink: 0 }}>📝</span>
+            <ClipboardList size={18} aria-hidden="true" style={{ flexShrink: 0, color: "var(--color-text-muted)" }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {t.title}
               </p>
-              <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+              <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-muted)" }}>
                 {t.available_from || t.due_at
                   ? `${t.available_from ? `Opens ${new Date(t.available_from).toLocaleString()}` : "Open now"}${t.due_at ? ` · Due ${new Date(t.due_at).toLocaleString()}` : ""}`
                   : "No availability window"}
               </p>
             </div>
             <span style={{
-              padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-              background: t.published ? "rgba(10,190,98,0.1)" : "rgba(255,222,0,0.2)",
-              color: t.published ? "#0abe62" : "#956f00",
+              padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, flexShrink: 0,
+              background: t.published ? "var(--color-success-surface)" : "rgba(255,222,0,0.2)",
+              color: t.published ? "#08784a" : "#7a5a00",
             }}>
               {t.published ? "Published" : "Draft"}
             </span>
@@ -604,16 +604,17 @@ function TestList({
               <>
                 <button
                   onClick={() => setEditing(t)}
-                  style={{ flexShrink: 0, padding: "5px 12px", borderRadius: "8px", border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent", color: "#034852", fontWeight: 600, fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap" }}
+                  style={{ ...ghostBtnSm, flex: "none" }}
                 >
                   Window
                 </button>
                 <button
                   onClick={() => void handleRemove(t.id, t.title)}
-                  style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
+                  style={removeBtn}
+                  aria-label="Remove from batch"
                   title="Remove from batch"
                 >
-                  ✕
+                  <X size={18} aria-hidden="true" />
                 </button>
               </>
             )}
@@ -666,14 +667,14 @@ function TestWindowModal({
     <Modal onClose={onClose} title={`Availability — ${test.title}`}>
       <div style={{ display: "grid", gap: "12px", marginBottom: "16px" }}>
         <div>
-          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Opens at (blank = immediately)</label>
+          <label style={fieldLabelSt}>Opens at (blank = immediately)</label>
           <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} style={inputSt} />
         </div>
         <div>
-          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Due at (blank = no deadline)</label>
+          <label style={fieldLabelSt}>Due at (blank = no deadline)</label>
           <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} style={inputSt} />
         </div>
-        {err && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{err}</p>}
+        {err && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, margin: 0 }}>{err}</p>}
       </div>
       <div style={{ display: "flex", gap: "10px" }}>
         <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
@@ -896,30 +897,30 @@ function AddMembersModal({
         </select>
       </div>
       {hasMore && (
-        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "10px", background: "rgba(3,72,82,0.05)", border: "1px solid rgba(3,72,82,0.12)", fontSize: "12px", fontWeight: 600, color: "#034852" }}>
+        <p style={{ marginBottom: "10px", padding: "10px 12px", borderRadius: "8px", background: "#eef5f3", border: "1px solid var(--color-border)", fontSize: "13px", fontWeight: 500, color: "var(--color-text)", lineHeight: 1.5 }}>
           Showing {students.length} of {rosterTotal} matching students. Search
           and the filters run on the server, so narrowing them reaches every
           student — or load the rest below.
         </p>
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: students.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: students.length ? "#034852" : "rgba(3,72,82,0.4)" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: students.length ? "pointer" : "default", fontSize: "12px", fontWeight: 600, color: students.length ? "var(--color-text)" : "var(--color-text-muted)", minHeight: "44px" }}>
           <input
             type="checkbox"
             checked={allLoadedSelected}
             onChange={toggleAllLoaded}
             disabled={students.length === 0}
-            style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
+            style={{ accentColor: "var(--teal)", width: "14px", height: "14px" }}
           />
           Select all{students.length ? ` loaded (${students.length})` : ""}
         </label>
-        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)" }}>{selectedIds.size} selected</span>
+        <span style={{ fontSize: "13px", color: "var(--color-text-muted)" }}>{selectedIds.size} selected</span>
       </div>
-      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
+      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "12px", marginBottom: "12px" }}>
         {loading ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading students…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading students…</p>
         ) : students.length === 0 ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
             {anyFilterActive
               ? "No matching students."
               : scopeLimited
@@ -936,19 +937,19 @@ function AddMembersModal({
               style={{
                 display: "flex", alignItems: "center", gap: "10px",
                 padding: "10px 14px", cursor: "pointer",
-                borderBottom: "1px solid rgba(3,72,82,0.05)",
-                background: checked ? "rgba(10,190,98,0.07)" : "transparent",
+                borderBottom: "1px solid var(--color-border)",
+                background: checked ? "var(--color-success-surface)" : "transparent",
               }}
             >
               <input
                 type="checkbox"
                 checked={checked}
                 onChange={() => toggle(u.id)}
-                style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0 }}
+                style={{ accentColor: "var(--teal)", width: "14px", height: "14px", flexShrink: 0 }}
               />
               <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#034852" }}>{u.name}</span>
-                <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{u.name}</span>
+                <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
                   {u.roll_number ?? u.email ?? "—"} · {u.programme_type ?? "—"}
                 </span>
               </span>
@@ -965,7 +966,7 @@ function AddMembersModal({
           {loadingMore ? "Loading…" : `Load more (${rosterTotal - students.length} left)`}
         </button>
       )}
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
       <div style={{ display: "flex", gap: "10px" }}>
         <button onClick={onClose} style={ghostBtnSm} disabled={submitting}>Cancel</button>
         <button
@@ -1033,7 +1034,7 @@ function AddCourseModal({
         searchPlaceholder="Search active courses…"
         emptyText="No active courses available."
       />
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <ModalActions onClose={onClose} onConfirm={() => void handleAdd()} disabled={!selected || submitting} label={submitting ? "Adding…" : "Add Course"} />
     </Modal>
   );
@@ -1092,7 +1093,7 @@ function AddBundleModal({
         searchPlaceholder="Search bundles…"
         emptyText="No bundles available."
       />
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <ModalActions onClose={onClose} onConfirm={() => void handleAdd()} disabled={!selected || submitting} label={submitting ? "Adding…" : "Add Bundle"} />
     </Modal>
   );
@@ -1161,15 +1162,15 @@ function AddTestModal({
       />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px" }}>
         <div style={{ minWidth: 0 }}>
-          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Opens at (optional)</label>
+          <label style={fieldLabelSt}>Opens at (optional)</label>
           <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} style={inputSt} />
         </div>
         <div style={{ minWidth: 0 }}>
-          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>Due at (optional)</label>
+          <label style={fieldLabelSt}>Due at (optional)</label>
           <input type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} style={inputSt} />
         </div>
       </div>
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <ModalActions onClose={onClose} onConfirm={() => void handleAdd()} disabled={!selected || submitting} label={submitting ? "Adding…" : "Add Quiz"} />
     </Modal>
   );
@@ -1199,11 +1200,11 @@ function PickerList({
         onChange={(e) => onSearch(e.target.value)}
         style={{ ...inputSt, marginBottom: "12px" }}
       />
-      <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
+      <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "12px", marginBottom: "12px" }}>
         {loading ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading…</p>
         ) : items.length === 0 ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
             {search ? "No matches." : emptyText}
           </p>
         ) : items.map((item) => {
@@ -1214,16 +1215,16 @@ function PickerList({
               onClick={() => onSelect(item.id)}
               style={{
                 padding: "12px 16px", cursor: "pointer",
-                background: active ? "rgba(10,190,98,0.07)" : "transparent",
-                borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
+                background: active ? "var(--color-success-surface)" : "transparent",
+                borderLeft: `3px solid ${active ? "var(--teal)" : "transparent"}`,
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}
             >
               <div>
-                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{item.title}</p>
-                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>{item.meta}</p>
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{item.title}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-muted)" }}>{item.meta}</p>
               </div>
-              {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}
+              {active && <Check size={18} aria-hidden="true" style={{ color: "#08784a", flexShrink: 0 }} />}
             </div>
           );
         })}
@@ -1253,25 +1254,25 @@ function ContentRow({ title, meta, href, badge, onRemove }: {
     <div style={{
       display: "flex", alignItems: "center", gap: "10px",
       padding: "12px 14px", borderRadius: "12px",
-      background: "rgba(3,72,82,0.025)", border: "1px solid rgba(3,72,82,0.07)",
+      background: "var(--color-surface)", border: "1px solid var(--color-border)",
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         {href ? (
-          <Link href={href} style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", textDecoration: "none" }}>
+          <Link href={href} style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", textDecoration: "none" }}>
             {title}
           </Link>
         ) : (
-          <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {title}
           </p>
         )}
-        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>{meta}</p>
+        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-muted)" }}>{meta}</p>
       </div>
       {badge && (
         <span style={{
-          flexShrink: 0, padding: "3px 9px", borderRadius: "100px",
-          background: "rgba(32,147,121,0.1)", color: "#209379",
-          fontSize: "11px", fontWeight: 700, whiteSpace: "nowrap",
+          flexShrink: 0, padding: "3px 8px", borderRadius: "6px",
+          background: "#eef5f3", color: "var(--color-text-muted)",
+          fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap",
         }}>
           {badge}
         </span>
@@ -1279,10 +1280,11 @@ function ContentRow({ title, meta, href, badge, onRemove }: {
       {onRemove && (
         <button
           onClick={() => void onRemove()}
-          style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
+          style={removeBtn}
+                  aria-label="Remove from batch"
           title="Remove from batch"
         >
-          ✕
+          <X size={18} aria-hidden="true" />
         </button>
       )}
     </div>
@@ -1290,7 +1292,7 @@ function ContentRow({ title, meta, href, badge, onRemove }: {
 }
 
 function EmptyHint({ text }: { text: string }) {
-  return <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>{text}</p>;
+  return <p style={{ fontSize: "14px", color: "var(--color-text-muted)", padding: "16px 0", margin: 0 }}>{text}</p>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -1314,20 +1316,19 @@ function Section({ title, action, children }: {
 function Modal({ title, onClose, children }: { title: string; onClose?: () => void; children: React.ReactNode }) {
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgb(3 20 30 / 35%)", zIndex: 50 }} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", maxHeight: "90vh", zIndex: 51 }}>
         <div style={{
-          background: "#ffffff",
-          borderRadius: "24px", padding: "32px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-          border: "1px solid rgba(255,255,255,0.3)",
+          background: "var(--color-surface)",
+          borderRadius: "12px", padding: "clamp(16px,4vw,24px)",
+          border: "1px solid var(--color-border)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
           maxHeight: "90vh", overflowY: "auto",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h3 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h3>
-            {onClose && <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.45)", cursor: "pointer", padding: "4px 8px" }}>✕</button>}
+            {onClose && <button onClick={onClose} aria-label="Close" style={removeBtn}><X size={20} aria-hidden="true" style={{ color: "var(--color-text-muted)" }} /></button>}
           </div>
           {children}
         </div>
@@ -1336,13 +1337,13 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
   );
 }
 
-function Chip({ icon, value, label, plural }: { icon: string; value: number; label: string; plural?: string }) {
+function Chip({ icon, value, label, plural }: { icon: React.ReactNode; value: number; label: string; plural?: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "5px",
-      padding: "4px 10px", borderRadius: "100px",
-      background: "rgba(3,72,82,0.06)", fontSize: "12px",
-      fontWeight: 600, color: "#034852",
+      padding: "4px 8px", borderRadius: "6px",
+      background: "#eef5f3", fontSize: "12px",
+      fontWeight: 600, color: "var(--color-text)",
     }}>
       {icon} {value} {value === 1 ? label : (plural ?? `${label}s`)}
     </span>
@@ -1352,8 +1353,7 @@ function Chip({ icon, value, label, plural }: { icon: string; value: number; lab
 function LoadingCard() {
   return (
     <div style={{ ...glassCard, textAlign: "center" }}>
-      <p style={labelSt}>Loading</p>
-      <p style={{ ...headingSt, marginTop: "12px", fontSize: "18px" }}>Fetching batch…</p>
+      <p role="status" style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: 0 }}>Fetching batch…</p>
     </div>
   );
 }
@@ -1361,68 +1361,67 @@ function LoadingCard() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: "20px",
-  padding: "28px 32px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-};
-
-const labelSt: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379", margin: 0,
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const headingSt: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", margin: 0,
+  fontWeight: 600, color: "var(--color-text)", margin: 0,
+};
+
+const btnBase: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+  minHeight: "44px", padding: "8px 16px", borderRadius: "12px",
+  fontWeight: 600, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap",
 };
 
 const primaryBtn: React.CSSProperties = {
-  padding: "9px 18px", border: "none", borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
-  boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
+  ...btnBase,
+  border: "1px solid var(--green)", background: "var(--green)", color: "var(--dark-teal)",
 };
 
 const dangerBtn: React.CSSProperties = {
-  padding: "9px 18px", borderRadius: "10px",
-  border: "1px solid rgba(229,62,62,0.35)",
-  background: "rgba(229,62,62,0.06)",
-  color: "#c53030", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
+  ...btnBase,
+  border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "#b83232",
 };
 
-const primaryBtnSm: React.CSSProperties = {
-  flex: 2, padding: "11px 18px", border: "none", borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "14px", cursor: "pointer",
-};
+const primaryBtnSm: React.CSSProperties = { ...primaryBtn, flex: 2 };
 
 const ghostBtnSm: React.CSSProperties = {
-  flex: 1, padding: "11px 14px",
-  border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "12px",
-  background: "#ffffff", color: "#034852",
-  fontFamily: "var(--font-heading)", fontWeight: 600,
-  fontSize: "14px", cursor: "pointer", textAlign: "center",
+  ...btnBase, flex: 1,
+  border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)",
+};
+
+const removeBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  minWidth: "44px", minHeight: "44px", background: "none", border: "none",
+  color: "#b83232", cursor: "pointer", borderRadius: "8px", flexShrink: 0,
 };
 
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "11px 14px",
-  background: "rgba(3,72,82,0.03)",
-  border: "1px solid rgba(3,72,82,0.12)",
-  borderRadius: "10px", color: "#034852",
-  fontFamily: "var(--font-body)", fontSize: "14px",
-  outline: "none", boxSizing: "border-box",
+  width: "100%", minHeight: "44px", padding: "8px 12px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border-strong)",
+  borderRadius: "8px", color: "var(--color-text)",
+  fontSize: "14px", boxSizing: "border-box",
+};
+
+const fieldLabelSt: React.CSSProperties = {
+  display: "block", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", marginBottom: "6px",
+};
+
+const thSt: React.CSSProperties = {
+  padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)",
 };
 
 const tdSt: React.CSSProperties = {
-  padding: "11px 16px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px",
+  padding: "12px 16px", textAlign: "left", color: "var(--color-text-muted)", fontSize: "13px",
 };
 
 const errorBox: React.CSSProperties = {
-  padding: "10px 14px", borderRadius: "10px",
-  background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
-  fontSize: "13px", color: "#c53030", fontWeight: 500,
+  padding: "10px 14px", borderRadius: "8px",
+  background: "rgba(184,50,50,0.06)", border: "1px solid rgba(184,50,50,0.2)",
+  fontSize: "14px", color: "#b83232", fontWeight: 500,
 };

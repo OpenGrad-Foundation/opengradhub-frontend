@@ -8,6 +8,8 @@ import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useBatches } from "@/lib/queries/batches";
 import { BatchFormModal } from "./BatchFormModal";
+import { Plus, Search } from "lucide-react";
+import styles from "../_components/catalogue.module.css";
 
 export default function BatchesPage() {
   const router = useRouter();
@@ -30,14 +32,40 @@ export default function BatchesPage() {
   });
 
   return (
-    <div>
-      {canCreate && (
-        <div className="flex justify-end mb-7">
-          <button onClick={() => setShowAdd(true)} style={primaryButton}>
-            + Add Batch
-          </button>
+    <div className={`${styles.catalogue} ${styles.content}`}>
+      <div className={styles.toolbar}>
+        <div className={styles.searchTools} style={{ flexWrap: "wrap" }}>
+          <label className={styles.search}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, school, or programme…"
+              aria-label="Search batches"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as "ACTIVE" | "ARCHIVED" | "all")}
+            aria-label="Filter by status"
+            className={styles.control}
+            style={{ width: "auto", minWidth: "140px" }}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="ARCHIVED">Archived</option>
+            <option value="all">All</option>
+          </select>
+          <span className={styles.resultsLabel}>
+            {q ? `${visibleBatches.length} of ${batches.length}` : `${batches.length} batch${batches.length === 1 ? "" : "es"}`}
+          </span>
         </div>
-      )}
+        {canCreate && (
+          <button type="button" onClick={() => setShowAdd(true)} className={styles.primary}>
+            <Plus size={18} aria-hidden="true" />Add Batch
+          </button>
+        )}
+      </div>
 
       {showAdd && (
         <BatchFormModal
@@ -48,96 +76,67 @@ export default function BatchesPage() {
       )}
 
       {isLoading ? (
-        <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading batches…</p>
+        <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading batches…</p>
       ) : error ? (
-        <p style={{ color: "#c53030", fontWeight: 600 }}>
+        <p style={{ color: "#b83232", fontWeight: 600, fontSize: "14px" }}>
           {error instanceof Error ? error.message : "Failed to load batches."}
         </p>
       ) : (
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: "420px" }}>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name, school, or programme…"
-                aria-label="Search batches"
-                style={{ ...inputStyle, paddingLeft: "36px" }}
-              />
-              <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "ACTIVE" | "ARCHIVED" | "all")}
-              aria-label="Filter by status"
-              style={{ ...inputStyle, width: "auto", minWidth: "140px" }}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-              <option value="all">All</option>
-            </select>
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
-              {q ? `${visibleBatches.length} of ${batches.length}` : `${batches.length} batch${batches.length === 1 ? "" : "es"}`}
-            </span>
-          </div>
-
-          <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
+        <div className={styles.tableWrap}>
+            <table className={styles.table}>
               <thead>
-                <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>School</th>
-                  <th style={thStyle}>Programme</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Dates</th>
-                  <th style={thStyle}>Students</th>
-                  <th style={thStyle}>Content</th>
-                  {canEdit && <th style={thStyle} />}
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">School</th>
+                  <th scope="col">Programme</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Dates</th>
+                  <th scope="col">Students</th>
+                  <th scope="col">Content</th>
+                  {canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}
                 </tr>
               </thead>
               <tbody>
                 {batches.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No batches yet.</td></tr>
+                  <tr><td colSpan={canEdit ? 8 : 7} style={{ color: "var(--color-text-muted)" }}>No batches yet.</td></tr>
                 ) : visibleBatches.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No batches match &ldquo;{query}&rdquo;.</td></tr>
+                  <tr><td colSpan={canEdit ? 8 : 7} style={{ color: "var(--color-text-muted)" }}>No batches match &ldquo;{query}&rdquo;.</td></tr>
                 ) : visibleBatches.map((b) => (
                   <tr
                     key={b.id}
                     onClick={() => router.push(withFrom(`/dashboard/batches/${b.id}`, currentUrl))}
-                    style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}
+                    style={{ cursor: "pointer" }}
                   >
-                    <td style={{ ...tdStyle, color: "#034852", fontWeight: 600 }}>
-                      {b.name}
-                    </td>
-                    <td style={tdStyle}>{b.school_name ?? <em style={{ color: "rgba(3,72,82,0.5)" }}>Independent</em>}</td>
-                    <td style={tdStyle}>{b.programme_type ?? "—"}</td>
-                    <td style={tdStyle}>
+                    <td style={{ fontWeight: 600 }}>{b.name}</td>
+                    <td>{b.school_name ?? <em style={{ color: "var(--color-text-muted)" }}>Independent</em>}</td>
+                    <td>{b.programme_type ?? "—"}</td>
+                    <td>
                       <span style={{
-                        padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-                        background: b.status === "ACTIVE" ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
-                        color: b.status === "ACTIVE" ? "#0abe62" : "rgba(3,72,82,0.6)",
+                        padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap",
+                        background: b.status === "ACTIVE" ? "var(--color-success-surface)" : "#eef5f3",
+                        color: b.status === "ACTIVE" ? "#08784a" : "var(--color-text-muted)",
                       }}>
-                        {b.status}
+                        {b.status === "ACTIVE" ? "Active" : b.status === "ARCHIVED" ? "Archived" : b.status}
                       </span>
                     </td>
-                    <td style={tdStyle}>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       {b.starts_on || b.ends_on
                         ? `${b.starts_on ?? "…"} → ${b.ends_on ?? "…"}`
                         : "—"}
                     </td>
-                    <td style={tdStyle}>{b.member_count}</td>
-                    <td style={tdStyle}>
+                    <td>{b.member_count}</td>
+                    <td>
                       {b.course_count} courses · {b.bundle_count} bundles · {b.test_count} tests
                     </td>
                     {canEdit && (
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
+                      <td style={{ textAlign: "right" }}>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             router.push(withFrom(`/dashboard/batches/${b.id}?tab=settings`, currentUrl));
                           }}
-                          style={linkBtnStyle}
+                          className={styles.secondary}
                         >
                           Edit
                         </button>
@@ -147,15 +146,8 @@ export default function BatchesPage() {
                 ))}
               </tbody>
             </table>
-          </div>
-        </>
+        </div>
       )}
     </div>
   );
 }
-
-const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap" };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" };
-const thStyle: React.CSSProperties = { padding: "14px 20px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };
-const tdStyle: React.CSSProperties = { padding: "12px 20px", color: "#034852" };
-const linkBtnStyle: React.CSSProperties = { background: "none", border: "none", color: "#0abe62", fontWeight: 700, fontSize: "13px", cursor: "pointer" };
