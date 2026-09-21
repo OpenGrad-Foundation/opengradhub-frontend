@@ -10,9 +10,9 @@ export function ScopeChip({ scope }: { scope: InsightsScope }) {
         alignItems: "center",
         gap: "8px",
         padding: "6px 12px",
-        borderRadius: "999px",
+        borderRadius: "6px",
         background: "rgba(10,190,98,0.1)",
-        color: "#034852",
+        color: "var(--color-text)",
         fontSize: "12px",
         fontWeight: 600,
       }}

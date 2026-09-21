@@ -5,15 +5,14 @@ import { PERM, STUDENT_PROFILE_PERMISSIONS } from "@/lib/permissions";
 import { InsightsResponse } from "@/lib/api";
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-  padding: "24px 28px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const header: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, color: "#209379",
-  letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px",
+  fontSize: "16px", fontWeight: 600, color: "var(--color-text)", marginBottom: "12px",
 };
 
 function timeAgo(iso: string | null): string {
@@ -33,17 +32,17 @@ export function NeedsAttention({
       <div style={card}>
         <p style={header}>At-risk students</p>
         {data.at_risk_students.length === 0 ? (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>No at-risk students in scope.</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>No at-risk students in scope.</p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {data.at_risk_students.map((s) => (
-              <li key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
+              <li key={s.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
                 <EntityLink
                   href={`/dashboard/students/${s.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}
-                  style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
+                  style={{ display: "flex", justifyContent: "space-between", color: "var(--color-text)", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{s.name}</span>
-                  <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)" }}>
+                  <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
                     {s.completion_pct}% · {s.avg_score ?? "—"}% · {timeAgo(s.last_activity_at)}
                   </span>
                 </EntityLink>
@@ -56,17 +55,17 @@ export function NeedsAttention({
       <div style={card}>
         <p style={header}>Worst-performing quizzes</p>
         {data.worst_quizzes.length === 0 ? (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>All quizzes performing above 40%.</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>All quizzes performing above 40%.</p>
         ) : (
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
             {data.worst_quizzes.map((q) => (
-              <li key={q.id} style={{ padding: "10px 0", borderBottom: "1px solid rgba(3,72,82,0.06)" }}>
+              <li key={q.id} style={{ padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
                 <EntityLink
                   href={`/dashboard/quiz/${q.id}/leaderboard`} permissions={[PERM.assessments.view]} requiredPermissions={[PERM.students.view]}
-                  style={{ display: "flex", justifyContent: "space-between", color: "#034852", textDecoration: "none" }}
+                  style={{ display: "flex", justifyContent: "space-between", color: "var(--color-text)", textDecoration: "none" }}
                 >
                   <span style={{ fontWeight: 600 }}>{q.title}</span>
-                  <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)" }}>
+                  <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
                     {q.avg_score}% · {q.attempts} attempts
                   </span>
                 </EntityLink>

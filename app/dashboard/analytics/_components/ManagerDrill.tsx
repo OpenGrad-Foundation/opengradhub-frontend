@@ -7,28 +7,29 @@ import {
   Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend,
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
+import { ArrowLeft } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 const BRAND = { dark: "#034852", teal: "#006d6c", mid: "#209379", green: "#0abe62", yellow: "#ffde00" };
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-  padding: "24px 28px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const th: React.CSSProperties = {
-  padding: "10px 14px", fontSize: "11px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.22em",
-  color: "rgba(3,72,82,0.55)", textAlign: "left",
-  borderBottom: "1px solid rgba(3,72,82,0.08)", whiteSpace: "nowrap",
+  padding: "10px 14px", fontSize: "12px", fontWeight: 500,
+  background: "#eef5f3",
+  color: "var(--color-text-muted)", textAlign: "left",
+  borderBottom: "1px solid var(--color-border)", whiteSpace: "nowrap",
 };
 
 const td: React.CSSProperties = {
-  padding: "12px 14px", fontSize: "13px", color: "#034852",
-  borderBottom: "1px solid rgba(3,72,82,0.05)",
+  padding: "12px 14px", fontSize: "13px", color: "var(--color-text)",
+  borderBottom: "1px solid var(--color-border)",
 };
 
 export default function ManagerDrill({
@@ -41,41 +42,39 @@ export default function ManagerDrill({
       <button
         onClick={onBack}
         style={{
-          background: "none", border: "1px solid rgba(3,72,82,0.2)",
-          borderRadius: "10px", padding: "6px 14px", cursor: "pointer",
-          fontSize: "13px", color: BRAND.dark, marginBottom: "20px",
+          background: "var(--color-surface)", border: "1px solid var(--color-border)",
+          borderRadius: "12px", padding: "0 16px", minHeight: "44px", cursor: "pointer",
+          fontSize: "14px", fontWeight: 500, color: "var(--color-text)", marginBottom: "20px",
           display: "flex", alignItems: "center", gap: "6px",
         }}
       >
-        ← Back to insights
+        <ArrowLeft size={16} aria-hidden="true" /> Back to insights
       </button>
 
-      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-                  letterSpacing: "0.28em", color: BRAND.mid, marginBottom: "4px" }}>
-        Course Detail
+      <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", marginBottom: "4px" }}>
+        Course detail
       </p>
-      <h2 style={{ fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700,
-                   color: BRAND.dark, marginBottom: "24px", marginTop: 0 }}>
+      <h2 style={{ fontSize: "22px", fontWeight: 700,
+                   color: "var(--color-text)", marginBottom: "24px", marginTop: 0 }}>
         {courseTitle ?? "Course"}
       </h2>
 
       {isPending ? (
         <div style={{ minHeight: "160px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>Loading…</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading…</p>
         </div>
       ) : error ? (
-        <div style={{ padding: "24px", color: "#c0392b", fontSize: "14px" }}>
+        <div style={{ padding: "24px", color: "#b83232", fontSize: "14px" }}>
           Error: {(error as Error).message}
         </div>
       ) : data && data.view === "students" ? (
         <>
           <div style={{ ...card, marginBottom: "20px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-                        letterSpacing: "0.26em", color: BRAND.mid, marginBottom: "16px" }}>
-              Student Progress
+            <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text)", marginBottom: "16px" }}>
+              Student progress
             </p>
             {data.students.length === 0 ? (
-              <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px", textAlign: "center", padding: "24px 0" }}>
+              <p style={{ color: "var(--color-text-muted)", fontSize: "14px", textAlign: "center", padding: "24px 0" }}>
                 No enrolled students.
               </p>
             ) : (
@@ -85,8 +84,8 @@ export default function ManagerDrill({
                     <tr>
                       <th style={th}>Student</th>
                       <th style={{ ...th, textAlign: "right" }}>Completion</th>
-                      <th style={{ ...th, textAlign: "right" }}>Best Score</th>
-                      <th style={{ ...th, textAlign: "right" }}>Avg Score</th>
+                      <th style={{ ...th, textAlign: "right" }}>Best score</th>
+                      <th style={{ ...th, textAlign: "right" }}>Avg score</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -95,7 +94,7 @@ export default function ManagerDrill({
                         <td style={{ ...td, fontWeight: 600 }}>
                           <EntityLink
                             href={`/dashboard/students/${s.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}
-                            style={{ color: BRAND.dark, textDecoration: "none" }}
+                            style={{ color: "var(--color-text)", textDecoration: "none" }}
                           >
                             {s.name}
                           </EntityLink>
@@ -104,7 +103,7 @@ export default function ManagerDrill({
                         <td style={{ ...td, textAlign: "right" }}>
                           {s.best_score != null ? `${s.best_score}%` : "—"}
                         </td>
-                        <td style={{ ...td, textAlign: "right", color: "rgba(3,72,82,0.55)" }}>
+                        <td style={{ ...td, textAlign: "right", color: "var(--color-text-muted)" }}>
                           {s.avg_score != null ? `${s.avg_score}%` : "—"}
                         </td>
                       </tr>
@@ -119,8 +118,7 @@ export default function ManagerDrill({
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
               {data.quiz_distribution.map((q) => (
                 <div key={q.id} style={card}>
-                  <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-                              letterSpacing: "0.22em", color: BRAND.mid, marginBottom: "12px" }}>
+                  <p style={{ fontSize: "15px", fontWeight: 600, color: "var(--color-text)", marginBottom: "12px" }}>
                     {q.title}
                   </p>
                   <Bar
