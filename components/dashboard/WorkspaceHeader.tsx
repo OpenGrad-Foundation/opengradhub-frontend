@@ -17,6 +17,7 @@ type WorkspaceHeaderProps = {
 export default function WorkspaceHeader({ title, subtitle, subtitleLabel, actions, onMenuClick, sidebarOpen = false }: WorkspaceHeaderProps) {
   const headerRef = useRef<HTMLElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
   const [compact, setCompact] = useState(false);
 
   function scrollToTop() {
@@ -39,15 +40,21 @@ export default function WorkspaceHeader({ title, subtitle, subtitleLabel, action
     const updateHeight = () => {
       shell.style.setProperty("--dashboard-header-height", `${header.offsetHeight}px`);
       shell.style.setProperty("--dashboard-pill-width", `${pillRef.current?.offsetWidth ?? 140}px`);
+      // The surface hugs the title block (plus the header's 0.75rem padding
+      // and border); actions and the bell sit outside it on their own.
+      if (titleRef.current) shell.style.setProperty("--dashboard-title-box", `${titleRef.current.offsetWidth + 26}px`);
+      header.setAttribute("data-measured", "");
     };
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(header);
     if (pillRef.current) observer.observe(pillRef.current);
+    if (titleRef.current) observer.observe(titleRef.current);
     return () => {
       observer.disconnect();
       shell.style.removeProperty("--dashboard-header-height");
       shell.style.removeProperty("--dashboard-pill-width");
+      shell.style.removeProperty("--dashboard-title-box");
     };
   }, []);
 
@@ -75,21 +82,25 @@ export default function WorkspaceHeader({ title, subtitle, subtitleLabel, action
     <div className={styles.headerSpace}>
       <header ref={headerRef} data-compact={compact} className={styles.stickyHeader}>
         <div className={styles.fullHeader} inert={compact} aria-hidden={compact}>
-          <div className="flex min-h-11 items-center gap-1.5 sm:gap-3">
-            <span className="shrink-0 lg:hidden"><button type="button" onClick={onMenuClick} aria-label="Open sidebar" aria-controls="dashboard-navigation" aria-expanded={sidebarOpen} className={`${styles.utilityButton} ${styles.iconButton}`}>
-              <Menu size={20} aria-hidden="true" />
-            </button></span>
-            <h1 className="min-w-0 text-lg font-bold tracking-tight text-[var(--color-text)] min-[380px]:text-2xl sm:text-4xl">{title}</h1>
-            {subtitle && <div className="ml-3 hidden min-w-0 border-l border-[var(--color-border)] pl-6 lg:block">
-              <p className="text-xs text-[var(--color-text-muted)]">{subtitleLabel}</p>
-              <p className="mt-1 break-words text-sm font-semibold text-[var(--color-text)]">{subtitle}</p>
-            </div>}
+          <div className="flex items-start gap-3">
+            <div ref={titleRef} className="min-w-0">
+              <div className="flex min-h-11 items-center gap-1.5 sm:gap-3">
+                <span className="shrink-0 lg:hidden"><button type="button" onClick={onMenuClick} aria-label="Open sidebar" aria-controls="dashboard-navigation" aria-expanded={sidebarOpen} className={`${styles.utilityButton} ${styles.iconButton}`}>
+                  <Menu size={20} aria-hidden="true" />
+                </button></span>
+                <h1 className="min-w-0 text-lg font-bold tracking-tight text-[var(--color-text)] min-[380px]:text-2xl sm:text-4xl">{title}</h1>
+                {subtitle && <div className="ml-3 hidden min-w-0 border-l border-[var(--color-border)] pl-6 lg:block">
+                  <p className="text-xs text-[var(--color-text-muted)]">{subtitleLabel}</p>
+                  <p className="mt-1 break-words text-sm font-semibold text-[var(--color-text)]">{subtitle}</p>
+                </div>}
+              </div>
+              {subtitle && <p className="mt-3 break-words text-sm font-medium leading-relaxed text-[var(--color-text-muted)] lg:hidden">{subtitle}</p>}
+            </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
               {actions}
               <NotificationBell />
             </div>
           </div>
-          {subtitle && <p className="mt-3 break-words text-sm font-medium leading-relaxed text-[var(--color-text-muted)] lg:hidden">{subtitle}</p>}
         </div>
         <button ref={pillRef} type="button" onClick={scrollToTop} aria-label={`Back to top of ${title.toLowerCase()}`} title="Back to top" inert={!compact} aria-hidden={!compact} tabIndex={compact ? 0 : -1} className={styles.dashboardPill}>
           {title} <ArrowUp size={16} aria-hidden="true" />
