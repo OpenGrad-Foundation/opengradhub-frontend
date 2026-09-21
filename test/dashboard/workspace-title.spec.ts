@@ -18,4 +18,11 @@ describe('workspaceTitleFor', () => {
     expect(workspaceTitleFor('/dashboard/tracker', [])).toBe(TRACKER_NAME);
     expect(workspaceTitleFor('/dashboard/schools/123', ['schools.view'])).toBeNull();
   });
+
+  it('titles quiz builder routes and leaves duplicate alone', () => {
+    expect(workspaceTitleFor('/dashboard/quiz-builder/abc', ['test_bank.edit'])).toBe('Quiz');
+    expect(workspaceTitleFor('/dashboard/quiz-builder/abc', ['test_bank.view'])).toBeNull();
+    expect(workspaceTitleFor('/dashboard/quiz-builder/new', [])).toBe('New quiz');
+    expect(workspaceTitleFor('/dashboard/quiz-builder/duplicate', ['test_bank.edit'])).toBeNull();
+  });
 });

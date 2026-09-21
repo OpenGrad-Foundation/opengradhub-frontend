@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Check, Eye, Plus, Upload, Library } from "lucide-react";
 import { getBackHref } from "@/lib/nav";
+import { Tabs } from "@/app/dashboard/_components/Tabs";
+import workspace from "@/components/dashboard/workspace.module.css";
+import styles from "@/app/dashboard/course-management/management.module.css";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
@@ -285,82 +289,11 @@ export default function QuizBuilderPage() {
   }
 
   const quizType = quiz?.quiz_type ?? "GLOBAL_TEST";
+  const totalQuestions = (quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length;
 
-  return (
-    <div style={{ position: "relative" }}>
-      {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ marginBottom: "28px" }}>
-        {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
-        <a
-          href={getBackHref(from, backHref)}
-          style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}
-        >
-          ← {courseId ? "Back to Course Builder" : from ? "Back" : "Back to Question Bank"}
-        </a>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap", gap: "16px" }}>
-          <div>
-            <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
-            <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>{quiz?.title ?? "Quiz Builder"}</h1>
-            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-              {questions.length} question{questions.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flexWrap: "wrap" }}>
-            {/* Preview + Publish controls */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-              <button
-                onClick={() => setPreviewOpen(true)}
-                disabled={(quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length === 0}
-                style={{
-                  padding: "10px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px",
-                  background: "transparent", color: "#034852",
-                  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-                  cursor: "pointer", transition: "all 220ms ease",
-                }}
-              >
-                Student Preview
-              </button>
-            </div>
-
-            {/* Publish control */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-              {quiz?.published ? (
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: "6px",
-                  padding: "10px 18px", borderRadius: "10px",
-                  background: "rgba(10,190,98,0.1)", border: "1.5px solid rgba(10,190,98,0.3)",
-                  color: "#0abe62", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-                }}>
-                  ✓ Published
-                </span>
-              ) : (
-                <button
-                  onClick={() => void handlePublish()}
-                  disabled={publishing}
-                  style={{
-                    padding: "10px 20px", border: "none", borderRadius: "10px",
-                    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-                    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-                    fontSize: "13px", cursor: publishing ? "default" : "pointer",
-                    boxShadow: "0 6px 14px rgba(10,190,98,0.25)",
-                    opacity: publishing ? 0.6 : 1, transition: "all 220ms ease",
-                  }}
-                >
-                  {publishing ? "Publishing…" : "Publish Quiz"}
-                </button>
-              )}
-              {publishErr && (
-                <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{publishErr}</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Settings card ─────────────────────────────────── */}
+  const settingsPanel = (
       <form onSubmit={(e) => void saveSettings(e)}>
-        <div style={{ ...glassCard, padding: "clamp(16px, 4vw, 24px)", marginBottom: "24px" }}>
+        <div style={{ ...glassCard, maxWidth: "52rem" }}>
           <p style={{ ...S.sectionHeader, marginBottom: "16px" }}>Quiz Settings</p>
           <div style={{ display: "grid", gap: "16px" }}>
             <Field label="Title *">
@@ -431,7 +364,10 @@ export default function QuizBuilderPage() {
           </div>
         </div>
       </form>
+  );
 
+  const questionsPanel = (
+    <>
       {/* ── Bulk CSV upload into this quiz ────────────────── */}
       {csvOpen && csvTarget && (
         <QuestionBulkUploadPanel
@@ -460,10 +396,10 @@ export default function QuizBuilderPage() {
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
               <p style={S.sectionHeader}>Questions ({questions.length})</p>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => setBankOpen(true)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add from Bank</button>
-                <button onClick={() => setCsvOpen((v) => !v)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px", color: "#932079", borderColor: "rgba(147,32,121,0.3)" }}>⬆ Upload CSV</button>
-                <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={{ ...S.primaryBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add Question</button>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setBankOpen(true)} style={S.outlineBtn}><Library size={16} aria-hidden="true" />From bank</button>
+                <button type="button" onClick={() => setCsvOpen((v) => !v)} aria-expanded={csvOpen} style={S.outlineBtn}><Upload size={16} aria-hidden="true" />Upload CSV</button>
+                <button type="button" onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={S.primaryBtn}><Plus size={16} aria-hidden="true" />Add question</button>
               </div>
             </div>
 
@@ -493,6 +429,52 @@ export default function QuizBuilderPage() {
             </p>
           </>
         )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`${workspace.workspace} ${styles.page}`}>
+      <div className={styles.courseHeader}>
+        <div className={styles.courseToolbar}>
+          {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
+          <a href={getBackHref(from, backHref)} className={styles.secondary}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span>{courseId ? "Course builder" : from ? "Back" : "Question Bank"}</span>
+          </a>
+          <div className={styles.headerActions}>
+            <button type="button" onClick={() => setPreviewOpen(true)} disabled={totalQuestions === 0} className={styles.secondary}>
+              <Eye size={16} aria-hidden="true" />Preview
+            </button>
+            {quiz?.published ? (
+              <span className={styles.secondary} style={{ cursor: "default", color: "var(--teal)" }}>
+                <Check size={16} aria-hidden="true" />Published
+              </span>
+            ) : (
+              <button type="button" onClick={() => void handlePublish()} disabled={publishing} className={styles.primary}>
+                {publishing ? "Publishing…" : "Publish quiz"}
+              </button>
+            )}
+          </div>
+        </div>
+        {publishErr && <p role="alert" style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, margin: 0 }}>{publishErr}</p>}
+        <div className={styles.courseIdentity}>
+          <h2>{quiz?.title ?? "Untitled quiz"}</h2>
+          <div className={styles.courseMeta}>
+            <span>{quizType === "MODULE_TEST" ? "Module quiz" : "Global quiz"}</span>
+            <span>{totalQuestions} question{totalQuestions !== 1 ? "s" : ""}</span>
+            {quiz?.is_sectioned && <span>{quiz.sections.length} section{quiz.sections.length !== 1 ? "s" : ""}</span>}
+            <span>{quiz?.duration_minutes ? `${quiz.duration_minutes} min` : "Untimed"}</span>
+            {!quiz?.published && <span>Draft</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className={`${workspace.stickyTabs} ${styles.courseTabs}`}>
+      <Tabs ariaLabel="Quiz builder" compactOnScroll tabs={[
+        { key: "questions", label: "Questions", count: totalQuestions, panel: questionsPanel },
+        { key: "settings", label: "Settings", panel: settingsPanel },
+      ]} />
       </div>
 
       {/* ── Student preview ───────────────────────────────── */}
@@ -1160,38 +1142,35 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 20px)",
 };
 
 const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
+    fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+    fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
   sectionHeader: {
-    fontFamily: "var(--font-heading)", fontSize: "15px", fontWeight: 700,
-    color: "#034852", margin: 0,
+    fontSize: "15px", fontWeight: 600, color: "var(--color-text)", margin: 0,
   } as React.CSSProperties,
   primaryBtn: {
-    padding: "10px 20px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-    fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 12px rgba(10,190,98,0.2)",
-    transition: "all 220ms ease", whiteSpace: "nowrap",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 14px", border: "1px solid var(--green)", borderRadius: "12px",
+    background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600,
+    fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap",
   } as React.CSSProperties,
   outlineBtn: {
-    padding: "7px 14px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px",
-    background: "transparent", color: "#034852", fontFamily: "var(--font-body)",
-    fontWeight: 600, fontSize: "12px", cursor: "pointer",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 14px", border: "1px solid var(--color-border)", borderRadius: "12px",
+    background: "var(--color-surface)", color: "var(--color-text)",
+    fontWeight: 600, fontSize: "13px", cursor: "pointer",
   } as React.CSSProperties,
   input: {
-    width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)",
-    border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852",
-    fontFamily: "var(--font-body)", fontSize: "14px",
-    outline: "none", boxSizing: "border-box",
+    width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)",
+    border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)",
+    fontSize: "14px", boxSizing: "border-box",
   } as React.CSSProperties,
 };

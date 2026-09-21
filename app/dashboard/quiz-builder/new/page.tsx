@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -117,11 +118,10 @@ export default function NewQuizPage() {
     <div style={{ maxWidth: "640px" }}>
       {/* Header */}
       <div style={{ marginBottom: "28px" }}>
-        <a href={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-          ← Back
+        <a href={backHref} style={bulkBtn}>
+          <ArrowLeft size={16} aria-hidden="true" />Back
         </a>
-        <p style={{ ...label, marginTop: "12px" }}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
-        <h1 style={{ ...heading, fontSize: "28px", margin: "4px 0 0" }}>New Quiz</h1>
+        <p style={{ ...label, marginTop: "16px" }}>{quizType === "MODULE_TEST" ? "Module quiz" : "Global quiz"}</p>
 
         {/* The other way in: skip the form and let a markdown/PDF file define
             the whole quiz, questions included. Points at bulkImportHref — same
@@ -272,39 +272,28 @@ function Toggle({ value, onChange, label: lbl, description }: { value: boolean; 
 }
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
 const label: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0,
+  fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
 };
 const heading: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+  fontWeight: 600, color: "var(--color-text)",
 };
 const uploadCallout: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
-  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
-  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
+  marginTop: "16px", padding: "14px 16px", borderRadius: "12px",
+  background: "#eef5f3", border: "1px solid var(--color-border)",
 };
 const uploadCalloutBtn: React.CSSProperties = {
-  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
-  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
-  fontSize: "13px", fontWeight: 700, textDecoration: "none",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 14px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontSize: "13px", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
 };
 const primaryBtn: React.CSSProperties = {
-  padding: "12px 24px", border: "none", borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px",
-  cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", transition: "all 240ms ease",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer",
 };
 const bulkBtn: React.CSSProperties = {
-  padding: "10px 18px", borderRadius: "12px", whiteSpace: "nowrap",
-  border: "1.5px solid rgba(32,147,121,0.3)", background: "rgba(32,147,121,0.06)",
-  color: "#209379", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-  textDecoration: "none",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 14px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)", fontSize: "13px", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
 };
 const input: React.CSSProperties = {
-  width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)",
-  border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852",
-  fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box",
+  width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box",
 };
