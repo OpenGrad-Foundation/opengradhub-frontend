@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PMActivity from "./Activity";
 import { useInsightsOverview } from "@/lib/queries/dashboard/_insights-overview";
 import { useRegisterGaps } from "@/lib/queries/attendance";
 import { useOpenReportedCount } from "@/lib/queries/dashboard/use-reported-count";
@@ -32,18 +33,8 @@ export default function PMOverview({ userId }: { userId: string }) {
     }),
   };
 
-  function refresh() {
-    void overview.refetch();
-    if (canUseRegisters) void registers.refetch();
-    if (canTriage) void reports.refetch();
-  }
-
   return (
     <section aria-label="Programme overview" className="text-[var(--color-text)]">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <p className="text-sm text-[var(--color-text-muted)]">{widgets.scopeLabel || "Your assigned scope"}</p>
-        <button type="button" onClick={refresh} aria-label="Refresh programme overview" className={styles.utilityButton}>Refresh</button>
-      </div>
       <div className={styles.metricGrid}>
         {overview.error ? <div className="col-span-2"><WidgetError compact message={overview.error} onRetry={overview.refetch} /></div> : widgets.stats.filter(stat => stat.key === "students" || stat.key === "avg").map(stat => (
           <div key={stat.key} className={styles.metricCard}>
@@ -83,6 +74,7 @@ export default function PMOverview({ userId }: { userId: string }) {
           </div>
         </section>}
       </div>
+      {(has(PERM.doubts.view) || has(PERM.announcements.view)) && <PMActivity userId={userId} preview />}
     </section>
   );
 }

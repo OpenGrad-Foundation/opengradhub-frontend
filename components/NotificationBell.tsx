@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
+import styles from "@/components/dashboard/workspace.module.css";
 import { toast } from "sonner";
 import {
   markAllNotificationsRead,
@@ -227,11 +228,11 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={handleOpen}
-        className="relative flex items-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
+        className={`${styles.utilityButton} ${styles.iconButton} relative select-none`}
         title="Notifications"
         aria-label="Notifications"
       >
-        <Bell size={18} aria-hidden="true" />
+        <Bell size={20} aria-hidden="true" />
         {count > 0 && (
           <span style={{
             position: "absolute", top: "2px", right: "2px",
@@ -250,11 +251,12 @@ export default function NotificationBell() {
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 8px)", right: 0,
-          width: "340px",
+          width: "min(340px, calc(100vw - 24px))",
+          maxHeight: "calc(100dvh - 100px)",
           background: "rgba(255,255,255,0.97)",
           border: "1px solid rgba(3,72,82,0.1)", borderRadius: "18px",
           boxShadow: "0 16px 48px rgba(3,72,82,0.15)",
-          zIndex: 100, overflow: "hidden",
+          zIndex: 100, overflowY: "auto",
         }}>
           {/* Dropdown header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px 10px" }}>

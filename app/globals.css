@@ -221,3 +221,8 @@ select:focus-visible,
   scrollbar-width: none;  /* Firefox */
 }
 
+
+/* Keep trackpad edge bounce from exposing space above the dashboard shell. */
+html:has([data-dashboard-shell]) {
+  overscroll-behavior-y: none;
+}

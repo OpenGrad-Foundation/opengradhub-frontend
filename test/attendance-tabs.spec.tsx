@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 
 /**
  * The Attendance tab set. "Records" is first and default because it answers the
@@ -11,6 +11,7 @@ import { render } from "@testing-library/react";
 
 let perms: string[] = [];
 let query = "";
+const replace = vi.fn();
 
 vi.mock("@/hooks/use-permission", () => ({
   usePermissions: () => ({ has: (p: string) => perms.includes(p), isLoading: false }),
@@ -28,22 +29,32 @@ vi.mock("@/app/dashboard/attendance/_components/StudentView", () => ({
   StudentView: () => <div>student-panel</div>,
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
   usePathname: () => "/dashboard/attendance",
   useSearchParams: () => new URLSearchParams(query),
 }));
 
 import AttendancePage from "@/app/dashboard/attendance/page";
 
-beforeEach(() => { perms = []; query = ""; });
+beforeEach(() => { perms = []; query = ""; replace.mockClear(); });
 
 describe("staff Attendance", () => {
   beforeEach(() => { perms = ["attendance.view", "attendance.manage", "students.view", "live_classes.view", "schools.view"]; });
 
   it("offers exactly Records, School confirmations and Registers", () => {
     const { getAllByRole } = render(<AttendancePage />);
-    const labels = getAllByRole("tab").map((t) => t.textContent);
+    const labels = getAllByRole("tab").map((t) => t.getAttribute("aria-label"));
     expect(labels).toEqual(["Records", "School confirmations", "Registers"]);
+  });
+
+  it("keeps attendance filters when switching from the compact view picker", () => {
+    query = "tab=confirmations&school_id=sample-school";
+    const { getByRole } = render(<AttendancePage />);
+    const picker = getByRole('combobox', { name: 'Attendance tabs' }) as HTMLSelectElement;
+    expect(picker.value).toBe('confirmations');
+    expect(picker.selectedOptions[0].textContent).toBe('Confirmations');
+    fireEvent.change(picker, { target: { value: 'registers' } });
+    expect(replace).toHaveBeenCalledWith('/dashboard/attendance?tab=registers&school_id=sample-school', { scroll: false });
   });
 
   it("opens on Records", () => {
@@ -54,12 +65,12 @@ describe("staff Attendance", () => {
 
   it("has no Overview tab any more", () => {
     const { getAllByRole } = render(<AttendancePage />);
-    expect(getAllByRole("tab").map((t) => t.textContent)).not.toContain("Overview");
+    expect(getAllByRole("tab").map((t) => t.getAttribute("aria-label"))).not.toContain("Overview");
   });
 
   it("no longer calls the school-links tab 'Live Classes'", () => {
     const { getAllByRole } = render(<AttendancePage />);
-    expect(getAllByRole("tab").map((t) => t.textContent)).not.toContain("Live Classes");
+    expect(getAllByRole("tab").map((t) => t.getAttribute("aria-label"))).not.toContain("Live Classes");
   });
 });
 

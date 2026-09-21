@@ -83,6 +83,7 @@ const GROUP_ICONS: Record<NavGroupKey, LucideIcon> = {
 // ── Active path helper ───────────────────────────────────────────────────────
 
 function isActivePath(pathname: string, href: string) {
+  if (href === "/dashboard/courses" && pathname.startsWith("/dashboard/course-management/")) return true;
   if (href === "/dashboard") {
     return pathname === href;
   }
@@ -95,10 +96,12 @@ export default function Sidebar({
   onClose,
   collapsed = false,
   onToggleCollapsed,
+  footer,
 }: {
   onClose?: () => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  footer?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const { data } = useCurrentUser();
@@ -272,14 +275,14 @@ export default function Sidebar({
   return (
     <aside
       className={
-        "flex h-full min-h-dvh shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm transition-[width] duration-200 w-64 " +
+        "flex h-full min-h-0 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm transition-[width] duration-200 w-64 " +
         (collapsed ? "lg:w-[68px]" : "lg:w-64")
       }
     >
       {/* Logo + collapse toggle + mobile close */}
       <div
         className={
-          "pb-4 pt-6 border-b border-gray-100 flex items-center px-6 " +
+          "pb-4 pt-6 border-b border-gray-100 flex shrink-0 items-center px-6 " +
           (collapsed ? "lg:px-3 lg:justify-center" : "justify-between")
         }
       >
@@ -348,7 +351,7 @@ export default function Sidebar({
           ref={navRef}
           onScroll={checkScrollLimits}
           aria-label="Main navigation"
-          className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar scroll-smooth"
+          className="flex-1 overflow-y-auto overscroll-y-contain px-3 py-4 no-scrollbar scroll-smooth"
         >
           <ul className="space-y-0.5">
             {/* Pinned: Dashboard */}
@@ -418,6 +421,7 @@ export default function Sidebar({
         </div>
       </div>
 
+      {footer && <div className="shrink-0 border-t border-gray-100 p-3">{footer}</div>}
     </aside>
   );
 }

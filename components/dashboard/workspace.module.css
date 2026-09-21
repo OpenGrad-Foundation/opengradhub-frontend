@@ -14,6 +14,180 @@
   border: 0;
 }
 
+.headerSpace {
+  height: var(--dashboard-header-height, 70px);
+  margin-bottom: 0.75rem;
+}
+
+.stickyHeader,
+.stickyTabs :global([role="tablist"]) {
+  position: fixed;
+  left: 1.5rem;
+  right: 1.5rem;
+  background: #eef5f3;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+}
+
+.stickyHeader {
+  top: 1rem;
+  z-index: 21;
+  padding: 0.75rem;
+  background: transparent;
+  border-color: transparent;
+}
+
+/* Only this decorative surface changes size; the header and page stay put. */
+.stickyHeader::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -1px;
+  left: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: #eef5f3;
+  pointer-events: none;
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1), height 360ms cubic-bezier(0.22, 1, 0.36, 1), border-radius 360ms cubic-bezier(0.22, 1, 0.36, 1), border-color 200ms ease;
+}
+
+.stickyHeader[data-compact="true"]::before {
+  width: var(--dashboard-pill-width, 140px);
+  height: 2.75rem;
+  border-radius: 1.375rem;
+  border-color: var(--color-border-strong);
+}
+
+/* Reserve both rows so changing their presentation never moves page content. */
+.stickyTabs > div {
+  padding-top: calc(2.75rem + 1rem + 2px + 1.5rem);
+}
+
+.stickyTabs :global([role="tablist"]) {
+  top: calc(1rem + var(--dashboard-header-height, 70px) + 0.75rem);
+  z-index: 20;
+  margin: 0;
+  padding: 0.5rem;
+  gap: 0.5rem;
+  border: 1px solid var(--color-border);
+}
+
+.stickyHeader[data-compact="true"] {
+  background: transparent;
+  border-color: transparent;
+  pointer-events: none;
+}
+
+.fullHeader,
+.stickyTabs :global([role="tablist"]) {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 220ms ease 80ms, visibility 0s;
+}
+
+.stickyHeader[data-compact="true"] .fullHeader,
+:global([data-dashboard-compact="true"]) .stickyTabs :global([role="tablist"]) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 140ms ease, visibility 0s 140ms;
+}
+
+.dashboardPill {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dark-teal);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.compactTabPicker {
+  display: flex;
+  position: fixed;
+  top: 1rem;
+  right: 1.5rem;
+  z-index: 22;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--green);
+  color: var(--dark-teal);
+}
+
+.dashboardPill,
+.compactTabPicker {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: scale(0.985);
+  transition: opacity 140ms ease, transform 300ms cubic-bezier(0.22, 1, 0.36, 1), visibility 0s 300ms;
+}
+.dashboardPill { transform-origin: top left; }
+.compactTabPicker { transform-origin: top right; }
+.stickyHeader[data-compact="true"] .dashboardPill,
+:global([data-dashboard-compact="true"]) .compactTabPicker {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: scale(1);
+  transition-delay: 80ms, 0s, 0s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stickyHeader,
+  .stickyHeader::before,
+  .stickyHeader[data-compact="true"]::before,
+  .fullHeader,
+  .stickyHeader[data-compact="true"] .fullHeader,
+  .dashboardPill,
+  .compactTabPicker,
+  .stickyHeader[data-compact="true"] .dashboardPill,
+  :global([data-dashboard-compact="true"]) .compactTabPicker,
+  .stickyTabs :global([role="tablist"]),
+  :global([data-dashboard-compact="true"]) .stickyTabs :global([role="tablist"]) { transition: none; }
+}
+.compactTabPicker select {
+  appearance: none;
+  min-height: 2.75rem;
+  padding: 0.5rem 2.25rem 0.5rem 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.compactTabPicker svg { position: absolute; right: 0.75rem; pointer-events: none; }
+.dashboardPill:focus-visible,
+.compactTabPicker select:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+@media (min-width: 640px) {
+  .stickyHeader,
+  .stickyTabs :global([role="tablist"]) { left: 2rem; right: 2rem; }
+  .compactTabPicker { right: 2rem; }
+}
+@media (min-width: 1024px) {
+  .stickyHeader,
+  .stickyTabs :global([role="tablist"]) { left: calc(var(--dashboard-sidebar-width, 256px) + 2rem); }
+}
+
+.stickyTabs :global([role="tabpanel"]) a,
+.stickyTabs :global([role="tabpanel"]) button {
+  scroll-margin-top: calc(var(--dashboard-header-height, 0px) + 6rem);
+}
+
 .workspace :global([role="tab"]) {
   min-height: 3.5rem;
   padding: 0.75rem;
@@ -30,6 +204,25 @@
   background: var(--green);
   box-shadow: none;
   color: color-mix(in srgb, var(--dark-teal) 75%, black);
+}
+
+.stickyTabs :global([role="tab"]) {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  line-height: 1.25rem;
+}
+
+@media (max-width: 639px) {
+  .dashboardPill { gap: 0.5rem; padding-inline: 0.75rem; font-size: 0.8125rem; }
+  .compactTabPicker select { padding-inline: 0.75rem 2rem; font-size: 0.8125rem; }
+  .stickyHeader { padding-inline: 0.5rem; }
+  .stickyTabs :global([role="tablist"]) { padding-inline: 0.5rem; }
+  .stickyTabs :global([role="tab"]) { padding-inline: 0.25rem; font-size: 0.75rem; }
+}
+
+@media (max-width: 359px) {
+  .dashboardPill { padding-inline: 0.5rem; }
+  .compactTabPicker select { padding-inline: 0.5rem 1.75rem; }
 }
 
 .metricCard,
@@ -66,13 +259,24 @@
   flex-shrink: 0;
   padding: 0.5rem 1rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--dashboard-radius);
+  border-radius: var(--dashboard-radius, 0.75rem);
   background: var(--color-success-surface);
   color: var(--dark-teal);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: background-color 150ms, border-color 150ms;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border-radius: 0.75rem;
+  background: var(--color-surface);
 }
 
 @media (hover: hover) {
@@ -198,4 +402,32 @@
     --dashboard-gap: 0.75rem;
     --dashboard-padding: 1rem;
   }
+}
+
+.activityPreview {
+  margin-top: 1.5rem;
+  padding: var(--dashboard-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-surface);
+}
+
+.activityRow {
+  min-height: 0;
+  padding: 1rem 0;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+}
+
+.updateIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  background: var(--color-success-surface);
+  color: var(--teal);
 }

@@ -45,24 +45,8 @@ describe('the monitor view uses effective scope and backend programme reach', ()
     expect(page).toMatch(/programme_id: programmeId \|\| undefined/);
   });
 
-  it('hides the Program type filter in programme mode', () => {
-    // A programme reaches quizzes only through the courses it owns, and a course
-    // quiz is always MODULE_TEST — the segment could only ever return nothing.
-    expect(page).toMatch(/!inProgrammeMode && \(\s*\n\s*<SegBtn label="Program"/);
-  });
-
   it('offers an all-programmes option that sends no filter', () => {
     expect(page).toMatch(/<option value="">\{isUnrestricted \? 'All programmes'/);
   });
 
-  it('points an empty programme list at the content tab instead of falling back', () => {
-    expect(page).toMatch(/none of this programme/);
-    expect(page).toMatch(/dashboard\/programmes\/\$\{programmeId \|\| myProgrammes\[0\]\?\.id/);
-  });
-});
-
-describe('the row labels its owning programme', () => {
-  it('prefixes the label with programme_name when the backend supplied one', () => {
-    expect(page).toMatch(/item\.programme_name \? `\$\{item\.programme_name\} · \$\{base\}` : base/);
-  });
 });

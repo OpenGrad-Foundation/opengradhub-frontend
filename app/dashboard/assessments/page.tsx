@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import { Search, SlidersHorizontal, Plus, ArrowRight, X } from "lucide-react";
+import { Tabs } from "@/app/dashboard/_components/Tabs";
+import { PaginationBar } from "@/app/dashboard/_components/PaginationBar";
+import catalogue from "@/app/dashboard/_components/catalogue.module.css";
+import workspace from "@/components/dashboard/workspace.module.css";
+import styles from "./assessments.module.css";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { useRouter } from "next/navigation";
 import { useSearchParams, usePathname } from "next/navigation";
@@ -603,7 +610,9 @@ function MonitorView() {
   const pathname = usePathname();
   const params = useSearchParams();
 
-  const type      = (params.get('type') as 'MODULE' | 'PROGRAM' | null) ?? null;
+  const rawType = params.get('type');
+  const type = rawType === 'MODULE' || rawType === 'PROGRAM' ? rawType : null;
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const courseId  = params.get('course_id') ?? '';
   const bundleId  = params.get('bundle_id') ?? '';
   const batchId   = params.get('batch_id') ?? '';
@@ -611,7 +620,8 @@ function MonitorView() {
   const to        = params.get('to')   ?? '';
   const q           = params.get('q')    ?? '';
   const programmeId = params.get('programme_id') ?? '';
-  const page        = Number(params.get('page') ?? '1');
+  const rawPage = Number(params.get('page') ?? '1');
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const drawerId    = params.get('drawer');
 
   const { has } = usePermissions();
@@ -628,7 +638,7 @@ function MonitorView() {
   const inProgrammeMode = !isUnrestricted && myProgrammes.length > 0;
   const showPicker = myProgrammes.length > 0;
 
-  const { data, isPending: loading, isError, error: queryError } = useAssessmentsOverview({
+  const { data, isPending: loading, isError, error: queryError, refetch } = useAssessmentsOverview({
     type: type ?? undefined,
     course_id: courseId || undefined,
     bundle_id: bundleId || undefined,
@@ -647,205 +657,54 @@ function MonitorView() {
     if (value === null || value === '') next.delete(key);
     else next.set(key, value);
     if (key !== 'page' && key !== 'drawer') next.delete('page');
-    router.replace(`${pathname}?${next.toString()}`);
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
-  return (
-    <div>
-      <PageHeader />
-
-      {/* Filter bar */}
-      <div style={{ ...glassCard, marginBottom: '20px', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-          <SegBtn label="All"     active={!type}              onClick={() => setParam('type', null)} />
-          <SegBtn label="Module"  active={type === 'MODULE'}  onClick={() => setParam('type', 'MODULE')} />
-          {/* A programme reaches quizzes through the courses it owns, and a
-              course quiz is always a MODULE_TEST — so in programme mode this
-              filter can only ever return nothing. Hidden rather than dead. */}
-          {!inProgrammeMode && (
-            <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
-          )}
-
-          <input
-            value={q}
-            onChange={(e) => setParam('q', e.target.value)}
-            placeholder="Search by title…"
-            style={{ flex: 1, minWidth: '200px', padding: '8px 12px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
-          />
-
-          <input
-            type="date" value={from} onChange={(e) => setParam('from', e.target.value)}
-            style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
-          />
-          <input
-            type="date" value={to}   onChange={(e) => setParam('to', e.target.value)}
-            style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px' }}
-          />
-
-          {showPicker && (
-            <select
-              value={programmeId}
-              onChange={(e) => setParam('programme_id', e.target.value || null)}
-              aria-label="Filter by programme"
-              style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px', background: '#fff', maxWidth: '220px' }}
-            >
-              {/* SUPER_ADMIN's default is the platform-wide view; sending no
-                  programme_id is what preserves it. */}
-              <option value="">{isUnrestricted ? 'All programmes' : 'All my programmes'}</option>
-              {myProgrammes.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          )}
-
-          {batches.length > 0 && (
-            <select
-              value={batchId}
-              onChange={(e) => setParam('batch_id', e.target.value || null)}
-              aria-label="Filter by batch"
-              style={{ padding: '8px 10px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', fontSize: '13px', background: '#fff', maxWidth: '200px' }}
-            >
-              <option value="">All batches</option>
-              {batches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          )}
-
-          <button
-            onClick={() => router.replace(pathname)}
-            style={{ padding: '8px 14px', border: '1px solid rgba(3,72,82,0.15)', borderRadius: '8px', background: '#fff', cursor: 'pointer', fontSize: '13px' }}
-          >Reset</button>
-        </div>
+  const filterCount = [courseId, bundleId, batchId, programmeId, from, to].filter(Boolean).length;
+  const currentUrl = useCurrentUrl();
+  const clearFilters = () => {
+    const next = new URLSearchParams(params.toString());
+    ['course_id', 'bundle_id', 'batch_id', 'programme_id', 'from', 'to', 'q', 'page'].forEach(key => next.delete(key));
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+  const content = <div className={catalogue.content}>
+    <div className={catalogue.toolbar}>
+      <div className={catalogue.searchTools}>
+        <label className={catalogue.search}><Search size={18} aria-hidden="true" /><input type="search" aria-label="Search quizzes" placeholder="Search quizzes…" value={q} onChange={event => setParam('q', event.target.value)} /></label>
+        <button className={catalogue.secondary} aria-expanded={filtersOpen} aria-controls="quiz-filters" onClick={() => setFiltersOpen(!filtersOpen)}><SlidersHorizontal size={18} aria-hidden="true" />Filters{filterCount > 0 && <span className={catalogue.count}>{filterCount}</span>}</button>
       </div>
-
-      {error && (
-        <div style={{ ...glassCard, marginBottom: '20px', background: 'rgba(229,62,62,0.07)' }}>
-          <p style={{ color: '#c53030', fontSize: '14px' }}>{error}</p>
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
-          <p style={{ color: 'rgba(3,72,82,0.5)', fontSize: '14px' }}>Loading…</p>
-        </div>
-      ) : !data || data.items.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
-          <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>
-            {inProgrammeMode
-              ? 'No quizzes yet — none of this programme\u2019s courses have published quizzes.'
-              : 'No assessments match your filters.'}
-          </p>
-          {inProgrammeMode && has(PERM.programmes.view) && (
-            // Courses are attached to a programme by hand, on its content tab.
-            // A silent fallback to the platform-wide list would hide a missing
-            // attachment forever, so the empty state says where to go instead.
-            <p style={{ marginTop: '10px', fontSize: '13px' }}>
-              <a
-                href={`/dashboard/programmes/${programmeId || myProgrammes[0]?.id || ''}?tab=content`}
-                style={{ color: '#209379', fontWeight: 600 }}
-              >
-                Open programme content →
-              </a>
-            </p>
-          )}
-        </div>
-      ) : (
-        <>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {data.items.map((item) => (
-              <MonitorRow key={item.quiz_id} item={item} onClick={() => setParam('drawer', item.quiz_id)} />
-            ))}
-          </div>
-
-          {data.total > data.size && (
-            <Pagination page={data.page} size={data.size} total={data.total} onPage={(p) => setParam('page', String(p))} />
-          )}
-        </>
-      )}
-
-      {drawerId && <TestDrawer quizId={drawerId} onClose={() => setParam('drawer', null)} />}
+      <div className={catalogue.actions}>
+        {has(PERM.test_bank.view) && <Link className={catalogue.secondary} href="/dashboard/test-bank?tab=quizzes">Manage quizzes</Link>}
+        {has(PERM.test_bank.create) && <Link className={catalogue.primary} href={withFrom('/dashboard/quiz-builder/new', currentUrl)}><Plus size={18} aria-hidden="true" />New quiz</Link>}
+      </div>
     </div>
-  );
-}
-
-function SegBtn({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: '8px 14px',
-        borderRadius: '8px',
-        border: active ? '1px solid #0abe62' : '1px solid rgba(3,72,82,0.15)',
-        background: active ? 'rgba(10,190,98,0.1)' : '#fff',
-        color: active ? '#0abe62' : '#034852',
-        fontWeight: 700, fontSize: '13px', cursor: 'pointer',
-      }}
-    >{label}</button>
-  );
+    {filtersOpen && <div id="quiz-filters" className={catalogue.filters}>
+      {showPicker && <label className={catalogue.field}>Programme<select className={catalogue.control} value={programmeId} onChange={e => setParam('programme_id', e.target.value)}><option value="">{isUnrestricted ? 'All programmes' : 'All my programmes'}</option>{myProgrammes.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
+      {batches.length > 0 && <label className={catalogue.field}>Batch<select className={catalogue.control} value={batchId} onChange={e => setParam('batch_id', e.target.value)}><option value="">All batches</option>{batches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>}
+      <label className={catalogue.field}>From<input className={catalogue.control} type="date" value={from} onChange={e => setParam('from', e.target.value)} /></label>
+      <label className={catalogue.field}>To<input className={catalogue.control} type="date" value={to} min={from || undefined} onChange={e => setParam('to', e.target.value)} /></label>
+    </div>}
+    <div className={catalogue.resultsLabel} aria-live="polite"><span>{loading ? 'Loading quizzes…' : `${data?.total ?? 0} quizzes`}</span>{(q || filterCount > 0) && <button className={catalogue.clearFilters} onClick={clearFilters}>Clear filters</button>}</div>
+    {error ? <div className={catalogue.empty} role="alert"><h2>Couldn’t load quizzes</h2><p>{error}</p><button className={catalogue.secondary} onClick={() => void refetch()}>Try again</button></div>
+      : loading ? <div aria-label="Loading quizzes" className={styles.list}>{[1,2,3].map(i => <div key={i} className={styles.skeleton} />)}</div>
+      : !data || data.items.length === 0 ? <div className={catalogue.empty}><h2>{q || filterCount ? 'No matching quizzes' : 'No quizzes to monitor yet'}</h2><p>{q || filterCount ? 'Try a different search or clear your filters.' : inProgrammeMode ? 'No published quizzes are available from this programme’s courses yet.' : 'Published quizzes and student attempts will appear here.'}</p>{inProgrammeMode && has(PERM.programmes.view) && <Link className={catalogue.secondary} href={`/dashboard/programmes/${programmeId || myProgrammes[0]?.id || ''}?tab=content`}>Open programme content<ArrowRight size={16} aria-hidden="true" /></Link>}</div>
+      : <div className={styles.list}>{data.items.map(item => <MonitorRow key={item.quiz_id} item={item} onClick={() => setParam('drawer', item.quiz_id)} />)}</div>}
+    {!error && data && <PaginationBar currentPage={data.page} totalPages={Math.ceil(data.total / data.size)} onPageChange={p => setParam('page', String(p))} ariaLabel="Quiz pages" />}
+  </div>;
+  const tabs = [{key:'ALL',label:'All quizzes',panel:content},{key:'MODULE',label:'Module quizzes',compactLabel:'Modules',panel:content},...(!inProgrammeMode ? [{key:'PROGRAM',label:'Programme quizzes',compactLabel:'Programme',panel:content}] : [])];
+  return <div className={`${workspace.workspace} ${catalogue.catalogue} ${styles.page}`}>
+    <div className={workspace.stickyTabs}><Tabs ariaLabel="Quiz types" compactOnScroll tabs={tabs} activeKey={type ?? 'ALL'} onTabChange={key => setParam('type', key === 'ALL' ? null : key)} /></div>
+    {drawerId && <TestDrawer quizId={drawerId} onClose={() => setParam('drawer', null)} />}
+  </div>;
 }
 
 function MonitorRow({ item, onClick }: { item: AssessmentsOverviewItem; onClick: () => void }) {
-  const lastAttempt = item.last_attempted_at
-    ? new Date(item.last_attempted_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-    : '—';
-  const base = item.type === 'MODULE'
-    ? `${item.course_title ?? ''} · Module Quiz`
-    : item.bundle_title ? `${item.bundle_title} · Program` : 'Program Quiz';
-  // Only set when the row was reached through one of the caller's own
-  // programmes, so it never names a programme they cannot otherwise see.
-  const label = item.programme_name ? `${item.programme_name} · ${base}` : base;
-
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        textAlign: 'left',
-        background: 'rgba(255,255,255,0.75)',
-        border: '1px solid rgba(255,255,255,0.2)',
-        borderRadius: '14px',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.05)',
-        padding: '16px 20px',
-        cursor: 'pointer',
-      }}
-    >
-      <p style={{ margin: 0, fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.22em', color: '#209379' }}>
-        {label}
-      </p>
-      <h3 style={{ margin: '3px 0 8px', fontFamily: 'var(--font-heading)', fontSize: '16px', fontWeight: 700, color: '#034852' }}>
-        {item.title}
-      </h3>
-      <p style={{ margin: 0, fontSize: '13px', color: 'rgba(3,72,82,0.7)' }}>
-        {item.students_attempted} students · {item.attempts_count} attempts ·
-        {' '}avg {item.avg_score_pct == null ? '—' : `${item.avg_score_pct}%`} ·
-        {' '}{item.pass_rate_pct == null ? '—' : `${item.pass_rate_pct}% pass`} ·
-        {' '}last: {lastAttempt}
-      </p>
-    </button>
-  );
-}
-
-function Pagination({ page, size, total, onPage }: { page: number; size: number; total: number; onPage: (n: number) => void }) {
-  const totalPages = Math.max(1, Math.ceil(total / size));
-  return (
-    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '20px' }}>
-      <button disabled={page <= 1}          onClick={() => onPage(page - 1)} style={pageBtnStyle(page > 1)}>‹</button>
-      <span style={{ padding: '6px 12px', fontSize: '13px', color: '#034852' }}>{page} / {totalPages}</span>
-      <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} style={pageBtnStyle(page < totalPages)}>›</button>
-    </div>
-  );
-}
-
-function pageBtnStyle(enabled: boolean): React.CSSProperties {
-  return {
-    padding: '6px 12px',
-    border: '1px solid rgba(3,72,82,0.15)',
-    borderRadius: '8px',
-    background: enabled ? '#fff' : 'rgba(3,72,82,0.04)',
-    color: enabled ? '#034852' : 'rgba(3,72,82,0.3)',
-    cursor: enabled ? 'pointer' : 'not-allowed',
-    fontWeight: 700, fontSize: '13px',
-  };
+  const context = [item.programme_name, item.type === 'MODULE' ? item.course_title : item.bundle_title].filter(Boolean).join(' · ');
+  return <button onClick={onClick} className={styles.quizRow}>
+    <span className={styles.identity}><span className={styles.eyebrow}>{item.type === 'MODULE' ? 'Module quiz' : 'Programme quiz'}{context && ` · ${context}`}</span><span className={styles.title}>{item.title}</span><span className={styles.meta}>{item.duration_minutes != null ? `${item.duration_minutes} min · ` : ''}{item.attempts_count} attempts · {item.last_attempted_at ? `Last attempt ${new Date(item.last_attempted_at).toLocaleDateString('en-IN', {day:'numeric',month:'short'})}` : 'No attempts yet'}</span></span>
+    <span className={styles.metrics}><span><strong>{item.students_attempted}</strong><span>Students</span></span><span><strong>{item.avg_score_pct == null ? '—' : `${item.avg_score_pct}%`}</strong><span>Avg. score</span></span><span><strong>{item.pass_rate_pct == null ? '—' : `${item.pass_rate_pct}%`}</strong><span>Pass rate</span></span></span>
+    <span className={styles.open}><span>View results</span><ArrowRight size={18} aria-hidden="true" /></span>
+  </button>;
 }
 
 function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
@@ -854,44 +713,34 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
   const router = useRouter();
   const currentUrl = useCurrentUrl();
 
+  const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onEsc);
-    return () => window.removeEventListener('keydown', onEsc);
-  }, [onClose]);
+    const dialog = dialogRef.current;
+    const overflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = 'hidden';
+    return () => { dialog?.close(); document.body.style.overflow = overflow; };
+  }, []);
 
   return (
-    <>
-      <div
-        onClick={onClose}
-        style={{ position: 'fixed', inset: 0, background: 'rgba(3,72,82,0.4)', zIndex: 50 }}
-      />
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: '100%', maxWidth: 520,
-        background: '#fff', boxShadow: '-8px 0 24px rgba(0,0,0,0.1)',
-        zIndex: 51, display: 'flex', flexDirection: 'column',
-      }}>
+      <dialog ref={dialogRef} className={styles.drawer} aria-labelledby="quiz-details-title" onCancel={onClose} onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className={styles.drawerInner}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Quiz Details</h2>
+          <h2 id="quiz-details-title" style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Quiz Details</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {has(PERM.test_bank.edit) && (
               <button
                 onClick={() => router.push(withFrom(`/dashboard/quiz-builder/${quizId}`, currentUrl))}
-                style={{
-                  padding: '7px 14px', border: 'none', borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #0abe62 0%, #006d6c 100%)',
-                  color: '#fff', fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '12px',
-                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(10,190,98,0.2)', whiteSpace: 'nowrap',
-                }}
+                className={catalogue.primary}
               >
                 Edit in Builder →
               </button>
             )}
-            <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
+            <button onClick={onClose} aria-label="Close quiz details" className={catalogue.secondary}><X size={18} aria-hidden="true" /></button>
           </div>
         </div>
 
-        <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
+        <div className={styles.drawerTabs}>
           <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
           <DrawerTab label="Question Stats" active={tab === 'questions'}   onClick={() => setTab('questions')} />
           <DrawerTab label="Attempts"       active={tab === 'attempts'}    onClick={() => setTab('attempts')} />
@@ -903,7 +752,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
           {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
         </div>
       </div>
-    </>
+      </dialog>
   );
 }
 
@@ -911,12 +760,8 @@ function DrawerTab({ label, active, onClick }: { label: string; active: boolean;
   return (
     <button
       onClick={onClick}
-      style={{
-        flex: 1, padding: '12px 0', background: 'none', border: 'none',
-        borderBottom: active ? '2px solid #0abe62' : '2px solid transparent',
-        color: active ? '#0abe62' : 'rgba(3,72,82,0.6)',
-        fontWeight: 700, fontSize: '13px', cursor: 'pointer',
-      }}
+      className={catalogue.viewButton}
+      aria-pressed={active}
     >{label}</button>
   );
 }

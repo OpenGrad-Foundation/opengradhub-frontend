@@ -1,17 +1,24 @@
 "use client";
 
 import React, { Suspense, useId } from 'react';
+import { ChevronDown } from 'lucide-react';
+import styles from '@/components/dashboard/workspace.module.css';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 export type TabDef = {
   key: string;
   label: string;
+  compactLabel?: string;
+  count?: number | null;
   panel: React.ReactNode;
 };
 
 type TabsProps = {
   tabs: TabDef[];
   ariaLabel: string;
+  compactOnScroll?: boolean;
+  activeKey?: string;
+  onTabChange?: (key: string) => void;
   /** Query-string key the active tab is stored under. */
   param?: string;
 };
@@ -53,6 +60,7 @@ function TabStrip({
             key={tab.key}
             type="button"
             role="tab"
+            aria-label={tab.label}
             id={`${idPrefix}-tab-${tab.key}`}
             aria-controls={`${idPrefix}-panel-${tab.key}`}
             aria-selected={isActive}
@@ -66,7 +74,8 @@ function TabStrip({
                 : 'border-transparent text-slate-500 hover:text-[var(--dark-teal)]')
             }
           >
-            {tab.label}
+            {tab.compactLabel ? <><span className="hidden sm:inline">{tab.label}</span><span className="sm:hidden">{tab.compactLabel}</span></> : tab.label}
+            {typeof tab.count === "number" && tab.count > 0 && <span aria-hidden="true" className="ml-2 hidden min-[360px]:inline text-xs tabular-nums opacity-70">{tab.count}</span>}
           </button>
         );
       })}
@@ -74,7 +83,7 @@ function TabStrip({
   );
 }
 
-function TabsInner({ tabs, ariaLabel, param = 'tab', idPrefix }: TabsProps & { idPrefix: string }) {
+function TabsInner({ tabs, ariaLabel, param = 'tab', idPrefix, compactOnScroll }: TabsProps & { idPrefix: string }) {
   const router = useRouter();
   const params = useSearchParams();
   const pathname = usePathname();
@@ -91,14 +100,24 @@ function TabsInner({ tabs, ariaLabel, param = 'tab', idPrefix }: TabsProps & { i
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 
+  return <TabPanels tabs={tabs} ariaLabel={ariaLabel} activeKey={activeKey} onSelect={select} idPrefix={idPrefix} compactOnScroll={compactOnScroll} />;
+}
+
+function TabPanels({ tabs, ariaLabel, activeKey, onSelect, idPrefix, compactOnScroll }: TabsProps & { activeKey: string; onSelect: (key: string) => void; idPrefix: string }) {
   return (
     <div>
+      {compactOnScroll && <div className={styles.compactTabPicker}>
+        <select aria-label={ariaLabel} value={activeKey} onChange={(event) => onSelect(event.target.value)}>
+          {tabs.map(tab => <option key={tab.key} value={tab.key}>{tab.compactLabel ?? tab.label}</option>)}
+        </select>
+        <ChevronDown size={16} aria-hidden="true" />
+      </div>}
       <TabStrip
         tabs={tabs}
         activeKey={activeKey}
         ariaLabel={ariaLabel}
         idPrefix={idPrefix}
-        onSelect={select}
+        onSelect={onSelect}
       />
       <div
         role="tabpanel"
@@ -120,9 +139,10 @@ function TabsInner({ tabs, ariaLabel, param = 'tab', idPrefix }: TabsProps & { i
  * strip alone — never a panel — so panel children (which typically fire queries)
  * don't mount and unmount again during hydration.
  */
-export function Tabs({ tabs, ariaLabel, param = 'tab' }: TabsProps) {
+export function Tabs({ tabs, ariaLabel, param = 'tab', compactOnScroll, activeKey, onTabChange }: TabsProps) {
   const idPrefix = useId();
   if (tabs.length === 0) return null;
+  if (activeKey && onTabChange) return <TabPanels tabs={tabs} ariaLabel={ariaLabel} activeKey={activeKey} onSelect={onTabChange} idPrefix={idPrefix} compactOnScroll={compactOnScroll} />;
 
   return (
     <Suspense
@@ -135,7 +155,7 @@ export function Tabs({ tabs, ariaLabel, param = 'tab' }: TabsProps) {
         />
       }
     >
-      <TabsInner tabs={tabs} ariaLabel={ariaLabel} param={param} idPrefix={idPrefix} />
+      <TabsInner tabs={tabs} ariaLabel={ariaLabel} param={param} idPrefix={idPrefix} compactOnScroll={compactOnScroll} />
     </Suspense>
   );
 }

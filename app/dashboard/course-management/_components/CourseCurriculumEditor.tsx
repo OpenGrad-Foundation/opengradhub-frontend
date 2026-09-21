@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronDown, GripVertical, MoreHorizontal, Pencil, Play, FileQuestion, Plus, Trash2 } from "lucide-react";
+import styles from "../management.module.css";
 import {
   createLesson,
   createModule,
@@ -51,21 +53,16 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
   });
 
   if (loading) {
-    return (
-      <div style={{ ...glassCard, textAlign: "center" }}>
-        <p style={labelSt}>Curriculum</p>
-        <p style={{ ...headingSt, marginTop: "12px" }}>Loading module structure…</p>
-      </div>
-    );
+    return <div role="status" aria-label="Loading curriculum" className={styles.loading}><div /><div /><span className="sr-only">Loading modules…</span></div>;
   }
 
   return (
-    <div>
+    <div className={styles.editor}>
       {globalError && <div style={{ ...errorBox, marginBottom: "16px" }}>{globalError}</div>}
 
       {uploadJobId && (
         <div style={uploadBanner}>
-          <span>⏳ Bulk uploaded quiz — {uploadStatus}</span>
+          <span>Quiz upload: {uploadStatus}</span>
           <span style={{ opacity: 0.7 }}>It will appear in its module when saving finishes.</span>
         </div>
       )}
@@ -74,14 +71,14 @@ export default function CourseCurriculumEditor({ courseId }: { courseId: string 
         <div style={uploadBanner}>
           <span>This upload’s progress is no longer being tracked.</span>
           <span style={{ opacity: 0.7 }}>
-            It may still have saved — reload the page to see the current curriculum.
+            Reload to check whether the quiz has been saved.
           </span>
         </div>
       )}
 
       <div style={{ marginBottom: "18px" }}>
         <h3 style={{ ...headingSt, fontSize: "20px", marginTop: "4px" }}>Modules and lessons</h3>
-        <p style={subSt}>Reorder modules, edit lessons, and manage module quizzes inside the course workspace.</p>
+        <p style={subSt}>{modules.length} modules · {modules.reduce((count, module) => count + module.lessons.length, 0)} lessons · {modules.reduce((count, module) => count + module.module_quizzes.length, 0)} quizzes</p>
       </div>
 
       <ModuleList
@@ -220,7 +217,7 @@ function ModuleList({
       ))}
 
       {addingModule ? (
-        <div style={{ ...glassCard, display: "flex", gap: "10px", alignItems: "center" }}>
+        <div className={styles.addModuleForm}>
           <input
             autoFocus
             value={newModuleTitle}
@@ -232,6 +229,7 @@ function ModuleList({
                 setNewModuleTitle("");
               }
             }}
+            aria-label="New module title"
             placeholder="Module title…"
             style={{ ...inputSt, flex: 1 }}
           />
@@ -257,7 +255,7 @@ function ModuleList({
           onClick={() => setAddingModule(true)}
           style={{ ...ghostBtn, width: "100%", justifyContent: "center", padding: "14px" }}
         >
-          + Add Module
+          <Plus size={16} aria-hidden="true" /> Add module
         </button>
       )}
     </div>
@@ -290,6 +288,7 @@ function ModuleItem({
   const invalidate = useInvalidate();
   const { has } = usePermissions();
   const canCreateQuiz = has(PERM.test_bank.create);
+  const [expanded, setExpanded] = useState(module.order_index === 0);
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(module.title);
   const [saving, setSaving] = useState(false);
@@ -363,14 +362,14 @@ function ModuleItem({
   async function onItemDrop(event: React.DragEvent, dropIdx: number, currentItems: typeof items) {
     event.preventDefault();
     event.stopPropagation();
-    
+
     const dragInfo = dragItemRef.current;
     if (!dragInfo) {
       setDragOverItemInfo(null);
       return;
     }
     const { moduleId: sourceModuleId, idx: sourceIdx } = dragInfo;
-    
+
     if (sourceModuleId === module.id && sourceIdx === dropIdx) {
       setDragOverItemInfo(null);
       dragItemRef.current = null;
@@ -389,7 +388,7 @@ function ModuleItem({
 
     const [moved] = sourceItems.splice(sourceIdx, 1);
     targetItems.splice(dropIdx, 0, moved);
-    
+
     targetItems.forEach((item, index) => {
       item.order_index = index;
     });
@@ -414,7 +413,7 @@ function ModuleItem({
 
     setDragOverItemInfo(null);
     dragItemRef.current = null;
-    
+
     try {
       if (sourceModuleId !== module.id) {
         await reorderModuleItems(sourceModuleId, sourceItems.map((item) => ({ id: item.id, type: item.itemType })));
@@ -427,13 +426,14 @@ function ModuleItem({
   }
 
   return (
-    <div style={moduleCard}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-        <span style={dragHandle} title="Drag to reorder">⠿</span>
+    <section className={styles.module}>
+      <div className={styles.moduleHeader}>
+        <GripVertical size={16} className={styles.dragHandle} aria-hidden="true" />
         {editing ? (
           <>
             <input
               autoFocus
+              aria-label="Module title"
               value={editTitle}
               onChange={(event) => setEditTitle(event.target.value)}
               onKeyDown={(event) => {
@@ -460,10 +460,11 @@ function ModuleItem({
           </>
         ) : (
           <>
-            <span style={{ flex: 1, fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "15px", color: "#034852" }}>
-              {module.title}
-            </span>
-            <button onClick={() => setEditing(true)} style={{ fontSize: "12px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Edit</button>
+            <button type="button" className={styles.moduleToggle} aria-expanded={expanded} aria-controls={`module-${module.id}`} onClick={() => setExpanded(!expanded)}>
+              <span><span className={styles.moduleNumber}>Module {module.order_index + 1}</span><strong>{module.title}</strong><span className={styles.moduleCount}>{module.lessons.length} lessons · {module.module_quizzes.length} {module.module_quizzes.length === 1 ? "quiz" : "quizzes"}</span></span>
+              <ChevronDown size={18} aria-hidden="true" className={expanded ? styles.chevronOpen : undefined} />
+            </button>
+            <button type="button" aria-label={`Rename ${module.title}`} title="Rename module" onClick={() => setEditing(true)} className={styles.iconButton}><Pencil size={16} aria-hidden="true" /></button>
             <button
               onClick={() => {
                 if (items.length > 0) {
@@ -472,9 +473,9 @@ function ModuleItem({
                   void handleDelete();
                 }
               }}
-              style={{ fontSize: "12px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}
+              className={styles.iconButton} aria-label={`Delete module ${module.title}`} title="Delete module"
             >
-              Delete
+              <Trash2 size={16} aria-hidden="true" />
             </button>
           </>
         )}
@@ -482,8 +483,9 @@ function ModuleItem({
 
       {deleteError && <div style={{ ...errorBox, marginBottom: "12px" }}>{deleteError}</div>}
 
+      <div id={`module-${module.id}`} hidden={!expanded} className={styles.moduleBody}>
       {items.length === 0 && (
-        <div 
+        <div
           onDragOver={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -539,7 +541,7 @@ function ModuleItem({
           onClick={() => onOpenSlideOver(module.id)}
           style={{ ...ghostBtn, flex: 1, justifyContent: "center", padding: "10px", fontSize: "13px" }}
         >
-          + Add Lesson
+          <Plus size={16} aria-hidden="true" /> Add lesson
         </button>
         {/* The destination page is gated on test_bank.create and the server
             re-checks course authority — this only avoids offering a dead end. */}
@@ -559,11 +561,12 @@ function ModuleItem({
               borderColor: "rgba(32,147,121,0.3)",
             }}
           >
-            + Add Module Quiz
+            <Plus size={16} aria-hidden="true" /> Add quiz
           </Link>
         )}
       </div>
 
+      </div>
       {quizToMove && (
         <MoveQuizModal
           quizId={quizToMove.id}
@@ -578,101 +581,40 @@ function ModuleItem({
           }}
         />
       )}
-    </div>
+    </section>
   );
 }
 
-function LessonRow({
-  lesson,
-  onEdit,
-  onDelete,
-}: {
-  lesson: CourseLesson;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        padding: "10px 12px",
-        borderRadius: "10px",
-        background: "rgba(3,72,82,0.03)",
-        border: "1px solid rgba(3,72,82,0.07)",
-        marginBottom: "6px",
-        cursor: "grab",
-      }}
-    >
-      <span style={{ ...dragHandle, fontSize: "14px" }}>⠿</span>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852", flex: 1 }}>{lesson.title}</span>
-      {lesson.duration_minutes && (
-        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)", whiteSpace: "nowrap" }}>{lesson.duration_minutes} min</span>
-      )}
-      <a href={lesson.youtube_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", color: "#209379", textDecoration: "none" }}>
-        Preview
-      </a>
-      <button onClick={onEdit} style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Edit</button>
-      <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>Delete</button>
-    </div>
-  );
+function LessonRow({ lesson, onEdit, onDelete }: { lesson: CourseLesson; onEdit: () => void; onDelete: () => void }) {
+  return <div className={styles.itemRow}>
+    <GripVertical size={14} className={styles.dragHandle} aria-hidden="true" />
+    <Play size={16} className={styles.itemIcon} aria-hidden="true" />
+    <button type="button" className={styles.itemTitle} onClick={onEdit}><strong>{lesson.title}</strong><span>Lesson{lesson.duration_minutes ? ` · ${lesson.duration_minutes} min` : ""}</span></button>
+    <details className={styles.itemMenu}>
+      <summary aria-label={`Actions for ${lesson.title}`}><MoreHorizontal size={20} aria-hidden="true" /></summary>
+      <div>
+        <button type="button" onClick={onEdit}>Edit lesson</button>
+        <a href={lesson.youtube_url} target="_blank" rel="noopener noreferrer">Preview video</a>
+        <button type="button" className={styles.danger} onClick={onDelete}>Delete lesson</button>
+      </div>
+    </details>
+  </div>;
 }
 
-function QuizRow({
-  quiz,
-  courseId,
-  onDelete,
-  onMove,
-}: {
-  quiz: { id: string; title: string; published: boolean };
-  courseId: string;
-  onDelete: () => void;
-  onMove: () => void;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        padding: "10px 12px",
-        borderRadius: "10px",
-        background: "rgba(3,72,82,0.03)",
-        border: "1px solid rgba(3,72,82,0.07)",
-        marginBottom: "6px",
-        cursor: "grab",
-      }}
-    >
-      <span style={{ ...dragHandle, fontSize: "14px" }}>⠿</span>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852", flex: 1 }}>{quiz.title} (Quiz)</span>
-      <span
-        style={{
-          padding: "2px 8px",
-          borderRadius: "999px",
-          fontSize: "10px",
-          fontWeight: 800,
-          letterSpacing: "0.06em",
-          background: quiz.published ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.22)",
-          color: quiz.published ? "#0abe62" : "#956f00",
-        }}
-      >
-        {quiz.published ? "Published" : "Unpublished"}
-      </span>
-      <Link
-        href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`}
-        style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textDecoration: "none", padding: "4px" }}
-      >
-        Edit
-      </Link>
-      <button onClick={onMove} style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
-        Move
-      </button>
-      <button onClick={onDelete} style={{ fontSize: "11px", fontWeight: 700, color: "#e53e3e", background: "none", border: "none", cursor: "pointer", padding: "4px" }}>
-        Delete
-      </button>
-    </div>
-  );
+function QuizRow({ quiz, courseId, onDelete, onMove }: { quiz: { id: string; title: string; published: boolean }; courseId: string; onDelete: () => void; onMove: () => void }) {
+  return <div className={styles.itemRow}>
+    <GripVertical size={14} className={styles.dragHandle} aria-hidden="true" />
+    <FileQuestion size={16} className={styles.itemIcon} aria-hidden="true" />
+    <Link href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`} className={styles.itemTitle}><strong>{quiz.title}</strong><span>Quiz · {quiz.published ? "Published" : "Draft"}</span></Link>
+    <details className={styles.itemMenu}>
+      <summary aria-label={`Actions for ${quiz.title}`}><MoreHorizontal size={20} aria-hidden="true" /></summary>
+      <div>
+        <Link href={`/dashboard/quiz-builder/${quiz.id}?course_id=${courseId}`}>Edit quiz</Link>
+        <button type="button" onClick={onMove}>Move quiz</button>
+        <button type="button" className={styles.danger} onClick={onDelete}>Delete quiz</button>
+      </div>
+    </details>
+  </div>;
 }
 
 function LessonSlideOver({
@@ -686,6 +628,14 @@ function LessonSlideOver({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    const overflow = document.body.style.overflow;
+    dialog?.showModal();
+    document.body.style.overflow = "hidden";
+    return () => { dialog?.close(); document.body.style.overflow = overflow; };
+  }, []);
   const invalidate = useInvalidate();
   const [title, setTitle] = useState(lesson?.title ?? "");
   const [youtubeUrl, setYoutubeUrl] = useState(lesson?.youtube_url ?? "");
@@ -752,38 +702,23 @@ function LessonSlideOver({
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.35)", zIndex: 40, backdropFilter: "blur(2px)" }} />
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: "min(480px, 100vw)",
-          background: "rgba(255,255,255,0.96)",
-          boxShadow: "-16px 0 48px rgba(0,0,0,0.12)",
-          zIndex: 50,
-          display: "flex",
-          flexDirection: "column",
-          overflowY: "auto",
-        }}
-      >
+      <dialog ref={dialogRef} className={styles.lessonDrawer} aria-label={lesson ? "Edit lesson" : "Add lesson"} onCancel={event => { event.preventDefault(); onClose(); }}>
         <div style={{ padding: "28px 32px 20px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <p style={labelSt}>{lesson ? "Edit Lesson" : "Add Lesson"}</p>
             <h2 style={{ ...headingSt, fontSize: "18px", margin: "4px 0 0" }}>{lesson ? lesson.title : "New Lesson"}</h2>
           </div>
-          <button onClick={onClose} style={{ ...iconBtn, fontSize: "18px", padding: "6px" }}>✕</button>
+          <button aria-label="Close lesson editor" onClick={onClose} style={{ ...iconBtn, fontSize: "18px", padding: "6px" }}>✕</button>
         </div>
 
         <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", gap: "20px", flex: 1 }}>
           <FieldGroup label="Title *">
-            <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Introduction to Python" style={inputSt} />
+            <input aria-label="Title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Introduction to Python" style={inputSt} />
           </FieldGroup>
 
           <FieldGroup label="YouTube URL *">
             <input
+              aria-label="YouTube URL"
               value={youtubeUrl}
               onChange={(event) => {
                 setYoutubeUrl(event.target.value);
@@ -797,7 +732,7 @@ function LessonSlideOver({
 
           <FieldGroup label="Duration (minutes)">
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <input type="number" min={1} value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="e.g. 12" style={{ ...inputSt, width: "120px" }} />
+              <input aria-label="Duration (minutes)" type="number" min={1} value={duration} onChange={(event) => setDuration(event.target.value)} placeholder="e.g. 12" style={{ ...inputSt, width: "120px" }} />
               {probingDuration && (
                 <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)" }}>Reading from YouTube…</span>
               )}
@@ -805,10 +740,10 @@ function LessonSlideOver({
           </FieldGroup>
 
           <FieldGroup label="Notes">
-            <textarea value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Supplementary notes, links, key points…" rows={8} style={{ ...inputSt, resize: "vertical", fontFamily: "var(--font-body)" }} />
+            <textarea aria-label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Supplementary notes, links, key points…" rows={8} style={{ ...inputSt, resize: "vertical", fontFamily: "var(--font-body)" }} />
           </FieldGroup>
 
-          {error && <div style={errorBox}>{error}</div>}
+          {error && <div role="alert" style={errorBox}>{error}</div>}
         </div>
 
         <div style={{ padding: "20px 32px", borderTop: "1px solid rgba(3,72,82,0.08)", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
@@ -817,15 +752,14 @@ function LessonSlideOver({
             {saving ? "Saving…" : lesson ? "Save Changes" : "Add Lesson"}
           </button>
         </div>
-      </div>
-    </>
+      </dialog>
   );
 }
 
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>
+      <label style={{ display: "block", fontSize: "11px", fontWeight: 700,  letterSpacing: "0.06em", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>
         {label}
       </label>
       {children}
@@ -836,24 +770,16 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
 const glassCard: React.CSSProperties = {
   background: "#ffffff",
   border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: "20px",
-  padding: "32px 36px",
-  boxShadow: "0 16px 48px rgba(0,0,0,0.07)",
-};
+  borderRadius: "12px",
+  padding: "20px",
 
-const moduleCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(3,72,82,0.1)",
-  borderRadius: "18px",
-  padding: "20px 24px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.05)",
 };
 
 const labelSt: React.CSSProperties = {
   fontSize: "11px",
   fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.28em",
+
+
   color: "#209379",
   margin: 0,
 };
@@ -872,26 +798,30 @@ const subSt: React.CSSProperties = {
 };
 
 const primaryBtn: React.CSSProperties = {
-  padding: "10px 22px",
+  minHeight: "44px",
+  padding: "10px 16px",
   border: "none",
-  borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff",
+  borderRadius: "12px",
+  background: "var(--green)",
+  color: "var(--dark-teal)",
   fontFamily: "var(--font-heading)",
   fontWeight: 700,
   fontSize: "13px",
   cursor: "pointer",
-  boxShadow: "0 6px 14px rgba(10,190,98,0.2)",
+
   transition: "all 200ms ease",
   whiteSpace: "nowrap",
   textDecoration: "none",
-  display: "inline-block",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "6px",
 };
 
 const ghostBtn: React.CSSProperties = {
-  padding: "10px 18px",
+  minHeight: "44px",
+  padding: "10px 16px",
   border: "1.5px solid rgba(3,72,82,0.2)",
-  borderRadius: "10px",
+  borderRadius: "12px",
   background: "#ffffff",
   color: "#034852",
   fontFamily: "var(--font-heading)",
@@ -924,7 +854,7 @@ const inputSt: React.CSSProperties = {
   background: "rgba(3,72,82,0.03)",
   fontSize: "14px",
   color: "#034852",
-  outline: "none",
+
   boxSizing: "border-box",
 };
 
@@ -935,9 +865,9 @@ const uploadBanner: React.CSSProperties = {
   padding: "10px 14px",
   borderRadius: "12px",
   marginBottom: "16px",
-  background: "rgba(147,32,121,0.06)",
-  border: "1px solid rgba(147,32,121,0.16)",
-  color: "#932079",
+  background: "var(--color-success-surface)",
+  border: "1px solid var(--color-border)",
+  color: "var(--dark-teal)",
   fontSize: "13px",
   fontWeight: 600,
 };
@@ -950,11 +880,4 @@ const errorBox: React.CSSProperties = {
   color: "#b83232",
   fontSize: "13px",
   fontWeight: 600,
-};
-
-const dragHandle: React.CSSProperties = {
-  color: "rgba(3,72,82,0.35)",
-  cursor: "grab",
-  fontSize: "18px",
-  lineHeight: 1,
 };

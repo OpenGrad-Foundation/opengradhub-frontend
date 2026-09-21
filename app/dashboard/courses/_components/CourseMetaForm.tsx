@@ -16,11 +16,12 @@ type FormFields = {
 
 type Props = {
   initial?: Course;
+  embedded?: boolean;
   onSave: (fields: FormFields) => Promise<void>;
   submitLabel: string;
 };
 
-export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) {
+export default function CourseMetaForm({ initial, onSave, submitLabel, embedded = false }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [programmeType, setProgrammeType] = useState(initial?.programme_type ?? "UG");
@@ -74,12 +75,12 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
           }
         }
       ` }} />
-      <div className="course-mgmt-form-card" style={card}>
+      <div className="course-mgmt-form-card" style={embedded ? { ...card, background: "transparent", border: 0, padding: 0, boxShadow: "none" } : card}>
 
         {/* ── Title ─────────────────────────────────────────── */}
         <Section label="Title *">
           <input
-            id="course-title"
+            id="course-title" aria-label="Title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Introduction to Data Science"
@@ -91,7 +92,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
         {/* ── Description ───────────────────────────────────── */}
         <Section label="Description">
           <textarea
-            id="course-description"
+            id="course-description" aria-label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What will students learn in this course?"
@@ -133,6 +134,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
                 {tag}
                 <button
                   type="button"
+                  aria-label={`Remove tag ${tag}`}
                   onClick={() => setTags(tags.filter((t) => t !== tag))}
                   style={{
                     background: "none",
@@ -151,7 +153,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
               </span>
             ))}
             <input
-              id="course-tags"
+              id="course-tags" aria-label="Tags"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
@@ -198,7 +200,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) 
         {/* ── Cover Image URL ───────────────────────────────── */}
         <Section label="Cover Image URL">
           <input
-            id="course-cover-url"
+            id="course-cover-url" aria-label="Cover image URL"
             value={coverImageUrl}
             onChange={(e) => setCoverImageUrl(e.target.value)}
             placeholder="https://… (leave blank for default cover)"
@@ -307,6 +309,7 @@ function ToggleChip({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       style={{
         flex: 1,
         padding: sublabel ? "14px 18px" : "10px 20px",

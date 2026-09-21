@@ -1,0 +1,22 @@
+.toolbarActions { display: flex; align-items: center; gap: .5rem; }
+.toolbarActions button { width: 2.75rem; padding: .5rem; }
+.toolbarActions button:disabled { opacity: .5; cursor: not-allowed; }
+.resultsBar { flex-wrap: wrap; gap: .75rem; }
+.viewTools { display: flex; align-items: center; gap: .75rem; }
+.sort { width: auto; min-width: 9rem; font-size: .8125rem; }
+.cardMeta { display: flex; align-items: center; justify-content: space-between; gap: .75rem; color: var(--color-text-muted); font-size: .75rem; }
+.counts { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; margin-top: auto; font-size: .8125rem; color: var(--color-text-muted); }
+.counts span { display: inline-flex; align-items: center; gap: .5rem; }
+.date { white-space: nowrap; }
+.form { max-width: 42rem; display: grid; gap: 1.5rem; }
+.formPanel { padding: 1.25rem; border: 1px solid var(--color-border); border-radius: .75rem; background: var(--color-surface); display: grid; gap: 1.25rem; }
+.formActions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .75rem; }
+@media (max-width: 639px) {
+  .toolbar > label { flex-basis: 100%; }
+  .toolbarActions { width: 100%; }
+  .toolbarActions a { flex: 1; }
+  .viewTools { width: 100%; justify-content: space-between; }
+  .formActions { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .formActions > * { padding-inline: .75rem; font-size: .8125rem; white-space: nowrap; }
+  .formPanel { padding: 1rem; }
+}

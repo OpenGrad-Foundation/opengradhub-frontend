@@ -10,6 +10,7 @@
  * consolidation, and why the old Overview tab (school totals from one stream)
  * and the Live Classes "Students" grid (classes only) are both gone.
  */
+import styles from "../attendance.module.css";
 import { useEffect, useState } from "react";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -33,6 +34,7 @@ export function RecordsTab() {
   // keystroke into history would make Back walk backwards one character at a
   // time, and fire a request per character against a matrix endpoint.
   const [typed, setTyped] = useState(state.q);
+  const [datesOpen, setDatesOpen] = useState(Boolean(from || to));
   useEffect(() => { setTyped(state.q); }, [state.q]);
   useEffect(() => {
     if (typed.trim() === state.q) return;
@@ -56,41 +58,31 @@ export function RecordsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={cohortType}
-          onChange={(e) => set({ cohortType: e.target.value as "batch" | "course", cohortId: "" })}
-          aria-label="Cohort type"
-          className={CONTROL}
-        >
+      <div className={styles.recordFilters}>
+        <label className="sr-only" htmlFor="attendance-cohort-type">Group by</label>
+        <select id="attendance-cohort-type" value={cohortType} onChange={(e) => set({ cohortType: e.target.value as "batch" | "course", cohortId: "" })} aria-label="Cohort type" className={CONTROL}>
           <option value="batch" disabled={!has(PERM.batches.view)}>By batch</option>
           <option value="course" disabled={!has(PERM.courses.view)}>By course</option>
         </select>
-
-        <CohortPicker
-          type={cohortType}
-          value={cohortId}
-          onChange={(id) => set({ cohortId: id })}
-        />
-
-        <input type="date" value={from} aria-label="From date"
-          onChange={(e) => set({ from: e.target.value })} className={CONTROL} />
-        <span className="text-xs text-slate-600">to</span>
-        <input type="date" value={to} aria-label="To date"
-          onChange={(e) => set({ to: e.target.value })} className={CONTROL} />
-
-        <input
-          type="search"
-          value={typed}
-          placeholder="Find a student…"
-          aria-label="Find a student"
-          onChange={(e) => setTyped(e.target.value)}
-          className={`${CONTROL} min-w-[160px]`}
-        />
+        <CohortPicker type={cohortType} value={cohortId} onChange={(id) => set({ cohortId: id })} />
+        <button type="button" className={styles.secondary} aria-expanded={datesOpen} aria-controls="attendance-date-range" onClick={() => setDatesOpen(!datesOpen)}>
+          Date range{from || to ? " · Filtered" : ""} <span aria-hidden="true">{datesOpen ? "−" : "+"}</span>
+        </button>
       </div>
+      {datesOpen && (
+        <div id="attendance-date-range" className={styles.dateRange}>
+          <label className={styles.field}>From
+            <input type="date" value={from} aria-label="From date" onChange={(e) => set({ from: e.target.value })} className={CONTROL} />
+          </label>
+          <label className={styles.field}>To
+            <input type="date" value={to} aria-label="To date" onChange={(e) => set({ to: e.target.value })} className={CONTROL} />
+          </label>
+          {(from || to) && <button type="button" className={styles.secondary} onClick={() => set({ from: "", to: "" })}>Clear dates</button>}
+        </div>
+      )}
 
       {!cohortId ? (
-        <Panel>Pick a {cohortType} to see attendance.</Panel>
+        <Panel><p className="font-semibold text-[var(--color-text)]">Select a {cohortType} to get started</p><p className="mt-2">See attendance by student or date, then open a student’s history.</p></Panel>
       ) : mixed ? (
         <Panel>{(error as ApiError).message}</Panel>
       ) : isPending ? (
@@ -100,16 +92,19 @@ export function RecordsTab() {
       ) : !data ? null : (
         <>
           <Totals data={data} />
+          <div className={styles.recordsToolbar}>
+            <input type="search" value={typed} placeholder="Find a student…" aria-label="Find a student" onChange={(e) => setTyped(e.target.value)} className={CONTROL} />
+            {data.occasions.length > 0 && <ViewBar
+              view={view}
+              onView={(v) => set({ view: v })}
+              onExport={() => downloadCsv(csvFilename(data, from, to), recordsToCsv(data))}
+            />}
+          </div>
 
           {data.occasions.length === 0 ? (
             <Panel>Nothing has been recorded for this cohort in this period yet.</Panel>
           ) : (
             <>
-              <ViewBar
-                view={view}
-                onView={(v) => set({ view: v })}
-                onExport={() => downloadCsv(csvFilename(data, from, to), recordsToCsv(data))}
-              />
               {view === "students"
                 ? <StudentList data={data} onDrill={openStudent} />
                 : <Grid data={data} onDrill={openStudent} />}
@@ -153,7 +148,7 @@ function ViewBar({ view, onView, onExport }: {
   onExport: () => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2">
+    <div className={styles.viewControls}>
       <div className="flex gap-1" role="group" aria-label="Layout">
         {([["students", "By student"], ["grid", "Grid"]] as const).map(([v, label]) => (
           <button
@@ -161,12 +156,7 @@ function ViewBar({ view, onView, onExport }: {
             type="button"
             onClick={() => onView(v)}
             aria-pressed={view === v}
-            className={
-              "min-h-[44px] rounded-lg px-4 text-sm font-semibold " +
-              (view === v
-                ? "bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)] text-white"
-                : "border border-[var(--color-border)] text-[var(--dark-teal)]")
-            }
+            className={styles.secondary}
           >
             {label}
           </button>
@@ -175,7 +165,7 @@ function ViewBar({ view, onView, onExport }: {
       <button
         type="button"
         onClick={onExport}
-        className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-4 text-sm font-semibold text-[var(--dark-teal)]"
+        className={styles.secondary}
       >
         Export CSV
       </button>
@@ -247,28 +237,16 @@ function Totals({ data }: { data: NonNullable<ReturnType<typeof useAttendanceRec
   // an empty record is no evidence, not a cohort that never showed up.
   const nothingRecorded = data.totals.marked === 0;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">
-        {nothingRecorded ? (
-          <span className="text-lg font-semibold text-slate-500" style={{ fontFamily: "var(--font-heading)" }}>
-            Nothing recorded yet
-          </span>
-        ) : (
-          <>
-            <span className="text-3xl font-bold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>
-              {data.totals.pct}%
-            </span>
-            <span className="text-sm text-slate-600">
-              {data.totals.present} of {data.totals.marked} recorded marks present
-            </span>
-          </>
-        )}
-        <span className="text-sm text-slate-500">
-          {data.totals.students} students · {data.totals.occasions} {data.mode === "ONLINE" ? "classes" : "days"}
-        </span>
-      </div>
-      <p className="mt-1 text-xs text-slate-500">{source}</p>
-    </div>
+    <section aria-label="Attendance summary" className={styles.recordSummary}>
+      <dl className={styles.summary}>
+        <div><dt>Attendance</dt><dd>{nothingRecorded ? "—" : `${data.totals.pct}%`}</dd></div>
+        <div><dt>Students</dt><dd>{data.totals.students}</dd></div>
+        <div><dt>{data.mode === "ONLINE" ? "Classes" : "Days"}</dt><dd>{data.totals.occasions}</dd></div>
+      </dl>
+      <p className="text-xs text-[var(--color-text-muted)]">
+        {nothingRecorded ? "Nothing recorded yet" : `${data.totals.present} of ${data.totals.marked} recorded marks present`} · {source}
+      </p>
+    </section>
   );
 }
 
@@ -316,7 +294,7 @@ function Grid({ data, onDrill }: {
         <table className="min-w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-xs text-slate-500">
-              <th scope="col" className="sticky left-0 bg-white px-4 py-2.5 text-left font-medium">Student</th>
+              <th scope="col" className="sticky left-0 min-w-52 bg-white px-4 py-2.5 text-left font-medium">Student</th>
               {data.occasions.map((o) => (
                 <th key={o.key} scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap" title={o.label}>
                   {occasionHeading(o)}
@@ -330,7 +308,7 @@ function Grid({ data, onDrill }: {
           <tbody>
             {data.students.map((st) => (
               <tr key={st.id} className="group border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                <td className="sticky left-0 bg-white px-4 py-2.5 font-medium text-[var(--dark-teal)] group-hover:bg-slate-50">
+                <td className="sticky left-0 min-w-52 bg-white px-4 py-2.5 font-medium text-[var(--dark-teal)] group-hover:bg-slate-50">
                   {/* A real control, not a clickable row: a <tr> with onClick is
                       unreachable by keyboard and announces nothing. */}
                   <button
@@ -339,7 +317,7 @@ function Grid({ data, onDrill }: {
                     className="text-left underline-offset-2 hover:underline"
                   >
                     {st.name}
-                    {st.school_name && <span className="block text-[11px] font-normal text-slate-500">{st.school_name}</span>}
+                    {st.school_name && <span className="block max-w-48 truncate text-[11px] font-normal text-slate-500">{st.school_name}</span>}
                     <span className="sr-only"> — open attendance history</span>
                   </button>
                 </td>
@@ -428,7 +406,7 @@ function CohortPicker({ type, value, onChange }: {
     : (batches.data ?? []).map((b) => ({ id: b.id, label: b.name }));
 
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={`Select ${type}`} className={`${CONTROL} min-w-[220px]`}>
+    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={`Select ${type}`} className={CONTROL}>
       <option value="">Select {type}…</option>
       {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
     </select>
@@ -522,13 +500,11 @@ function StudentDrilldown({ studentId, cohort, from, to, onClose }: {
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-600">
+    <div className={styles.empty}>
       {children}
     </div>
   );
 }
 
-const CONTROL =
-  "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm text-[var(--dark-teal)] bg-white";
-const PAGE_BTN =
-  "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--dark-teal)] disabled:opacity-40";
+const CONTROL = styles.control;
+const PAGE_BTN = styles.secondary;

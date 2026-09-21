@@ -137,7 +137,7 @@ describe("a cohort with no marks is not a cohort at 0%", () => {
     expect(screen.queryByText("0%")).toBeNull();
     expect(screen.queryByText(/0 of 0/)).toBeNull();
     // The cohort size is still worth stating — it just isn't a verdict.
-    expect(screen.getByText(/12 students/)).toBeTruthy();
+    expect(screen.getByText("Students", { selector: "dt" }).nextElementSibling?.textContent).toBe("12");
   });
 
   it("still prints the percentage once something is recorded", () => {

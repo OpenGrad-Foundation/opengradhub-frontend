@@ -76,12 +76,13 @@ export function SchoolSearchPicker({
     <div ref={wrapRef} style={{ position: "relative" }}>
       <input
         type="text"
+        aria-label="School"
         value={display}
         disabled={disabled}
         placeholder={placeholder}
         onFocus={() => { setOpen(true); setQuery(""); }}
         onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-        style={inputStyle ?? defaultInput}
+        style={{ ...defaultInput, ...inputStyle }}
       />
       {value && !open && (
         <button

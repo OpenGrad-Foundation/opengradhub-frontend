@@ -1,4 +1,5 @@
 "use client";
+import styles from "../attendance.module.css";
 import { ZONE_LOWER } from "@/lib/labels";
 
 /**
@@ -29,14 +30,8 @@ import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import { SchoolMultiPicker } from "@/components/SchoolMultiPicker";
 import type { LinkRow } from "@/lib/attendance-api";
 
-/** House primary button — mirrors the gradient CTA used across the dashboard. */
-const PRIMARY_BTN =
-  "rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 " +
-  "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
-
-const SECONDARY_BTN =
-  "rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium " +
-  "text-[var(--dark-teal)] hover:bg-[var(--color-mint-soft)]";
+const PRIMARY_BTN = styles.primary;
+const SECONDARY_BTN = styles.secondary;
 
 function publicUrl(token: string): string {
   return `${window.location.origin}/a/${token}`;
@@ -258,7 +253,7 @@ function AudienceFilter({ value, onChange }: { value: string; onChange: (v: stri
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label="Audience"
-      className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
+      className={styles.control}
     >
       <option value="">All audiences</option>
       <optgroup label="Courses">
@@ -347,47 +342,44 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
   const total = classes?.length ?? 0;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       <p className="text-sm text-slate-500">
         A whole-school confirmation for a live class. This does not mark individual
         students — their attendance is in <b>Records</b>.
       </p>
 
-      <div className="flex flex-wrap items-center gap-2 pb-1">
+      <div className={`${styles.panel} flex flex-col gap-4 xl:flex-row xl:items-end`}>
+        <label className={`${styles.field} flex-1`}>Live class
         <input
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search class titles…"
           aria-label="Search class titles"
-          className="min-h-[44px] rounded-lg border border-[var(--color-border)] px-3 text-sm text-[var(--dark-teal)] min-w-[200px]"
+          className={styles.control}
         />
-        <div className="flex gap-1" role="group" aria-label="Time filter">
+        </label>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Time filter">
           {(["all", "upcoming", "past"] as const).map((v) => (
             <button
               key={v}
               type="button"
               onClick={() => setView(v)}
               aria-pressed={view === v}
-              className={
-                "min-h-[44px] rounded-lg px-4 text-sm font-semibold capitalize " +
-                (view === v
-                  ? "text-white bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)]"
-                  : "border border-[var(--color-border)] text-[var(--dark-teal)]")
-              }
+              className={`${styles.secondary} capitalize`}
             >
               {v}
             </button>
           ))}
         </div>
-        <AudienceFilter value={audience} onChange={setAudience} />
+        <label className={`${styles.field} flex-1`}>Audience<AudienceFilter value={audience} onChange={setAudience} /></label>
         {sorted.length !== total && (
           <span className="text-xs text-slate-500">{sorted.length} of {total}</span>
         )}
       </div>
 
       {sorted.length === 0 && (
-        <p className="text-slate-500">
+        <p className={styles.empty}>
           {total === 0 ? "No live classes yet." : "No classes match these filters."}
         </p>
       )}
@@ -396,6 +388,7 @@ export function SchoolConfirmationsTab({ canManage }: { canManage: boolean }) {
         <div key={cls.id} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
           <button
             onClick={() => setOpenId(openId === cls.id ? null : cls.id)}
+            aria-expanded={openId === cls.id}
             className="w-full flex flex-wrap items-center gap-2 px-4 py-3 text-left hover:bg-slate-50"
           >
             <span className="font-semibold text-[var(--dark-teal)]" style={{ fontFamily: "var(--font-heading)" }}>

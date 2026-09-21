@@ -73,8 +73,8 @@ export default function RoleDashboard({
       />
     ),
     PROGRAM_MANAGER: (
-      <div className={pmStyles.workspace}>
-        <Tabs ariaLabel="Dashboard views" tabs={[
+      <div className={`${pmStyles.workspace} ${pmStyles.stickyTabs}`}>
+        <Tabs ariaLabel="Dashboard views" compactOnScroll tabs={[
           { key: 'overview', label: 'Overview', panel: <PMOverview userId={id} /> },
           { key: 'follow-ups', label: 'Follow-ups', panel: <PMFollowUps /> },
           { key: 'activity', label: 'Activity', panel: <PMActivity userId={id} /> },
