@@ -75,9 +75,9 @@ export default function StaffProfilePage() {
 
       <div style={card}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-          <h1 style={{ fontSize: "24px", fontWeight: 700, color: BRAND.dark, margin: 0 }}>
+          <h2 style={{ fontSize: "24px", fontWeight: 700, color: BRAND.dark, margin: 0 }}>
             {user.name}
-          </h1>
+          </h2>
           <RoleBadge role={user.role} />
           {data.caps.manage && data.edit_user && (
             <button

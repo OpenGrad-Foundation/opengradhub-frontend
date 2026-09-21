@@ -277,7 +277,7 @@ export default function BatchDetailPage() {
       </BackLink>
       <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
-          <h1 style={{ ...headingSt, fontSize: "24px" }}>{batch.name}</h1>
+          <h2 style={{ ...headingSt, fontSize: "24px" }}>{batch.name}</h2>
           <p style={{ fontSize: "14px", color: "var(--color-text-muted)", marginTop: "6px" }}>
             {batch.school_name ?? "Independent batch"}
             {batch.programme_type && ` · ${batch.programme_type}`}

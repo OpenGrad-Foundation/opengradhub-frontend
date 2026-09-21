@@ -139,14 +139,14 @@ export default function ProgrammeDetailPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
         <div>
           <div style={labelStyle}>{programme.kind}{programme.state ? ` · ${programme.state}` : ""}</div>
-          <h1 style={titleStyle}>
+          <h2 style={titleStyle}>
             {programme.name}
             {programme.status === "ARCHIVED" && (
               <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>
                 Archived
               </span>
             )}
-          </h1>
+          </h2>
           <div style={{ fontFamily: "monospace", fontSize: 12, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>
             {programme.code}
           </div>

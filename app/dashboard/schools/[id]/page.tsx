@@ -170,7 +170,7 @@ export default function SchoolDetailPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" style={{ margin: "12px 0 24px" }}>
         <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: "0 0 8px" }}>{school.name}</h1>
+          <h2 style={{ ...titleStyle, fontSize: "28px", margin: "0 0 8px" }}>{school.name}</h2>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             {school.code && <span style={chipStyle}>{school.code}</span>}
             {school.state && <span style={chipStyle}>{school.state}</span>}

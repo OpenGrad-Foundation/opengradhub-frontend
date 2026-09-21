@@ -16,7 +16,7 @@ describe('workspaceTitleFor', () => {
 
   it('titles role-neutral pages for everyone and skips unknown routes', () => {
     expect(workspaceTitleFor('/dashboard/tracker', [])).toBe(TRACKER_NAME);
-    expect(workspaceTitleFor('/dashboard/schools/123', ['schools.view'])).toBeNull();
+    expect(workspaceTitleFor('/dashboard/quiz/q1/review/a1', ['schools.view'])).toBeNull();
   });
 
   it('titles quiz builder routes and leaves duplicate alone', () => {
@@ -31,5 +31,11 @@ describe('workspaceTitleFor', () => {
     expect(workspaceTitleFor('/dashboard/assignments/a1', [])).toBe('Assignment');
     expect(workspaceTitleFor('/dashboard/assignments/a1/edit', [])).toBe('Edit assignment');
     expect(workspaceTitleFor('/dashboard/assignments/a1/submissions', [])).toBe('Submissions');
+  });
+
+  it('names the record kind on detail pages', () => {
+    expect(workspaceTitleFor('/dashboard/schools/s1', [])).toBe('School');
+    expect(workspaceTitleFor('/dashboard/user-management/u1', [])).toBe('Staff profile');
+    expect(workspaceTitleFor('/dashboard/schools/s1/extra', [])).toBeNull();
   });
 });

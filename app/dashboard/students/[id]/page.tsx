@@ -194,10 +194,10 @@ function Header({
   return (
     <div style={card}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: 700,
+        <h2 style={{ fontSize: "24px", fontWeight: 700,
                      color: BRAND.dark, margin: 0 }}>
           {student.name}
-        </h1>
+        </h2>
         {atRisk && (
           <span style={{ background: "rgba(184,50,50,0.1)", color: BRAND.red, fontSize: "12px",
                          fontWeight: 600, padding: "4px 10px", borderRadius: "6px" }}>
