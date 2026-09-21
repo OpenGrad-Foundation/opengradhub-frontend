@@ -38,4 +38,10 @@ describe('workspaceTitleFor', () => {
     expect(workspaceTitleFor('/dashboard/user-management/u1', [])).toBe('Staff profile');
     expect(workspaceTitleFor('/dashboard/schools/s1/extra', [])).toBeNull();
   });
+
+  it('keeps create routes on their own gated titles, not the detail fallback', () => {
+    expect(workspaceTitleFor('/dashboard/bundles/new', [])).toBeNull();
+    expect(workspaceTitleFor('/dashboard/bundles/b1', [])).toBe('Bundle');
+    expect(workspaceTitleFor('/dashboard/live-classes/c1/edit', [])).toBe('Edit class');
+  });
 });

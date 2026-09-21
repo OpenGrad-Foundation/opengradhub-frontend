@@ -156,9 +156,11 @@ const WORKSPACE_TITLES: Record<string, string | ((permissions: string[]) => stri
 export function workspaceTitleFor(pathname: string, permissions: string[]): string | null {
   if (pathname.startsWith("/dashboard/course-management/")) return permissions.includes("courses.edit") ? "Course" : null;
   if (pathname === "/dashboard/live-classes/new") return "Schedule class";
+  if (/^\/dashboard\/live-classes\/[^/]+\/edit$/.test(pathname)) return "Edit class";
+  if (pathname === "/dashboard/courses/new") return "New course";
   // Detail pages: the shell names the kind of record; the page shows its name as an h2.
-  const detail = pathname.match(/^\/dashboard\/(schools|batches|students|user-management|programmes)\/[^/]+$/);
-  if (detail) return ({ schools: "School", batches: "Batch", students: "Student", "user-management": "Staff profile", programmes: "Programme" } as const)[detail[1] as "schools"];
+  const detail = pathname.match(/^\/dashboard\/(schools|batches|students|user-management|programmes|bundles)\/(?!new$)[^/]+$/);
+  if (detail) return ({ schools: "School", batches: "Batch", students: "Student", "user-management": "Staff profile", programmes: "Programme", bundles: "Bundle" } as const)[detail[1] as "schools"];
   if (pathname === "/dashboard/assignments/new") return "New assignment";
   if (/^\/dashboard\/assignments\/[^/]+\/edit$/.test(pathname)) return "Edit assignment";
   if (/^\/dashboard\/assignments\/[^/]+\/submissions$/.test(pathname)) return "Submissions";

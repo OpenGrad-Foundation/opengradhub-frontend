@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, Info, RotateCcw } from "lucide-react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getBackHref } from "@/lib/nav";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
@@ -86,9 +87,8 @@ function leafQuestions(qs: PracticePayloadQuestion[]): PracticePayloadQuestion[]
 
 const pageOuter: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#f0f2f5",
-  fontFamily: "'Inter', sans-serif",
-  color: "#034852",
+  background: "var(--color-background)",
+  color: "var(--color-text)",
 };
 
 const pageInner: React.CSSProperties = {
@@ -98,52 +98,46 @@ const pageInner: React.CSSProperties = {
 };
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.95)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: "20px",
-  padding: "28px 32px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px, 4vw, 24px)",
 };
 
 const primaryBtn: React.CSSProperties = {
-  padding: "12px 28px",
-  border: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  minHeight: "44px",
+  padding: "8px 20px",
+  border: "1px solid var(--green)",
   borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff",
-  fontFamily: "var(--font-heading)",
-  fontWeight: 700,
-  fontSize: "15px",
+  background: "var(--green)",
+  color: "var(--dark-teal)",
+  fontWeight: 600,
+  fontSize: "14px",
   cursor: "pointer",
-  boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
 };
 
 const secondaryBtn: React.CSSProperties = {
-  padding: "10px 20px",
-  border: "1.5px solid rgba(3,72,82,0.15)",
-  borderRadius: "10px",
-  background: "#fff",
-  color: "#034852",
-  fontFamily: "var(--font-heading)",
-  fontWeight: 700,
-  fontSize: "13px",
-  cursor: "pointer",
+  ...primaryBtn,
+  border: "1px solid var(--color-border)",
+  background: "var(--color-surface)",
+  color: "var(--color-text)",
 };
 
 const eyebrow: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.28em",
-  color: "#209379",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: "var(--color-text-muted)",
   margin: "0 0 6px",
 };
 
 const heading: React.CSSProperties = {
-  fontFamily: "var(--font-heading)",
-  fontSize: "26px",
-  fontWeight: 800,
-  color: "#034852",
+  fontSize: "24px",
+  fontWeight: 700,
+  color: "var(--color-text)",
   margin: 0,
 };
 
@@ -264,7 +258,7 @@ export default function PracticePage() {
       <div style={pageOuter}>
         <div style={pageInner}>
           <div style={{ ...glassCard, textAlign: "center" }}>
-            <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px", margin: 0 }}>
+            <p style={{ color: "var(--color-text-muted)", fontSize: "14px", margin: 0 }}>
               Loading practice…
             </p>
           </div>
@@ -280,19 +274,19 @@ export default function PracticePage() {
           <div
             style={{
               ...glassCard,
-              background: "rgba(229,62,62,0.07)",
-              border: "1px solid rgba(229,62,62,0.2)",
+              background: "var(--color-danger-surface)",
+              border: "1px solid rgba(184,50,50,0.2)",
             }}
           >
             <h1 style={heading}>Practice is not available for this quiz</h1>
-            <p style={{ fontSize: "15px", color: "rgba(3,72,82,0.7)", margin: "12px 0 24px", lineHeight: 1.6 }}>
+            <p style={{ fontSize: "15px", color: "var(--color-text-muted)", margin: "12px 0 24px", lineHeight: 1.6 }}>
               {state.message}
             </p>
             <Link
               href={getBackHref(from, "/dashboard/assessments")}
-              style={{ ...primaryBtn, display: "inline-block", textDecoration: "none" }}
+              style={{ ...secondaryBtn, textDecoration: "none" }}
             >
-              ← Back to quizzes
+              <ArrowLeft size={16} aria-hidden="true" />Back to quizzes
             </Link>
           </div>
         </div>
@@ -316,8 +310,8 @@ export default function PracticePage() {
             gap: "10px",
           }}
         >
-          <span style={{ fontSize: "16px" }}>●</span>
-          <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#92590a" }}>
+          <Info size={16} aria-hidden="true" style={{ color: "#92590a", flexShrink: 0 }} />
+          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#92590a" }}>
             Practice run — not recorded.
           </p>
         </div>
@@ -329,7 +323,7 @@ export default function PracticePage() {
           <p
             style={{
               fontSize: "14px",
-              color: "rgba(3,72,82,0.6)",
+              color: "var(--color-text-muted)",
               margin: "10px 0 0",
               lineHeight: 1.6,
             }}
@@ -381,12 +375,10 @@ function AnsweringView({
         <div key={q.snapshot_id} style={{ ...glassCard, marginBottom: "20px" }}>
           <p
             style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              color: "#209379",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "var(--color-text-muted)",
               margin: "0 0 14px",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
             }}
           >
             Question {i + 1} of {payload.questions.length}
@@ -406,10 +398,10 @@ function AnsweringView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to quizzes
+          <ArrowLeft size={16} aria-hidden="true" />Back to quizzes
         </button>
         <button onClick={onSubmit} style={primaryBtn}>
-          Submit practice →
+          Submit practice <ArrowRight size={16} aria-hidden="true" />
         </button>
       </div>
     </>
@@ -469,15 +461,15 @@ function ResultsView({
             margin: "8px 0 4px",
           }}
         >
-          <span style={{ fontSize: "56px", fontWeight: 900, color: "#034852", lineHeight: 1 }}>
+          <span style={{ fontSize: "56px", fontWeight: 700, color: "var(--color-text)", lineHeight: 1 }}>
             {pct}%
           </span>
-          <span style={{ fontSize: "16px", fontWeight: 700, color: "rgba(3,72,82,0.5)" }}>
+          <span style={{ fontSize: "16px", fontWeight: 700, color: "var(--color-text-muted)" }}>
             {totalAwarded} / {totalMax} marks
           </span>
         </div>
         {needsSelfCheck && (
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.55)", margin: "10px 0 0" }}>
+          <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "10px 0 0" }}>
             Short-answer questions are marked &ldquo;self-check&rdquo; — review the
             explanation below and judge for yourself.
           </p>
@@ -506,10 +498,10 @@ function ResultsView({
         }}
       >
         <button onClick={onBack} style={secondaryBtn}>
-          ← Back to quizzes
+          <ArrowLeft size={16} aria-hidden="true" />Back to quizzes
         </button>
         <button onClick={onPracticeAgain} style={primaryBtn}>
-          Practice again ↻
+          <RotateCcw size={16} aria-hidden="true" />Practice again
         </button>
       </div>
     </>
@@ -533,12 +525,10 @@ function ResultQuestionCard({
     <div style={{ ...glassCard, marginBottom: "20px" }}>
       <p
         style={{
-          fontSize: "12px",
-          fontWeight: 700,
-          color: "#209379",
+          fontSize: "13px",
+          fontWeight: 500,
+          color: "var(--color-text-muted)",
           margin: "0 0 14px",
-          textTransform: "uppercase",
-          letterSpacing: "0.1em",
         }}
       >
         Question {parentIndex} of {totalParents}
@@ -554,16 +544,14 @@ function ResultQuestionCard({
           {question.children.map((child, ci) => (
             <div
               key={child.snapshot_id}
-              style={{ paddingLeft: "20px", borderLeft: "3px solid rgba(3,72,82,0.1)" }}
+              style={{ paddingLeft: "20px", borderLeft: "3px solid var(--color-border)" }}
             >
               <p
                 style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  color: "rgba(3,72,82,0.4)",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  color: "var(--color-text-muted)",
                   margin: "0 0 8px",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
                 }}
               >
                 Part {ci + 1}
@@ -590,16 +578,16 @@ function LeafResult({
   const verdict = gradePractice(toGradable(question), studentAnswer);
 
   // ── Verdict pill ──
-  let pillBg = "rgba(3,72,82,0.08)";
-  let pillFg = "#034852";
+  let pillBg = "var(--color-surface-sunken)";
+  let pillFg = "var(--color-text)";
   let pillLabel = "Self-check";
   if (verdict.is_correct === true) {
     pillBg = "rgba(10,190,98,0.12)";
-    pillFg = "#0abe62";
+    pillFg = "#08784a";
     pillLabel = "Correct";
   } else if (verdict.is_correct === false) {
-    pillBg = "rgba(229,62,62,0.1)";
-    pillFg = "#c53030";
+    pillBg = "rgba(184,50,50,0.1)";
+    pillFg = "#b83232";
     pillLabel = "Incorrect";
   }
 
@@ -613,17 +601,17 @@ function LeafResult({
         <span
           style={{
             display: "inline-block",
-            borderRadius: "9999px",
-            padding: "4px 12px",
+            borderRadius: "6px",
+            padding: "3px 8px",
             fontSize: "12px",
-            fontWeight: 700,
+            fontWeight: 600,
             background: pillBg,
             color: pillFg,
           }}
         >
           {pillLabel}
         </span>
-        <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>
+        <span style={{ fontSize: "12px", color: "var(--color-text-muted)", fontWeight: 600 }}>
           {verdict.marks_awarded} / {verdict.max_marks} marks
         </span>
       </div>
@@ -634,21 +622,21 @@ function LeafResult({
           gridTemplateColumns: "1fr",
           gap: "8px",
           marginBottom: "12px",
-          background: "rgba(3,72,82,0.03)",
-          borderRadius: "10px",
+          background: "var(--color-surface-sunken)",
+          borderRadius: "8px",
           padding: "12px 16px",
         }}
       >
-        <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
-          <strong style={{ fontWeight: 700, color: "#034852" }}>Your answer:</strong>{" "}
-          <span style={{ color: studentAnswer ? "#034852" : "rgba(3,72,82,0.4)" }}>
+        <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
+          <strong style={{ fontWeight: 700, color: "var(--color-text)" }}>Your answer:</strong>{" "}
+          <span style={{ color: studentAnswer ? "var(--color-text)" : "var(--color-text-muted)" }}>
             {studentAnswer ? <MathContent inline html={studentAnswerText} /> : "(no answer)"}
           </span>
         </p>
         {correctAnswerText !== null && (
-          <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
-            <strong style={{ fontWeight: 700, color: "#034852" }}>Correct answer:</strong>{" "}
-            <span style={{ color: "#0abe62", fontWeight: 600 }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
+            <strong style={{ fontWeight: 700, color: "var(--color-text)" }}>Correct answer:</strong>{" "}
+            <span style={{ color: "#08784a", fontWeight: 600 }}>
               <MathContent inline html={correctAnswerText} />
             </span>
           </p>
@@ -658,27 +646,25 @@ function LeafResult({
       {question.explanation_html && (
         <div
           style={{
-            background: "rgba(32,147,121,0.06)",
-            border: "1px solid rgba(32,147,121,0.18)",
-            borderRadius: "10px",
+            background: "var(--color-surface-sunken)",
+            border: "1px solid var(--color-border)",
+            borderRadius: "8px",
             padding: "14px 16px",
           }}
         >
           <p
             style={{
               margin: "0 0 6px",
-              fontSize: "11px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              color: "#209379",
+              fontSize: "13px",
+              fontWeight: 500,
+              color: "var(--color-text-muted)",
             }}
           >
             Explanation
           </p>
           <MathContent
             html={question.explanation_html}
-            style={{ fontSize: "14px", lineHeight: 1.6, color: "#034852" }}
+            style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--color-text)" }}
           />
         </div>
       )}

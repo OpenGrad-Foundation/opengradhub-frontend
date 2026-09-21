@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, BookOpen, Check, FileText, GripVertical, Plus, TriangleAlert, User, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
@@ -102,7 +103,7 @@ export default function BundleDetailPage() {
     return (
       <Shell>
         <div style={glassCard}>
-          <p style={labelSt}>Access Denied</p>
+          <p style={labelSt}>Access denied</p>
           <p style={{ ...headingSt, marginTop: "12px", fontSize: "18px" }}>
             Only Super Admins and Program Managers can manage bundles.
           </p>
@@ -111,7 +112,7 @@ export default function BundleDetailPage() {
     );
   }
   if (!bundle) {
-    return <Shell><div style={glassCard}><p style={{ color: "#e53e3e", fontWeight: 600 }}>{globalError ?? "Bundle not found."}</p></div></Shell>;
+    return <Shell><div style={glassCard}><p style={{ color: "#b83232", fontWeight: 600, margin: 0 }}>{globalError ?? "Bundle not found."}</p></div></Shell>;
   }
 
   // Panels are declared up front so the conditional Settings tab stays typed;
@@ -125,7 +126,7 @@ export default function BundleDetailPage() {
           title="Courses in this Bundle"
           action={
             <button onClick={() => setAddCourseOpen(true)} style={primaryBtn}>
-              + Add Course
+              <Plus size={16} aria-hidden="true" />Add Course
             </button>
           }
         >
@@ -148,7 +149,7 @@ export default function BundleDetailPage() {
           title="Students Enrolled"
           action={
             <button onClick={() => setAssignStudentOpen(true)} style={primaryBtn}>
-              + Assign to Student
+              <Plus size={16} aria-hidden="true" />Assign to Student
             </button>
           }
         >
@@ -169,7 +170,7 @@ export default function BundleDetailPage() {
           title="Quizzes in this Bundle"
           action={
             <button onClick={() => setAddTestOpen(true)} style={primaryBtn}>
-              + Add Quiz
+              <Plus size={16} aria-hidden="true" />Add Quiz
             </button>
           }
         >
@@ -190,7 +191,7 @@ export default function BundleDetailPage() {
       label: "Settings",
       panel: (
         <Section title="Danger Zone">
-          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: "0 0 16px" }}>
+          <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: "0 0 16px" }}>
             Deleting a bundle removes it and its course/quiz groupings, and drops it from
             every batch that holds it. Students keep access to courses they were already
             enrolled in. This cannot be undone.
@@ -206,20 +207,19 @@ export default function BundleDetailPage() {
   return (
     <Shell>
       {/* ── Header ───────────────────────────────────────────── */}
-      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Back to Bundles
+      <BackLink fallback="/dashboard/bundles" style={ghostBtn}>
+        <ArrowLeft size={16} aria-hidden="true" />Back to Bundles
       </BackLink>
       <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
         <div>
-          <p style={labelSt}>Bundle</p>
-          <h1 style={{ ...headingSt, fontSize: "26px", margin: "4px 0 0" }}>{bundle.name}</h1>
+          <h2 style={{ ...headingSt, fontSize: "24px", margin: 0 }}>{bundle.name}</h2>
           {bundle.description && (
-            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "6px" }}>{bundle.description}</p>
+            <p style={{ fontSize: "14px", color: "var(--color-text-muted)", marginTop: "6px" }}>{bundle.description}</p>
           )}
           <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-            <Chip icon="📚" value={bundle.courses.length} label="course" />
-            <Chip icon="👤" value={bundle.enrolled_students.length} label="student" />
-            <Chip icon="📝" value={bundle.tests.length} label="quiz" />
+            <Chip icon={<BookOpen size={14} aria-hidden="true" />} value={bundle.courses.length} label="course" />
+            <Chip icon={<User size={14} aria-hidden="true" />} value={bundle.enrolled_students.length} label="student" />
+            <Chip icon={<FileText size={14} aria-hidden="true" />} value={bundle.tests.length} label="quiz" />
           </div>
         </div>
       </div>
@@ -261,13 +261,14 @@ export default function BundleDetailPage() {
       {toast && (
         <div style={{
           position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)",
-          background: "linear-gradient(135deg, #034852 0%, #006d6c 100%)",
-          color: "#fff", padding: "12px 24px", borderRadius: "100px",
-          fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-          boxShadow: "0 8px 24px rgba(3,72,82,0.3)", zIndex: 200,
+          display: "inline-flex", alignItems: "center", gap: "8px",
+          background: "var(--color-text)", color: "var(--color-surface)",
+          padding: "12px 20px", borderRadius: "12px",
+          fontWeight: 600, fontSize: "14px",
+          zIndex: 200,
           animation: "floatIn 0.3s ease forwards",
         }}>
-          ✓ {toast}
+          <Check size={16} aria-hidden="true" />{toast}
         </div>
       )}
     </Shell>
@@ -328,7 +329,7 @@ function CourseList({
 
   if (localCourses.length === 0) {
     return (
-      <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
+      <p style={{ fontSize: "14px", color: "var(--color-text-muted)", padding: "16px 0" }}>
         No courses yet. Click &quot;+ Add Course&quot; to get started.
       </p>
     );
@@ -348,38 +349,39 @@ function CourseList({
             display: "flex", alignItems: "center", gap: "10px",
             padding: "12px 14px",
             borderRadius: "12px",
-            background: dragOverIdx === idx ? "rgba(10,190,98,0.06)" : "rgba(3,72,82,0.025)",
-            border: `1px solid ${dragOverIdx === idx ? "rgba(10,190,98,0.25)" : "rgba(3,72,82,0.07)"}`,
+            background: dragOverIdx === idx ? "rgba(10,190,98,0.06)" : "var(--color-surface)",
+            border: `1px solid ${dragOverIdx === idx ? "var(--green)" : "var(--color-border)"}`,
             marginBottom: "6px",
             cursor: "grab",
             transition: "all 120ms ease",
             opacity: dragOverIdx === idx ? 0.7 : 1,
           }}
         >
-          <span style={{ fontSize: "15px", color: "rgba(3,72,82,0.3)", flexShrink: 0, cursor: "grab" }}>⠿</span>
-          <span style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.3)", minWidth: "20px" }}>{idx + 1}</span>
+          <GripVertical size={16} aria-hidden="true" style={{ color: "var(--color-text-muted)", flexShrink: 0, cursor: "grab" }} />
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--color-text-muted)", minWidth: "20px" }}>{idx + 1}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {course.title}
             </p>
-            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
               {course.programme_type}
-              {studentCount > 0 && <span style={{ marginLeft: "8px", color: "#0abe62" }}>✓ {studentCount} student{studentCount !== 1 ? "s" : ""} enrolled</span>}
+              {studentCount > 0 && <span style={{ marginLeft: "8px", color: "#08784a", display: "inline-flex", alignItems: "center", gap: "4px" }}><Check size={12} aria-hidden="true" />{studentCount} student{studentCount !== 1 ? "s" : ""} enrolled</span>}
             </p>
           </div>
           <span style={{
-            padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
+            padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
             background: course.status === "ACTIVE" ? "rgba(10,190,98,0.1)" : "rgba(255,222,0,0.2)",
-            color: course.status === "ACTIVE" ? "#0abe62" : "#956f00",
+            color: course.status === "ACTIVE" ? "#08784a" : "#956f00",
           }}>
             {course.status}
           </span>
           <button
             onClick={() => void handleRemove(course.id, course.title)}
-            style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
+            style={iconBtn}
             title="Remove from bundle"
+            aria-label="Remove from bundle"
           >
-            ✕
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
       ))}
@@ -411,28 +413,28 @@ function StudentTable({
 
   if (students.length === 0) {
     return (
-      <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
+      <p style={{ fontSize: "14px", color: "var(--color-text-muted)", padding: "16px 0" }}>
         No students enrolled yet. Click &quot;+ Assign to Student&quot; to add one.
       </p>
     );
   }
   return (
-    <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.08)" }}>
+    <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
         <thead>
-          <tr style={{ background: "rgba(32,147,121,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+          <tr style={{ background: "var(--color-surface-sunken)", borderBottom: "1px solid var(--color-border)" }}>
             {["Name", "Roll Number", "Email", "Enrolled", ""].map((h) => (
-              <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" }}>{h}</th>
+              <th key={h} style={{ padding: "11px 16px", textAlign: "left", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {students.map((s) => (
-            <tr key={s.id} style={{ borderBottom: "1px solid rgba(3,72,82,0.05)" }}>
+            <tr key={s.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
               <td style={tdSt}>
-                <strong style={{ color: "#034852" }}>{s.name}</strong>
+                <strong style={{ color: "var(--color-text)" }}>{s.name}</strong>
                 {s.via_batch_name && (
-                  <span style={{ marginLeft: "8px", padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.65)" }}>
+                  <span style={{ marginLeft: "8px", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: "var(--color-surface-sunken)", color: "var(--color-text-muted)" }}>
                     via {s.via_batch_name}
                   </span>
                 )}
@@ -443,7 +445,7 @@ function StudentTable({
               <td style={{ ...tdSt, textAlign: "right" }}>
                 {s.via_batch_name ? (
                   <span
-                    style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", fontWeight: 600 }}
+                    style={{ fontSize: "11px", color: "var(--color-text-muted)", fontWeight: 600 }}
                     title="Granted via a batch — remove the student or bundle from the batch instead"
                   >
                     Managed by batch
@@ -451,7 +453,7 @@ function StudentTable({
                 ) : (
                   <button
                     onClick={() => void handleRemove(s.id, s.name)}
-                    style={{ background: "none", border: "none", fontSize: "12px", color: "rgba(229,62,62,0.7)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
+                    style={{ background: "none", border: "none", fontSize: "12px", color: "#b83232", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontFamily: "var(--font-body)", fontWeight: 600 }}
                     title={`Remove ${s.name} from bundle`}
                   >
                     Remove
@@ -554,11 +556,11 @@ function AddCourseModal({
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ background: "rgba(255,222,0,0.1)", border: "1px solid rgba(255,222,0,0.4)", borderRadius: "12px", padding: "16px" }}>
             <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#7a5f00" }}>
-              ⚠️ Adding {nSelected === 1 ? "this course" : `these ${nSelected} courses`} will automatically enrol{" "}
+              <TriangleAlert size={16} aria-hidden="true" style={{ verticalAlign: "-3px", marginRight: "6px" }} />Adding {nSelected === 1 ? "this course" : `these ${nSelected} courses`} will automatically enrol{" "}
               <strong>{enrolledStudentCount} existing student{enrolledStudentCount !== 1 ? "s" : ""}</strong>. Continue?
             </p>
           </div>
-          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>}
+          {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600 }}>{error}</p>}
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={() => setConfirming(false)} style={ghostBtnSm} disabled={submitting}>Go Back</button>
             <button onClick={() => void doAdd()} disabled={submitting} style={{ ...primaryBtnSm, opacity: submitting ? 0.6 : 1 }}>
@@ -578,11 +580,11 @@ function AddCourseModal({
           />
 
           {/* Course list with checkboxes */}
-          <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "12px" }}>
+          <div style={{ maxHeight: "260px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "12px", marginBottom: "12px" }}>
             {loadingCourses ? (
-              <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading courses…</p>
+              <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading courses…</p>
             ) : filtered.length === 0 ? (
-              <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+              <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                 {search ? "No matching courses." : "No active courses available."}
               </p>
             ) : filtered.map((c) => {
@@ -594,7 +596,7 @@ function AddCourseModal({
                   style={{
                     display: "flex", alignItems: "center", gap: "10px",
                     padding: "10px 14px", cursor: alreadyAdded ? "default" : "pointer",
-                    borderBottom: "1px solid rgba(3,72,82,0.05)",
+                    borderBottom: "1px solid var(--color-border)",
                     background: checked ? "rgba(10,190,98,0.07)" : "transparent",
                     opacity: alreadyAdded ? 0.45 : 1,
                     transition: "background 100ms",
@@ -605,14 +607,14 @@ function AddCourseModal({
                     checked={checked}
                     disabled={alreadyAdded}
                     onChange={() => toggleCourse(c.id)}
-                    style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0 }}
+                    style={{ accentColor: "#08784a", width: "14px", height: "14px", flexShrink: 0 }}
                   />
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {c.title}
-                      {alreadyAdded && <span style={{ fontWeight: 400, color: "rgba(3,72,82,0.5)", marginLeft: "6px" }}>already in bundle</span>}
+                      {alreadyAdded && <span style={{ fontWeight: 400, color: "var(--color-text-muted)", marginLeft: "6px" }}>already in bundle</span>}
                     </span>
-                    <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                    <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>
                       {c.programme_type} · {c.lesson_count} lesson{c.lesson_count !== 1 ? "s" : ""}
                     </span>
                   </span>
@@ -625,15 +627,15 @@ function AddCourseModal({
           {selectedCourses.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
               {selectedCourses.map((c) => (
-                <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 10px", borderRadius: "100px", background: "rgba(10,190,98,0.1)", border: "1px solid rgba(10,190,98,0.25)", fontSize: "12px", fontWeight: 600, color: "#034852" }}>
+                <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 10px", borderRadius: "6px", background: "rgba(10,190,98,0.1)", border: "1px solid rgba(10,190,98,0.25)", fontSize: "12px", fontWeight: 600, color: "var(--color-text)" }}>
                   {c.title}
-                  <button onClick={() => toggleCourse(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "14px", lineHeight: 1, padding: "0 2px", fontWeight: 700 }}>×</button>
+                  <button onClick={() => toggleCourse(c.id)} aria-label={`Remove ${c.title}`} style={{ display: "inline-flex", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", padding: "0 2px" }}><X size={12} strokeWidth={3} aria-hidden="true" /></button>
                 </span>
               ))}
             </div>
           )}
 
-          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
+          {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "10px" }}>{error}</p>}
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
@@ -711,11 +713,11 @@ function AssignStudentModal({
         onChange={(e) => setSearch(e.target.value)}
         style={{ ...inputSt, marginBottom: "12px" }}
       />
-      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
+      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "12px", marginBottom: "16px" }}>
         {loadingStudents ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading students…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading students…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
             {search ? "No matching students." : "No students available."}
           </p>
         ) : filtered.map((u) => {
@@ -727,23 +729,23 @@ function AssignStudentModal({
               style={{
                 padding: "12px 16px", cursor: "pointer",
                 background: active ? "rgba(10,190,98,0.07)" : "transparent",
-                borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
+                borderLeft: `3px solid ${active ? "var(--green)" : "transparent"}`,
                 transition: "all 130ms ease",
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}
             >
               <div>
-                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{u.name}</p>
-                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{u.name}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                   {u.roll_number ?? u.email ?? "—"} · {u.programme_type ?? "—"}
                 </p>
               </div>
-              {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}
+              {active && <Check size={16} aria-hidden="true" style={{ color: "#08784a" }} />}
             </div>
           );
         })}
       </div>
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <div style={{ display: "flex", gap: "10px" }}>
         <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
         <button onClick={() => void handleAssign()} disabled={!selected || submitting} style={{ ...primaryBtnSm, opacity: (!selected || submitting) ? 0.45 : 1 }}>
@@ -780,7 +782,7 @@ function TestList({
 
   if (tests.length === 0) {
     return (
-      <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.45)", padding: "16px 0" }}>
+      <p style={{ fontSize: "14px", color: "var(--color-text-muted)", padding: "16px 0" }}>
         No quizzes yet. Click &quot;+ Add Quiz&quot; to attach a global quiz.
       </p>
     );
@@ -794,25 +796,25 @@ function TestList({
           style={{
             display: "flex", alignItems: "center", gap: "10px",
             padding: "12px 14px", borderRadius: "12px",
-            background: "rgba(3,72,82,0.025)",
-            border: "1px solid rgba(3,72,82,0.07)",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
           }}
         >
-          <span style={{ fontSize: "16px", flexShrink: 0 }}>📝</span>
+          <FileText size={16} aria-hidden="true" style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {test.title}
             </p>
-            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+            <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
               {test.question_count} question{test.question_count !== 1 ? "s" : ""}
               {test.duration_minutes != null && ` · ${test.duration_minutes} min`}
               {test.max_attempts != null && test.max_attempts > 0 && ` · max ${test.max_attempts} attempt${test.max_attempts !== 1 ? "s" : ""}`}
             </p>
           </div>
           <span style={{
-            padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
+            padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
             background: test.published ? "rgba(10,190,98,0.1)" : "rgba(255,222,0,0.2)",
-            color: test.published ? "#0abe62" : "#956f00",
+            color: test.published ? "#08784a" : "#956f00",
           }}>
             {test.published ? "Published" : "Draft"}
           </span>
@@ -820,22 +822,20 @@ function TestList({
             <Link
               href={withFrom(`/dashboard/quiz-builder/${test.id}`, currentUrl)}
               style={{
-                flexShrink: 0, padding: "5px 12px", borderRadius: "8px",
-                border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent",
-                color: "#034852", fontWeight: 600, fontSize: "12px",
-                textDecoration: "none", whiteSpace: "nowrap",
+                ...ghostBtn, flexShrink: 0, minHeight: "36px", padding: "4px 12px", fontSize: "13px",
               }}
               title="Edit questions & settings in the builder"
             >
-              Edit →
+              Edit<ArrowRight size={14} aria-hidden="true" />
             </Link>
           )}
           <button
             onClick={() => void handleRemove(test.id, test.title)}
-            style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(229,62,62,0.6)", cursor: "pointer", padding: "4px 6px", borderRadius: "8px", flexShrink: 0 }}
+            style={iconBtn}
             title="Remove from bundle"
+            aria-label="Remove from bundle"
           >
-            ✕
+            <X size={16} aria-hidden="true" />
           </button>
         </div>
       ))}
@@ -897,11 +897,11 @@ function AddTestModal({
         onChange={(e) => setSearch(e.target.value)}
         style={{ ...inputSt, marginBottom: "12px" }}
       />
-      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "12px", marginBottom: "16px" }}>
+      <div style={{ maxHeight: "280px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "12px", marginBottom: "16px" }}>
         {loadingQuizzes ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading quizzes…</p>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading quizzes…</p>
         ) : filtered.length === 0 ? (
-          <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+          <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
             {search ? "No matching quizzes." : "No published global quizzes available."}
           </p>
         ) : filtered.map((q) => {
@@ -913,24 +913,24 @@ function AddTestModal({
               style={{
                 padding: "12px 16px", cursor: "pointer",
                 background: active ? "rgba(10,190,98,0.07)" : "transparent",
-                borderLeft: `3px solid ${active ? "#0abe62" : "transparent"}`,
+                borderLeft: `3px solid ${active ? "var(--green)" : "transparent"}`,
                 transition: "all 130ms ease",
                 display: "flex", justifyContent: "space-between", alignItems: "center",
               }}
             >
               <div>
-                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{q.title}</p>
-                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{q.title}</p>
+                <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                   {q.duration_minutes != null ? `${q.duration_minutes} min` : "No time limit"}
                   {q.max_attempts != null && q.max_attempts > 0 && ` · max ${q.max_attempts} attempt${q.max_attempts !== 1 ? "s" : ""}`}
                 </p>
               </div>
-              {active && <span style={{ color: "#0abe62", fontSize: "16px" }}>✓</span>}
+              {active && <Check size={16} aria-hidden="true" style={{ color: "#08784a" }} />}
             </div>
           );
         })}
       </div>
-      {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>}
       <div style={{ display: "flex", gap: "10px" }}>
         <button onClick={onClose} style={ghostBtnSm}>Cancel</button>
         <button
@@ -968,19 +968,18 @@ function Section({ title, action, children }: {
 function Modal({ title, onClose, children }: { title: string; onClose?: () => void; children: React.ReactNode }) {
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", zIndex: 50 }} />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
-          background: "#ffffff",
-          borderRadius: "24px", padding: "32px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-          border: "1px solid rgba(255,255,255,0.3)",
+          background: "var(--color-surface)",
+          borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
+          border: "1px solid var(--color-border)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.3s cubic-bezier(0.16,1,0.3,1) forwards",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <h3 style={{ ...headingSt, fontSize: "18px", margin: 0 }}>{title}</h3>
-            {onClose && <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.45)", cursor: "pointer", padding: "4px 8px" }}>✕</button>}
+            {onClose && <button onClick={onClose} aria-label="Close" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "44px", minHeight: "44px", background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", padding: 0 }}><X size={18} aria-hidden="true" /></button>}
           </div>
           {children}
         </div>
@@ -989,13 +988,13 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
   );
 }
 
-function Chip({ icon, value, label }: { icon: string; value: number; label: string }) {
+function Chip({ icon, value, label }: { icon: React.ReactNode; value: number; label: string }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: "5px",
-      padding: "4px 10px", borderRadius: "100px",
-      background: "rgba(3,72,82,0.06)", fontSize: "12px",
-      fontWeight: 600, color: "#034852",
+      padding: "3px 8px", borderRadius: "6px",
+      background: "var(--color-surface-sunken)", fontSize: "12px",
+      fontWeight: 600, color: "var(--color-text)",
     }}>
       {icon} {value} {label}{value !== 1 ? (label.endsWith("z") ? "zes" : "s") : ""}
     </span>
@@ -1014,68 +1013,61 @@ function LoadingCard() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: "20px",
-  padding: "28px 32px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px, 4vw, 24px)",
 };
 
 const labelSt: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379", margin: 0,
+  fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
 };
 
 const headingSt: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", margin: 0,
+  fontWeight: 700, color: "var(--color-text)", margin: 0,
+};
+
+const btnBase: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+  minHeight: "44px", padding: "8px 16px", borderRadius: "12px",
+  fontWeight: 600, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none",
 };
 
 const primaryBtn: React.CSSProperties = {
-  padding: "9px 18px", border: "none", borderRadius: "10px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
-  boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
+  ...btnBase, border: "1px solid var(--green)", background: "var(--green)", color: "var(--dark-teal)",
+};
+
+const ghostBtn: React.CSSProperties = {
+  ...btnBase, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)",
 };
 
 const dangerBtn: React.CSSProperties = {
-  padding: "9px 18px", borderRadius: "10px",
-  border: "1px solid rgba(229,62,62,0.35)",
-  background: "rgba(229,62,62,0.06)",
-  color: "#c53030", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "12px", cursor: "pointer", whiteSpace: "nowrap",
+  ...btnBase, border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "#b83232",
 };
 
-const primaryBtnSm: React.CSSProperties = {
-  flex: 2, padding: "11px 18px", border: "none", borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "14px", cursor: "pointer",
-};
+const primaryBtnSm: React.CSSProperties = { ...primaryBtn, flex: 2 };
 
-const ghostBtnSm: React.CSSProperties = {
-  flex: 1, padding: "11px 14px",
-  border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "12px",
-  background: "#ffffff", color: "#034852",
-  fontFamily: "var(--font-heading)", fontWeight: 600,
-  fontSize: "14px", cursor: "pointer", textAlign: "center",
+const ghostBtnSm: React.CSSProperties = { ...ghostBtn, flex: 1, textAlign: "center" };
+
+const iconBtn: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "36px", minHeight: "36px",
+  background: "none", border: "none", color: "#b83232", cursor: "pointer", padding: 0, borderRadius: "8px", flexShrink: 0,
 };
 
 const inputSt: React.CSSProperties = {
-  width: "100%", padding: "11px 14px",
-  background: "rgba(3,72,82,0.03)",
-  border: "1px solid rgba(3,72,82,0.12)",
-  borderRadius: "10px", color: "#034852",
-  fontFamily: "var(--font-body)", fontSize: "14px",
-  outline: "none", boxSizing: "border-box",
+  width: "100%", minHeight: "44px", padding: "8px 12px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border-strong)",
+  borderRadius: "8px", color: "var(--color-text)",
+  fontSize: "14px", boxSizing: "border-box",
 };
 
 const tdSt: React.CSSProperties = {
-  padding: "11px 16px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px",
+  padding: "11px 16px", textAlign: "left", color: "var(--color-text-muted)", fontSize: "13px",
 };
 
 const errorBox: React.CSSProperties = {
-  padding: "10px 14px", borderRadius: "10px",
-  background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
-  fontSize: "13px", color: "#c53030", fontWeight: 500,
+  padding: "10px 14px", borderRadius: "8px",
+  background: "var(--color-danger-surface)", border: "1px solid rgba(184,50,50,0.2)",
+  fontSize: "13px", color: "#b83232", fontWeight: 500,
 };

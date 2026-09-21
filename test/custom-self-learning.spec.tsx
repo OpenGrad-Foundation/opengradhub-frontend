@@ -39,7 +39,7 @@ describe('custom self-scope learning persona', () => {
   it('shows personal progress and retains sequential locks for a custom learner', async () => {
     render(<CourseOverviewPage />);
     await screen.findByText('Learning course');
-    expect(screen.getByRole('link', { name: '← My Courses' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'My Courses' })).toBeTruthy();
     expect(screen.queryByRole('link', { name: /Locked lesson/ })).toBeNull();
   });
   it('shows assignment submission to a custom learner', async () => {

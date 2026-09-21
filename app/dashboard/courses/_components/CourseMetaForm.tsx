@@ -60,8 +60,6 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 640px) {
           .course-mgmt-form-card {
-            padding: 20px 20px !important;
-            border-radius: 16px !important;
             gap: 18px !important;
           }
           .course-mgmt-form-flex-row {
@@ -109,9 +107,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
               flexWrap: "wrap",
               gap: "8px",
               padding: "8px",
-              border: "1px solid rgba(0,0,0,0.12)",
-              borderRadius: "12px",
-              background: "#fff",
+              border: "1px solid var(--color-border-strong)",
+              borderRadius: "8px",
+              background: "var(--color-surface)",
               minHeight: "44px",
               alignItems: "center"
             }}
@@ -124,9 +122,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                   alignItems: "center",
                   gap: "4px",
                   background: "rgba(10,190,98,0.1)",
-                  color: "var(--dark-teal)",
-                  padding: "4px 10px",
-                  borderRadius: "100px",
+                  color: "var(--color-text)",
+                  padding: "4px 8px",
+                  borderRadius: "6px",
                   fontSize: "12px",
                   fontWeight: 600,
                 }}
@@ -148,7 +146,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                     justifyContent: "center",
                   }}
                 >
-                  <X size={12} strokeWidth={3} />
+                  <X size={12} strokeWidth={3} aria-hidden="true" />
                 </button>
               </span>
             ))}
@@ -176,7 +174,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                 outline: "none",
                 background: "transparent",
                 fontSize: "14px",
-                color: "var(--dark-teal)",
+                color: "var(--color-text)",
                 fontFamily: "inherit",
               }}
             />
@@ -184,7 +182,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Programme Type ────────────────────────────────── */}
-        <Section label="Programme Type">
+        <Section label="Programme type">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             {(["UG", "PG"] as const).map((p) => (
               <ToggleChip
@@ -198,7 +196,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Cover Image URL ───────────────────────────────── */}
-        <Section label="Cover Image URL">
+        <Section label="Cover image URL">
           <input
             id="course-cover-url" aria-label="Cover image URL"
             value={coverImageUrl}
@@ -213,14 +211,14 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                 height: "120px",
                 borderRadius: "12px",
                 background: `url(${coverImageUrl}) center/cover no-repeat`,
-                border: "1px solid rgba(0,0,0,0.08)",
+                border: "1px solid var(--color-border)",
               }}
             />
           )}
         </Section>
 
         {/* ── Locking Mode ──────────────────────────────────── */}
-        <Section label="Locking Mode">
+        <Section label="Locking mode">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <ToggleChip
               label="Open"
@@ -238,7 +236,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Access Type ───────────────────────────────────── */}
-        <Section label="Access Type">
+        <Section label="Access type">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <RadioCard
               id="access-free"
@@ -258,7 +256,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {error && (
-          <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginTop: "4px" }}>
+          <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginTop: "4px" }}>
             {error}
           </p>
         )}
@@ -312,10 +310,11 @@ function ToggleChip({
       aria-pressed={active}
       style={{
         flex: 1,
-        padding: sublabel ? "14px 18px" : "10px 20px",
-        border: active ? "2px solid #0abe62" : "2px solid rgba(3,72,82,0.12)",
+        minHeight: "44px",
+        padding: sublabel ? "12px 16px" : "8px 16px",
+        border: active ? "1px solid var(--green)" : "1px solid var(--color-border)",
         borderRadius: "12px",
-        background: active ? "rgba(10,190,98,0.08)" : "rgba(255,255,255,0.6)",
+        background: active ? "rgba(10,190,98,0.08)" : "var(--color-surface)",
         cursor: "pointer",
         textAlign: "left",
         transition: "all 180ms ease",
@@ -323,15 +322,14 @@ function ToggleChip({
     >
       <span style={{
         display: "block",
-        fontFamily: "var(--font-heading)",
-        fontWeight: 700,
+        fontWeight: 600,
         fontSize: "14px",
-        color: active ? "#034852" : "rgba(3,72,82,0.6)",
+        color: active ? "var(--color-text)" : "var(--color-text-muted)",
       }}>
         {label}
       </span>
       {sublabel && (
-        <span style={{ display: "block", fontSize: "11px", color: "rgba(3,72,82,0.5)", marginTop: "3px" }}>
+        <span style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
           {sublabel}
         </span>
       )}
@@ -361,9 +359,9 @@ function RadioCard({
         alignItems: "flex-start",
         gap: "12px",
         padding: "14px 18px",
-        border: checked ? "2px solid #0abe62" : "2px solid rgba(3,72,82,0.12)",
+        border: checked ? "1px solid var(--green)" : "1px solid var(--color-border)",
         borderRadius: "12px",
-        background: checked ? "rgba(10,190,98,0.08)" : "rgba(255,255,255,0.6)",
+        background: checked ? "rgba(10,190,98,0.08)" : "var(--color-surface)",
         cursor: "pointer",
         transition: "all 180ms ease",
       }}
@@ -373,19 +371,18 @@ function RadioCard({
         type="radio"
         checked={checked}
         onChange={onChange}
-        style={{ marginTop: "3px", accentColor: "#0abe62" }}
+        style={{ marginTop: "3px", accentColor: "#08784a" }}
       />
       <span>
         <span style={{
           display: "block",
-          fontFamily: "var(--font-heading)",
-          fontWeight: 700,
+          fontWeight: 600,
           fontSize: "14px",
-          color: "#034852",
+          color: "var(--color-text)",
         }}>
           {label}
         </span>
-        <span style={{ display: "block", fontSize: "11px", color: "rgba(3,72,82,0.5)", marginTop: "3px" }}>
+        <span style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
           {sublabel}
         </span>
       </span>
@@ -396,11 +393,10 @@ function RadioCard({
 // ── Styles ─────────────────────────────────────────────────────
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "24px",
-  padding: "36px 40px",
-  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px, 4vw, 24px)",
   display: "flex",
   flexDirection: "column",
   gap: "24px",
@@ -408,35 +404,33 @@ const card: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 16px",
-  background: "rgba(3,72,82,0.03)",
-  border: "1px solid rgba(3,72,82,0.12)",
-  borderRadius: "12px",
-  color: "#034852",
-  fontFamily: "var(--font-body)",
+  minHeight: "44px",
+  padding: "8px 12px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border-strong)",
+  borderRadius: "8px",
+  color: "var(--color-text)",
   fontSize: "14px",
-  outline: "none",
   boxSizing: "border-box",
 };
 
 const fieldLabel: React.CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "rgba(3,72,82,0.7)",
+  fontSize: "13px",
+  fontWeight: 500,
+  color: "var(--color-text-muted)",
 };
 
 const primaryButton: React.CSSProperties = {
-  padding: "13px 28px",
-  border: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "44px",
+  padding: "8px 20px",
+  border: "1px solid var(--green)",
   borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#ffffff",
-  fontFamily: "var(--font-heading)",
-  fontWeight: 700,
+  background: "var(--green)",
+  color: "var(--dark-teal)",
+  fontWeight: 600,
   fontSize: "14px",
   cursor: "pointer",
-  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
-  transition: "all 240ms cubic-bezier(0.16,1,0.3,1)",
 };

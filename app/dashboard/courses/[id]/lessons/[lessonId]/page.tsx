@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/nextjs";
 import { sanitize as sanitizeHtml } from "@/lib/purify";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, ArrowUp, Check, Clock, Lock } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -444,8 +445,8 @@ export default function LessonPage() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Lesson not found."}</p>
-        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ ...S.btn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
-          ← Back to Course
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ ...S.outlineBtn, display: "inline-flex", marginTop: "16px" }}>
+          <ArrowLeft size={16} aria-hidden="true" />Back to Course
         </BackLink>
       </div>
     );
@@ -474,11 +475,11 @@ export default function LessonPage() {
     <div>
       {/* ── Breadcrumb ─────────────────────────────────── */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", marginBottom: "20px", fontSize: "13px" }}>
-        <Link href="/dashboard/courses" style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{isPreview ? "Courses" : "My Courses"}</Link>
-        <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
-        <BackLink fallback={`/dashboard/courses/${courseId}`} style={{ color: "#209379", textDecoration: "none", fontWeight: 600 }}>{lesson.course_title}</BackLink>
-        <span style={{ color: "rgba(3,72,82,0.3)" }}>›</span>
-        <span style={{ color: "rgba(3,72,82,0.55)" }}>{lesson.title}</span>
+        <Link href="/dashboard/courses" style={crumbLink}>{isPreview ? "Courses" : "My Courses"}</Link>
+        <span aria-hidden="true" style={{ color: "var(--color-text-subtle)" }}>›</span>
+        <BackLink fallback={`/dashboard/courses/${courseId}`} style={crumbLink}>{lesson.course_title}</BackLink>
+        <span aria-hidden="true" style={{ color: "var(--color-text-subtle)" }}>›</span>
+        <span style={{ color: "var(--color-text-muted)" }}>{lesson.title}</span>
       </div>
 
       {/* ── Main layout: video + sidebar ───────────────── */}
@@ -487,13 +488,13 @@ export default function LessonPage() {
         {/* ── Mobile: Header (Top) | Desktop: Sidebar (Top Right) ───────────────── */}
         <div className="lg:col-start-2 lg:row-start-1" style={glassCard}>
           <p style={S.sectionLabel}>Module</p>
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "4px 0 14px" }}>{lesson.module_name}</p>
+          <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "4px 0 14px" }}>{lesson.module_name}</p>
 
           <p style={{ ...S.heading, fontSize: "18px", margin: "0 0 10px", lineHeight: 1.3 }}>{lesson.title}</p>
 
           {lesson.duration_minutes && (
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
-              <span>⏱</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "var(--color-text-muted)" }}>
+              <Clock size={14} aria-hidden="true" />
               <span>{lesson.duration_minutes} min</span>
             </div>
           )}
@@ -508,7 +509,7 @@ export default function LessonPage() {
               player.destroy() removes its own <iframe> from the DOM entirely,
               which React's vDOM never sees. Rebuilding the div manually avoids
               the black screen / unresponsive player regression. */}
-          <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: "16px", overflow: "hidden", background: "#000", boxShadow: "0 16px 40px rgba(0,0,0,0.2)" }}>
+          <div style={{ position: "relative", paddingTop: "56.25%", borderRadius: "12px", overflow: "hidden", background: "#000" }}>
             <style>{`
               #yt-player-wrapper,
               #yt-player-root,
@@ -529,9 +530,9 @@ export default function LessonPage() {
               repeated transient failures both surface here. */}
           {playerError !== null && (
             <div style={{
-              marginTop: "10px", padding: "10px 14px", borderRadius: "10px",
-              background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)",
-              fontSize: "13px", color: "#c53030", fontWeight: 500, textAlign: "center",
+              marginTop: "10px", padding: "10px 14px", borderRadius: "8px",
+              background: "var(--color-danger-surface)", border: "1px solid rgba(184,50,50,0.2)",
+              fontSize: "13px", color: "#b83232", fontWeight: 500, textAlign: "center",
               display: "flex", flexDirection: "column", gap: "6px",
             }}>
               <span>This class is not available right now.</span>
@@ -549,7 +550,7 @@ export default function LessonPage() {
                   }).catch(() => {});
                 }}
                 style={{
-                  background: "none", border: "none", color: "#c53030",
+                  background: "none", border: "none", color: "#b83232",
                   fontSize: "12px", fontWeight: 700, cursor: "pointer",
                   textDecoration: "underline", padding: 0,
                 }}
@@ -561,16 +562,16 @@ export default function LessonPage() {
 
           {/* Progress bar */}
           <div style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ flex: 1, height: "4px", borderRadius: "2px", background: "rgba(3,72,82,0.1)", overflow: "hidden" }}>
+            <div style={{ flex: 1, height: "4px", borderRadius: "2px", background: "var(--color-border)", overflow: "hidden" }}>
               <div style={{
                 height: "100%", borderRadius: "2px",
                 width: `${watchedPct}%`,
-                background: isUnlocked ? "#0abe62" : "linear-gradient(90deg, #0abe62, #209379)",
+                background: "var(--green)",
                 transition: "width 500ms ease",
               }} />
             </div>
-            <span style={{ fontSize: "11px", fontWeight: 700, color: isUnlocked ? "#0abe62" : "rgba(3,72,82,0.45)", whiteSpace: "nowrap" }}>
-              {isUnlocked ? "✓ Complete" : `${watchedPct}% watched`}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", fontWeight: 600, color: isUnlocked ? "#08784a" : "var(--color-text-muted)", whiteSpace: "nowrap" }}>
+              {isUnlocked ? <><Check size={12} aria-hidden="true" />Complete</> : `${watchedPct}% watched`}
             </span>
           </div>
 
@@ -579,7 +580,7 @@ export default function LessonPage() {
             <div style={{ ...glassCard, marginTop: "20px" }}>
               <p style={{ ...S.sectionLabel, marginBottom: "14px" }}>Notes & Explanation</p>
               <div
-                style={{ fontSize: "15px", color: "#034852", lineHeight: 1.8 }}
+                style={{ fontSize: "15px", color: "var(--color-text)", lineHeight: 1.8 }}
                 // notes_html is sanitised at write time (manager input via admin form)
                 dangerouslySetInnerHTML={{ __html: sanitizeHtml(lesson.notes_html) }}
               />
@@ -597,7 +598,7 @@ export default function LessonPage() {
             <div style={glassCard}>
               <p style={S.sectionLabel}>{lesson.module_quiz_ids.length > 1 ? "Module Quizzes" : "Module Quiz"}</p>
               {isPreview ? (
-                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", marginTop: "10px" }}>
+                <p style={{ fontSize: "13px", color: "var(--color-text-muted)", marginTop: "10px" }}>
                   {lesson.module_quiz_ids.length} module quiz{lesson.module_quiz_ids.length !== 1 ? "zes" : ""} attached. Quiz-taking is available to students only.
                 </p>
               ) : isUnlocked ? (
@@ -608,34 +609,34 @@ export default function LessonPage() {
                       <div key={quizId}>
                         <Link
                           href={withFrom(`/dashboard/quiz/${quizId}`, currentUrl)}
-                          style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
+                          style={{ ...S.btn, display: "flex" }}
                         >
-                          {lesson.module_quiz_ids.length > 1 ? `Take Module Quiz ${qi + 1} →` : "Take Module Quiz →"}
+                          {lesson.module_quiz_ids.length > 1 ? `Take Module Quiz ${qi + 1}` : "Take Module Quiz"}<ArrowRight size={16} aria-hidden="true" />
                         </Link>
                         {attempts.length > 0 && (
                           <div style={{ marginTop: "14px" }}>
                             <p style={{ ...S.sectionLabel, marginBottom: "8px" }}>Previous Scores</p>
                             {attempts.slice(0, 5).map((a) => (
-                              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "12px" }}>
-                                <span style={{ color: "rgba(3,72,82,0.55)" }}>
+                              <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--color-border)", fontSize: "12px" }}>
+                                <span style={{ color: "var(--color-text-muted)" }}>
                                   Attempt {a.attempt_number}
                                 </span>
                                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                                   {a.is_complete ? (
                                     <>
-                                      <span style={{ fontWeight: 700, color: "#034852" }}>
+                                      <span style={{ fontWeight: 700, color: "var(--color-text)" }}>
                                         {a.score ?? "—"} / {a.max_score ?? "—"}
                                       </span>
                                       <span style={{
-                                        padding: "2px 8px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-                                        background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.1)",
-                                        color: a.passed ? "#0abe62" : "#dc2626",
+                                        padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
+                                        background: a.passed ? "rgba(10,190,98,0.12)" : "rgba(184,50,50,0.1)",
+                                        color: a.passed ? "#08784a" : "#b83232",
                                       }}>
                                         {a.passed ? "Pass" : "Fail"}
                                       </span>
                                     </>
                                   ) : (
-                                    <span style={{ color: "rgba(3,72,82,0.4)" }}>In progress</span>
+                                    <span style={{ color: "var(--color-text-muted)" }}>In progress</span>
                                   )}
                                 </div>
                               </div>
@@ -648,12 +649,8 @@ export default function LessonPage() {
                 </div>
               ) : (
                 <div style={{ marginTop: "10px" }}>
-                  <div style={{
-                    padding: "12px 14px", borderRadius: "10px",
-                    background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
-                    fontSize: "13px", color: "rgba(3,72,82,0.5)", textAlign: "center",
-                  }}>
-                    🔒 Watch 80% of this lesson to unlock the quiz
+                  <div style={{ ...lockNote, padding: "12px 14px" }}>
+                    <Lock size={14} aria-hidden="true" /> Watch 80% of this lesson to unlock the quiz
                   </div>
                 </div>
               )}
@@ -665,37 +662,33 @@ export default function LessonPage() {
             {lesson.prev_lesson_id && (
               <Link
                 href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.prev_lesson_id}`)}
-                style={{ ...S.outlineBtn, display: "block", textAlign: "center", textDecoration: "none" }}
+                style={S.outlineBtn}
               >
-                ← Previous Lesson
+                <ArrowLeft size={16} aria-hidden="true" />Previous Lesson
               </Link>
             )}
             {lesson.next_lesson_id && (
               nextLessonLocked ? (
-                <div style={{
-                  padding: "10px 14px", borderRadius: "10px",
-                  background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
-                  fontSize: "13px", color: "rgba(3,72,82,0.45)", textAlign: "center",
-                  cursor: "not-allowed",
-                }}>
+                <div style={{ ...lockNote, cursor: "not-allowed" }}>
+                  <Lock size={14} aria-hidden="true" style={{ flexShrink: 0 }} />
                   {crossModuleBlocked
-                    ? "🔒 Complete this module's lessons & quiz to start the next module"
-                    : "🔒 Watch 80% to unlock Next Lesson"}
+                    ? "Complete this module's lessons & quiz to start the next module"
+                    : "Watch 80% to unlock Next Lesson"}
                 </div>
               ) : (
                 <Link
                   href={carryFrom(`/dashboard/courses/${courseId}/lessons/${lesson.next_lesson_id}`)}
-                  style={{ ...S.btn, display: "block", textAlign: "center", textDecoration: "none" }}
+                  style={S.btn}
                 >
-                  {lesson.next_in_new_module ? "Next Module →" : "Next Lesson →"}
+                  {lesson.next_in_new_module ? "Next Module" : "Next Lesson"}<ArrowRight size={16} aria-hidden="true" />
                 </Link>
               )
             )}
             <Link
               href={getBackHref(from, `/dashboard/courses/${courseId}`)}
-              style={{ textAlign: "center", fontSize: "12px", color: "#209379", textDecoration: "none", fontWeight: 600, padding: "6px 0" }}
+              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", minHeight: "44px", fontSize: "13px", color: "var(--color-text-muted)", textDecoration: "none", fontWeight: 600 }}
             >
-              ↑ Back to Course Overview
+              <ArrowUp size={14} aria-hidden="true" />Back to Course Overview
             </Link>
           </div>
         </div>
@@ -720,32 +713,39 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px", padding: "22px 24px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
+};
+
+const crumbLink: React.CSSProperties = { color: "#08784a", textDecoration: "none", fontWeight: 600 };
+
+const lockNote: React.CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+  padding: "10px 14px", borderRadius: "8px",
+  background: "var(--color-surface-sunken)", border: "1px solid var(--color-border)",
+  fontSize: "13px", color: "var(--color-text-muted)", textAlign: "center",
 };
 
 const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
+    fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   sectionLabel: {
-    fontSize: "10px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.2em", color: "rgba(3,72,82,0.5)", margin: 0,
+    fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+    fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
   btn: {
-    padding: "10px 18px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-    fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)",
-    transition: "all 200ms ease",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px",
+    background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600,
+    fontSize: "14px", cursor: "pointer", textDecoration: "none", textAlign: "center",
   } as React.CSSProperties,
   outlineBtn: {
-    padding: "10px 18px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px",
-    background: "transparent", color: "#034852", fontFamily: "var(--font-heading)",
-    fontWeight: 700, fontSize: "13px", cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 16px", border: "1px solid var(--color-border)", borderRadius: "12px",
+    background: "var(--color-surface)", color: "var(--color-text)", fontWeight: 600,
+    fontSize: "14px", cursor: "pointer", textDecoration: "none", textAlign: "center",
   } as React.CSSProperties,
 };
