@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -29,7 +29,6 @@ import {
   ListChecks,
   Settings,
   X,
-  ChevronUp,
   ChevronDown,
   ChevronRight,
   PanelLeftClose,
@@ -138,10 +137,7 @@ export default function Sidebar({
   // Every leaf that lives inside some group, in MODULE_ORDER — what the
   // collapsed rail shows flat, since it has no room for group headers.
   const groupedModules = groups.flatMap((group) => group.modules);
-
-  const [canScrollUp, setCanScrollUp] = useState(false);
-  const [canScrollDown, setCanScrollDown] = useState(false);
-  const navRef = useRef<HTMLElement>(null);
+  const groupCount = groups.length;
 
   // Per-group open state, persisted across sessions. Groups default to open and
   // are read from storage in an effect (not during render) to avoid an
@@ -158,14 +154,16 @@ export default function Sidebar({
       for (const group of NAV_GROUPS) {
         try {
           const v = localStorage.getItem(group.storageKey);
-          next[group.key] = v !== null ? v === "true" : !(isProgramManager && group.key === "lms");
+          // Staff see several groups: start them closed so the list stays short.
+          // A lone group (a student's LMS) starts open — it holds most of their links.
+          next[group.key] = v !== null ? v === "true" : groupCount === 1;
         } catch {
           /* SSR / storage unavailable — keep default */
         }
       }
       return next;
     });
-  }, [isProgramManager]);
+  }, [groupCount]);
 
   // A group holding the active route is forced open, whatever the stored state.
   const isGroupOpen = (group: (typeof groups)[number]) =>
@@ -182,64 +180,6 @@ export default function Sidebar({
     }
   };
 
-  // Group membership + open/closed state both change the nav's height, so the
-  // scroll-indicator effect re-runs whenever this signature changes.
-  const groupsSignature = groups
-    .map((g) => `${g.key}:${g.modules.length}:${isGroupOpen(g)}`)
-    .join("|");
-
-  const checkScrollLimits = () => {
-    const nav = navRef.current;
-    if (!nav) return;
-
-    const hasScrollableContent = nav.scrollHeight > nav.clientHeight;
-
-    if (hasScrollableContent) {
-      const isAtTop = nav.scrollTop <= 1;
-      const isAtBottom = nav.scrollTop + nav.clientHeight >= nav.scrollHeight - 1;
-
-      setCanScrollUp(!isAtTop);
-      setCanScrollDown(!isAtBottom);
-    } else {
-      setCanScrollUp(false);
-      setCanScrollDown(false);
-    }
-  };
-
-  useEffect(() => {
-    checkScrollLimits();
-
-    const nav = navRef.current;
-    if (!nav) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      checkScrollLimits();
-    });
-    resizeObserver.observe(nav);
-
-    window.addEventListener("resize", checkScrollLimits);
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener("resize", checkScrollLimits);
-    };
-  }, [topModules.length, restModules.length, groupsSignature]);
-
-  useEffect(() => {
-    checkScrollLimits();
-  }, [pathname]);
-
-  const scrollUp = () => {
-    if (navRef.current) {
-      navRef.current.scrollBy({ top: -120, behavior: "smooth" });
-    }
-  };
-
-  const scrollDown = () => {
-    if (navRef.current) {
-      navRef.current.scrollBy({ top: 120, behavior: "smooth" });
-    }
-  };
-
   const renderLeaf = (module: { key: ModuleKey; label: string; href: string }) => {
     const isActive = isActivePath(pathname, module.href);
     const Icon = MODULE_ICONS[module.key];
@@ -252,17 +192,17 @@ export default function Sidebar({
           aria-label={collapsed ? module.label : undefined}
           title={collapsed ? module.label : undefined}
           className={
-            "relative flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors " +
+            "relative flex min-h-10 items-center gap-3 rounded-xl px-3 text-sm transition-colors " +
             (collapsed ? "lg:gap-0 lg:px-0 lg:justify-center " : "") +
             (isActive
-              ? "bg-teal-50 font-semibold text-[var(--teal)]"
-              : "font-medium text-gray-600 hover:bg-gray-50 hover:text-[var(--dark-teal)]")
+              ? "bg-[var(--green)] font-semibold text-[var(--dark-teal)]"
+              : "font-medium text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]")
           }
         >
           {Icon && (
             <Icon
               size={18}
-              className={isActive ? "text-[var(--teal)]" : "text-gray-400"}
+              className="shrink-0"
               aria-hidden="true"
             />
           )}
@@ -275,14 +215,14 @@ export default function Sidebar({
   return (
     <aside
       className={
-        "flex h-full min-h-0 shrink-0 flex-col bg-white border-r border-gray-200 shadow-sm transition-[width] duration-200 w-64 " +
+        "flex h-full min-h-0 shrink-0 flex-col bg-[#eef5f3] border-r border-[var(--color-border)] transition-[width] duration-200 w-64 " +
         (collapsed ? "lg:w-[68px]" : "lg:w-64")
       }
     >
       {/* Logo + collapse toggle + mobile close */}
       <div
         className={
-          "pb-4 pt-6 border-b border-gray-100 flex shrink-0 items-center px-6 " +
+          "py-5 flex shrink-0 items-center px-5 " +
           (collapsed ? "lg:px-3 lg:justify-center" : "justify-between")
         }
       >
@@ -305,7 +245,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className="hidden lg:flex items-center justify-center rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+            className="hidden lg:flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
@@ -315,7 +255,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="lg:hidden -mr-1 rounded-md p-1.5 text-gray-500 hover:bg-gray-100"
+            className="lg:hidden -mr-1 flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]"
             aria-label="Close sidebar"
           >
             <X size={20} />
@@ -325,33 +265,10 @@ export default function Sidebar({
 
       {/* Nav Container with Scroll Indicators */}
       <div className="relative flex-1 flex flex-col min-h-0">
-        {/* Top Scroll Indicator */}
-        <div
-          className={
-            "absolute top-2 left-1/2 -translate-x-1/2 z-20 transition-all duration-300 transform " +
-            (canScrollUp
-              ? "opacity-100 translate-y-0 scale-100"
-              : "opacity-0 -translate-y-2 scale-75 pointer-events-none")
-          }
-        >
-          <button
-            type="button"
-            onClick={scrollUp}
-            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-colors cursor-pointer"
-            tabIndex={canScrollUp ? 0 : -1}
-            aria-hidden={!canScrollUp}
-            aria-label="Scroll up"
-          >
-            <ChevronUp size={16} className="stroke-[2.5]" />
-          </button>
-        </div>
-
         {/* Scrollable Nav Area */}
         <nav
-          ref={navRef}
-          onScroll={checkScrollLimits}
           aria-label="Main navigation"
-          className="flex-1 overflow-y-auto overscroll-y-contain px-3 py-4 no-scrollbar scroll-smooth"
+          className="flex-1 overflow-y-auto overscroll-y-contain px-3 py-3 [scrollbar-width:thin]"
         >
           <ul className="space-y-0.5">
             {/* Pinned: Dashboard */}
@@ -370,20 +287,20 @@ export default function Sidebar({
                       type="button"
                       onClick={() => toggleGroup(group)}
                       aria-expanded={open}
-                      className="relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[var(--dark-teal)]"
+                      className={"relative flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-sm transition-colors hover:bg-white hover:text-[var(--color-text)] " + (group.modules.some((m) => isActivePath(pathname, m.href)) ? "font-semibold text-[var(--color-text)]" : "font-medium text-[var(--color-text-muted)]")}
                     >
                       {GroupIcon && (
-                        <GroupIcon size={18} className="text-gray-400" aria-hidden="true" />
+                        <GroupIcon size={18} className="shrink-0" aria-hidden="true" />
                       )}
                       <span>{group.label}</span>
                       {open ? (
-                        <ChevronDown size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                        <ChevronDown size={16} className="ml-auto opacity-60" aria-hidden="true" />
                       ) : (
-                        <ChevronRight size={16} className="ml-auto text-gray-400" aria-hidden="true" />
+                        <ChevronRight size={16} className="ml-auto opacity-60" aria-hidden="true" />
                       )}
                     </button>
                     {open && (
-                      <ul className="mt-0.5 space-y-0.5 pl-4">
+                      <ul className="ml-5 mt-0.5 space-y-0.5 border-l border-[var(--color-border)] pl-2">
                         {group.modules.map((module) => renderLeaf(module))}
                       </ul>
                     )}
@@ -399,29 +316,9 @@ export default function Sidebar({
           </ul>
         </nav>
 
-        {/* Bottom Scroll Indicator */}
-        <div
-          className={
-            "absolute bottom-2 left-1/2 -translate-x-1/2 z-20 transition-all duration-300 transform " +
-            (canScrollDown
-              ? "opacity-100 translate-y-0 scale-100"
-              : "opacity-0 translate-y-2 scale-75 pointer-events-none")
-          }
-        >
-          <button
-            type="button"
-            onClick={scrollDown}
-            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-colors cursor-pointer"
-            tabIndex={canScrollDown ? 0 : -1}
-            aria-hidden={!canScrollDown}
-            aria-label="Scroll down"
-          >
-            <ChevronDown size={16} className="stroke-[2.5]" />
-          </button>
-        </div>
       </div>
 
-      {footer && <div className="shrink-0 border-t border-gray-100 p-3">{footer}</div>}
+      {footer && <div className="shrink-0 border-t border-[var(--color-border)] p-3">{footer}</div>}
     </aside>
   );
 }

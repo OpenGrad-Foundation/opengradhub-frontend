@@ -59,6 +59,8 @@ beforeEach(() => {
 it('puts PM operational links before learning while respecting module access', () => {
   mockRole = 'PROGRAM_MANAGER';
   mockModules = ['dashboard', 'courses', 'schools', 'tracker', 'attendance'].map(code => ({ code }));
+  // With several groups they start closed; open Management to see Schools.
+  localStorage.setItem('sidebar.management.open', 'true');
   render(<Sidebar />);
   const links = screen.getAllByRole('link').map(link => link.textContent);
   expect(links.indexOf('Attendance')).toBeLessThan(links.indexOf('Schools'));
@@ -114,6 +116,13 @@ describe("Sidebar LMS group", () => {
       "false",
     );
     expect(screen.queryByRole("link", { name: /courses/i })).toBeNull();
+  });
+
+  it("starts groups closed when there are several, open when there is only one", () => {
+    mockModules = [{ code: "dashboard" }, ...ALL_LMS, ...ALL_ADMIN];
+    render(<Sidebar />);
+    expect(screen.getByRole("button", { name: /^lms$/i }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: /management/i }).getAttribute("aria-expanded")).toBe("false");
   });
 
   it("toggling the header persists open state to localStorage", () => {
@@ -194,6 +203,7 @@ describe("Sidebar Management group", () => {
 
   it("collapses independently of the LMS group", () => {
     mockModules = [{ code: "dashboard" }, ...ALL_LMS, ...ALL_ADMIN];
+    localStorage.setItem("sidebar.lms.open", "true");
     localStorage.setItem("sidebar.management.open", "false");
     render(<Sidebar />);
     expect(
