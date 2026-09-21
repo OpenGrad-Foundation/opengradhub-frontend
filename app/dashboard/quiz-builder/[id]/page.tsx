@@ -350,13 +350,11 @@ export default function QuizBuilderPage() {
         <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen" description="Desktop only; the quiz is blocked on mobile." />
       </SettingsSection>
 
-      <div style={{ position: "sticky", bottom: "16px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px", padding: "12px 16px", border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", boxShadow: "0 4px 16px rgba(3,72,82,0.10)" }}>
-        <button type="submit" disabled={saving} style={S.primaryBtn}>
-          {saving ? "Saving…" : "Save settings"}
+      <div style={{ position: "sticky", bottom: "16px", justifySelf: "end", display: "flex", alignItems: "center", gap: "12px" }}>
+        {settingsErr && <span role="alert" style={{ padding: "8px 12px", borderRadius: "12px", border: "1px solid #f3c7c7", background: "#fff5f5", color: "#b83232", fontSize: "13px", fontWeight: 600 }}>{settingsErr}</span>}
+        <button type="submit" disabled={saving} aria-live="polite" style={{ ...S.primaryBtn, boxShadow: "0 6px 20px rgba(3,72,82,0.18)" }}>
+          {saving ? "Saving…" : settingsSaved ? <><Check size={16} aria-hidden="true" />Saved</> : "Save settings"}
         </button>
-        <span role="status" style={{ fontSize: "13px", fontWeight: 600, color: settingsErr ? "#b83232" : "var(--teal)" }}>
-          {settingsErr ?? (settingsSaved ? "Saved" : "")}
-        </span>
       </div>
     </form>
   );
