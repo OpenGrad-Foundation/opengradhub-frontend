@@ -38,14 +38,14 @@ function gapReason(row: RegisterGapRow, dueMonth: string): string {
   return `nothing since ${monthLabel(row.last_month)}`;
 }
 
-export default function RegisterGaps() {
+export default function RegisterGaps({ compact = false }: { compact?: boolean }) {
   const { has } = usePermissions();
   const canUseRegisters = has(PERM.attendance.view) && has(PERM.attendance.manage) && has(PERM.students.view) && (has(PERM.schools.view) || has(PERM.user_management.create));
   const { data, isLoading, error, refetch } = useRegisterGaps(canUseRegisters);
   if (!canUseRegisters) return null;
 
   if (error) {
-    return <WidgetError message="Could not load register status." onRetry={() => void refetch()} />;
+    return <WidgetError compact={compact} message="Could not load register status." onRetry={() => void refetch()} />;
   }
 
   const dueMonth = data?.due_month ?? null;
@@ -55,6 +55,7 @@ export default function RegisterGaps() {
 
   return (
     <ListCard
+      plain={compact}
       title={title}
       isLoading={isLoading}
       emptyHelper={
@@ -67,29 +68,32 @@ export default function RegisterGaps() {
     >
       {rows.length > 0
         ? [
-            <p key="summary" className="text-sm text-[rgba(3,72,82,0.6)]">
+            <p key="summary" className="text-sm text-[var(--color-text-muted)]">
               <span className="font-bold text-[var(--dark-teal)]">
                 {data!.behind_total} of {data!.total}
               </span>{" "}
-              schools have not submitted
+              {data!.behind_total === 1 ? "school has" : "schools have"} not submitted
             </p>,
             ...rows.map((row) => (
               <Link
                 key={row.school_id}
                 href={`/dashboard/attendance?tab=registers&school_id=${encodeURIComponent(row.school_id)}`}
-                className="flex items-center justify-between gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-[rgba(3,72,82,0.04)]"
+                className="flex min-h-12 flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-3 py-3 transition-colors hover:bg-[var(--color-info-surface)]"
               >
-                <span className="truncate font-medium text-[var(--dark-teal)]">{row.school_name}</span>
-                <span className="shrink-0 text-xs text-[rgba(3,72,82,0.55)]">
-                  {gapReason(row, data!.due_month)}
+                <span className="min-w-0 flex-1 text-sm">
+                  <span className="block break-words font-medium text-[var(--dark-teal)]">{row.school_name}</span>
+                  {compact && <span className="mt-1 block text-[var(--color-text-muted)]">{gapReason(row, data!.due_month)}</span>}
+                </span>
+                <span className="text-sm font-medium text-[var(--teal)]">
+                  {compact ? "Review →" : gapReason(row, data!.due_month)}
                 </span>
               </Link>
             )),
             ...(hidden > 0
               ? [
-                  <p key="more" className="px-3 pt-1 text-xs text-[rgba(3,72,82,0.5)]">
-                    Showing {rows.length} of {data!.behind_total}
-                  </p>,
+                  <Link key="more" href="/dashboard/attendance?tab=registers" className="inline-flex min-h-11 items-center px-3 text-sm font-medium text-[var(--teal)] underline underline-offset-4">
+                    View all registers ({data!.behind_total} missing)
+                  </Link>,
                 ]
               : []),
           ]

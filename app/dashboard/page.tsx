@@ -64,7 +64,13 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <HeroBand userName={userName} roleName={roleName} />
+      {roleCode === "PROGRAM_MANAGER" ? (
+        <header className="mb-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight text-[var(--color-text)]">Dashboard</h1>
+          </div>
+        </header>
+      ) : <HeroBand userName={userName} roleName={roleName} />}
       {roleCode === "STUDENT" && data.user.id && (
         <NextLiveClassHero studentId={data.user.id} />
       )}

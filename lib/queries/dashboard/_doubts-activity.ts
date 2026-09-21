@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
 import { apiFetch } from "@/lib/api";
 import type { FeedRow } from "@/lib/queries/dashboard/_shared";
+import { usePermissions } from "@/hooks/use-permission";
+import { PERM } from "@/lib/permissions";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 // Thirty seconds, and refetch on focus.
@@ -36,19 +38,23 @@ type AnnouncementRow = { id: string; title: string; created_at: string };
  * FELLOW / PROGRAM_MANAGER / ZONAL_MANAGER / SUPER_ADMIN activity tabs.
  */
 export function useDoubtsActivity(role: Role, userId: string) {
+  const { has } = usePermissions();
+  const canViewDoubts = has(PERM.doubts.view);
+  const canViewAnnouncements = has(PERM.announcements.view);
   const query = useQuery<FeedRow[], Error>({
-    queryKey: qk.dashboardWidget(role, "activity", userId),
+    queryKey: [...qk.dashboardWidget(role, "activity", userId), canViewDoubts, canViewAnnouncements],
     enabled: !!userId,
     staleTime: THIRTY_SEC,
     refetchOnWindowFocus: true,
     queryFn: async () => {
       const [doubtsRes, annRes] = await Promise.all([
-        apiFetch(`${API_BASE}/doubts`),
-        apiFetch(`${API_BASE}/announcements`),
+        canViewDoubts ? apiFetch(`${API_BASE}/doubts`) : null,
+        canViewAnnouncements ? apiFetch(`${API_BASE}/announcements`) : null,
       ]);
 
-      const doubts: DoubtRow[] = doubtsRes.ok ? await doubtsRes.json() : [];
-      const anns: AnnouncementRow[] = annRes.ok ? await annRes.json() : [];
+      if ((doubtsRes && !doubtsRes.ok) || (annRes && !annRes.ok)) throw new Error("Could not load recent updates. Please try again.");
+      const doubts: DoubtRow[] = doubtsRes ? await doubtsRes.json() : [];
+      const anns: AnnouncementRow[] = annRes ? await annRes.json() : [];
 
       const doubtItems: FeedRow[] = (Array.isArray(doubts) ? doubts : []).map((d) => ({
         ts: d.answered_at ?? d.created_at,

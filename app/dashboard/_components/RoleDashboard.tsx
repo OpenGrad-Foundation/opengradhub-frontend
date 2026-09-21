@@ -2,6 +2,7 @@
 
 import React from 'react';
 import DashboardTabs from './DashboardTabs';
+import { Tabs } from './Tabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
 import UnreadAnnouncements from '@/components/dashboard/UnreadAnnouncements';
 import RegisterGaps from '@/components/dashboard/RegisterGaps';
@@ -14,6 +15,8 @@ import FellowActivity from '@/components/dashboard/roles/fellow/Activity';
 
 import PMOverview from '@/components/dashboard/roles/program-manager/Overview';
 import PMActivity from '@/components/dashboard/roles/program-manager/Activity';
+import PMFollowUps from '@/components/dashboard/roles/program-manager/FollowUps';
+import pmStyles from '@/components/dashboard/workspace.module.css';
 
 import ZMOverview from '@/components/dashboard/roles/zonal-manager/Overview';
 import ZMActivity from '@/components/dashboard/roles/zonal-manager/Activity';
@@ -70,10 +73,13 @@ export default function RoleDashboard({
       />
     ),
     PROGRAM_MANAGER: (
-      <DashboardTabs
-        overview={overview(<PMOverview userId={id} />)}
-        activity={<PMActivity userId={id} />}
-      />
+      <div className={pmStyles.workspace}>
+        <Tabs ariaLabel="Dashboard views" tabs={[
+          { key: 'overview', label: 'Overview', panel: <PMOverview userId={id} /> },
+          { key: 'follow-ups', label: 'Follow-ups', panel: <PMFollowUps /> },
+          { key: 'activity', label: 'Activity', panel: <PMActivity userId={id} /> },
+        ]} />
+      </div>
     ),
     ZONAL_MANAGER: (
       <DashboardTabs

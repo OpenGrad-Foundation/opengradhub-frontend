@@ -1,0 +1,201 @@
+/* Keep the presentation scoped; every role shares the tab behavior. */
+.workspace {
+  --dashboard-gap: 1rem;
+  --dashboard-radius: 0.75rem;
+  --dashboard-padding: 1.25rem;
+  width: 100%;
+}
+
+.workspace :global([role="tablist"]) {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--dashboard-gap);
+  margin-bottom: 1.5rem;
+  border: 0;
+}
+
+.workspace :global([role="tab"]) {
+  min-height: 3.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.workspace :global([role="tab"][aria-selected="true"]) {
+  border-color: var(--green);
+  background: var(--green);
+  box-shadow: none;
+  color: color-mix(in srgb, var(--dark-teal) 75%, black);
+}
+
+.metricCard,
+.priorityCard {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 9.5rem;
+  padding: var(--dashboard-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-surface);
+  color: var(--dark-teal);
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.actionCard,
+.followUps a {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 5rem;
+  padding: var(--dashboard-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-surface);
+  text-decoration: none;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+.utilityButton {
+  min-height: 2.75rem;
+  flex-shrink: 0;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-success-surface);
+  color: var(--dark-teal);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms, border-color 150ms;
+}
+
+@media (hover: hover) {
+  .workspace :global([role="tab"]):hover,
+  .priorityCard:hover,
+  .actionCard:hover,
+  .followUps a:hover,
+  .utilityButton:hover {
+    border-color: var(--green);
+    background: var(--color-success-surface);
+  }
+
+  .workspace :global([role="tab"][aria-selected="true"]):hover {
+    background: var(--green);
+  }
+}
+
+.workspace :global([role="tab"]):focus-visible,
+.priorityCard:focus-visible,
+.actionCard:focus-visible,
+.followUps a:focus-visible,
+.utilityButton:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace :global([role="tab"]),
+  .priorityCard,
+  .actionCard,
+  .followUps a,
+  .utilityButton {
+    transition: none;
+  }
+}
+
+.actionArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-success-surface);
+  color: var(--dark-teal);
+  font-size: 1.25rem;
+}
+
+.followUps a > span:last-child {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--color-success-surface);
+  color: var(--dark-teal);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: var(--dashboard-gap);
+}
+
+.metricLabel {
+  display: block;
+  min-height: 2.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-text-muted);
+}
+
+.metricValue {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 2.5rem;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.metricFooter {
+  display: block;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+  color: var(--color-text-muted);
+}
+
+.detailGrid {
+  display: grid;
+  gap: var(--dashboard-gap);
+  margin-top: 1.5rem;
+}
+
+.detailPanel {
+  min-width: 0;
+  padding: var(--dashboard-padding);
+  border: 1px solid var(--color-border);
+  border-radius: var(--dashboard-radius);
+  background: var(--color-surface);
+}
+
+.toolsGrid {
+  display: grid;
+  gap: var(--dashboard-gap);
+}
+
+@media (min-width: 640px) {
+  .metricLabel { min-height: 1.25rem; }
+  .toolsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+  .metricGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .detailGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detailPanel { min-height: 18rem; }
+}
+
+@media (max-width: 639px) {
+  .workspace {
+    --dashboard-gap: 0.75rem;
+    --dashboard-padding: 1rem;
+  }
+}

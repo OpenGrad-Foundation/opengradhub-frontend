@@ -41,7 +41,6 @@ import {
   MODULE_META,
   NAV_GROUPS,
   GROUPED_MODULE_KEYS,
-  HIDDEN_MODULE_KEYS,
   type ModuleKey,
   type NavGroupKey,
 } from "@/lib/moduleAccess";
@@ -103,6 +102,7 @@ export default function Sidebar({
 }) {
   const pathname = usePathname();
   const { data } = useCurrentUser();
+  const isProgramManager = data?.role?.code === "PROGRAM_MANAGER";
 
   // Nav is driven entirely by the server's effective module list (role defaults
   // + per-user overrides). Show only modules we have presentation metadata for
@@ -123,7 +123,7 @@ export default function Sidebar({
   // Dashboard is pinned at top; grouped keys nest into their collapsible group;
   // everything else stays flat below. All three preserve MODULE_ORDER.
   const topModules = granted.filter((m) => m.key === "dashboard");
-  const groups = NAV_GROUPS.map((group) => ({
+  const groups = (isProgramManager ? [...NAV_GROUPS].reverse() : NAV_GROUPS).map((group) => ({
     ...group,
     modules: granted.filter(
       (m) => m.key !== "dashboard" && group.members.has(m.key),
@@ -155,14 +155,14 @@ export default function Sidebar({
       for (const group of NAV_GROUPS) {
         try {
           const v = localStorage.getItem(group.storageKey);
-          if (v !== null) next[group.key] = v === "true";
+          next[group.key] = v !== null ? v === "true" : !(isProgramManager && group.key === "lms");
         } catch {
           /* SSR / storage unavailable — keep default */
         }
       }
       return next;
     });
-  }, []);
+  }, [isProgramManager]);
 
   // A group holding the active route is forced open, whatever the stored state.
   const isGroupOpen = (group: (typeof groups)[number]) =>
@@ -244,6 +244,9 @@ export default function Sidebar({
       <li key={module.key}>
         <Link
           href={module.href}
+          onClick={onClose}
+          aria-current={isActive ? "page" : undefined}
+          aria-label={collapsed ? module.label : undefined}
           title={collapsed ? module.label : undefined}
           className={
             "relative flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors " +
@@ -331,8 +334,9 @@ export default function Sidebar({
           <button
             type="button"
             onClick={scrollUp}
-            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-all cursor-pointer animate-bounce"
-            style={{ animationDuration: "2s" }}
+            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-colors cursor-pointer"
+            tabIndex={canScrollUp ? 0 : -1}
+            aria-hidden={!canScrollUp}
             aria-label="Scroll up"
           >
             <ChevronUp size={16} className="stroke-[2.5]" />
@@ -343,11 +347,14 @@ export default function Sidebar({
         <nav
           ref={navRef}
           onScroll={checkScrollLimits}
+          aria-label="Main navigation"
           className="flex-1 overflow-y-auto px-3 py-4 no-scrollbar scroll-smooth"
         >
           <ul className="space-y-0.5">
             {/* Pinned: Dashboard */}
             {topModules.map((module) => renderLeaf(module))}
+
+            {isProgramManager && restModules.map((module) => renderLeaf(module))}
 
             {/* Collapsible groups (expanded sidebar only) */}
             {!collapsed &&
@@ -385,7 +392,7 @@ export default function Sidebar({
             {collapsed && groupedModules.map((module) => renderLeaf(module))}
 
             {/* Flat remainder */}
-            {restModules.map((module) => renderLeaf(module))}
+            {!isProgramManager && restModules.map((module) => renderLeaf(module))}
           </ul>
         </nav>
 
@@ -401,8 +408,9 @@ export default function Sidebar({
           <button
             type="button"
             onClick={scrollDown}
-            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-all cursor-pointer animate-bounce"
-            style={{ animationDuration: "2s" }}
+            className="flex items-center justify-center rounded-full bg-white p-1.5 text-[var(--teal)] shadow-md border border-gray-100 hover:bg-teal-50 hover:text-[var(--dark-teal)] hover:scale-110 active:scale-95 transition-colors cursor-pointer"
+            tabIndex={canScrollDown ? 0 : -1}
+            aria-hidden={!canScrollDown}
             aria-label="Scroll down"
           >
             <ChevronDown size={16} className="stroke-[2.5]" />
