@@ -292,78 +292,73 @@ export default function QuizBuilderPage() {
   const totalQuestions = (quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length;
 
   const settingsPanel = (
-      <form onSubmit={(e) => void saveSettings(e)}>
-        <div style={{ ...glassCard, maxWidth: "52rem" }}>
-          <p style={{ ...S.sectionHeader, marginBottom: "16px" }}>Quiz Settings</p>
-          <div style={{ display: "grid", gap: "16px" }}>
-            <Field label="Title *">
-              <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
-            </Field>
-            <Field label="Test Instructions (shown to students before they start)">
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Optional instructions, rules, or context for this test…"
-                style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
-              />
-            </Field>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
-              <Field label="Duration (min, 0=untimed)">
-                <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} style={S.input} placeholder="0" />
-              </Field>
-              <Field label="Max Attempts (0=unlimited)">
-                <input type="number" min="0" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} style={S.input} placeholder="0" />
-              </Field>
-              <Field label="Pass Threshold (%)">
-                <input type="number" min="0" max="100" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
-              </Field>
-            </div>
-            <Field label="Due Date (optional)">
-              <input
-                type="datetime-local"
-                value={dueAt}
-                onChange={e => setDueAt(e.target.value)}
-                style={S.input}
-              />
-              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>
-                Default deadline for this quiz. A batch that sets its own due date overrides
-                it. Leave empty for no deadline.
-              </p>
-            </Field>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
-              <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
-              <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <Toggle value={isSectioned} onChange={setIsSectioned} label="Section-wise quiz (multiple labeled sections)" />
-              {isSectioned && (
-                <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential — students complete sections in order; each section has its own timer; no going back." />
-              )}
-              <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts (subsequent retakes allowed but won't change the grade)" />
-              <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt (desktop only — mobile blocked)" />
-              <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking (deduct marks for wrong answers; blanks never penalized)" />
-              {negativeMarking && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
-                  <Field label="Marks per correct answer">
-                    <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
-                  </Field>
-                  <Field label="Penalty per wrong answer">
-                    <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="1" />
-                  </Field>
-                </div>
-              )}
-            </div>
-          </div>
-          {settingsErr && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "12px 0 0" }}>{settingsErr}</p>}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
-            <button type="submit" disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Saving…" : "Save Settings"}
-            </button>
-            {settingsSaved && <span style={{ fontSize: "13px", color: "#0abe62", fontWeight: 600 }}>✓ Saved</span>}
-          </div>
+    <form onSubmit={(e) => void saveSettings(e)} style={{ display: "grid", gap: "16px", maxWidth: "52rem" }}>
+      <SettingsSection title="Basics" description="What students see before they start.">
+        <Field label="Title">
+          <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
+        </Field>
+        <Field label="Instructions" hint="Shown to students on the start screen. Optional.">
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={4}
+            placeholder="Rules, allowed materials, or context for this quiz…"
+            style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </Field>
+      </SettingsSection>
+
+      <SettingsSection title="Timing and attempts">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+          <Field label="Duration (minutes)" hint="0 or empty = untimed">
+            <input type="number" min="0" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)} style={S.input} placeholder="Untimed" />
+          </Field>
+          <Field label="Max attempts" hint="0 or empty = unlimited">
+            <input type="number" min="0" inputMode="numeric" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} style={S.input} placeholder="Unlimited" />
+          </Field>
+          <Field label="Pass mark (%)">
+            <input type="number" min="0" max="100" inputMode="numeric" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
+          </Field>
         </div>
-      </form>
+        <Field label="Due date" hint="A batch's own due date overrides this. Leave empty for no deadline.">
+          <input type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} style={{ ...S.input, maxWidth: "20rem" }} />
+        </Field>
+      </SettingsSection>
+
+      <SettingsSection title="Scoring">
+        <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking" description="Deduct marks for wrong answers. Blank answers are never penalised." />
+        {negativeMarking && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", paddingBottom: "4px" }}>
+            <Field label="Marks per correct answer">
+              <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
+            </Field>
+            <Field label="Penalty per wrong answer">
+              <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="1" />
+            </Field>
+          </div>
+        )}
+        <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts" description="Students can retake, but only the first attempt is graded." />
+        <Toggle value={showAnswers} onChange={setShowAnswers} label="Show answers after submission" description="Reveal correct answers and explanations on the review screen." />
+      </SettingsSection>
+
+      <SettingsSection title="Delivery">
+        <Toggle value={shuffle} onChange={setShuffle} label="Shuffle questions" description="Each attempt gets its own question order." />
+        <Toggle value={isSectioned} onChange={setIsSectioned} label="Sections" description="Split the quiz into labelled sections." />
+        {isSectioned && (
+          <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential sections" description="Sections in order, each with its own timer. No going back." />
+        )}
+        <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen" description="Desktop only; the quiz is blocked on mobile." />
+      </SettingsSection>
+
+      <div style={{ position: "sticky", bottom: "16px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px", padding: "12px 16px", border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", boxShadow: "0 4px 16px rgba(3,72,82,0.10)" }}>
+        <button type="submit" disabled={saving} style={S.primaryBtn}>
+          {saving ? "Saving…" : "Save settings"}
+        </button>
+        <span role="status" style={{ fontSize: "13px", fontWeight: 600, color: settingsErr ? "#b83232" : "var(--teal)" }}>
+          {settingsErr ?? (settingsSaved ? "Saved" : "")}
+        </span>
+      </div>
+    </form>
   );
 
   const questionsPanel = (
@@ -1108,23 +1103,39 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
 
 // ── Small components ───────────────────────────────────────────
 
-function Field({ label: lbl, children }: { label: string; children: React.ReactNode }) {
+function SettingsSection({ title: heading, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p style={{ margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>{lbl}</p>
+    <section style={{ ...glassCard, display: "grid", gap: "16px" }}>
+      <div>
+        <h3 style={S.sectionHeader}>{heading}</h3>
+        {description && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--color-text-muted)" }}>{description}</p>}
+      </div>
       {children}
-    </div>
+    </section>
   );
 }
 
-function Toggle({ value, onChange, label: lbl }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
+function Field({ label: lbl, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(3,72,82,0.03)", borderRadius: "10px", border: "1px solid rgba(3,72,82,0.07)" }}>
-      <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{lbl}</p>
-      <button type="button" onClick={() => onChange(!value)} style={{ width: "40px", height: "22px", borderRadius: "11px", border: "none", cursor: "pointer", background: value ? "#0abe62" : "rgba(3,72,82,0.15)", position: "relative", transition: "background 200ms ease", flexShrink: 0 }}>
-        <span style={{ position: "absolute", top: "2px", left: value ? "20px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 200ms ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
+    <label style={{ display: "block", minWidth: 0 }}>
+      <span style={{ display: "block", margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{lbl}</span>
+      {children}
+      {hint && <span style={{ display: "block", marginTop: "6px", fontSize: "12px", color: "var(--color-text-muted)" }}>{hint}</span>}
+    </label>
+  );
+}
+
+function Toggle({ value, onChange, label: lbl, description }: { value: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", paddingTop: "12px", borderTop: "1px solid var(--color-border)", cursor: "pointer" }}>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "var(--color-text)" }}>{lbl}</span>
+        {description && <span style={{ display: "block", marginTop: "2px", fontSize: "13px", color: "var(--color-text-muted)" }}>{description}</span>}
+      </span>
+      <button type="button" role="switch" aria-checked={value} onClick={() => onChange(!value)} style={{ width: "44px", height: "24px", borderRadius: "12px", border: "none", cursor: "pointer", background: value ? "var(--teal)" : "var(--color-border-strong)", position: "relative", transition: "background 200ms ease", flexShrink: 0 }}>
+        <span aria-hidden="true" style={{ position: "absolute", top: "2px", left: value ? "22px" : "2px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 200ms ease", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
       </button>
-    </div>
+    </label>
   );
 }
 
