@@ -7,14 +7,14 @@ import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "rgba(3,72,82,0.5)",  label: "Not Started" },
-    SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#0abe62",            label: "Submitted" },
+    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "rgba(3,72,82,0.5)",  label: "Not started" },
+    SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#08784a",            label: "Submitted" },
     LATE:        { bg: "rgba(255,222,0,0.2)",   color: "#956f00",            label: "Late" },
-    GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Under Review" },
-    GRADED:      { bg: "rgba(10,190,98,0.12)",  color: "#0abe62",            label: "Graded" },
+    GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Under review" },
+    GRADED:      { bg: "rgba(10,190,98,0.12)",  color: "#08784a",            label: "Graded" },
   };
   const { bg, color, label } = map[status] ?? map.NOT_STARTED;
-  return <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: bg, color }}>{label}</span>;
+  return <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", background: bg, color }}>{label}</span>;
 }
 
 export function GradePanel({
