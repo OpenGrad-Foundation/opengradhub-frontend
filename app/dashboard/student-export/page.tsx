@@ -151,12 +151,6 @@ function StudentExportContent() {
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-      <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
-          Student Export
-        </h1>
-      </div>
-
       <div style={filterCard}>
         <div style={filterGrid}>
           {(
@@ -379,13 +373,6 @@ const labelStyle: React.CSSProperties = {
   textTransform: "uppercase",
   letterSpacing: "0.28em",
   color: "#209379",
-};
-
-const titleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-heading)",
-  fontSize: "22px",
-  fontWeight: 700,
-  color: "#034852",
 };
 
 const subtitleStyle: React.CSSProperties = {

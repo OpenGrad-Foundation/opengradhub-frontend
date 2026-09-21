@@ -56,8 +56,6 @@ export default function RoleManagementPage() {
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 768px) {
           .rm-container { padding: 0 12px !important; }
-          .rm-header { margin-bottom: 20px !important; }
-          .rm-title { font-size: 22px !important; }
           .rm-card { padding: 18px !important; border-radius: 16px !important; }
           .rm-card-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
           .rm-add-btn { width: 100% !important; }
@@ -81,10 +79,6 @@ export default function RoleManagementPage() {
           .rm-table td:last-child { text-align: left !important; margin-top: 4px; }
         }
       ` }} />
-      <div className="rm-header" style={{ marginBottom: "32px" }}>
-        <h1 className="rm-title" style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
-      </div>
-
       <div className="rm-card" style={glassCard}>
         <div className="rm-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>

@@ -8,7 +8,6 @@ import { useUrlFilters } from "@/lib/filters/use-url-filters";
 import { FilterBar } from "@/app/dashboard/tracker/_components/filter-bar";
 import { partnerFilterSpec } from "@/app/dashboard/tracker/_components/filter-specs";
 import type { PartnerLifecycle, PartnerTaskRow } from "@/lib/tracker-api";
-import { PARTNER_TRACKER_NAME } from "@/lib/labels";
 import { PartnerDrill } from "./_components/partner-drill";
 
 /**
@@ -63,8 +62,6 @@ export default function SharedTrackerPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-semibold text-gray-900">{PARTNER_TRACKER_NAME}</h1>
-
       <div className="flex flex-wrap gap-2">
         {CARDS.map((c) => {
           const n = data?.stateCounts?.[c.key] ?? 0;

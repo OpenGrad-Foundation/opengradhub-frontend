@@ -175,16 +175,6 @@ export default function ReportsPage() {
 
   return (
     <div>
-      {/* Page header */}
-      <div style={{ ...glassCard, marginBottom: "28px" }}>
-        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
-          Reports
-        </p>
-        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
-          Reports
-        </h1>
-      </div>
-
       {error && (
         <div style={{ ...glassCard, marginBottom: "20px", padding: "16px 20px", background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)" }}>
           <p style={{ color: "#c53030", fontSize: "14px", margin: 0 }}>{error}</p>

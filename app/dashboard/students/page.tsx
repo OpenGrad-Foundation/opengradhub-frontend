@@ -9,7 +9,7 @@ import { useStudentFacets, useStudentsList } from "@/lib/queries/students";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
 import type { StudentFacets } from "@/lib/api";
-import { secondaryButton, tdStyle, thStyle, titleStyle } from "@/app/dashboard/schools/styles";
+import { secondaryButton, tdStyle, thStyle } from "@/app/dashboard/schools/styles";
 import { Filters, type DirectoryFilterValue } from "./_components/filters";
 
 const LIMIT = 50;
@@ -119,12 +119,6 @@ export default function StudentsPage() {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Students</h1>
-        </div>
-      </div>
-
       <Filters facets={facets} value={filters} onChange={updateFilters} />
 
       {isPending ? (

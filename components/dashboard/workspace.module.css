@@ -15,7 +15,8 @@
 }
 
 .headerSpace {
-  height: var(--dashboard-header-height, 70px);
+  /* The header is fixed; reserve its height plus the extra top offset. */
+  height: calc(var(--dashboard-header-height, 70px) + var(--dashboard-header-top) - 1rem);
   margin-bottom: 0.75rem;
 }
 
@@ -30,7 +31,7 @@
 }
 
 .stickyHeader {
-  top: 1rem;
+  top: var(--dashboard-header-top);
   z-index: 21;
   padding: 0.75rem;
   background: transparent;
@@ -66,7 +67,7 @@
 }
 
 .stickyTabs :global([role="tablist"]) {
-  top: calc(1rem + var(--dashboard-header-height, 70px) + 0.75rem);
+  top: calc(var(--dashboard-header-top) + var(--dashboard-header-height, 70px) + 0.75rem);
   z-index: 20;
   margin: 0;
   padding: 0.5rem;
@@ -116,7 +117,7 @@
 .compactTabPicker {
   display: flex;
   position: fixed;
-  top: 1rem;
+  top: var(--dashboard-header-top);
   right: 1.5rem;
   z-index: 22;
   align-items: center;
@@ -185,7 +186,7 @@
 
 .stickyTabs :global([role="tabpanel"]) a,
 .stickyTabs :global([role="tabpanel"]) button {
-  scroll-margin-top: calc(var(--dashboard-header-height, 0px) + 6rem);
+  scroll-margin-top: calc(var(--dashboard-header-top) + var(--dashboard-header-height, 0px) + 5rem);
 }
 
 .workspace :global([role="tab"]) {

@@ -10,7 +10,7 @@ import { useCreateProgramme } from "@/lib/mutations/programmes";
 import { ApiError } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
+  cardStyle, errorStyle, formLabelStyle, inputStyle, memberBadge,
   primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
 } from "./styles";
 
@@ -37,11 +37,7 @@ export default function ProgrammesPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
-        <div>
-          <div style={labelStyle}>Organisation</div>
-          <h1 style={titleStyle}>Programmes</h1>
-        </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "rgba(3,72,82,0.75)" }}>
             <input

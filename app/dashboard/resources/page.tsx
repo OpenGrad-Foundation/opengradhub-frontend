@@ -58,21 +58,15 @@ function ResourcesPageContent() {
       <BackLink fallback="/dashboard" />
       {focus && <p style={{ marginBlock: 12 }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
       {/* ── Header ──────────────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "28px",
-        }}
-      >
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
-            Resources
-          </h1>
-        </div>
-
-        {canCreate && (
+      {canCreate && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            marginBottom: "28px",
+          }}
+        >
           <button
             id="add-resource-btn"
             onClick={() => {
@@ -93,8 +87,8 @@ function ResourcesPageContent() {
           >
             {showForm ? "✕ Cancel" : "+ Add Resource"}
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Create form ─────────────────────────────────────── */}
       {showForm && data && (

@@ -100,9 +100,7 @@ export default function InboxPage() {
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
-        <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Inbox</h1>
-          <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
+          <div style={{ display: "flex", gap: "12px" }}>
             {hasUnread && (
               <button style={S.textButton} onClick={() => void handleMarkAllRead()}>
                 ✓ Mark all read
@@ -128,7 +126,6 @@ export default function InboxPage() {
               </button>
             )}
           </div>
-        </div>
         {showCompose && (
           <button
             style={S.primaryButton}

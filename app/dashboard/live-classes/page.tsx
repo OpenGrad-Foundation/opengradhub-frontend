@@ -140,10 +140,9 @@ function LiveClassesInner() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "28px" }}>
         <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Live Classes</h1>
-          <p style={{ fontSize: "14px", color: MUTED, marginTop: "4px" }}>
+          <p style={{ fontSize: "14px", color: MUTED, margin: 0 }}>
             {classes.length} {isPast ? "past" : "upcoming"}
           </p>
         </div>

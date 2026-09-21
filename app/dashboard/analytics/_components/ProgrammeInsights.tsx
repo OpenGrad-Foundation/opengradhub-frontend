@@ -74,15 +74,6 @@ export default function ProgrammeInsights() {
           gap: "16px", flexWrap: "wrap",
         }}
       >
-        <div>
-          <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", letterSpacing: "0.28em", textTransform: "uppercase", marginBottom: "6px" }}>
-            Analytics
-          </p>
-          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "26px", fontWeight: 700, color: "#034852", margin: 0 }}>
-            Programme Insights
-          </h1>
-        </div>
-
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <ScopeChip scope={selectedProgramme ? { ...data.scope, label: selectedProgramme.name } : data.scope} />
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>

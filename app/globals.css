@@ -226,3 +226,13 @@ select:focus-visible,
 html:has([data-dashboard-shell]) {
   overscroll-behavior-y: none;
 }
+
+/* Distance from the viewport top to the fixed workspace header. */
+[data-dashboard-shell] {
+  --dashboard-header-top: 1.75rem;
+}
+@media (min-width: 640px) {
+  [data-dashboard-shell] {
+    --dashboard-header-top: 2.25rem;
+  }
+}

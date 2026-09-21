@@ -10,7 +10,7 @@ import { StateDistrictPicker } from "@/app/dashboard/_components/StateDistrictPi
 import { IN_CHARGE, IN_CHARGE_LOWER, ROLE_LABELS, ZONE, ZONE_LOWER } from "@/lib/labels";
 import { normState } from "@/lib/geo";
 import { SchoolFormModal } from "./SchoolFormModal";
-import { titleStyle, primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
+import { primaryButton, secondaryButton, inputStyle, thStyle, tdStyle, linkBtnStyle } from "./styles";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
@@ -57,10 +57,8 @@ export default function SchoolsPage() {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Schools</h1>
-        </div>
+      {(canCreate || canBulk) && (
+      <div className="flex justify-end mb-7">
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           {canCreate && (
             <button onClick={() => { setShowAdd(true); setShowBulk(false); }} style={primaryButton}>
@@ -74,6 +72,7 @@ export default function SchoolsPage() {
           )}
         </div>
       </div>
+      )}
 
       {showAdd && (
         <SchoolFormModal

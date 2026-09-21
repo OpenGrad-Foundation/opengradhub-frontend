@@ -31,22 +31,20 @@ export default function AssignmentsPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
+      {(isManager || canCreate) && (
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
           {isManager && (
-            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
+            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: 0 }}>
               {assignments.length} assignment{assignments.length !== 1 ? "s" : ""}
             </p>
           )}
+          {canCreate && (
+            <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none", marginLeft: "auto" }}>
+              + New Assignment
+            </Link>
+          )}
         </div>
-        {canCreate && (
-          <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
-            + New Assignment
-          </Link>
-        )}
-      </div>
+      )}
 
       {loading ? (
         <LoadingState />
@@ -95,16 +93,13 @@ function ManagerAssignmentsView({ canCreate }: { canCreate: boolean }) {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
-        <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Assignments</h1>
-        </div>
-        {canCreate && (
+      {canCreate && (
+        <div className="flex justify-end mb-5">
           <Link href="/dashboard/assignments/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
             + New Assignment
           </Link>
-        )}
-      </div>
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: "8px", marginBottom: "18px" }}>
         {([["all", "All assignments"], ["queue", "Submission queue"]] as const).map(([key, label]) => (
@@ -343,7 +338,7 @@ function SubmissionQueue({ canCreate }: { canCreate: boolean }) {
       <div>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-5">
           <div>
-            <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Submission Queue</h1>
+            <h2 style={{ ...S.heading, fontSize: "20px", margin: "4px 0 0" }}>Submission Queue</h2>
             <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
               {rows.length} obligation{rows.length !== 1 ? "s" : ""}
             </p>

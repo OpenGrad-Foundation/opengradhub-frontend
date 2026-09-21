@@ -264,12 +264,9 @@ export default function TrackerPage() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       {isManagerView && <PushNudge />}
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="mt-2 text-3xl font-semibold text-gray-950">{TRACKER_NAME}</h1>
-          <p className="mt-2 text-sm text-gray-500">
-            {roleLabel(currentUser?.role.name, "Team")} workspace
-          </p>
-        </div>
+        <p className="text-sm text-gray-500">
+          {roleLabel(currentUser?.role.name, "Team")} workspace
+        </p>
       </header>
 
       <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label={`${TRACKER_NAME} sections`}>

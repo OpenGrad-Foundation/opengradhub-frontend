@@ -31,16 +31,13 @@ export default function BatchesPage() {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Batches</h1>
-        </div>
-        {canCreate && (
+      {canCreate && (
+        <div className="flex justify-end mb-7">
           <button onClick={() => setShowAdd(true)} style={primaryButton}>
             + Add Batch
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {showAdd && (
         <BatchFormModal
@@ -157,7 +154,6 @@ export default function BatchesPage() {
   );
 }
 
-const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
 const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" };
 const thStyle: React.CSSProperties = { padding: "14px 20px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };

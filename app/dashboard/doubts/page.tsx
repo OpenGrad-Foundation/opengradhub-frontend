@@ -83,11 +83,8 @@ function DoubtsPageContent() {
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <BackLink fallback="/dashboard" />
       {/* ── Header ─────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
-        </div>
-        {canSubmit && (
+      {canSubmit && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
           <button
             style={primaryButton}
             onClick={() => setShowModal(true)}
@@ -96,8 +93,8 @@ function DoubtsPageContent() {
           >
             + Ask a Question
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Submit Modal ────────────────────────────────────── */}
       {showModal && userId && (
@@ -194,10 +191,6 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <BackLink fallback="/dashboard" />
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
-      </div>
-
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {(["ALL", "OPEN", "ANSWERED"] as StaffFilter[]).map((f) => (
           <button

@@ -72,17 +72,13 @@ export default function CalendarPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px", flexWrap: "wrap", gap: "12px" }}>
-        <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Calendar</h1>
-        </div>
-        {canCreate && (
+      {canCreate && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "28px" }}>
           <button onClick={() => setShowCreate(true)} style={primaryBtn}>
             + Add Event
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {error && (
         <div style={{ ...glassCard, background: "rgba(229,62,62,0.07)", marginBottom: "20px" }}>

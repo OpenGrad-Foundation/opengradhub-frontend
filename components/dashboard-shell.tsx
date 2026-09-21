@@ -12,6 +12,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { DashboardRouteGuard } from "@/components/require-permission";
 import { hasEffectiveSelfScope } from "@/lib/permissions";
 import SentryUserSync from "@/components/sentry-user-sync";
+import { PARTNER_TRACKER_NAME, TRACKER_NAME } from "@/lib/labels";
 
 export default function DashboardShell({
   children,
@@ -21,12 +22,7 @@ export default function DashboardShell({
   const { data: currentUser } = useCurrentUser();
   const pathname = usePathname();
   const isProgramDashboard = pathname === "/dashboard" && currentUser?.role.code === "PROGRAM_MANAGER";
-  const isStaffAttendance = pathname === "/dashboard/attendance" && currentUser?.permissions?.includes("attendance.view");
-  const isStaffCourses = pathname === "/dashboard/courses" && currentUser?.permissions?.includes("courses.view") && !hasEffectiveSelfScope(currentUser.permissions);
-  const isBundlesPage = (pathname === "/dashboard/bundles" && currentUser?.permissions?.includes("bundles.view")) || (pathname === "/dashboard/bundles/new" && currentUser?.permissions?.includes("bundles.create"));
-  const isQuizMonitor = pathname === "/dashboard/assessments" && !hasEffectiveSelfScope(currentUser?.permissions ?? []) && currentUser?.permissions?.includes("students.view") && currentUser?.permissions?.some(p => ["analytics.view", "analytics.view_admin", "analytics.view_manager", "analytics.view_fellow"].includes(p));
-  const isQuestionBank = pathname === "/dashboard/test-bank" && currentUser?.permissions?.includes("test_bank.view");
-  const isCourseManagement = pathname.startsWith("/dashboard/course-management/") && currentUser?.permissions?.includes("courses.edit");
+  const workspaceTitle = currentUser ? workspaceTitleFor(pathname, currentUser.permissions ?? []) : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -111,17 +107,54 @@ export default function DashboardShell({
         <main className="flex-1 px-6 py-6 sm:px-8 sm:py-8 bg-gray-50">
           {isProgramDashboard ? (
             <PMDashboardHeader userId={currentUser.user.id} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} />
-          ) : isStaffAttendance || isStaffCourses || isCourseManagement || isBundlesPage || isQuizMonitor || isQuestionBank ? (
-            <WorkspaceHeader key={pathname} title={isQuizMonitor ? "Quizzes" : isQuestionBank ? "Question Bank" : isStaffAttendance ? "Attendance" : isCourseManagement ? "Course" : isBundlesPage ? (pathname.endsWith("/new") ? "New bundle" : "Bundles") : "Courses"} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} />
-          ) : <>
+          ) : workspaceTitle ? (
+            <WorkspaceHeader key={pathname} title={workspaceTitle} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} />
+          ) : <div className="pt-[calc(var(--dashboard-header-top)-1.5rem)] sm:pt-[calc(var(--dashboard-header-top)-2rem)]">
           <button type="button" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar" aria-controls="dashboard-navigation" aria-expanded={sidebarOpen} className="float-left mr-3 flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--dark-teal)] lg:hidden">
             <Menu size={20} aria-hidden="true" />
           </button>
           {currentUser?.user.id && <div className="relative z-20 float-right ml-3"><NotificationBell /></div>}
-          </>}
+          </div>}
           <DashboardRouteGuard>{children}</DashboardRouteGuard>
         </main>
       </div>
     </div>
   );
+}
+
+const ANALYTICS_VIEW = ["analytics.view", "analytics.view_admin", "analytics.view_manager", "analytics.view_fellow"];
+
+// Pages whose title lives in the shared WorkspaceHeader. Each page omits its
+// own <h1>; a route whose learner view keeps its own heading stays gated here.
+const WORKSPACE_TITLES: Record<string, string | ((permissions: string[]) => string | null)> = {
+  "/dashboard/attendance": p => p.includes("attendance.view") ? "Attendance" : null,
+  "/dashboard/courses": p => p.includes("courses.view") && !hasEffectiveSelfScope(p) ? "Courses" : null,
+  "/dashboard/bundles": p => p.includes("bundles.view") ? "Bundles" : null,
+  "/dashboard/bundles/new": p => p.includes("bundles.create") ? "New bundle" : null,
+  "/dashboard/assessments": p => !hasEffectiveSelfScope(p) && p.includes("students.view") && p.some(x => ANALYTICS_VIEW.includes(x)) ? "Quizzes" : null,
+  "/dashboard/test-bank": p => p.includes("test_bank.view") ? "Question Bank" : null,
+  "/dashboard/analytics": "Programme Insights",
+  "/dashboard/assignments": "Assignments",
+  "/dashboard/batches": "Batches",
+  "/dashboard/calendar": "Calendar",
+  "/dashboard/doubts": "Doubts",
+  "/dashboard/inbox": "Inbox",
+  "/dashboard/live-classes": "Live Classes",
+  "/dashboard/password-resets": "Password Resets",
+  "/dashboard/programmes": "Programmes",
+  "/dashboard/reports": "Reports",
+  "/dashboard/resources": "Resources",
+  "/dashboard/role-management": "Role Management",
+  "/dashboard/schools": "Schools",
+  "/dashboard/shared-tracker": PARTNER_TRACKER_NAME,
+  "/dashboard/student-export": "Student Export",
+  "/dashboard/students": "Students",
+  "/dashboard/tracker": TRACKER_NAME,
+  "/dashboard/user-management": "User Management",
+};
+
+export function workspaceTitleFor(pathname: string, permissions: string[]): string | null {
+  if (pathname.startsWith("/dashboard/course-management/")) return permissions.includes("courses.edit") ? "Course" : null;
+  const entry = WORKSPACE_TITLES[pathname];
+  return typeof entry === "function" ? entry(permissions) : entry ?? null;
 }
