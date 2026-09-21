@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, Inbox } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { BackLink } from "@/components/back-link";
 import { useParams } from "next/navigation";
@@ -63,7 +64,7 @@ export default function SubmissionsPage() {
   if (error || !assignment) {
     return (
       <div style={glassCard}>
-        <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error ?? "Not found."}</p>
+        <p style={{ color: "#b83232", fontWeight: 600 }}>{error ?? "Not found."}</p>
         <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
           ← Back
         </BackLink>
@@ -80,23 +81,24 @@ export default function SubmissionsPage() {
       <div style={{ flex: "1 1 400px", minWidth: 0 }}>
         {/* Header */}
         <div style={{ marginBottom: "20px" }}>
-          <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-            ← Assignments
+          <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, background: "var(--color-surface)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+            <ArrowLeft size={16} aria-hidden="true" />Assignments
           </BackLink>
-          <div style={{ marginTop: "10px" }}>
-            <p style={S.label}>Grading</p>
-            <h1 style={{ ...S.heading, fontSize: "24px", margin: "4px 0 4px" }}>{assignment.title}</h1>
-            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.55)", margin: 0 }}>
-              Due: {new Date(assignment.due_at).toLocaleDateString()} · {submissions.length} submission{submissions.length !== 1 ? "s" : ""}
+          <div style={{ marginTop: "20px" }}>
+            <h2 style={{ ...S.heading, fontSize: "28px", lineHeight: 1.3, margin: "0 0 12px" }}>{assignment.title}</h2>
+            <p style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>
+              <span>Due {new Date(assignment.due_at).toLocaleDateString()}</span>
+              <span>{submissions.length} submission{submissions.length !== 1 ? "s" : ""}</span>
             </p>
           </div>
         </div>
 
         {/* Submissions table */}
         {submissions.length === 0 ? (
-          <div style={{ ...glassCard, textAlign: "center", padding: "40px" }}>
-            <p style={S.label}>No Submissions Yet</p>
-            <p style={{ ...S.heading, fontSize: "16px", marginTop: "12px" }}>Students haven&apos;t submitted yet.</p>
+          <div style={{ ...glassCard, display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center", padding: "48px 24px" }}>
+            <Inbox size={24} aria-hidden="true" style={{ color: "var(--teal)" }} />
+            <h3 style={{ ...S.heading, fontSize: "18px", fontWeight: 600, margin: 0 }}>No submissions yet</h3>
+            <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: 0 }}>Submissions appear here as students turn them in.</p>
           </div>
         ) : (
           <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
@@ -123,13 +125,13 @@ export default function SubmissionsPage() {
                       }}
                       onClick={() => setActiveSubId(isActive ? null : sub.id)}
                     >
-                      <td style={tdStyle}><strong style={{ color: "#034852" }}>{sub.student_name ?? "—"}</strong></td>
+                      <td style={tdStyle}><strong style={{ color: "var(--color-text)" }}>{sub.student_name ?? "—"}</strong></td>
                       <td style={tdStyle}>{sub.student_roll ?? "—"}</td>
                       <td style={tdStyle}>
                         {sub.submitted_at ? (
                           <span>
                             {new Date(sub.submitted_at).toLocaleDateString()}{" "}
-                            <span style={{ color: "rgba(3,72,82,0.45)" }}>{new Date(sub.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                            <span style={{ color: "var(--color-text-muted)" }}>{new Date(sub.submitted_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                           </span>
                         ) : "—"}
                         {sub.is_late && (
@@ -139,9 +141,9 @@ export default function SubmissionsPage() {
                       <td style={tdStyle}><StatusBadge status={sub.status} /></td>
                       <td style={tdStyle}>
                         {sub.score != null ? (
-                          <strong style={{ color: "#034852" }}>{sub.score}</strong>
+                          <strong style={{ color: "var(--color-text)" }}>{sub.score}</strong>
                         ) : (
-                          <span style={{ color: "rgba(3,72,82,0.3)" }}>—</span>
+                          <span style={{ color: "var(--color-text-muted)" }}>—</span>
                         )}
                       </td>
                       <td style={tdStyle}>
@@ -193,14 +195,14 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "24px 28px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
 const S = {
-  label:      { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading:    { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input:      { width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn: { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 200ms ease" } as React.CSSProperties,
+  label:      { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading:    { fontWeight: 700, color: "var(--color-text)" } as React.CSSProperties,
+  input:      { width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
 };
-const thStyle: React.CSSProperties = { padding: "12px 16px", textAlign: "left", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379", background: "rgba(32,147,121,0.04)" };
-const tdStyle: React.CSSProperties = { padding: "12px 16px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px" };
+const thStyle: React.CSSProperties = { padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)", background: "#eef5f3" };
+const tdStyle: React.CSSProperties = { padding: "12px 16px", textAlign: "left", color: "var(--color-text)", fontSize: "13px", borderTop: "1px solid var(--color-border)" };

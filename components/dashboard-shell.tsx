@@ -155,6 +155,10 @@ const WORKSPACE_TITLES: Record<string, string | ((permissions: string[]) => stri
 
 export function workspaceTitleFor(pathname: string, permissions: string[]): string | null {
   if (pathname.startsWith("/dashboard/course-management/")) return permissions.includes("courses.edit") ? "Course" : null;
+  if (pathname === "/dashboard/assignments/new") return "New assignment";
+  if (/^\/dashboard\/assignments\/[^/]+\/edit$/.test(pathname)) return "Edit assignment";
+  if (/^\/dashboard\/assignments\/[^/]+\/submissions$/.test(pathname)) return "Submissions";
+  if (/^\/dashboard\/assignments\/[^/]+$/.test(pathname)) return "Assignment";
   if (pathname === "/dashboard/quiz-builder/new") return "New quiz";
   if (pathname === "/dashboard/quiz-builder/bulk-import") return "Import quiz";
   if (/^\/dashboard\/quiz-builder\/[^/]+$/.test(pathname) && pathname !== "/dashboard/quiz-builder/duplicate") return permissions.includes("test_bank.edit") ? "Quiz" : null;

@@ -25,4 +25,11 @@ describe('workspaceTitleFor', () => {
     expect(workspaceTitleFor('/dashboard/quiz-builder/new', [])).toBe('New quiz');
     expect(workspaceTitleFor('/dashboard/quiz-builder/duplicate', ['test_bank.edit'])).toBeNull();
   });
+
+  it('titles every assignment route', () => {
+    expect(workspaceTitleFor('/dashboard/assignments/new', [])).toBe('New assignment');
+    expect(workspaceTitleFor('/dashboard/assignments/a1', [])).toBe('Assignment');
+    expect(workspaceTitleFor('/dashboard/assignments/a1/edit', [])).toBe('Edit assignment');
+    expect(workspaceTitleFor('/dashboard/assignments/a1/submissions', [])).toBe('Submissions');
+  });
 });
