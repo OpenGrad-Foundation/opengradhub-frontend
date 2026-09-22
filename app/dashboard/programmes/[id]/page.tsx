@@ -25,10 +25,11 @@ import {
   useDetachProgrammeBatch, useDetachProgrammeSchool, useReleaseProgrammeContent,
   useAddProgrammeMember, useAddProgrammeStudents, useRemoveProgrammeMember, useUpdateProgramme,
 } from "@/lib/mutations/programmes";
-import {
-  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
-  linkBtnStyle, noticeStyle, primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
-} from "../styles";
+import { ArrowLeft, Search, UserPlus } from "lucide-react";
+import { Tabs } from "../../_components/Tabs";
+import cat from "../../_components/catalogue.module.css";
+import workspace from "@/components/dashboard/workspace.module.css";
+import ui from "../programmes.module.css";
 import { SearchMultiPicker } from "@/components/SearchMultiPicker";
 import { EntityLink } from "../_components/entity-link";
 import { useRowNavigation } from "../_components/use-row-navigation";
@@ -44,6 +45,9 @@ import { BackLink } from "@/components/back-link";
 type BannerTone = "error" | "info";
 type Banner = { text: string; tone: BannerTone };
 type Notify = (message: string | null, tone?: BannerTone) => void;
+
+/** Table links read as text, not as a second brand colour competing with the primary button. */
+const LINK: React.CSSProperties = { color: "var(--color-text)", fontWeight: 600 };
 
 /**
  * What membership means, stated in the UI so it is not folklore.
@@ -79,21 +83,6 @@ const TABS = [
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
-function tabStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "10px 18px",
-    border: "none",
-    borderRadius: "10px",
-    background: active ? "rgba(10,190,98,0.12)" : "transparent",
-    color: active ? "#046b45" : "rgba(3,72,82,0.65)",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 700,
-    fontSize: "13px",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-}
-
 export default function ProgrammeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -121,10 +110,10 @@ export default function ProgrammeDetailPage() {
   // same three; this only decides whether the control is worth showing.
   const mayAssignStudents = mayAdminister && capabilities.students && has(PERM.user_management.edit);
 
-  if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
+  if (isLoading) return <div role="status" className={cat.resultsLabel}>Loading programme…</div>;
   if (error || !programme) {
     return (
-      <div style={errorStyle}>
+      <div role="alert" className={ui.error}>
         {error instanceof ApiError && error.status === 404
           ? "Programme not found, or you are not a member of it."
           : "Failed to load programme."}
@@ -132,81 +121,85 @@ export default function ProgrammeDetailPage() {
     );
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <BackLink fallback="/dashboard/programmes" style={{ ...linkBtnStyle, alignSelf: "flex-start" }} />
-
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <div style={labelStyle}>{programme.kind}{programme.state ? ` · ${programme.state}` : ""}</div>
-          <h2 style={titleStyle}>
-            {programme.name}
-            {programme.status === "ARCHIVED" && (
-              <span style={{ marginLeft: 12, fontSize: 13, fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>
-                Archived
-              </span>
-            )}
-          </h2>
-          <div style={{ fontFamily: "monospace", fontSize: 12, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>
-            {programme.code}
-          </div>
-        </div>
-        {/* The role label is presentation; effective permissions decide actions. */}
-        {isMember && me?.role?.code && (
-          <span style={memberBadge()}>{roleLabel(me.role.code)}</span>
-        )}
-      </div>
-
-      {programme.status === "ARCHIVED" && (
-        <div style={noticeStyle}>
-          This programme is archived. Editors cannot edit its content while it stays
-          archived. Programme administrators keep administrative access, so this can be undone below.
-        </div>
-      )}
-      {banner && (
-        <div style={banner.tone === "error" ? errorStyle : noticeStyle}>{banner.text}</div>
-      )}
-
-      <div
-        role="tablist"
-        aria-label="Programme sections"
-        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid rgba(3,72,82,0.08)", paddingBottom: 8 }}
-      >
-        {TABS.filter((t) => t.key !== "students" || capabilities.students).map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            style={tabStyle(tab === t.key)}
-            onClick={() => { setTab(t.key); notify(null); }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "people" && (
+  const visibleTabs = TABS.filter((t) => t.key !== "students" || capabilities.students);
+  // A deep link to a tab this caller cannot see lands on Overview; the notice
+  // below still says why, and the roster is never mounted (so never fetched).
+  const activeTab: TabKey = visibleTabs.some((t) => t.key === tab) ? tab : "overview";
+  const panel = (
+    <>
+      {activeTab === "people" && (
         <PeopleSection
           programmeId={id}
           canManage={capabilities.manageMembers}
           onError={notify}
         />
       )}
-      {tab === "students" && (capabilities.students ? <StudentsSection programmeId={id} canAssign={mayAssignStudents} onError={notify} /> : <div style={noticeStyle}>Student access requires the View Students permission.</div>)}
-      {tab === "overview" && <OverviewSection programmeId={id} />}
-      {tab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
-      {tab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
-      {tab === "content" && <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />}
-      {tab === "settings" && (
+      {activeTab === "students" && <StudentsSection programmeId={id} canAssign={mayAssignStudents} onError={notify} />}
+      {activeTab === "overview" && <OverviewSection programmeId={id} />}
+      {activeTab === "schools" && <SchoolsSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {activeTab === "batches" && <BatchesSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {activeTab === "content" && <ContentSection programmeId={id} canManage={mayAdminister} onError={notify} />}
+      {activeTab === "settings" && (
         mayAdminister
           ? <DangerSection programmeId={id} status={programme.status} onError={notify} />
           : (
-            <div style={noticeStyle}>
+            <div className={ui.notice}>
               Changing a programme&rsquo;s settings needs the{" "}
               <strong>Manage Programmes</strong> permission and access to administer this programme.
             </div>
           )
       )}
+    </>
+  );
+
+  return (
+    <div className={`${workspace.workspace} ${ui.page}`}>
+      <div className={ui.header}>
+        <div className={ui.headerToolbar}>
+          <BackLink fallback="/dashboard/programmes" className={cat.secondary}>
+            <ArrowLeft size={16} aria-hidden="true" /><span><span className="hidden sm:inline">Back to </span>Programmes</span>
+          </BackLink>
+          {/* The role label is presentation; effective permissions decide actions. */}
+          {isMember && me?.role?.code && (
+            <span className={`${ui.pill} ${ui.pillInfo}`}>{roleLabel(me.role.code)}</span>
+          )}
+        </div>
+        <div className={ui.identity}>
+          <h2>{programme.name}</h2>
+          <div className={ui.meta}>
+            {programme.status === "ARCHIVED"
+              ? <span className={`${ui.pill} ${ui.pillMuted}`}>Archived</span>
+              : <span className={`${ui.pill} ${ui.pillGreen}`}>Active</span>}
+            {programme.kind && <span>{programme.kind}</span>}
+            {programme.state && <span>{programme.state}</span>}
+            <span className={ui.code}>{programme.code}</span>
+            {programme.cohort_label && <span>{programme.cohort_label}</span>}
+          </div>
+        </div>
+      </div>
+
+      {programme.status === "ARCHIVED" && (
+        <div className={ui.notice}>
+          This programme is archived. Editors cannot edit its content while it stays
+          archived. Programme administrators keep administrative access, so this can be undone below.
+        </div>
+      )}
+      {tab === "students" && !capabilities.students && (
+        <div className={ui.notice}>Student access requires the View Students permission.</div>
+      )}
+      {banner && (
+        <div role={banner.tone === "error" ? "alert" : "status"} className={banner.tone === "error" ? ui.error : ui.notice}>{banner.text}</div>
+      )}
+
+      <div className={`${workspace.stickyTabs} ${ui.tabs}`}>
+        <Tabs
+          ariaLabel="Programme sections"
+          compactOnScroll
+          activeKey={activeTab}
+          onTabChange={(key) => { setTab(key as TabKey); notify(null); }}
+          tabs={visibleTabs.map((t) => ({ key: t.key, label: t.label, panel }))}
+        />
+      </div>
     </div>
   );
 }
@@ -283,18 +276,18 @@ function PeopleSection({
   }, [members]);
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ ...titleStyle, fontSize: 17 }}>People</h2>
+    <section className={ui.section}>
+      <div className={ui.sectionHead}>
+        <h3 className={ui.sectionTitle}>People</h3>
         {canManage && !adding && (
-          <button style={secondaryButton} onClick={() => setAdding(true)}>Add member</button>
+          <button type="button" className={cat.secondary} onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden="true" />Add member</button>
         )}
       </div>
 
       {canManage && adding && (
-        <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 300px" }}>
-            <label style={formLabelStyle}>Staff members</label>
+        <div className={`${ui.panel} ${ui.panelRow}`}>
+          <div className={ui.grow}>
+            <label className={ui.label}>Staff members</label>
             <SearchMultiPicker
               options={candidates.map((u) => ({
                 id: u.user_id,
@@ -311,21 +304,21 @@ function PeopleSection({
             {/* An empty picker is indistinguishable from a failed one unless
                 the failure is said out loud. */}
             {staffError && (
-              <div style={{ marginTop: 6, fontSize: 12, color: "#b91c1c" }}>
+              <div className={ui.errorText} style={{ marginTop: 6 }}>
                 {staffError instanceof ApiError
                   ? staffError.message
                   : "Failed to load staff."}
               </div>
             )}
           </div>
-          <div style={{ flex: "0 1 260px" }}>
-            <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 24 }}>
+          <div className={ui.grow} style={{ flexBasis: "14rem" }}>
+            <div className={ui.help}>
               {MEMBERSHIP_HELP}
               {picks.length > 1 ? ` Applies to all ${picks.length} selected.` : ""}
             </div>
           </div>
           <button
-            style={{ ...primaryButton, opacity: picks.length === 0 || addMember.isPending ? 0.6 : 1 }}
+            className={cat.primary}
             disabled={picks.length === 0 || addMember.isPending}
             onClick={() => run(async () => {
               // Sequential on purpose: each add is its own authority check, and
@@ -351,24 +344,24 @@ function PeopleSection({
           >
             {addMember.isPending ? "Adding…" : picks.length > 1 ? `Add ${picks.length}` : "Add"}
           </button>
-          <button style={secondaryButton} onClick={() => { setAdding(false); setPicks([]); }}>Cancel</button>
+          <button className={cat.secondary} onClick={() => { setAdding(false); setPicks([]); }}>Cancel</button>
         </div>
       )}
 
-      <div style={cardStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+      <div className={cat.tableWrap}>
+        <table className={`${cat.table} ${ui.table}`}>
+          <thead>
             <tr>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Role</th>
+              <th scope="col">Name</th>
+              <th scope="col">Role</th>
 
-              {canManage && <th style={thStyle} />}
+              {canManage && <th scope="col"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={4}>Loading…</td></tr>}
             {!isLoading && members.length === 0 && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No one is on this programme yet.</td></tr>
+              <tr><td className={ui.muted} colSpan={4}>No one is on this programme yet.</td></tr>
             )}
             {sections.map((section) => section.groups.length === 0 ? null : (
               <Fragment key={section.src}>
@@ -379,10 +372,10 @@ function PeopleSection({
                     Remove button, and disappear when the school is detached, none
                     of which is visible from the row itself. */}
                 {section.src === "SCHOOL" && (
-                  <tr style={{ background: "rgba(3,72,82,0.06)", borderTop: "2px solid rgba(3,72,82,0.10)" }}>
-                    <td style={{ ...tdStyle, ...labelStyle, paddingTop: 12, paddingBottom: 12 }} colSpan={canManage ? 4 : 3}>
+                  <tr className={ui.groupRow}>
+                    <td colSpan={canManage ? 4 : 3}>
                       {section.label}
-                      <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 8, color: "rgba(3,72,82,0.55)" }}>
+                      <span>
                         — their school responsibility connects them here. Actions and operational
                         access follow their effective permissions and assigned batches.
                       </span>
@@ -391,47 +384,44 @@ function PeopleSection({
                 )}
                 {section.groups.map(([role, rows]) => (
                   <Fragment key={`${section.src}-${role}`}>
-                    <tr style={{ background: "rgba(3,72,82,0.03)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                      <td style={{ ...tdStyle, ...labelStyle, paddingTop: 10, paddingBottom: 10 }} colSpan={canManage ? 4 : 3}>
+                    <tr className={ui.groupRow}>
+                      <td colSpan={canManage ? 4 : 3}>
                         {roleLabel(role)} · {rows.length}
                       </td>
                     </tr>
                     {rows.map((m) => (
-                      <tr key={m.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                        <td style={tdStyle}>
-                          <button style={linkBtnStyle} aria-expanded={selectedMember === m.user_id} onClick={() => setSelectedMember(selectedMember === m.user_id ? null : m.user_id)}>{m.name}</button>
-                          {selectedMember === m.user_id && <div style={{ marginTop: 6, fontSize: 12 }}>{roleLabel(m.role)} · {m.source === "MEMBER" ? "Programme member" : "School responsibility"}</div>}
-                          {canSeeContacts && m.email && <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>{m.email}</div>}
+                      <tr key={m.user_id}>
+                        <td>
+                          <button type="button" className={ui.linkButton} aria-expanded={selectedMember === m.user_id} onClick={() => setSelectedMember(selectedMember === m.user_id ? null : m.user_id)}>{m.name}</button>
+                          {selectedMember === m.user_id && <div className={ui.sub}>{roleLabel(m.role)} · {m.source === "MEMBER" ? "Programme member" : "School responsibility"}</div>}
+                          {canSeeContacts && m.email && <div className={ui.sub}>{m.email}</div>}
                           {m.via_schools.length > 0 && (
-                            <div style={{ marginTop: 4, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            <div className={ui.chips}>
                               {m.via_schools.map((v) => (
                                 <span
                                   key={v.school_id}
-                                  style={{
-                                    fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
-                                    background: "rgba(59,130,246,0.10)", color: "#1d4ed8",
-                                  }}
+                                  className={`${ui.pill} ${ui.pillInfo}`}
                                   title={
                                     v.cause === "IN_CHARGE"
                                       ? "They are the in-charge of this attached school."
                                       : "They manage the in-charge of this attached school."
                                   }
                                 >
-                                  via <EntityLink href={`/dashboard/schools/${v.school_id}`} permissions={[PERM.schools.view]}>{v.name}</EntityLink>
+                                  via <EntityLink href={`/dashboard/schools/${v.school_id}`} permissions={[PERM.schools.view]} style={LINK}>{v.name}</EntityLink>
                                 </span>
                               ))}
                             </div>
                           )}
                         </td>
-                        <td style={tdStyle}>{roleLabel(m.role)}</td>
+                        <td>{roleLabel(m.role)}</td>
                         {canManage && (
-                          <td style={{ ...tdStyle, textAlign: "right" }}>
+                          <td className={ui.end}>
                             {/* No Remove on a derived row: there is no membership
                                 to delete, and offering the button would promise an
                                 effect the endpoint cannot deliver. */}
                             {m.source === "MEMBER" ? (
                               <button
-                                style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                                className={ui.dangerButton}
                                 onClick={() => run(() => removeMember.mutateAsync({ id: programmeId, userId: m.user_id }))}
                                 title={
                                   m.via_schools.length > 0
@@ -442,7 +432,7 @@ function PeopleSection({
                                 Remove
                               </button>
                             ) : (
-                              <span style={{ fontSize: 12, color: "rgba(3,72,82,0.4)" }}>via school</span>
+                              <span className={`${ui.muted} ${ui.help}`}>via school</span>
                             )}
                           </td>
                         )}
@@ -464,31 +454,23 @@ function PeopleSection({
 function statCard(label: string, value: string, hint?: string, href?: string) {
   const body = (
     <>
-      <div style={{ ...labelStyle, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontFamily: "var(--font-heading)", fontSize: 26, fontWeight: 700, color: "#034852" }}>
-        {value}
-      </div>
-      {hint && <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 4 }}>{hint}</div>}
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {hint && <small>{hint}</small>}
     </>
   );
-  const box: React.CSSProperties = { ...cardStyle, padding: "16px 18px", minWidth: 150, flex: "1 1 150px" };
 
   // A number that names a list people can act on is a link to that list. The
   // ones with nowhere useful to go stay inert rather than growing a fake affordance.
   if (href) {
     return (
-      <Link
-        key={label}
-        href={href}
-        style={{ ...box, display: "block", textDecoration: "none", color: "inherit", cursor: "pointer" }}
-        aria-label={`${label}: ${value} — open list`}
-      >
+      <Link key={label} href={href} className={ui.stat} aria-label={`${label}: ${value} — open list`}>
         {body}
       </Link>
     );
   }
 
-  return <div key={label} style={box}>{body}</div>;
+  return <div key={label} className={ui.stat}>{body}</div>;
 }
 
 /**
@@ -510,20 +492,19 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
   const hub = (tab: TabKey) => updateProgrammeUrl(pathname, params, { tab });
   const doubtHref = (status: string) => has(PERM.doubts.view) ? withFrom(`/dashboard/doubts?status=${status}&programme_id=${programmeId}`, currentUrl) : undefined;
 
-  if (isLoading) return <div style={{ color: "rgba(3,72,82,0.6)" }}>Loading…</div>;
-  if (error || !data) return <div style={errorStyle}>Failed to load programme overview.</div>;
+  if (isLoading) return <div role="status" className={cat.resultsLabel}>Loading overview…</div>;
+  if (error || !data) return <div role="alert" className={ui.error}>Failed to load programme overview.</div>;
 
   const o: ProgrammeOverview = data;
   const contentTotal =
     o.content.courses + o.content.assignments + o.content.resources + o.content.quizzes;
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>Overview</h2>
+    <section className={ui.section} aria-label="Overview">
 
       <div>
-        <div style={{ ...labelStyle, marginBottom: 8 }}>Reach</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <h3 className={ui.groupTitle}>Reach</h3>
+        <div className={ui.statGrid}>
           {/* Two student measures, because one would now be a lie: `activity`
               below is read from the immutable programme stamped on each fact,
               while reach is current. With the school arm on, a student assigned
@@ -538,23 +519,23 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
       </div>
 
       <div>
-        <div style={{ ...labelStyle, marginBottom: 8 }}>Content owned</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <h3 className={ui.groupTitle}>Content owned</h3>
+        <div className={ui.statGrid}>
           {statCard("Courses", String(o.content.courses), undefined, hub("content"))}
           {statCard("Assignments", String(o.content.assignments), undefined, hub("content"))}
           {statCard("Resources", String(o.content.resources), undefined, hub("content"))}
           {statCard("Quizzes", String(o.content.quizzes), undefined, hub("content"))}
         </div>
         {contentTotal === 0 && (
-          <div style={{ ...noticeStyle, marginTop: 10 }}>
+          <div className={ui.notice} style={{ marginTop: 10 }}>
             No content yet.
           </div>
         )}
       </div>
 
       <div>
-        <div style={{ ...labelStyle, marginBottom: 8 }}>Activity</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <h3 className={ui.groupTitle}>Activity</h3>
+        <div className={ui.statGrid}>
           {statCard("Quiz attempts", String(o.activity.attempts))}
           {statCard("Average score", o.activity.avg_score === null ? "—" : `${o.activity.avg_score}%`,
             o.activity.avg_score === null ? "no completed attempts yet" : undefined)}
@@ -564,8 +545,8 @@ function OverviewSection({ programmeId }: { programmeId: string }) {
       </div>
 
       <div>
-        <div style={{ ...labelStyle, marginBottom: 8 }}>Doubts</div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <h3 className={ui.groupTitle}>Doubts</h3>
+        <div className={ui.statGrid}>
           {/* Read through optional access, because during a rolling deploy this
               page is served by the new frontend while some requests still land
               on an instance of the old API that has never heard of `doubts`.
@@ -629,10 +610,10 @@ function AddStudentsPanel({
   }));
 
   return (
-    <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <label style={formLabelStyle}>Add students</label>
-        <button style={linkBtnStyle} onClick={onClose}>Cancel</button>
+    <div className={ui.panel}>
+      <div className={ui.sectionHead}>
+        <label className={ui.label} style={{ margin: 0 }}>Add students</label>
+        <button type="button" className={cat.secondary} onClick={onClose}>Cancel</button>
       </div>
 
       <SearchMultiPicker
@@ -647,18 +628,18 @@ function AddStudentsPanel({
       />
 
       {error && (
-        <div style={{ fontSize: 12, color: "#b91c1c" }}>
+        <div className={ui.errorText}>
           {error instanceof ApiError ? error.message : "Failed to load students."}
         </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, color: "rgba(3,72,82,0.5)" }}>
+      <div className={ui.panelRow} style={{ alignItems: "center" }}>
+        <span className={`${ui.help} ${ui.grow}`}>
           Only students who belong to no programme yet are listed. A student in another
           programme&rsquo;s batch, or of a different programme type, is refused and named.
         </span>
         <button
-          style={{ ...primaryButton, marginLeft: "auto", opacity: picks.length === 0 || addStudents.isPending ? 0.6 : 1 }}
+          className={cat.primary}
           disabled={picks.length === 0 || addStudents.isPending}
           onClick={async () => {
             onError(null);
@@ -678,10 +659,10 @@ function AddStudentsPanel({
       </div>
 
       {report && (
-        <div style={noticeStyle}>
+        <div className={ui.notice}>
           <strong>{report.assigned} student{report.assigned === 1 ? "" : "s"} added.</strong>
           {report.failed.length > 0 && (
-            <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12, color: "#b91c1c" }}>
+            <ul className={ui.failList}>
               {report.failed.map((f) => (
                 <li key={f.name}>{f.name} — {f.reason}</li>
               ))}
@@ -726,41 +707,37 @@ function StudentsSection({
   const filtering = Boolean(q || schoolId || via);
 
   const viaBadge = (v: ProgrammeReachVia) => {
-    const style: React.CSSProperties = {
-      fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999,
-      background:
-        v === "PROGRAMME" ? "rgba(10,190,98,0.12)"
-        : v === "SCHOOL" ? "rgba(59,130,246,0.12)"
-        : "rgba(3,72,82,0.07)",
-      color:
-        v === "PROGRAMME" ? "#046b45"
-        : v === "SCHOOL" ? "#1d4ed8"
-        : "rgba(3,72,82,0.7)",
-    };
+    const tone = v === "PROGRAMME" ? ui.pillGreen : v === "SCHOOL" ? ui.pillInfo : ui.pillMuted;
     const title =
       v === "PROGRAMME" ? "Assigned to this programme directly."
       : v === "SCHOOL" ? "Attends a school attached to this programme. Detaching the school ends it."
       : "Enrolled in one of this programme's batches. Moving that batch would end it.";
     const label = v === "PROGRAMME" ? "Programme" : v === "SCHOOL" ? "School" : "Batch";
-    return <span key={v} style={style} title={title}>{label}</span>;
+    return <span key={v} className={`${ui.pill} ${tone}`} title={title}>{label}</span>;
   };
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <h2 style={{ ...titleStyle, fontSize: 17 }}>Students</h2>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {canAssign && !adding && (
-            <button style={secondaryButton} onClick={() => setAdding(true)}>Add students</button>
-          )}
-          <input
-            style={{ ...inputStyle, width: 240 }}
-            placeholder="Search name, roll number or school"
-            value={q}
-            onChange={(e) => update({ q: e.target.value, page: 0 })}
-          />
+    <section className={ui.section}>
+      <div className={ui.sectionHead}>
+        <h3 className={ui.sectionTitle}>Students</h3>
+        {canAssign && !adding && (
+          <button type="button" className={cat.secondary} onClick={() => setAdding(true)}><UserPlus size={16} aria-hidden="true" />Add students</button>
+        )}
+      </div>
+      <div className={ui.filters}>
+          <label className={cat.search} style={{ maxWidth: "none" }}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              aria-label="Search students"
+              placeholder="Search name, roll number or school"
+              value={q}
+              onChange={(e) => update({ q: e.target.value, page: 0 })}
+            />
+          </label>
           <select
-            style={{ ...inputStyle, width: 200 }}
+            aria-label="Filter by school"
+            className={cat.control}
             value={schoolId}
             onChange={(e) => update({ school: e.target.value, page: 0 })}
           >
@@ -770,7 +747,8 @@ function StudentsSection({
             ))}
           </select>
           <select
-            style={{ ...inputStyle, width: 170 }}
+            aria-label="Filter by reach"
+            className={cat.control}
             value={via}
             onChange={(e) => update({ via: e.target.value as "" | ProgrammeReachVia, page: 0 })}
           >
@@ -779,7 +757,6 @@ function StudentsSection({
             <option value="BATCH">Through a batch</option>
             <option value="SCHOOL">Through a school</option>
           </select>
-        </div>
       </div>
 
       {canAssign && adding && (
@@ -790,32 +767,32 @@ function StudentsSection({
         />
       )}
 
-      {error && <div style={errorStyle}>Failed to load students.</div>}
+      {error && <div role="alert" className={ui.error}>Failed to load students.</div>}
 
       {!isLoading && total > 0 && (
-        <div style={noticeStyle}>
+        <p role="status" className={cat.resultsLabel}>
           {filtering
             ? `${total} matching student${total === 1 ? "" : "s"}`
             : `${total} student${total === 1 ? "" : "s"}`}
           {total > PAGE && <> · showing {page * PAGE + 1}–{Math.min((page + 1) * PAGE, total)}</>}
-        </div>
+        </p>
       )}
 
-      <div style={{ ...cardStyle, opacity: isPlaceholderData ? 0.6 : 1 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+      <div className={cat.tableWrap} style={{ opacity: isPlaceholderData ? 0.6 : 1 }}>
+        <table className={`${cat.table} ${ui.table}`}>
+          <thead>
             <tr>
-              <th style={thStyle}>Name</th>
-              <th style={thStyle}>Roll number</th>
-              <th style={thStyle}>School</th>
-              <th style={thStyle}>Reached via</th>
+              <th scope="col">Name</th>
+              <th scope="col">Roll number</th>
+              <th scope="col">School</th>
+              <th scope="col">Reached via</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={4}>Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={4}>Loading…</td></tr>}
             {!isLoading && total === 0 && !filtering && (
               <tr>
-                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>
+                <td className={ui.muted} colSpan={4}>
                   No students yet. A student joins by being assigned to this programme in
                   User management, by being enrolled in one of its batches, or by attending
                   one of its attached schools.
@@ -823,32 +800,33 @@ function StudentsSection({
               </tr>
             )}
             {!isLoading && total === 0 && filtering && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={4}>No student matches these filters.</td></tr>
+              <tr><td className={ui.muted} colSpan={4}>No student matches these filters.</td></tr>
             )}
             {students.map((s: ProgrammeStudent) => (
               <tr
                 key={s.user_id}
-                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+               
                 {...(canOpenStudent ? rowNav(`/dashboard/students/${s.user_id}`) : {})}
               >
-                <td style={tdStyle}>
+                <td>
                   <EntityLink
                     href={`/dashboard/students/${s.user_id}`}
                     permissions={STUDENT_PROFILE_PERMISSIONS}
                     requiredPermissions={[PERM.students.view]}
+                    style={LINK}
                   >
                     {s.name}
                   </EntityLink>
                   {s.status !== "ACTIVE" && (
-                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "rgba(3,72,82,0.45)" }}>
+                    <span className={`${ui.pill} ${ui.pillMuted}`} style={{ marginLeft: 8 }}>
                       {s.status}
                     </span>
                   )}
                 </td>
-                <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{s.roll_number ?? "—"}</td>
-                <td style={tdStyle}>{s.school_name ?? "—"}</td>
-                <td style={tdStyle}>
-                  <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+                <td className={ui.code}>{s.roll_number ?? "—"}</td>
+                <td>{s.school_name ?? "—"}</td>
+                <td>
+                  <span className={ui.chips} style={{ marginTop: 0 }}>
                     {s.via.map(viaBadge)}
                   </span>
                 </td>
@@ -859,12 +837,12 @@ function StudentsSection({
       </div>
 
       {total > PAGE && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-          <button style={secondaryButton} disabled={page === 0} onClick={() => update({ page: page - 1 })}>
+        <div className={ui.pager}>
+          <button className={cat.secondary} disabled={page === 0} onClick={() => update({ page: page - 1 })}>
             Previous
           </button>
           <button
-            style={secondaryButton}
+            className={cat.secondary}
             disabled={(page + 1) * PAGE >= total}
             onClick={() => update({ page: page + 1 })}
           >
@@ -967,22 +945,22 @@ function ContentSection({
   const notEditable = owned.filter((c) => !c.editable).length;
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>Content</h2>
+    <section className={ui.section}>
+      <h3 className={ui.sectionTitle}>Content</h3>
       {canManage && (
-        <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: "0 0 150px" }}>
-            <label style={formLabelStyle}>Type</label>
+        <div className={`${ui.panel} ${ui.panelRow}`}>
+          <div className={ui.fixed}>
+            <label className={ui.label}>Type</label>
             <select
-              style={inputStyle}
+              className={cat.control}
               value={kind}
               onChange={(e) => { setKind(e.target.value as ProgrammeContentKind); setPicks([]); setSearch(""); }}
             >
               {KINDS.map((k) => <option key={k.key} value={k.key}>{k.label}</option>)}
             </select>
           </div>
-          <div style={{ flex: "1 1 320px" }}>
-            <label style={formLabelStyle}>Add to programme</label>
+          <div className={ui.grow}>
+            <label className={ui.label}>Add to programme</label>
             {/* Server-search mode: typing re-queries the assignable list (the
                 server caps at 50), and picks made under one query survive the
                 next — the picker caches every option it has seen. */}
@@ -1001,7 +979,7 @@ function ContentSection({
             />
           </div>
           <button
-            style={{ ...primaryButton, opacity: picks.length === 0 || assign.isPending ? 0.6 : 1 }}
+            className={cat.primary}
             disabled={picks.length === 0 || assign.isPending}
             onClick={() => run(async () => {
               // Sequential on purpose: each assign is its own double gate, and
@@ -1039,51 +1017,51 @@ function ContentSection({
         </div>
       )}
 
-      <div style={cardStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+      <div className={cat.tableWrap}>
+        <table className={`${cat.table} ${ui.table}`}>
+          <thead>
             <tr>
-              <th style={thStyle}>Title</th>
-              <th style={thStyle}>Type</th>
-              <th style={thStyle}>Created by</th>
-              <th style={thStyle}>Members can edit</th>
-              {canManage && <th style={thStyle} />}
+              <th scope="col">Title</th>
+              <th scope="col">Type</th>
+              <th scope="col">Created by</th>
+              <th scope="col">Members can edit</th>
+              {canManage && <th scope="col"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={5}>Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={5}>Loading…</td></tr>}
             {!isLoading && owned.length === 0 && (
               <tr>
-                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={5}>
+                <td className={ui.muted} colSpan={5}>
                   This programme owns nothing yet, so membership grants no edit rights.
                 </td>
               </tr>
             )}
             {owned.map((c) => (
-              <tr key={`${c.kind}:${c.id}`} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                <td style={tdStyle}>
+              <tr key={`${c.kind}:${c.id}`}>
+                <td>
                   {(() => {
                     const to = CONTENT_HREF[c.kind];
                     return to ? (
-                      <EntityLink href={to(c.id)} permissions={CONTENT_PERMS[c.kind] ?? []}>
+                      <EntityLink href={to(c.id)} permissions={CONTENT_PERMS[c.kind] ?? []} style={LINK}>
                         {c.title}
                       </EntityLink>
                     ) : c.title;
                   })()}
                 </td>
-                <td style={tdStyle}>{KIND_ROW_LABEL[c.kind] ?? c.kind}</td>
-                <td style={tdStyle}>{c.created_by_name ?? "—"}</td>
-                <td style={tdStyle}>
+                <td>{KIND_ROW_LABEL[c.kind] ?? c.kind}</td>
+                <td>{c.created_by_name ?? "—"}</td>
+                <td>
                   {c.editable
-                    ? <span style={{ color: "#047857", fontWeight: 600 }}>Yes</span>
-                    : <span style={{ color: "#b45309" }} title="Another programme also uses this, so editing stays with its creator.">
+                    ? <span className={ui.ok}>Yes</span>
+                    : <span className={ui.warn} title="Another programme also uses this, so editing stays with its creator.">
                         No — shared
                       </span>}
                 </td>
                 {canManage && (
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                  <td className={ui.end}>
                     <button
-                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                      className={ui.dangerButton}
                       onClick={() => run(() => release.mutateAsync({ id: programmeId, kind: c.kind, resourceId: c.id }))}
                     >
                       Remove
@@ -1097,7 +1075,7 @@ function ContentSection({
       </div>
 
       {notEditable > 0 && (
-        <div style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>
+        <div className={ui.help}>
           {notEditable} item(s) are owned but shared with another programme. Editing those
           stays with their creator — that is deliberate, so one programme cannot change
           material another programme&apos;s students are sitting.
@@ -1136,13 +1114,13 @@ function SchoolsSection({
   }
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>Schools</h2>
+    <section className={ui.section}>
+      <h3 className={ui.sectionTitle}>Schools</h3>
 
       {canManage && canOpenSchool && (
-        <div style={{ ...cardStyle, padding: 16, display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 320px" }}>
-            <label style={formLabelStyle}>Attach schools</label>
+        <div className={`${ui.panel} ${ui.panelRow}`}>
+          <div className={ui.grow}>
+            <label className={ui.label}>Attach schools</label>
             <SearchMultiPicker
               options={candidates.map((s) => ({
                 id: s.id,
@@ -1156,7 +1134,7 @@ function SchoolsSection({
             />
           </div>
           <button
-            style={{ ...primaryButton, opacity: picks.length === 0 || attach.isPending ? 0.6 : 1 }}
+            className={cat.primary}
             disabled={picks.length === 0 || attach.isPending}
             onClick={() => run(async () => {
               const failed: string[] = [];
@@ -1181,42 +1159,42 @@ function SchoolsSection({
         </div>
       )}
 
-      <div style={cardStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+      <div className={cat.tableWrap}>
+        <table className={`${cat.table} ${ui.table}`}>
+          <thead>
             <tr>
-              <th style={thStyle}>School</th>
-              <th style={thStyle}>{ZONE}</th>
-              <th style={thStyle}>State</th>
-              <th style={thStyle}>{IN_CHARGE}</th>
-              <th style={thStyle}>{ROLE_LABELS.ZONAL_MANAGER}</th>
-              {canManage && <th style={thStyle} />}
+              <th scope="col">School</th>
+              <th scope="col">{ZONE}</th>
+              <th scope="col">State</th>
+              <th scope="col">{IN_CHARGE}</th>
+              <th scope="col">{ROLE_LABELS.ZONAL_MANAGER}</th>
+              {canManage && <th scope="col"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={6}>Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={6}>Loading…</td></tr>}
             {!isLoading && attached.length === 0 && (
-              <tr><td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={6}>No schools attached.</td></tr>
+              <tr><td className={ui.muted} colSpan={6}>No schools attached.</td></tr>
             )}
             {attached.map((s) => (
               <tr
                 key={s.school_id}
-                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+               
                 {...(canOpenSchool ? rowNav(`/dashboard/schools/${s.school_id}`) : {})}
               >
-                <td style={tdStyle}>
-                  <EntityLink href={`/dashboard/schools/${s.school_id}`} permissions={[PERM.schools.view]}>
+                <td>
+                  <EntityLink href={`/dashboard/schools/${s.school_id}`} permissions={[PERM.schools.view]} style={LINK}>
                     {s.name}
                   </EntityLink>
                 </td>
-                <td style={tdStyle}>{s.district ?? "—"}</td>
-                <td style={tdStyle}>{s.state ?? "—"}</td>
-                <td style={tdStyle}>{s.fellow_name ?? "—"}</td>
-                <td style={tdStyle}>{s.zm_name ?? "—"}</td>
+                <td>{s.district ?? "—"}</td>
+                <td>{s.state ?? "—"}</td>
+                <td>{s.fellow_name ?? "—"}</td>
+                <td>{s.zm_name ?? "—"}</td>
                 {canManage && (
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                  <td className={ui.end}>
                     <button
-                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                      className={ui.dangerButton}
                       onClick={() => run(() => detach.mutateAsync({ id: programmeId, schoolId: s.school_id }))}
                     >
                       Detach
@@ -1296,13 +1274,13 @@ function BatchesSection({
   }
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>Batches</h2>
+    <section className={ui.section}>
+      <h3 className={ui.sectionTitle}>Batches</h3>
       {canManage && (
-        <div style={{ ...cardStyle, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 320px" }}>
-              <label style={formLabelStyle}>Add batches</label>
+        <div className={ui.panel}>
+          <div className={ui.panelRow}>
+            <div className={ui.grow}>
+              <label className={ui.label}>Add batches</label>
               <SearchMultiPicker
                 options={assignable.map((b) => ({
                   id: b.id,
@@ -1320,7 +1298,7 @@ function BatchesSection({
               />
             </div>
             <button
-              style={{ ...primaryButton, opacity: picks.length === 0 || attach.isPending ? 0.6 : 1 }}
+              className={cat.primary}
               disabled={picks.length === 0 || attach.isPending}
               onClick={() => run(async () => {
                 // The server reports what each attach actually cost. Discarding
@@ -1363,13 +1341,13 @@ function BatchesSection({
           </div>
 
           {checking && (
-            <div style={{ fontSize: 12, color: "rgba(3,72,82,0.5)" }}>Checking impact…</div>
+            <div role="status" className={ui.help}>Checking impact…</div>
           )}
           {impact !== null && picks.length > 0 && (impact.length > 0 || (!checking && !impactFailed)) && (
             <BatchImpactNotice items={impact} />
           )}
           {impactFailed && !checking && (
-            <div style={{ ...noticeStyle, borderColor: "#f59e0b", background: "rgba(245,158,11,0.06)" }}>
+            <div className={ui.warnNotice}>
               Could not check what attaching {picks.length === 1 ? "this batch" : "every selected batch"} would
               affect. Adding {picks.length === 1 ? "it" : "them"} may still remove edit rights from another
               programme.
@@ -1378,22 +1356,22 @@ function BatchesSection({
         </div>
       )}
 
-      <div style={cardStyle}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+      <div className={cat.tableWrap}>
+        <table className={`${cat.table} ${ui.table}`}>
+          <thead>
             <tr>
-              <th style={thStyle}>Batch</th>
-              <th style={thStyle}>School</th>
-              <th style={thStyle}>Courses</th>
-              <th style={thStyle}>Status</th>
-              {canManage && <th style={thStyle} />}
+              <th scope="col">Batch</th>
+              <th scope="col">School</th>
+              <th scope="col">Courses</th>
+              <th scope="col">Status</th>
+              {canManage && <th scope="col"><span className="sr-only">Actions</span></th>}
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td style={tdStyle} colSpan={5}>Loading…</td></tr>}
+            {isLoading && <tr><td colSpan={5}>Loading…</td></tr>}
             {!isLoading && attached.length === 0 && (
               <tr>
-                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={5}>
+                <td className={ui.muted} colSpan={5}>
                   No batches in this programme yet.
                 </td>
               </tr>
@@ -1401,21 +1379,21 @@ function BatchesSection({
             {attached.map((b) => (
               <tr
                 key={b.id}
-                style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}
+               
                 {...(canOpenBatch ? rowNav(`/dashboard/batches/${b.id}`) : {})}
               >
-                <td style={tdStyle}>
-                  <EntityLink href={`/dashboard/batches/${b.id}`} permissions={[PERM.batches.view]}>
+                <td>
+                  <EntityLink href={`/dashboard/batches/${b.id}`} permissions={[PERM.batches.view]} style={LINK}>
                     {b.name}
                   </EntityLink>
                 </td>
-                <td style={tdStyle}>{b.school_name ?? "—"}</td>
-                <td style={tdStyle}>{b.course_count}</td>
-                <td style={tdStyle}>{b.status ?? "—"}</td>
+                <td>{b.school_name ?? "—"}</td>
+                <td>{b.course_count}</td>
+                <td>{b.status ?? "—"}</td>
                 {canManage && (
-                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                  <td className={ui.end}>
                     <button
-                      style={{ ...linkBtnStyle, color: "#b91c1c" }}
+                      className={ui.dangerButton}
                       onClick={() => run(() => detach.mutateAsync({ id: programmeId, batchId: b.id }))}
                     >
                       Remove
@@ -1440,11 +1418,17 @@ function DangerSection({
   const archived = status === "ARCHIVED";
 
   return (
-    <section style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-      <h2 style={{ ...titleStyle, fontSize: 17 }}>{archived ? "Restore" : "Archive"}</h2>
-      <div style={{ ...cardStyle, padding: 16, display: "flex", justifyContent: "flex-start", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+    <section className={ui.section}>
+      <h3 className={ui.sectionTitle}>{archived ? "Restore" : "Archive"}</h3>
+      <div className={`${ui.panel} ${ui.panelRow}`} style={{ alignItems: "center" }}>
+        <p className={ui.help} style={{ flex: "1 1 18rem", fontSize: "0.8125rem" }}>
+          {archived
+            ? "Restoring makes the programme active again, so editors regain edit access to its content."
+            : "Archiving keeps everything attached but stops editors from changing its content until it is restored."}
+        </p>
         <button
-          style={archived ? primaryButton : { ...secondaryButton, color: "#b91c1c", borderColor: "rgba(185,28,28,0.3)" }}
+          type="button"
+          className={archived ? cat.primary : `${cat.secondary} ${ui.dangerOutline}`}
           disabled={update.isPending}
           onClick={async () => {
             onError(null);
