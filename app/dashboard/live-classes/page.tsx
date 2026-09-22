@@ -8,6 +8,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { joinLiveClass, deleteLiveClass, type LiveClass } from "@/lib/api";
+import { openMeetingTab } from "@/lib/meeting-tab";
 import { useLiveClasses } from "@/lib/queries/live-classes";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { ClassRoster } from "./_components/ClassRoster";
@@ -109,20 +110,17 @@ function LiveClassesInner() {
 
   async function handleJoin(cls: LiveClass) {
     setJoining(cls.id);
-    // Opened BEFORE the await, while we still hold the user's gesture. Calling
-    // window.open() after an awaited request puts it outside that window, so
-    // Android and most blockers refuse it — and by then the join has already
-    // been recorded as the attendance mark. Present, but never in the class.
-    const tab = window.open("", "_blank", "noopener,noreferrer");
+    let url = "";
     try {
-      const { meeting_url } = await joinLiveClass(cls.id, userId);
-      if (tab && !tab.closed) tab.location.href = meeting_url;
-      else setBlockedUrl(meeting_url); // blocked anyway — hand them the link
+      const opened = await openMeetingTab(async () => {
+        url = (await joinLiveClass(cls.id, userId)).meeting_url;
+        return url;
+      });
+      if (!opened) setBlockedUrl(url); // blocked anyway — hand them the link
       // For an online class the click IS the attendance mark, so the list's own
       // status has to be refetched rather than left showing the old answer.
       invalidate("liveClassAttendance");
     } catch (e) {
-      tab?.close();
       toast.error(e instanceof Error ? e.message : "Could not join.");
     } finally {
       setJoining(null);
