@@ -165,10 +165,14 @@ export default function Sidebar({
     });
   }, [groupCount]);
 
-  // A group holding the active route is forced open, whatever the stored state.
-  const isGroupOpen = (group: (typeof groups)[number]) =>
-    group.modules.some((m) => isActivePath(pathname, m.href)) ||
-    storedOpen[group.key];
+  // Navigating into a group opens it (after the stored state loads), but it is
+  // not forced: the header can still collapse it while a child is active.
+  const activeGroupKey = groups.find((g) => g.modules.some((m) => isActivePath(pathname, m.href)))?.key;
+  useEffect(() => {
+    if (activeGroupKey) setStoredOpen((prev) => (prev[activeGroupKey] ? prev : { ...prev, [activeGroupKey]: true }));
+  }, [activeGroupKey, groupCount]);
+
+  const isGroupOpen = (group: (typeof groups)[number]) => storedOpen[group.key];
 
   const toggleGroup = (group: (typeof groups)[number]) => {
     const next = !storedOpen[group.key];

@@ -125,6 +125,15 @@ describe("Sidebar LMS group", () => {
     expect(screen.getByRole("button", { name: /management/i }).getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("lets the header collapse the group even while one of its children is active", () => {
+    mockPathname = "/dashboard/courses";
+    render(<Sidebar />);
+    const header = screen.getByRole("button", { name: /^lms$/i });
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(header);
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("toggling the header persists open state to localStorage", () => {
     mockPathname = "/dashboard"; // not an LMS child, so toggle governs visibility
     render(<Sidebar />);
