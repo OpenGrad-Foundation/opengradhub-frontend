@@ -226,8 +226,8 @@ export default function Sidebar({
       {/* Logo + collapse toggle + mobile close */}
       <div
         className={
-          "flex h-[calc(var(--dashboard-header-top,1.75rem)+2.75rem)] shrink-0 items-center gap-2 px-4 pt-2 " +
-          (collapsed ? "lg:px-3 lg:justify-center" : "justify-between")
+          "relative flex h-[calc(var(--dashboard-header-top,1.75rem)+2.75rem)] shrink-0 items-center justify-center px-4 " +
+          (collapsed ? "lg:px-3" : "")
         }
       >
         <Link
@@ -249,7 +249,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--color-text-muted)] opacity-70 transition hover:border-[var(--color-border)] hover:bg-white hover:text-[var(--color-text)] hover:opacity-100"
+            className={"hidden lg:flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--color-text-muted)] opacity-70 transition hover:border-[var(--color-border)] hover:bg-white hover:text-[var(--color-text)] hover:opacity-100 " + (collapsed ? "" : "lg:absolute lg:right-3")}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
@@ -259,7 +259,7 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onClose}
-            className="lg:hidden -mr-1 flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]"
+            className="lg:hidden absolute right-3 flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]"
             aria-label="Close sidebar"
           >
             <X size={20} />

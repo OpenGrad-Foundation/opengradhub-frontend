@@ -1,5 +1,6 @@
 "use client";
 
+import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CalendarDays, ClipboardList, FileText, Palmtree, Pencil, Pin, Plus, Video, Wrench, X } from "lucide-react";
@@ -74,11 +75,11 @@ export default function CalendarPage() {
   return (
     <div>
       {canCreate && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "24px" }}>
-          <button onClick={() => setShowCreate(true)} style={primaryBtn}>
-            <Plus size={18} aria-hidden="true" />Add Event
+        <HeaderActions>
+          <button type="button" onClick={() => setShowCreate(true)} style={primaryBtn}>
+            <Plus size={18} aria-hidden="true" /><span className="hidden sm:inline">Add event</span><span className="sr-only sm:hidden">Add event</span>
           </button>
-        </div>
+        </HeaderActions>
       )}
 
       {error && (

@@ -12,9 +12,10 @@ type WorkspaceHeaderProps = {
   actions?: ReactNode;
   onMenuClick?: () => void;
   sidebarOpen?: boolean;
+  actionsSlotRef?: (el: HTMLElement | null) => void;
 };
 
-export default function WorkspaceHeader({ title, subtitle, subtitleLabel, actions, onMenuClick, sidebarOpen = false }: WorkspaceHeaderProps) {
+export default function WorkspaceHeader({ title, subtitle, subtitleLabel, actions, onMenuClick, sidebarOpen = false, actionsSlotRef }: WorkspaceHeaderProps) {
   const headerRef = useRef<HTMLElement>(null);
   const pillRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLDivElement>(null);
@@ -97,6 +98,7 @@ export default function WorkspaceHeader({ title, subtitle, subtitleLabel, action
               {subtitle && <p className="mt-3 break-words text-sm font-medium leading-relaxed text-[var(--color-text-muted)] lg:hidden">{subtitle}</p>}
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
+              <div ref={actionsSlotRef} className="flex items-center gap-1.5 sm:gap-3 empty:hidden" />
               {actions}
               <NotificationBell />
             </div>

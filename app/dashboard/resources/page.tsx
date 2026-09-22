@@ -1,5 +1,6 @@
 "use client";
 
+import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -60,14 +61,7 @@ function ResourcesPageContent() {
       {focus && <p style={{ marginBlock: 12, fontSize: 14, color: "var(--color-text-muted)" }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
       {/* ── Header ──────────────────────────────────────────── */}
       {canCreate && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            margin: "16px 0 24px",
-          }}
-        >
+        <HeaderActions>
           <button
             id="add-resource-btn"
             onClick={() => {
@@ -80,7 +74,7 @@ function ResourcesPageContent() {
               ? <><X size={18} aria-hidden="true" />Cancel</>
               : <><Plus size={18} aria-hidden="true" />Add Resource</>}
           </button>
-        </div>
+        </HeaderActions>
       )}
 
       {/* ── Create form ─────────────────────────────────────── */}

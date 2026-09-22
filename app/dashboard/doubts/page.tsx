@@ -1,5 +1,6 @@
 "use client";
 
+import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { ArrowLeft, Plus, X } from "lucide-react";
@@ -85,14 +86,15 @@ function DoubtsPageContent() {
       <BackLink fallback="/dashboard" style={backLinkStyle}><ArrowLeft size={18} aria-hidden="true" />Back</BackLink>
       {/* ── Header ─────────────────────────────────────────── */}
       {canSubmit && (
-        <div style={{ display: "flex", justifyContent: "flex-end", margin: "16px 0 24px" }}>
+        <HeaderActions>
           <button
+            type="button"
             style={primaryButton}
             onClick={() => setShowModal(true)}
           >
             <Plus size={18} aria-hidden="true" />Ask a Question
           </button>
-        </div>
+        </HeaderActions>
       )}
 
       {/* ── Submit Modal ────────────────────────────────────── */}

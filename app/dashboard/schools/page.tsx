@@ -1,5 +1,6 @@
 "use client";
 
+import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Upload } from "lucide-react";
@@ -59,8 +60,7 @@ export default function SchoolsPage() {
   return (
     <div>
       {(canCreate || canBulk) && (
-      <div className="flex justify-end mb-7">
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+      <HeaderActions>
           {canCreate && (
             <button onClick={() => { setShowAdd(true); setShowBulk(false); }} style={primaryButton}>
               <Plus size={18} aria-hidden="true" />Add School
@@ -71,8 +71,7 @@ export default function SchoolsPage() {
               <Upload size={18} aria-hidden="true" />Bulk Upload
             </button>
           )}
-        </div>
-      </div>
+      </HeaderActions>
       )}
 
       {showAdd && (

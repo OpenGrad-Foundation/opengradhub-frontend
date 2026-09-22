@@ -7,6 +7,7 @@ import { Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import PMDashboardHeader from "./dashboard/roles/program-manager/Header";
 import WorkspaceHeader from "./dashboard/WorkspaceHeader";
+import { HeaderActionsSlot } from "./dashboard/HeaderActions";
 import NotificationBell from "./NotificationBell";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { DashboardRouteGuard } from "@/components/require-permission";
@@ -24,6 +25,7 @@ export default function DashboardShell({
   const isProgramDashboard = pathname === "/dashboard" && currentUser?.role.code === "PROGRAM_MANAGER";
   const workspaceTitle = currentUser ? workspaceTitleFor(pathname, currentUser.permissions ?? []) : null;
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -108,14 +110,14 @@ export default function DashboardShell({
           {isProgramDashboard ? (
             <PMDashboardHeader userId={currentUser.user.id} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} />
           ) : workspaceTitle ? (
-            <WorkspaceHeader key={pathname} title={workspaceTitle} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} />
+            <WorkspaceHeader key={pathname} title={workspaceTitle} onMenuClick={() => setSidebarOpen(true)} sidebarOpen={sidebarOpen} actionsSlotRef={setActionsSlot} />
           ) : <div className="pt-[calc(var(--dashboard-header-top)-1.5rem)] sm:pt-[calc(var(--dashboard-header-top)-2rem)]">
           <button type="button" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar" aria-controls="dashboard-navigation" aria-expanded={sidebarOpen} className="float-left mr-3 flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--color-border)] bg-white text-[var(--dark-teal)] lg:hidden">
             <Menu size={20} aria-hidden="true" />
           </button>
           {currentUser?.user.id && <div className="relative z-20 float-right ml-3"><NotificationBell /></div>}
           </div>}
-          <DashboardRouteGuard>{children}</DashboardRouteGuard>
+          <HeaderActionsSlot.Provider value={workspaceTitle ? actionsSlot : null}><DashboardRouteGuard>{children}</DashboardRouteGuard></HeaderActionsSlot.Provider>
         </main>
       </div>
     </div>
