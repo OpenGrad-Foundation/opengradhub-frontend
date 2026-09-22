@@ -6,6 +6,7 @@ import { qk } from "@/lib/queries/keys";
 const FIVE_MIN = 5 * 60_000;
 
 export type OverviewWidgets = {
+  scopeLabel?: string;
   stats: Array<{ key: string; label: string; value: number; helper?: string; href?: string; tone?: "danger" }>;
   chart: {
     title: string;

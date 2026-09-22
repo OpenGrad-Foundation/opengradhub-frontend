@@ -67,22 +67,12 @@ export default function ProgrammeInsights() {
       {/* Header */}
       <div
         style={{
-          background: "#ffffff", borderRadius: "24px",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-          padding: "clamp(20px, 4vw, 28px) clamp(20px, 5vw, 36px)", marginBottom: "24px",
+          background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px",
+          padding: "clamp(16px,4vw,24px)", marginBottom: "24px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
           gap: "16px", flexWrap: "wrap",
         }}
       >
-        <div>
-          <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", letterSpacing: "0.28em", textTransform: "uppercase", marginBottom: "6px" }}>
-            Analytics
-          </p>
-          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "26px", fontWeight: 700, color: "#034852", margin: 0 }}>
-            Programme Insights
-          </h1>
-        </div>
-
         <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
           <ScopeChip scope={selectedProgramme ? { ...data.scope, label: selectedProgramme.name } : data.scope} />
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -96,7 +86,7 @@ export default function ProgrammeInsights() {
                 }}
                 options={(programmesQ.data ?? []).map(p => ({ value: p.id, label: p.name }))}
               />
-              {programmesQ.error && <p role="alert" className="self-center text-sm text-red-700">Could not load programmes. <button type="button" className="underline" onClick={() => void programmesQ.refetch()}>Retry</button></p>}
+              {programmesQ.error && <p role="alert" className="self-center text-sm" style={{ color: "#b83232" }}>Could not load programmes. <button type="button" className="underline" onClick={() => void programmesQ.refetch()}>Retry</button></p>}
               <SearchableSelect
                 placeholder="All states"
                 value={state}
@@ -128,9 +118,9 @@ export default function ProgrammeInsights() {
 
       {noSeats && (
         <div style={{
-          background: "#ffffff", borderRadius: "24px", padding: "32px",
-          marginBottom: "24px", textAlign: "center", color: "rgba(3,72,82,0.65)",
-          fontSize: "14px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px",
+          padding: "clamp(16px,4vw,24px)", marginBottom: "24px", textAlign: "center",
+          color: "var(--color-text-muted)", fontSize: "14px",
         }}>
           You&rsquo;re not seated in any programme yet, so there is nothing to show here.
           Ask a programme manager to add you.
@@ -154,11 +144,11 @@ export default function ProgrammeInsights() {
 function Spinner() {
   return (
     <div style={{ minHeight: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>Loading insights…</p>
+      <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading insights…</p>
     </div>
   );
 }
 
 function Err({ msg }: { msg: string }) {
-  return <div style={{ padding: "24px", color: "#c0392b", fontSize: "14px" }}>Error: {msg}</div>;
+  return <div style={{ padding: "24px", color: "#b83232", fontSize: "14px" }}>Error: {msg}</div>;
 }

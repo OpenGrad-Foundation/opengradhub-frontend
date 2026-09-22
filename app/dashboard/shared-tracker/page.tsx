@@ -8,7 +8,6 @@ import { useUrlFilters } from "@/lib/filters/use-url-filters";
 import { FilterBar } from "@/app/dashboard/tracker/_components/filter-bar";
 import { partnerFilterSpec } from "@/app/dashboard/tracker/_components/filter-specs";
 import type { PartnerLifecycle, PartnerTaskRow } from "@/lib/tracker-api";
-import { PARTNER_TRACKER_NAME } from "@/lib/labels";
 import { PartnerDrill } from "./_components/partner-drill";
 
 /**
@@ -26,9 +25,9 @@ import { PartnerDrill } from "./_components/partner-drill";
  */
 
 const CARDS: { key: PartnerLifecycle; label: string; tone: string }[] = [
-  { key: "done", label: "Done", tone: "border-teal-200 bg-teal-50 text-teal-900" },
+  { key: "done", label: "Done", tone: "border-teal-200 bg-[var(--color-success-surface)] text-teal-900" },
   { key: "in_progress", label: "In progress", tone: "border-blue-200 bg-blue-50 text-blue-900" },
-  { key: "not_started", label: "Not started", tone: "border-gray-200 bg-gray-50 text-gray-700" },
+  { key: "not_started", label: "Not started", tone: "border-[var(--color-border)] bg-[#eef5f3] text-[var(--color-text)]" },
   { key: "overdue", label: "Overdue", tone: "border-amber-200 bg-amber-50 text-amber-900" },
   { key: "blocked", label: "Blocked", tone: "border-red-200 bg-red-50 text-red-900" },
 ];
@@ -63,8 +62,6 @@ export default function SharedTrackerPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-lg font-semibold text-gray-900">{PARTNER_TRACKER_NAME}</h1>
-
       <div className="flex flex-wrap gap-2">
         {CARDS.map((c) => {
           const n = data?.stateCounts?.[c.key] ?? 0;
@@ -74,7 +71,7 @@ export default function SharedTrackerPage() {
               key={c.key}
               onClick={() => set({ status: on ? undefined : c.key })}
               aria-pressed={on}
-              className={`rounded-lg border px-4 py-2 text-left ${c.tone} ${on ? "ring-2 ring-teal-500 ring-offset-1" : ""}`}
+              className={`rounded-xl border px-4 py-2 text-left ${c.tone} ${on ? "ring-2 ring-teal-500 ring-offset-1" : ""}`}
             >
               <div className="text-xl font-semibold">{n}</div>
               <div className="text-xs">{c.label}</div>
@@ -94,7 +91,7 @@ export default function SharedTrackerPage() {
 
       {isLoading && !data ? (
         <div className="flex min-h-32 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
         </div>
       ) : rows.length === 0 ? (
         // Two different empty states. "Nothing shared with you" is a fact about the
@@ -102,21 +99,21 @@ export default function SharedTrackerPage() {
         // filters and needs a way out. Showing the first while filters are active
         // would tell an official the programme has nothing, which is a lie.
         activeCount > 0 ? (
-          <div className="rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600">
+          <div className="rounded-xl border border-[var(--color-border)] bg-white p-6 text-sm text-[var(--color-text-muted)]">
             No shared tasks match these filters.{" "}
-            <button onClick={clear} className="font-medium text-teal-700 underline">Clear filters</button>
+            <button onClick={clear} className="font-medium text-[var(--teal)] underline">Clear filters</button>
           </div>
         ) : (
-          <div className="rounded-lg border border-gray-200 bg-white p-6">
-            <p className="max-w-prose text-sm text-gray-600">
+          <div className="rounded-xl border border-[var(--color-border)] bg-white p-6">
+            <p className="max-w-prose text-sm text-[var(--color-text-muted)]">
               Nothing has been shared with you yet. Programme managers choose which tasks to
               share, one at a time — once they do, the progress appears here.
             </p>
           </div>
         )
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white">
-          <ul className="divide-y divide-gray-100">
+        <div className="rounded-xl border border-[var(--color-border)] bg-white">
+          <ul className="divide-y divide-[var(--color-border)]">
             {rows.map((t) => {
               const pct = t.total === 0 ? 0 : Math.round((t.done / t.total) * 100);
               const open = openTask?.template_id === t.template_id;
@@ -124,19 +121,19 @@ export default function SharedTrackerPage() {
                 <li key={t.template_id}>
                   <button
                     onClick={() => setOpenTask(open ? null : t)}
-                    className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-gray-50"
+                    className="flex w-full items-center gap-4 px-5 py-4 text-left hover:bg-[#eef5f3]"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-gray-900">{t.name}</div>
-                      <div className="truncate text-xs text-gray-500">
+                      <div className="truncate text-sm font-medium text-[var(--color-text)]">{t.name}</div>
+                      <div className="truncate text-xs text-[var(--color-text-muted)]">
                         {t.programme_name}{t.description ? ` · ${t.description}` : ""}
                       </div>
                     </div>
                     <div className="w-40 shrink-0">
-                      <div className="h-2 rounded-full bg-gray-100">
-                        <div className="h-2 rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+                      <div className="h-2 rounded-full bg-[#eef5f3]">
+                        <div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${pct}%` }} />
                       </div>
-                      <div className="mt-1 text-right text-xs text-gray-600">
+                      <div className="mt-1 text-right text-xs text-[var(--color-text-muted)]">
                         {t.total === 0 ? "not yet assigned" : `${t.done} of ${t.total}`}
                       </div>
                     </div>
@@ -147,7 +144,7 @@ export default function SharedTrackerPage() {
                   </button>
 
                   {open && (
-                    <div className="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-4">
+                    <div className="flex flex-col gap-3 border-t border-[var(--color-border)] bg-[#eef5f3]/60 px-5 py-4">
                       <PartnerDrill task={t} filters={debounced} />
                     </div>
                   )}
@@ -160,14 +157,14 @@ export default function SharedTrackerPage() {
 
       {data && data.total > data.limit && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">
+          <span className="text-[var(--color-text-muted)]">
             {(data.page - 1) * data.limit + 1}–{Math.min(data.page * data.limit, data.total)} of {data.total} tasks
           </span>
           <div className="flex gap-2">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-                    className="rounded-md border border-gray-200 px-3 py-1 disabled:opacity-40">Previous</button>
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 disabled:opacity-40">Previous</button>
             <button disabled={page >= pages} onClick={() => setPage(page + 1)}
-                    className="rounded-md border border-gray-200 px-3 py-1 disabled:opacity-40">Next</button>
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 disabled:opacity-40">Next</button>
           </div>
         </div>
       )}

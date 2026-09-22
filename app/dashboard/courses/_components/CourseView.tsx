@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Check, ChevronDown, ChevronRight, Lock, PencilLine, Play } from "lucide-react";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { QuizQuestions } from "@/components/quiz-material-view";
 import type { Course, ModuleWithProgress, LessonWithProgress } from "@/lib/api";
@@ -67,23 +68,23 @@ export function CourseView({
             </div>
             <h1 style={{ ...S.heading, fontSize: "24px", margin: "0 0 8px" }}>{course.title}</h1>
             {course.description && (
-              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", margin: 0, lineHeight: 1.6 }}>{course.description}</p>
+              <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: 0, lineHeight: 1.6 }}>{course.description}</p>
             )}
           </div>
 
           {/* Progress summary (learners) / preview badge (staff) */}
           {headerAside ?? (isPreview ? (
             <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
-              <span style={badgeStyle}>STAFF PREVIEW</span>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "8px 0 0" }}>{totalLessons} lessons</p>
+              <span style={badgeStyle}>Staff preview</span>
+              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "8px 0 0" }}>{totalLessons} lessons</p>
             </div>
           ) : (
             <div style={{ flexShrink: 0, textAlign: "right", minWidth: "110px" }}>
               <p style={{ ...S.label, marginBottom: "6px" }}>Progress</p>
-              <p style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: pct === 100 ? "#0abe62" : "#034852", margin: 0 }}>{pct}%</p>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "4px 0 10px" }}>{completedLessons} / {totalLessons} lessons</p>
-              <div style={{ height: "6px", borderRadius: "3px", background: "rgba(3,72,82,0.1)", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${pct}%`, borderRadius: "3px", background: pct === 100 ? "#0abe62" : "linear-gradient(90deg, #0abe62, #209379)", transition: "width 600ms ease" }} />
+              <p style={{ fontSize: "28px", fontWeight: 700, color: pct === 100 ? "#08784a" : "var(--color-text)", margin: 0 }}>{pct}%</p>
+              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 10px" }}>{completedLessons} / {totalLessons} lessons</p>
+              <div style={{ height: "6px", borderRadius: "3px", background: "var(--color-border)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${pct}%`, borderRadius: "3px", background: "var(--green)", transition: "width 600ms ease" }} />
               </div>
             </div>
           ))}
@@ -93,7 +94,7 @@ export function CourseView({
       {/* ── Modules list ──────────────────────────────────── */}
       {modules.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
-          <p style={S.label}>No Content</p>
+          <p style={S.label}>No content</p>
           <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>No lessons added yet.</p>
         </div>
       ) : (
@@ -151,19 +152,19 @@ function ModuleSection({ module, courseId, isSequential, isPreview, variant, qui
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <h2 style={{ ...S.heading, fontSize: "17px", margin: 0 }}>{module.title}</h2>
-          {isModuleLocked && <span style={{ fontSize: "14px" }}>🔒</span>}
+          {isModuleLocked && <Lock size={14} aria-hidden="true" style={{ color: "var(--color-text-muted)" }} />}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {isPreview ? (
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>
+            <span style={{ fontSize: "12px", color: "var(--color-text-muted)", fontWeight: 600 }}>
               {items.length} item{items.length !== 1 ? "s" : ""}
             </span>
           ) : (
             <>
-              <span style={{ fontSize: "12px", color: allDone ? "#0abe62" : "rgba(3,72,82,0.5)", fontWeight: 600 }}>
+              <span style={{ fontSize: "12px", color: allDone ? "#08784a" : "var(--color-text-muted)", fontWeight: 600 }}>
                 {done} / {total} lessons complete
               </span>
-              {allDone && <span style={{ fontSize: "14px" }}>✓</span>}
+              {allDone && <Check size={14} aria-hidden="true" style={{ color: "#08784a" }} />}
             </>
           )}
         </div>
@@ -171,17 +172,18 @@ function ModuleSection({ module, courseId, isSequential, isPreview, variant, qui
 
       {isModuleLocked && (
         <div style={{
-          padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
-          background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.08)",
-          fontSize: "12px", color: "rgba(3,72,82,0.5)", textAlign: "center",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+          padding: "10px 14px", borderRadius: "8px", marginBottom: "12px",
+          background: "var(--color-surface-sunken)", border: "1px solid var(--color-border)",
+          fontSize: "12px", color: "var(--color-text-muted)", textAlign: "center",
         }}>
-          🔒 Complete &ldquo;{prevModuleTitle}&rdquo; to unlock this module
+          <Lock size={12} aria-hidden="true" /> Complete &ldquo;{prevModuleTitle}&rdquo; to unlock this module
         </div>
       )}
 
       {/* Items */}
       {items.length === 0 ? (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", margin: 0 }}>No content in this module.</p>
+        <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>No content in this module.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
           {items.map((item, idx) => {
@@ -249,7 +251,7 @@ function LessonRow({ lesson, index, courseId, isLast, isLocked, lockTooltip, cur
       style={{
         display: "flex", alignItems: "center", gap: "12px",
         padding: "12px 4px",
-        borderBottom: isLast && !open ? "none" : "1px solid rgba(3,72,82,0.06)",
+        borderBottom: isLast && !open ? "none" : "1px solid var(--color-border)",
         opacity: isLocked ? 0.5 : 1,
         cursor: isLocked ? "not-allowed" : "pointer",
         transition: "background 150ms ease",
@@ -263,21 +265,21 @@ function LessonRow({ lesson, index, courseId, isLast, isLocked, lockTooltip, cur
       <div style={{
         width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: lesson.is_complete ? "rgba(10,190,98,0.12)" : "rgba(3,72,82,0.06)",
-        border: `1.5px solid ${lesson.is_complete ? "#0abe62" : "rgba(3,72,82,0.15)"}`,
+        background: lesson.is_complete ? "rgba(10,190,98,0.12)" : "var(--color-surface)",
+        border: `1.5px solid ${lesson.is_complete ? "#08784a" : "var(--color-border-strong)"}`,
         fontSize: "11px",
-        color: lesson.is_complete ? "#0abe62" : "rgba(3,72,82,0.3)",
+        color: lesson.is_complete ? "#08784a" : "var(--color-text-muted)",
       }}>
-        {lesson.is_complete ? "✓" : (index + 1)}
+        {lesson.is_complete ? <Check size={12} aria-hidden="true" /> : (index + 1)}
       </div>
 
       {/* Title + duration */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.3 }}>
+        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)", lineHeight: 1.3 }}>
           {lesson.title}
         </p>
         {lesson.duration_minutes && (
-          <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
+          <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-muted)" }}>
             {lesson.duration_minutes} min
           </p>
         )}
@@ -285,9 +287,9 @@ function LessonRow({ lesson, index, courseId, isLast, isLocked, lockTooltip, cur
 
       {/* Lock / play icon */}
       {isLocked ? (
-        <span style={{ fontSize: "16px", color: "rgba(3,72,82,0.3)", flexShrink: 0 }}>🔒</span>
+        <Lock size={16} aria-hidden="true" style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
       ) : (
-        <span style={{ fontSize: "14px", color: "#209379", flexShrink: 0 }}>{isMaterial ? (open ? "▾" : "▸") : "▶"}</span>
+        <span style={iconSlot}>{isMaterial ? (open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />) : <Play size={14} aria-hidden="true" />}</span>
       )}
 
       {/* Tooltip */}
@@ -312,13 +314,13 @@ function LessonRow({ lesson, index, courseId, isLast, isLocked, lockTooltip, cur
         {open && (
           <div style={panelStyle}>
             {lesson.youtube_url && (
-              <a href={lesson.youtube_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#209379", fontWeight: 600 }}>
+              <a href={lesson.youtube_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#08784a", fontWeight: 600 }}>
                 Open lesson video ↗
               </a>
             )}
             {lesson.notes_html
-              ? <MathContent html={lesson.notes_html} style={{ fontSize: "14px", color: "#034852" }} />
-              : <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.45)" }}>This lesson has no notes.</p>}
+              ? <MathContent html={lesson.notes_html} style={{ fontSize: "14px", color: "var(--color-text)" }} />
+              : <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>This lesson has no notes.</p>}
           </div>
         )}
       </div>
@@ -355,7 +357,7 @@ function QuizRow({ quiz, isLast, isPreview, isLocked, lockTooltip, currentUrl, v
       style={{
         display: "flex", alignItems: "center", gap: "12px",
         padding: "12px 4px",
-        borderBottom: isLast && !open ? "none" : "1px solid rgba(3,72,82,0.06)",
+        borderBottom: isLast && !open ? "none" : "1px solid var(--color-border)",
         opacity: isLocked ? 0.5 : 1,
         cursor: isMaterial ? "pointer" : isPreview ? "default" : isLocked ? "not-allowed" : "pointer",
         transition: "background 150ms ease",
@@ -368,25 +370,25 @@ function QuizRow({ quiz, isLast, isPreview, isLocked, lockTooltip, currentUrl, v
       <div style={{
         width: "22px", height: "22px", borderRadius: "50%", flexShrink: 0,
         display: "flex", alignItems: "center", justifyContent: "center",
-        background: quiz.is_complete ? "rgba(10,190,98,0.12)" : isLocked ? "rgba(3,72,82,0.06)" : "rgba(10,190,98,0.1)",
-        border: `1.5px solid ${quiz.is_complete ? "#0abe62" : isLocked ? "rgba(3,72,82,0.15)" : "#0abe62"}`,
-        fontSize: "11px", color: quiz.is_complete ? "#0abe62" : isLocked ? "rgba(3,72,82,0.3)" : "#0abe62", fontWeight: 700,
+        background: quiz.is_complete ? "rgba(10,190,98,0.12)" : isLocked ? "var(--color-surface)" : "rgba(10,190,98,0.1)",
+        border: `1.5px solid ${isLocked && !quiz.is_complete ? "var(--color-border-strong)" : "#08784a"}`,
+        fontSize: "11px", color: isLocked && !quiz.is_complete ? "var(--color-text-muted)" : "#08784a", fontWeight: 700,
       }}>
-        {quiz.is_complete ? "✓" : "✎"}
+        {quiz.is_complete ? <Check size={12} aria-hidden="true" /> : <PencilLine size={12} aria-hidden="true" />}
       </div>
       <div style={{ flex: 1 }}>
-        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852" }}>
+        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "var(--color-text)" }}>
           {quiz.title}
         </p>
-        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>
+        <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--color-text-muted)" }}>
           Module quiz
         </p>
       </div>
       {isMaterial ? (
-        <span style={{ fontSize: "14px", color: "#209379", flexShrink: 0 }}>{open ? "▾" : "▸"}</span>
+        <span style={iconSlot}>{open ? <ChevronDown size={16} aria-hidden="true" /> : <ChevronRight size={16} aria-hidden="true" />}</span>
       ) : !isPreview && (
-        <span style={{ fontSize: "14px", color: isLocked ? "rgba(3,72,82,0.3)" : "#209379", flexShrink: 0 }}>
-          {isLocked ? "🔒" : "▶"}
+        <span style={{ ...iconSlot, color: isLocked ? "var(--color-text-muted)" : iconSlot.color }}>
+          {isLocked ? <Lock size={16} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
         </span>
       )}
       {tooltip && lockTooltip && (
@@ -433,9 +435,9 @@ function QuizRow({ quiz, isLast, isPreview, isLocked, lockTooltip, currentUrl, v
 function Pill({ children }: { children: React.ReactNode }) {
   return (
     <span style={{
-      display: "inline-block", padding: "3px 10px", borderRadius: "100px",
-      fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
-      background: "rgba(32,147,121,0.12)", color: "#209379",
+      display: "inline-block", padding: "3px 8px", borderRadius: "6px",
+      fontSize: "12px", fontWeight: 600,
+      background: "rgba(32,147,121,0.12)", color: "#08784a",
     }}>
       {children}
     </span>
@@ -445,43 +447,49 @@ function Pill({ children }: { children: React.ReactNode }) {
 // ── Styles ─────────────────────────────────────────────────────
 
 export const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "28px 32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
+
+const iconSlot: React.CSSProperties = { display: "inline-flex", color: "#08784a", flexShrink: 0 };
 
 const panelStyle: React.CSSProperties = {
   padding: "12px 16px 16px 34px",
-  borderBottom: "1px solid rgba(3,72,82,0.06)",
+  borderBottom: "1px solid var(--color-border)",
   display: "flex", flexDirection: "column", gap: "10px",
 };
 
 const badgeStyle: React.CSSProperties = {
-  display: "inline-block", padding: "4px 12px", borderRadius: "100px",
-  fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
-  background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.6)",
+  display: "inline-block", padding: "3px 8px", borderRadius: "6px",
+  fontSize: "12px", fontWeight: 600,
+  background: "var(--color-surface-sunken)", color: "var(--color-text-muted)",
 };
 
 const tooltipStyle: React.CSSProperties = {
   position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
   transform: "translateX(-50%)",
-  background: "#034852", color: "#fff", borderRadius: "8px",
+  background: "var(--color-text)", color: "var(--color-surface)", borderRadius: "8px",
   padding: "6px 12px", fontSize: "12px", whiteSpace: "nowrap",
   pointerEvents: "none", zIndex: 10,
-  boxShadow: "0 4px 12px rgba(3,72,82,0.3)",
 };
 
 export const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
+    fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+    fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
   primaryBtn: {
-    padding: "10px 20px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-    fontSize: "13px", cursor: "pointer",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px",
+    background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600,
+    fontSize: "14px", cursor: "pointer", textDecoration: "none",
+  } as React.CSSProperties,
+  secondaryBtn: {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 16px", border: "1px solid var(--color-border)", borderRadius: "12px",
+    background: "var(--color-surface)", color: "var(--color-text)", fontWeight: 600,
+    fontSize: "14px", cursor: "pointer", textDecoration: "none",
   } as React.CSSProperties,
 };

@@ -8,7 +8,7 @@ import { EntityLink } from "@/app/dashboard/programmes/_components/entity-link";
 import { TASK_STATE_META, taskStateFromLifecycle, type StateTone } from "@/lib/tracker-status";
 import { SectionCard, BRAND, th, td, muted, link, formatDate } from "./section-card";
 
-const TONE_COLOR: Record<StateTone, string> = { green: "#0abe62", gray: "rgba(3,72,82,0.55)", amber: "#b7791f", red: BRAND.red };
+const TONE_COLOR: Record<StateTone, string> = { green: "#08784a", gray: "var(--color-text-muted)", amber: "#b7791f", red: BRAND.red };
 const viewAll = (href: string) => <Link href={href} style={{ ...link, fontSize: "12px" }}>View all →</Link>;
 const profileHref = (id: string) => `/dashboard/user-management/${id}`;
 
@@ -60,7 +60,7 @@ export function TasksSection({ tracker, viewAllHref }: { tracker: NonNullable<St
                     </td>
                     <td style={td}>{t.target_name ?? t.school_name ?? "—"}</td>
                     <td style={td}>{formatDate(t.deadline)}</td>
-                    <td style={td}><span style={{ fontSize: "11px", fontWeight: 700, color: TONE_COLOR[meta.tone] }}>{meta.label}</span></td>
+                    <td style={td}><span style={{ fontSize: "12px", fontWeight: 600, color: TONE_COLOR[meta.tone] }}>{meta.label}</span></td>
                   </tr>
                 );
               })}

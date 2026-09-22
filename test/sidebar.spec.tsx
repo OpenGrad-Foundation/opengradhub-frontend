@@ -16,8 +16,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 let mockModules: { code: string }[] = [];
+let mockRole = 'STUDENT';
 vi.mock("@/hooks/use-current-user", () => ({
-  useCurrentUser: () => ({ data: { modules: mockModules } }),
+  useCurrentUser: () => ({ data: { modules: mockModules, role: { code: mockRole } } }),
 }));
 
 vi.mock("next/image", () => ({
@@ -49,9 +50,31 @@ const ALL_LMS = [
 ].map((code) => ({ code }));
 
 beforeEach(() => {
+  mockRole = 'STUDENT';
   mockPathname = "/dashboard";
   mockModules = [{ code: "dashboard" }, ...ALL_LMS, { code: "doubts" }, { code: "tracker" }];
   localStorage.clear();
+});
+
+it('puts PM operational links before learning while respecting module access', () => {
+  mockRole = 'PROGRAM_MANAGER';
+  mockModules = ['dashboard', 'courses', 'schools', 'tracker', 'attendance'].map(code => ({ code }));
+  // With several groups they start closed; open Management to see Schools.
+  localStorage.setItem('sidebar.management.open', 'true');
+  render(<Sidebar />);
+  const links = screen.getAllByRole('link').map(link => link.textContent);
+  expect(links.indexOf('Attendance')).toBeLessThan(links.indexOf('Schools'));
+  expect(screen.getByRole('button', { name: /lms/i }).getAttribute('aria-expanded')).toBe('false');
+  expect(screen.queryByRole('link', { name: /students/i })).toBeNull();
+});
+
+it('closes the mobile drawer after navigation and identifies the current page', () => {
+  const close = vi.fn();
+  render(<Sidebar onClose={close} />);
+  const dashboard = screen.getByRole('link', { name: 'Dashboard' });
+  expect(dashboard.getAttribute('aria-current')).toBe('page');
+  fireEvent.click(dashboard);
+  expect(close).toHaveBeenCalledOnce();
 });
 
 describe("Sidebar LMS group", () => {
@@ -93,6 +116,22 @@ describe("Sidebar LMS group", () => {
       "false",
     );
     expect(screen.queryByRole("link", { name: /courses/i })).toBeNull();
+  });
+
+  it("starts groups closed when there are several, open when there is only one", () => {
+    mockModules = [{ code: "dashboard" }, ...ALL_LMS, ...ALL_ADMIN];
+    render(<Sidebar />);
+    expect(screen.getByRole("button", { name: /^lms$/i }).getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByRole("button", { name: /management/i }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("lets the header collapse the group even while one of its children is active", () => {
+    mockPathname = "/dashboard/courses";
+    render(<Sidebar />);
+    const header = screen.getByRole("button", { name: /^lms$/i });
+    expect(header.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(header);
+    expect(header.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("toggling the header persists open state to localStorage", () => {
@@ -173,6 +212,7 @@ describe("Sidebar Management group", () => {
 
   it("collapses independently of the LMS group", () => {
     mockModules = [{ code: "dashboard" }, ...ALL_LMS, ...ALL_ADMIN];
+    localStorage.setItem("sidebar.lms.open", "true");
     localStorage.setItem("sidebar.management.open", "false");
     render(<Sidebar />);
     expect(

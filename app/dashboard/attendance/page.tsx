@@ -16,6 +16,8 @@ import { Tabs } from "../_components/Tabs";
 import { RecordsTab } from "./_components/RecordsTab";
 import { SchoolConfirmationsTab } from "./_components/SchoolConfirmationsTab";
 import { RegistersTab } from "./_components/RegistersTab";
+import workspace from "@/components/dashboard/workspace.module.css";
+import styles from "./attendance.module.css";
 import { StudentView } from "./_components/StudentView";
 
 export default function AttendancePage() {
@@ -56,24 +58,16 @@ export default function AttendancePage() {
   const canChooseSchools = has(PERM.schools.view) || has(PERM.user_management.create);
 
   return (
-    <div className="p-4 sm:p-6">
-      <h1
-        className="text-2xl font-bold text-[var(--dark-teal)]"
-        style={{ fontFamily: "var(--font-heading)" }}
-      >
-        Attendance
-      </h1>
-
-      <div className="mt-4">
+    <div className={`${workspace.workspace} ${workspace.stickyTabs} ${styles.page}`}>
         <Tabs
           ariaLabel="Attendance tabs"
+          compactOnScroll
           tabs={[
             { key: "records", label: "Records", panel: canViewStudents ? <RecordsTab /> : <p>View Students permission is required to read attendance records.</p> },
-            { key: "confirmations", label: "School confirmations", panel: canViewClasses ? <SchoolConfirmationsTab canManage={canManage} /> : <p>View Live Classes permission is required to open school confirmations.</p> },
+            { key: "confirmations", label: "School confirmations", compactLabel: "Confirmations", panel: canViewClasses ? <SchoolConfirmationsTab canManage={canManage} /> : <p>View Live Classes permission is required to open school confirmations.</p> },
             { key: "registers", label: "Registers", panel: !canViewStudents ? <p>View Students permission is required to use registers.</p> : canManage && !canChooseSchools ? <p>View Schools permission is required to choose a register school.</p> : <RegistersTab canManage={canManage} /> },
           ]}
         />
-      </div>
     </div>
   );
 }

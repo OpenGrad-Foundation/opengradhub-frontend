@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
+import { AlertTriangle, CheckCircle2, Download, Plus, Upload, Zap, X } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getUsers,
@@ -121,8 +122,7 @@ export default function UserManagementPage() {
       {/* ── Header ────────────────────────────────────────── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
         <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>User Management</h1>
-          <p style={{ ...subtitleStyle, marginTop: "4px" }}>
+          <p style={{ ...subtitleStyle, margin: 0 }}>
             {users.length} user{users.length !== 1 ? "s" : ""} registered
           </p>
         </div>
@@ -134,27 +134,24 @@ export default function UserManagementPage() {
                 className="w-full sm:w-auto"
                 style={primaryButton}
                 onClick={() => { setShowAddUser(true); setShowBulkUpload(false); setShowBulkAssign(false); }}
-                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
               >
-                + Add User
+                <Plus size={18} aria-hidden="true" />Add User
               </button>
               <button
                 id="bulk-upload-btn"
                 className="w-full sm:w-auto"
-                style={{ ...primaryButton, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
+                style={secondaryButton}
                 onClick={() => { setShowBulkUpload(true); setShowAddUser(false); setShowBulkAssign(false); }}
-                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
               >
-                ↑ Bulk Upload
+                <Upload size={18} aria-hidden="true" />Bulk Upload
               </button>
               <button
                 id="bulk-assign-btn"
                 className="w-full sm:w-auto"
-                style={{ ...primaryButton, background: "linear-gradient(135deg, #209379 0%, #034852 100%)" }}
+                style={secondaryButton}
                 onClick={() => { setShowBulkAssign(true); setShowAddUser(false); setShowBulkUpload(false); }}
-                onMouseEnter={hoverIn} onMouseLeave={hoverOut}
               >
-                ⚡ Bulk Assign
+                <Zap size={18} aria-hidden="true" />Bulk Assign
               </button>
             </>
           )}
@@ -230,24 +227,18 @@ export default function UserManagementPage() {
           padding: "10px 16px", marginBottom: "12px", borderRadius: "12px",
           background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.18)",
         }}>
-          <span style={{ fontSize: "13px", fontWeight: 600, color: "#c53030", flex: 1 }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#b83232", flex: 1 }}>
             {selectedIds.size} user{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
           <button
             onClick={() => { setBulkDeleteError(null); setShowBulkDeleteConfirm(true); }}
-            style={{
-              padding: "6px 16px", background: "none", border: "1px solid rgba(229,62,62,0.4)",
-              borderRadius: "8px", color: "#c53030", fontWeight: 600, fontSize: "13px", cursor: "pointer",
-            }}
+            style={{ ...secondaryButton, color: "#b83232" }}
           >
             Delete Selected
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            style={{
-              padding: "6px 14px", background: "none", border: "1px solid rgba(3,72,82,0.18)",
-              borderRadius: "8px", color: "#034852", fontSize: "12px", cursor: "pointer",
-            }}
+            style={secondaryButton}
           >
             Clear
           </button>
@@ -261,13 +252,13 @@ export default function UserManagementPage() {
           background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <div style={{
-            background: "#fff", borderRadius: "16px", padding: "28px 32px", maxWidth: "440px",
-            width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
+            background: "var(--color-surface)", borderRadius: "12px", padding: "24px", maxWidth: "440px",
+            width: "90%", border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(3,72,82,0.16)",
           }}>
-            <h3 style={{ margin: "0 0 8px", fontSize: "17px", fontWeight: 700, color: "#034852" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", fontWeight: 600, color: "var(--color-text)" }}>
               Delete {selectedIds.size} user{selectedIds.size !== 1 ? "s" : ""} permanently?
             </h3>
-            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.5 }}>
+            <p style={{ margin: "0 0 16px", fontSize: "13px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
               This will permanently delete the selected accounts and all associated data (enrolments, submissions, etc.).
               This action <strong>cannot be undone</strong>.
             </p>
@@ -277,14 +268,14 @@ export default function UserManagementPage() {
                 .slice(0, 5);
               const extra = selectedIds.size - names.length;
               return (
-                <ul style={{ margin: "0 0 20px", padding: "0 0 0 18px", fontSize: "12px", color: "#c53030" }}>
+                <ul style={{ margin: "0 0 20px", padding: "0 0 0 18px", fontSize: "12px", color: "#b83232" }}>
                   {names.map((n) => <li key={n}>{n}</li>)}
                   {extra > 0 && <li>+{extra} more</li>}
                 </ul>
               );
             })()}
             {bulkDeleteError && (
-              <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#c53030", background: "rgba(229,62,62,0.06)", padding: "8px 12px", borderRadius: "8px" }}>
+              <p style={{ margin: "0 0 14px", fontSize: "12px", color: "#b83232", background: "rgba(229,62,62,0.06)", padding: "8px 12px", borderRadius: "8px" }}>
                 {bulkDeleteError}
               </p>
             )}
@@ -292,10 +283,7 @@ export default function UserManagementPage() {
               <button
                 disabled={bulkDeleteLoading}
                 onClick={() => { setShowBulkDeleteConfirm(false); setBulkDeleteError(null); }}
-                style={{
-                  padding: "8px 18px", background: "none", border: "1px solid rgba(3,72,82,0.2)",
-                  borderRadius: "8px", color: "#034852", fontSize: "13px", cursor: "pointer",
-                }}
+                style={secondaryButton}
               >
                 Cancel
               </button>
@@ -328,10 +316,9 @@ export default function UserManagementPage() {
                   }
                 }}
                 style={{
-                  padding: "8px 18px",
-                  background: bulkDeleteLoading ? "rgba(229,62,62,0.4)" : "#c53030",
-                  border: "none", borderRadius: "8px", color: "#fff",
-                  fontWeight: 700, fontSize: "13px", cursor: bulkDeleteLoading ? "not-allowed" : "pointer",
+                  ...primaryButton,
+                  background: "#b83232", borderColor: "#b83232", color: "#fff",
+                  opacity: bulkDeleteLoading ? 0.6 : 1, cursor: bulkDeleteLoading ? "not-allowed" : "pointer",
                 }}
               >
                 {bulkDeleteLoading ? "Deleting…" : "Yes, Delete Permanently"}
@@ -345,10 +332,10 @@ export default function UserManagementPage() {
       {loading ? (
         <LoadingState />
       ) : error ? (
-        <div style={glassCard}><p style={{ ...titleStyle, color: "#e53e3e" }}>{error}</p></div>
+        <div style={glassCard}><p style={{ ...titleStyle, color: "#b83232" }}>{error}</p></div>
       ) : (
         <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <div style={{ padding: "16px", borderBottom: "1px solid var(--color-border)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <input
               type="text"
               placeholder="Search users by name, email, role, or programme..."
@@ -370,7 +357,7 @@ export default function UserManagementPage() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid rgba(3,72,82,0.08)" }}>
+                <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
                   {canDelete && (
                     <th style={{ ...thStyle, width: "40px", paddingRight: 0 }}>
                       <input
@@ -387,7 +374,7 @@ export default function UserManagementPage() {
                             setSelectedIds(new Set());
                           }
                         }}
-                        style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "#034852" }}
+                        style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "var(--dark-teal)" }}
                       />
                     </th>
                   )}
@@ -399,7 +386,7 @@ export default function UserManagementPage() {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={canDelete ? 8 : 7} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.6)", fontSize: "13px" }}>
+                    <td colSpan={canDelete ? 8 : 7} style={{ padding: "24px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                       No users match your search.
                     </td>
                   </tr>
@@ -412,7 +399,7 @@ export default function UserManagementPage() {
                       // Row = open the person's page; the "Manage →" cell keeps the drawer.
                       onClick={() => router.push(u.role === "STUDENT" ? `/dashboard/students/${u.id}` : `/dashboard/user-management/${u.id}`)}
                       style={{
-                        borderBottom: "1px solid rgba(3,72,82,0.05)",
+                        borderBottom: "1px solid var(--color-border)",
                         cursor: "pointer",
                         background: isChecked
                           ? "rgba(229,62,62,0.04)"
@@ -448,11 +435,11 @@ export default function UserManagementPage() {
                                 return next;
                               });
                             }}
-                            style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "#034852" }}
+                            style={{ cursor: "pointer", width: "15px", height: "15px", accentColor: "var(--dark-teal)" }}
                           />
                         </td>
                       )}
-                      <td style={tdStyle}><strong style={{ color: "#034852" }}>{u.name}</strong></td>
+                      <td style={tdStyle}><strong style={{ color: "var(--color-text)" }}>{u.name}</strong></td>
                       <td style={tdStyle}>{u.email ?? "—"}</td>
                       <td style={tdStyle}><RoleBadge role={u.role} /></td>
                       <td style={tdStyle}>{u.programme_type ?? "—"}</td>
@@ -463,8 +450,8 @@ export default function UserManagementPage() {
                           type="button"
                           onClick={(e) => { e.stopPropagation(); setSelectedUser(u); }}
                           style={{
-                            fontSize: "11px", fontWeight: 600, color: "#209379", background: "none", border: "none",
-                            cursor: "pointer", padding: "4px 6px", opacity: isSelected ? 1 : 0.7,
+                            fontSize: "13px", fontWeight: 600, color: "#08784a", background: "none", border: "none",
+                            cursor: "pointer", padding: "4px 6px", minHeight: "44px",
                           }}
                         >
                           {isSelected ? "Open ›" : "Manage →"}
@@ -646,8 +633,8 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
   return (
     <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <p style={labelStyle}>Add New User</p>
-        <button onClick={onClose} style={closeBtnStyle}>✕</button>
+        <h2 style={panelTitleStyle}>Add New User</h2>
+        <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
       </div>
 
       {createdUser ? (
@@ -733,7 +720,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     </Row>
                     <Field label="School" id="user-school">
                       {schoolsError
-                        ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                        ? <p style={{ fontSize: "12px", color: "#b83232", margin: 0 }}>Failed to load schools</p>
                         : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code (optional)…" inputStyle={inputStyle} />}
                     </Field>
                   </>
@@ -781,7 +768,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                       </Field>
                       <Field label="School" id="user-school">
                         {schoolsError
-                          ? <p style={{ fontSize: "12px", color: "#c53030", margin: 0 }}>Failed to load schools</p>
+                          ? <p style={{ fontSize: "12px", color: "#b83232", margin: 0 }}>Failed to load schools</p>
                           : <SchoolSearchPicker schools={schools} value={schoolId} onChange={setSchoolId} placeholder="Search school by name or code…" inputStyle={inputStyle} />}
                       </Field>
                     </Row>
@@ -829,14 +816,15 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           type="button"
                           onClick={() => { setPasswordMode(mode); setManualPassword(""); }}
                           style={{
-                            padding: "8px 18px",
-                            border: active ? "1.5px solid #034852" : "1.5px solid rgba(3,72,82,0.18)",
-                            borderRadius: "10px",
-                            background: active ? "rgba(3,72,82,0.07)" : "transparent",
-                            color: active ? "#034852" : "rgba(3,72,82,0.55)",
+                            minHeight: "44px",
+                            padding: "8px 16px",
+                            border: active ? "1px solid var(--color-border-strong)" : "1px solid var(--color-border)",
+                            borderRadius: "12px",
+                            background: active ? "var(--color-success-surface)" : "var(--color-surface)",
+                            color: active ? "var(--color-text)" : "var(--color-text-muted)",
                             fontFamily: "var(--font-body)",
                             fontSize: "13px",
-                            fontWeight: active ? 700 : 500,
+                            fontWeight: active ? 600 : 500,
                             cursor: "pointer",
                             transition: "all 180ms ease",
                           }}
@@ -847,7 +835,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                     })}
                   </div>
                   {passwordMode === "auto" && (
-                    <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                    <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
                       A secure password will be generated and shown after creation.
                     </p>
                   )}
@@ -864,7 +852,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                           ...inputStyle,
                           fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace",
                           letterSpacing: "0.04em",
-                          borderColor: showPwRules && !isManualPasswordValid ? "#e53e3e" : undefined,
+                          borderColor: showPwRules && !isManualPasswordValid ? "#b83232" : undefined,
                         }}
                       />
                       {showPwRules && (
@@ -876,10 +864,10 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
                             { key: "number",    label: "Number" },
                           ] as const).map(({ key, label }) => (
                             <span key={key} style={{
-                              fontSize: "11px", fontWeight: 600, padding: "3px 9px",
-                              borderRadius: "100px",
+                              fontSize: "12px", fontWeight: 600, padding: "3px 9px",
+                              borderRadius: "6px",
                               background: pwRules[key] ? "rgba(10,190,98,0.12)" : "rgba(229,62,62,0.10)",
-                              color: pwRules[key] ? "#0abe62" : "#e53e3e",
+                              color: pwRules[key] ? "#08784a" : "#b83232",
                               border: `1px solid ${pwRules[key] ? "rgba(10,190,98,0.25)" : "rgba(229,62,62,0.2)"}`,
                             }}>
                               {pwRules[key] ? "✓" : "✗"} {label}
@@ -894,7 +882,7 @@ function AddUserForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
             )}
           </div>
 
-          {error && <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>}
+          {error && <p style={{ marginTop: "12px", fontSize: "13px", color: "#b83232", fontWeight: 600 }}>{error}</p>}
           <button
             id="user-submit-btn"
             type="submit"
@@ -923,21 +911,21 @@ function CredentialRow({ label, value, copyId }: { label: string; value: string;
 
   return (
     <div style={{ marginBottom: "12px" }}>
-      <p style={{ margin: "0 0 4px 0", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)" }}>{label}</p>
+      <p style={{ margin: "0 0 4px 0", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</p>
       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
         <code
           id={copyId}
           style={{
             flex: 1,
             display: "block",
-            background: "#ffffff",
-            border: "1px solid rgba(3,72,82,0.15)",
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
             borderRadius: "8px",
             padding: "10px 14px",
             fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace",
             fontSize: "14px",
             fontWeight: 600,
-            color: "#034852",
+            color: "var(--color-text)",
             letterSpacing: "0.03em",
             wordBreak: "break-all",
           }}
@@ -950,10 +938,10 @@ function CredentialRow({ label, value, copyId }: { label: string; value: string;
           style={{
             flexShrink: 0,
             padding: "10px 14px",
-            border: "1px solid rgba(3,72,82,0.15)",
+            border: "1px solid var(--color-border)",
             borderRadius: "8px",
             background: copied ? "rgba(10,190,98,0.12)" : "rgba(3,72,82,0.04)",
-            color: copied ? "#0abe62" : "#034852",
+            color: copied ? "#08784a" : "var(--color-text)",
             fontFamily: "var(--font-body)",
             fontSize: "12px",
             fontWeight: 700,
@@ -972,13 +960,13 @@ function CredentialRow({ label, value, copyId }: { label: string; value: string;
 function CredentialsDisplay({ user, onDone }: { user: SafeUser; onDone: () => void }) {
   return (
     <div>
-      <h3 style={{ ...titleStyle, fontSize: "18px", color: "#034852" }}>User Provisioned Successfully</h3>
-      <p style={{ marginTop: "10px", fontSize: "14px", color: "rgba(3,72,82,0.75)", lineHeight: 1.6 }}>
+      <h3 style={{ ...titleStyle, fontSize: "18px", color: "var(--color-text)" }}>User Provisioned Successfully</h3>
+      <p style={{ marginTop: "10px", fontSize: "14px", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
         A temporary password was generated for this user.{" "}
-        <strong style={{ color: "#034852" }}>Share these credentials securely.</strong>{" "}
+        <strong style={{ color: "var(--color-text)" }}>Share these credentials securely.</strong>{" "}
         The user will be required to change the password on first login.
       </p>
-      <div style={{ marginTop: "20px", background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", padding: "20px" }}>
+      <div style={{ marginTop: "20px", background: "rgba(3,72,82,0.03)", border: "1px solid var(--color-border)", borderRadius: "14px", padding: "20px" }}>
         <CredentialRow label="Name" value={user.name} copyId="cred-name" />
         {user.roll_number && (
           <CredentialRow label="Roll Number" value={user.roll_number} copyId="cred-roll" />
@@ -1064,7 +1052,7 @@ function AssignCourseModal({
         onClick={onClose}
         style={{
           position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)",
-          backdropFilter: "blur(4px)", zIndex: 50,
+          zIndex: 50,
         }}
       />
       {/* Modal Wrapper */}
@@ -1076,11 +1064,9 @@ function AssignCourseModal({
       }}>
         {/* Modal Inner */}
         <div style={{
-          background: "rgba(255,255,255,0.96)",
-          border: "1px solid rgba(255,255,255,0.3)",
-          borderRadius: "24px",
-          padding: "32px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)", borderRadius: "12px", padding: "24px",
+          boxShadow: "0 8px 32px rgba(3,72,82,0.16)",
           opacity: 0,
           transform: "translateY(12px)",
           animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
@@ -1092,11 +1078,11 @@ function AssignCourseModal({
             <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>
               {student.name}
             </h3>
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
               {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
             </p>
           </div>
-          <button onClick={onClose} style={closeBtnStyle}>✕</button>
+          <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
         </div>
 
         {success ? (
@@ -1105,8 +1091,8 @@ function AssignCourseModal({
               background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
               borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
             }}>
-              <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
-              <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+              <CheckCircle2 size={28} aria-hidden="true" style={{ color: "#08784a", margin: "0 auto 8px", display: "block" }} />
+              <p style={{ fontWeight: 700, color: "var(--color-text)", fontSize: "16px", margin: 0 }}>
                 Course assigned successfully
               </p>
             </div>
@@ -1117,11 +1103,11 @@ function AssignCourseModal({
             {/* Already-enrolled summary */}
             {!coursesLoading && (
               <div style={{ marginBottom: "12px" }}>
-                <p style={{ ...labelStyle, fontSize: "10px", marginBottom: "6px" }}>
+                <p style={{ ...labelStyle, marginBottom: "6px" }}>
                   Already enrolled ({enrolledCourses.length})
                 </p>
                 {enrolledCourses.length === 0 ? (
-                  <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+                  <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
                     Not enrolled in any course yet.
                   </p>
                 ) : (
@@ -1130,8 +1116,8 @@ function AssignCourseModal({
                       <span
                         key={c.id}
                         style={{
-                          padding: "3px 10px", borderRadius: "100px", fontSize: "11px", fontWeight: 600,
-                          background: "rgba(10,190,98,0.1)", color: "#0a944e",
+                          padding: "3px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 600,
+                          background: "rgba(10,190,98,0.1)", color: "#08784a",
                           border: "1px solid rgba(10,190,98,0.22)",
                         }}
                       >
@@ -1156,15 +1142,15 @@ function AssignCourseModal({
             {/* Course list */}
             <div style={{
               maxHeight: "240px", overflowY: "auto",
-              border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px",
+              border: "1px solid var(--color-border)", borderRadius: "14px",
               marginBottom: "16px",
             }}>
               {coursesLoading ? (
-                <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                   Loading courses…
                 </p>
               ) : filtered.length === 0 ? (
-                <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                   {search ? "No courses match your search." : "No active courses available."}
                 </p>
               ) : (
@@ -1188,22 +1174,22 @@ function AssignCourseModal({
                       }}
                     >
                       <div>
-                        <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>
+                        <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>
                           {course.title}
                         </p>
-                        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                        <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                           {course.programme_type} · {course.lesson_count} lesson{course.lesson_count !== 1 ? "s" : ""}
                         </p>
                       </div>
                       {enrolled ? (
                         <span style={{
-                          fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "100px",
-                          background: "rgba(10,190,98,0.1)", color: "#0a944e", whiteSpace: "nowrap",
+                          fontSize: "12px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px",
+                          background: "rgba(10,190,98,0.1)", color: "#08784a", whiteSpace: "nowrap",
                         }}>
                           Enrolled
                         </span>
                       ) : active ? (
-                        <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>
+                        <span style={{ fontSize: "16px", color: "#08784a" }}>✓</span>
                       ) : null}
                     </div>
                   );
@@ -1217,7 +1203,7 @@ function AssignCourseModal({
                 padding: "10px 14px", borderRadius: "10px", marginBottom: "12px",
                 background: "rgba(255,222,0,0.12)", border: "1px solid rgba(255,222,0,0.4)",
               }}>
-                <span style={{ fontSize: "15px", flexShrink: 0 }}>⚠️</span>
+                <AlertTriangle size={16} aria-hidden="true" style={{ color: "#7a5f00", flexShrink: 0 }} />
                 <p style={{ fontSize: "13px", color: "#7a5f00", fontWeight: 600, margin: 0 }}>
                   This student is already enrolled in that course.
                 </p>
@@ -1225,11 +1211,11 @@ function AssignCourseModal({
             )}
 
             {error && (
-              <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+              <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
             )}
 
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+              <button onClick={onClose} style={{ ...secondaryButton, flex: 1 }}>
                 Cancel
               </button>
               <button
@@ -1310,14 +1296,14 @@ function AssignBundleModal({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", backdropFilter: "blur(4px)", zIndex: 50 }}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", zIndex: 50 }}
       />
       {/* Modal wrapper */}
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
-          background: "#ffffff",
-          border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)", borderRadius: "12px", padding: "24px",
+          boxShadow: "0 8px 32px rgba(3,72,82,0.16)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
         }}>
@@ -1326,11 +1312,11 @@ function AssignBundleModal({
             <div>
               <p style={labelStyle}>Assign Bundle</p>
               <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>{student.name}</h3>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
                 {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
               </p>
             </div>
-            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+            <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
           </div>
 
           {success ? (
@@ -1339,11 +1325,11 @@ function AssignBundleModal({
                 background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
                 borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
               }}>
-                <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
-                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+                <CheckCircle2 size={28} aria-hidden="true" style={{ color: "#08784a", margin: "0 auto 8px", display: "block" }} />
+                <p style={{ fontWeight: 700, color: "var(--color-text)", fontSize: "16px", margin: 0 }}>
                   Bundle assigned successfully
                 </p>
-                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>{successMsg}</p>
+                <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "6px 0 0" }}>{successMsg}</p>
               </div>
               <button onClick={onClose} style={{ ...primaryButton, width: "100%" }}>Done</button>
             </div>
@@ -1361,12 +1347,12 @@ function AssignBundleModal({
                         background: "rgba(10,190,98,0.06)", border: "1px solid rgba(10,190,98,0.2)",
                       }}>
                         <div>
-                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{b.name}</p>
-                          <p style={{ margin: "1px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{b.name}</p>
+                          <p style={{ margin: "1px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                             {b.course_count} course{b.course_count !== 1 ? "s" : ""}
                           </p>
                         </div>
-                        <span style={{ fontSize: "13px", color: "#0abe62", fontWeight: 700 }}>✓ Enrolled</span>
+                        <span style={{ fontSize: "13px", color: "#08784a", fontWeight: 700 }}>✓ Enrolled</span>
                       </div>
                     ))}
                   </div>
@@ -1386,11 +1372,11 @@ function AssignBundleModal({
               />
 
               {/* Bundle list */}
-              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", marginBottom: "16px" }}>
+              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "14px", marginBottom: "16px" }}>
                 {bundlesLoading ? (
-                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading bundles…</p>
+                  <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading bundles…</p>
                 ) : filtered.length === 0 ? (
-                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                  <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                     {search ? "No bundles match your search." : "No bundles available to assign."}
                   </p>
                 ) : (
@@ -1409,12 +1395,12 @@ function AssignBundleModal({
                         }}
                       >
                         <div>
-                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{bundle.name}</p>
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{bundle.name}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                             {bundle.course_count} course{bundle.course_count !== 1 ? "s" : ""} · {bundle.student_count} student{bundle.student_count !== 1 ? "s" : ""}
                           </p>
                         </div>
-                        {active && <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>}
+                        {active && <span style={{ fontSize: "16px", color: "#08784a" }}>✓</span>}
                       </div>
                     );
                   })
@@ -1422,11 +1408,11 @@ function AssignBundleModal({
               </div>
 
               {error && (
-                <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+                <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
               )}
 
               <div style={{ display: "flex", gap: "10px" }}>
-                <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+                <button onClick={onClose} style={{ ...secondaryButton, flex: 1 }}>
                   Cancel
                 </button>
                 <button
@@ -1609,7 +1595,7 @@ function BulkAssignPanel({
         <div style={{
           position: "absolute", top: "16px", right: "56px",
           padding: "10px 16px", borderRadius: "10px",
-          background: toast.ok ? "#034852" : "#c53030",
+          background: toast.ok ? "var(--dark-teal)" : "#b83232",
           color: "#fff", fontSize: "13px", fontWeight: 600,
           boxShadow: "0 4px 16px rgba(0,0,0,0.15)", zIndex: 10,
           maxWidth: "380px", lineHeight: 1.5,
@@ -1620,8 +1606,8 @@ function BulkAssignPanel({
 
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <p style={labelStyle}>Bulk Assign — Filter Students &amp; Assign</p>
-        <button onClick={onClose} style={closeBtnStyle}>✕</button>
+        <h2 style={panelTitleStyle}>Bulk Assign — Filter Students &amp; Assign</h2>
+        <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
       </div>
 
       {/* ── Filter bar ─────────────────────────────────────── */}
@@ -1666,7 +1652,7 @@ function BulkAssignPanel({
 
       {/* ── Search error ────────────────────────────────────── */}
       {searchErr && (
-        <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{searchErr}</p>
+        <p style={{ marginTop: "12px", fontSize: "13px", color: "#b83232", fontWeight: 600 }}>{searchErr}</p>
       )}
 
       {/* ── Results table ────────────────────────────────────── */}
@@ -1681,7 +1667,7 @@ function BulkAssignPanel({
                 onChange={toggleAll}
                 style={{ accentColor: "#0abe62", width: "15px", height: "15px" }}
               />
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#034852" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-text)" }}>
                 {students.length === 0 ? "No students found" : `${selectedCount} of ${students.length} selected`}
               </span>
             </label>
@@ -1693,11 +1679,11 @@ function BulkAssignPanel({
           </div>
 
           {students.length > 0 && (
-            <div style={{ border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", overflow: "hidden" }}>
+            <div style={{ border: "1px solid var(--color-border)", borderRadius: "14px", overflow: "hidden" }}>
               <div style={{ maxHeight: "300px", overflowY: "auto", overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", fontFamily: "var(--font-body)", minWidth: "640px" }}>
                   <thead style={{ position: "sticky", top: 0 }}>
-                    <tr style={{ background: "rgba(3,72,82,0.05)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+                    <tr style={{ background: "rgba(3,72,82,0.05)", borderBottom: "1px solid var(--color-border)" }}>
                       <th style={{ ...thStyle, width: "40px" }}></th>
                       {["Name", "Roll Number", "Programme", "State", ZONE, "School"].map((h) => (
                         <th key={h} style={thStyle}>{h}</th>
@@ -1727,18 +1713,18 @@ function BulkAssignPanel({
                               style={{ accentColor: "#0abe62", width: "14px", height: "14px" }}
                             />
                           </td>
-                          <td style={{ ...tdStyle, fontWeight: 600, color: "#034852" }}>{s.name}</td>
-                          <td style={{ ...tdStyle, fontFamily: "monospace", color: "rgba(3,72,82,0.6)" }}>{s.roll_number ?? "—"}</td>
+                          <td style={{ ...tdStyle, fontWeight: 600, color: "var(--color-text)" }}>{s.name}</td>
+                          <td style={{ ...tdStyle, fontFamily: "monospace", color: "var(--color-text-muted)" }}>{s.roll_number ?? "—"}</td>
                           <td style={tdStyle}>
                             {s.programme_type ? (
-                              <span style={{ padding: "2px 7px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(32,147,121,0.1)", color: "#209379" }}>
+                              <span style={{ padding: "2px 7px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: "rgba(32,147,121,0.1)", color: "#006d6c" }}>
                                 {s.programme_type}
                               </span>
                             ) : "—"}
                           </td>
                           <td style={tdStyle}>{s.state ?? "—"}</td>
                           <td style={tdStyle}>{s.district ?? "—"}</td>
-                          <td style={{ ...tdStyle, color: "rgba(3,72,82,0.6)" }}>{s.school_name ?? "—"}</td>
+                          <td style={{ ...tdStyle, color: "var(--color-text-muted)" }}>{s.school_name ?? "—"}</td>
                         </tr>
                       );
                     })}
@@ -1752,7 +1738,7 @@ function BulkAssignPanel({
 
       {/* ── Assign section ───────────────────────────────────── */}
       {selectedCount > 0 && (
-        <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
+        <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--color-border)" }}>
           <p style={{ ...labelStyle, marginBottom: "16px" }}>
             Assign to {selectedCount} student{selectedCount !== 1 ? "s" : ""}
           </p>
@@ -1765,9 +1751,9 @@ function BulkAssignPanel({
               <input type="text" aria-label="Search courses" placeholder="Search courses…" value={courseSearch}
                 onChange={(e) => setCourseSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
-              <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
+              <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "10px" }}>
                 {filteredCourses.length === 0 ? (
-                  <p style={{ padding: "12px", margin: 0, color: "rgba(3,72,82,0.45)", fontSize: "12px" }}>
+                  <p style={{ padding: "12px", margin: 0, color: "var(--color-text-muted)", fontSize: "12px" }}>
                     {courseSearch ? "No matches." : "No active courses."}
                   </p>
                 ) : filteredCourses.map((c) => {
@@ -1776,14 +1762,14 @@ function BulkAssignPanel({
                     <label key={c.id} style={{
                       display: "flex", alignItems: "center", gap: "8px",
                       padding: "8px 10px", cursor: "pointer",
-                      borderBottom: "1px solid rgba(3,72,82,0.04)",
+                      borderBottom: "1px solid var(--color-border)",
                       background: checked ? "rgba(10,190,98,0.06)" : "transparent",
                     }}>
                       <input type="checkbox" checked={checked} onChange={() => toggleCourse(c.id)}
                         style={{ accentColor: "#0abe62", width: "13px", height: "13px", flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, color: "#034852", fontSize: "12px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</span>
-                        <span style={{ fontSize: "10px", color: "rgba(3,72,82,0.5)" }}>{c.programme_type} · {c.lesson_count} lesson{c.lesson_count !== 1 ? "s" : ""}</span>
+                        <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: "12px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.title}</span>
+                        <span style={{ fontSize: "10px", color: "var(--color-text-muted)" }}>{c.programme_type} · {c.lesson_count} lesson{c.lesson_count !== 1 ? "s" : ""}</span>
                       </span>
                     </label>
                   );
@@ -1792,9 +1778,9 @@ function BulkAssignPanel({
               {selectedCourses.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "8px" }}>
                   {selectedCourses.map((c) => (
-                    <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 9px", borderRadius: "100px", background: "rgba(10,190,98,0.1)", border: "1px solid rgba(10,190,98,0.25)", fontSize: "11px", fontWeight: 600, color: "#034852" }}>
+                    <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 9px", borderRadius: "6px", background: "rgba(10,190,98,0.1)", border: "1px solid rgba(10,190,98,0.25)", fontSize: "12px", fontWeight: 600, color: "var(--color-text)" }}>
                       {c.title}
-                      <button onClick={() => toggleCourse(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "13px", lineHeight: 1, padding: "0 1px", fontWeight: 700 }}>×</button>
+                      <button onClick={() => toggleCourse(c.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", fontSize: "13px", lineHeight: 1, padding: "0 1px", fontWeight: 700 }}>×</button>
                     </span>
                   ))}
                 </div>
@@ -1807,9 +1793,9 @@ function BulkAssignPanel({
               <input type="text" aria-label="Search bundles" placeholder="Search bundles…" value={bundleSearch}
                 onChange={(e) => setBundleSearch(e.target.value)}
                 style={{ ...inputStyle, marginBottom: "6px" }} />
-              <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "10px" }}>
+              <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "10px" }}>
                 {filteredBundles.length === 0 ? (
-                  <p style={{ padding: "12px", margin: 0, color: "rgba(3,72,82,0.45)", fontSize: "12px" }}>
+                  <p style={{ padding: "12px", margin: 0, color: "var(--color-text-muted)", fontSize: "12px" }}>
                     {bundleSearch ? "No matches." : "No bundles available."}
                   </p>
                 ) : filteredBundles.map((b) => {
@@ -1818,14 +1804,14 @@ function BulkAssignPanel({
                     <label key={b.id} style={{
                       display: "flex", alignItems: "center", gap: "8px",
                       padding: "8px 10px", cursor: "pointer",
-                      borderBottom: "1px solid rgba(3,72,82,0.04)",
+                      borderBottom: "1px solid var(--color-border)",
                       background: checked ? "rgba(10,190,98,0.06)" : "transparent",
                     }}>
                       <input type="checkbox" checked={checked} onChange={() => toggleBundle(b.id)}
                         style={{ accentColor: "#0abe62", width: "13px", height: "13px", flexShrink: 0 }} />
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontWeight: 600, color: "#034852", fontSize: "12px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</span>
-                        <span style={{ fontSize: "10px", color: "rgba(3,72,82,0.5)" }}>{b.course_count} course{b.course_count !== 1 ? "s" : ""}</span>
+                        <span style={{ fontWeight: 600, color: "var(--color-text)", fontSize: "12px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.name}</span>
+                        <span style={{ fontSize: "10px", color: "var(--color-text-muted)" }}>{b.course_count} course{b.course_count !== 1 ? "s" : ""}</span>
                       </span>
                     </label>
                   );
@@ -1834,9 +1820,9 @@ function BulkAssignPanel({
               {selectedBundles.length > 0 && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", marginTop: "8px" }}>
                   {selectedBundles.map((b) => (
-                    <span key={b.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 9px", borderRadius: "100px", background: "rgba(3,72,82,0.07)", border: "1px solid rgba(3,72,82,0.15)", fontSize: "11px", fontWeight: 600, color: "#034852" }}>
+                    <span key={b.id} style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "3px 8px 3px 9px", borderRadius: "6px", background: "rgba(3,72,82,0.07)", border: "1px solid var(--color-border)", fontSize: "12px", fontWeight: 600, color: "var(--color-text)" }}>
                       {b.name}
-                      <button onClick={() => toggleBundle(b.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "13px", lineHeight: 1, padding: "0 1px", fontWeight: 700 }}>×</button>
+                      <button onClick={() => toggleBundle(b.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", fontSize: "13px", lineHeight: 1, padding: "0 1px", fontWeight: 700 }}>×</button>
                     </span>
                   ))}
                 </div>
@@ -1846,7 +1832,7 @@ function BulkAssignPanel({
 
           <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap" }}>
             {selectionSummary && (
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "#209379" }}>{selectionSummary}</span>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "#08784a" }}>{selectionSummary}</span>
             )}
             <button onClick={() => setShowConfirm(true)} disabled={!canAssign}
               style={{ ...primaryButton, opacity: canAssign ? 1 : 0.45, cursor: canAssign ? "pointer" : "not-allowed" }}>
@@ -1860,29 +1846,29 @@ function BulkAssignPanel({
       {showConfirm && (
         <>
           <div onClick={() => !assigning && setShowConfirm(false)}
-            style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
+            style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.3)", zIndex: 50 }} />
           <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "min(480px,92vw)", zIndex: 51 }}>
-            <div style={{ background: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 8px 24px rgba(0,0,0,0.14)" }}>
-              <p style={labelStyle}>Confirm Assignment</p>
-              <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "rgba(3,72,82,0.7)", margin: "12px 0 6px" }}>
+            <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "24px", boxShadow: "0 8px 32px rgba(3,72,82,0.16)" }}>
+              <h2 style={panelTitleStyle}>Confirm Assignment</h2>
+              <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--color-text-muted)", margin: "12px 0 6px" }}>
                 You are about to assign:
               </p>
               {selectedCourses.length > 0 && (
-                <ul style={{ margin: "0 0 6px", paddingLeft: "18px", fontFamily: "var(--font-body)", fontSize: "13px", color: "#034852" }}>
+                <ul style={{ margin: "0 0 6px", paddingLeft: "18px", fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--color-text)" }}>
                   {selectedCourses.map((c) => <li key={c.id} style={{ fontWeight: 600 }}>{c.title}</li>)}
                 </ul>
               )}
               {selectedBundles.length > 0 && (
-                <ul style={{ margin: "0 0 10px", paddingLeft: "18px", fontFamily: "var(--font-body)", fontSize: "13px", color: "#034852" }}>
-                  {selectedBundles.map((b) => <li key={b.id}><span style={{ fontWeight: 600 }}>{b.name}</span> <span style={{ color: "rgba(3,72,82,0.45)", fontWeight: 400 }}>(bundle)</span></li>)}
+                <ul style={{ margin: "0 0 10px", paddingLeft: "18px", fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--color-text)" }}>
+                  {selectedBundles.map((b) => <li key={b.id}><span style={{ fontWeight: 600 }}>{b.name}</span> <span style={{ color: "var(--color-text-muted)", fontWeight: 400 }}>(bundle)</span></li>)}
                 </ul>
               )}
-              <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "rgba(3,72,82,0.7)", margin: "0 0 20px" }}>
-                to <strong style={{ color: "#034852" }}>{selectedCount} student{selectedCount !== 1 ? "s" : ""}</strong>. Already enrolled will be skipped. Continue?
+              <p style={{ fontFamily: "var(--font-body)", fontSize: "13px", color: "var(--color-text-muted)", margin: "0 0 20px" }}>
+                to <strong style={{ color: "var(--color-text)" }}>{selectedCount} student{selectedCount !== 1 ? "s" : ""}</strong>. Already enrolled will be skipped. Continue?
               </p>
               <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
                 <button onClick={() => !assigning && setShowConfirm(false)} disabled={assigning}
-                  style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent", color: "#034852", fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "13px", cursor: assigning ? "not-allowed" : "pointer", opacity: assigning ? 0.5 : 1 }}>
+                  style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid rgba(3,72,82,0.2)", background: "transparent", color: "var(--color-text)", fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "13px", cursor: assigning ? "not-allowed" : "pointer", opacity: assigning ? 0.5 : 1 }}>
                   Cancel
                 </button>
                 <button onClick={() => void handleAssign()} disabled={assigning}
@@ -2160,8 +2146,8 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
   return (
     <div style={{ ...glassCard, padding: isMobile ? "20px" : 32, textAlign: "left", marginBottom: "24px", animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards", opacity: 0, transform: "translateY(12px)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <p style={labelStyle}>Bulk Upload Users</p>
-        <button onClick={onClose} style={closeBtnStyle}>✕</button>
+        <h2 style={panelTitleStyle}>Bulk Upload Users</h2>
+        <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
       </div>
 
       {/* Template download */}
@@ -2169,9 +2155,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
         href={getUserTemplateUrl(templateRole === "COMMON" ? undefined : templateRole)}
         download={templateRole === "COMMON" ? "opengrad_users_template_common.csv" : `opengrad_users_template_${templateRole.toLowerCase()}.csv`}
         id="download-template-btn"
-        style={{ ...primaryButton, display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "10px 20px", background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}
+        style={secondaryButton}
       >
-        ↓ Download Template CSV
+        <Download size={16} aria-hidden="true" />Download Template CSV
       </a>
 
       <div style={{ marginTop: "14px" }}>
@@ -2180,7 +2166,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           <option value="COMMON">Common (all roles)</option>
           {ALL_ROLES.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
         </select>
-        <p style={{ margin: "8px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)", lineHeight: 1.5 }}>
+        <p style={{ margin: "8px 0 0", fontSize: "12px", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
           Role templates hide irrelevant columns, but uploads can still mix roles as long as each row includes a valid <strong>role</strong>.
         </p>
       </div>
@@ -2188,7 +2174,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       <div style={{ marginTop: 16 }}>
         <p style={formLabelStyle}>Default programme</p>
         <StudentCreationDestination value={destination} onChange={setDestination} optional />
-        <p style={{ fontSize: 12, color: "rgba(3,72,82,0.6)" }}>Applies to every row with no programme_id. Students join the programme (and the initial batch, if chosen); staff are added as programme members. Each row may supply its own programme_id. With one available programme, the server can select it automatically for students.</p>
+        <p style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Applies to every row with no programme_id. Students join the programme (and the initial batch, if chosen); staff are added as programme members. Each row may supply its own programme_id. With one available programme, the server can select it automatically for students.</p>
       </div>
 
       {/* File input */}
@@ -2205,7 +2191,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
       {/* Parse error */}
       {parseError && (
-        <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px", background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.2)", fontSize: "12px", fontWeight: 600, color: "#c53030" }}>
+        <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px", background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.2)", fontSize: "12px", fontWeight: 600, color: "#b83232" }}>
           {parseError}
         </div>
       )}
@@ -2222,11 +2208,11 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             background: errorCount > 0 ? "rgba(229,62,62,0.05)" : "rgba(10,190,98,0.06)",
             border: `1px solid ${errorCount > 0 ? "rgba(229,62,62,0.2)" : "rgba(10,190,98,0.2)"}`,
           }}>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#08784a" }}>
               ✓ {readyCount} row{readyCount !== 1 ? "s" : ""} ready
             </span>
             {errorCount > 0 && (
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#e53e3e" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#b83232" }}>
                 ✗ {errorCount} row{errorCount !== 1 ? "s" : ""} have errors
               </span>
             )}
@@ -2241,7 +2227,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                   >
                     {uploading ? "Uploading…" : `Import Ready Rows (${readyCount})`}
                   </button>
-                  <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: "11px", color: "var(--color-text-muted)", whiteSpace: "nowrap" }}>
                     Fix all errors to import all
                   </span>
                 </>
@@ -2259,24 +2245,24 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           </div>
 
           {/* Editable table */}
-          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.10)", background: "rgba(255,255,255,0.55)", maxHeight: "400px", overflowY: "auto" }}>
+          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)", maxHeight: "400px", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "12px", minWidth: "900px" }}>
               <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                <tr style={{ background: "rgba(3,72,82,0.07)", textAlign: "left" }}>
+                <tr style={{ background: "#eef5f3", textAlign: "left" }}>
                   {/* Status */}
-                  <th style={{ padding: "9px 10px", width: "32px", borderBottom: "1px solid rgba(3,72,82,0.08)" }} />
+                  <th style={{ padding: "9px 10px", width: "32px", borderBottom: "1px solid var(--color-border)" }} />
                   {csvHeaders.map((h) => (
-                    <th key={h} style={{ padding: "9px 10px", borderBottom: "1px solid rgba(3,72,82,0.08)", color: "rgba(3,72,82,0.7)", textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "10px", whiteSpace: "nowrap", fontWeight: 700 }}>
+                    <th key={h} style={{ padding: "9px 10px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-muted)", fontSize: "12px", whiteSpace: "nowrap", fontWeight: 500 }}>
                       {CSV_FIELD_LABELS[h] ?? h}
                     </th>
                   ))}
                   {/* Errors */}
-                  <th style={{ padding: "9px 10px", borderBottom: "1px solid rgba(3,72,82,0.08)", color: "rgba(3,72,82,0.5)", fontSize: "10px", whiteSpace: "nowrap", minWidth: "120px" }}>
-                    ERRORS
+                  <th style={{ padding: "9px 10px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-muted)", fontSize: "12px", fontWeight: 500, whiteSpace: "nowrap", minWidth: "120px" }}>
+                    Errors
                   </th>
                 </tr>
                 {/* Bulk-set row */}
-                <tr style={{ background: "rgba(0,109,108,0.04)", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+                <tr style={{ background: "rgba(0,109,108,0.04)", borderBottom: "1px solid var(--color-border)" }}>
                   <td />
                   {csvHeaders.map((col) => {
                     if (BULK_EDIT_EXCLUDED.has(col)) {
@@ -2402,7 +2388,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                               updateColumn(col, "");
                               setBulkInputs((prev) => ({ ...prev, [col]: "" }));
                             }}
-                            style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "rgba(3,72,82,0.4)", fontSize: "13px", lineHeight: 1, padding: "0 2px", fontWeight: 700 }}
+                            style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "var(--color-text-muted)", fontSize: "13px", lineHeight: 1, padding: "0 2px", fontWeight: 700 }}
                           >×</button>
                         </div>
                       </td>
@@ -2416,11 +2402,11 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                   const missing  = rowErrors[rowIdx];
                   const hasError = missing.length > 0;
                   return (
-                    <tr key={rowIdx} style={{ borderBottom: "1px solid rgba(3,72,82,0.06)", background: hasError ? "rgba(229,62,62,0.02)" : "transparent" }}>
+                    <tr key={rowIdx} style={{ borderBottom: "1px solid var(--color-border)", background: hasError ? "rgba(229,62,62,0.02)" : "transparent" }}>
                       {/* Row status icon */}
                       <td style={{ padding: "6px 8px", textAlign: "center", verticalAlign: "middle" }}>
                         <span title={hasError ? `Missing: ${missing.join(", ")}` : "Row is valid"} style={{ fontSize: "13px", cursor: "default" }}>
-                          {hasError ? "⚠️" : "✅"}
+                          {hasError ? <AlertTriangle size={16} aria-hidden="true" style={{ color: "#b83232" }} /> : <CheckCircle2 size={16} aria-hidden="true" style={{ color: "#08784a" }} />}
                         </span>
                       </td>
 
@@ -2447,9 +2433,9 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                           borderRadius: "6px",
                           fontFamily: "var(--font-body)",
                           fontSize: "12px",
-                          color: "#034852",
+                          color: "var(--color-text)",
                           background: cellErr ? "rgba(229,62,62,0.04)" : "transparent",
-                          border: cellErr ? "1.5px solid #e53e3e" : "1px solid transparent",
+                          border: cellErr ? "1.5px solid #b83232" : "1px solid transparent",
                           outline: "none",
                           boxSizing: "border-box" as const,
                           minWidth: isDropRole ? "160px" : isDropProg ? "100px" : "90px",
@@ -2486,7 +2472,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                 <select
                                   value={val}
                                   onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                  style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #b7791f" }}
+                                  style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #b83232" : "1.5px solid #b7791f" }}
                                 >
                                   <option value={val}>{val} (keep)</option>
                                   {geoRes.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -2496,14 +2482,14 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                   <select
                                     value={geoRes && geoRes.status === "corrected" ? geoRes.value : val}
                                     onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                    style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : (geoRes && geoRes.status === "corrected" ? "1.5px solid #0abe62" : "1px solid transparent") }}
+                                    style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #b83232" : (geoRes && geoRes.status === "corrected" ? "1.5px solid #0abe62" : "1px solid transparent") }}
                                   >
                                     <option value="">—</option>
                                     {STATES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                                     {val && !STATES.some(s => s.value === val) && geoRes?.status !== "corrected" && <option value={val}>{val} (invalid)</option>}
                                   </select>
                                   {geoRes && geoRes.status === "corrected" && (
-                                    <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
+                                    <span style={{ display: "block", fontSize: "10px", color: "#08784a", fontWeight: 600 }}>{val} → {geoRes.value}</span>
                                   )}
                                 </>
                               )
@@ -2511,7 +2497,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                               <select
                                 value={val}
                                 onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #b7791f" }}
+                                style={{ ...controlBase, cursor: "pointer", border: cellErr ? "1.5px solid #b83232" : "1.5px solid #b7791f" }}
                               >
                                 <option value={val}>{val} (keep)</option>
                                 {geoRes.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -2523,10 +2509,10 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                                   aria-label={col}
                                   value={val}
                                   onChange={(e) => updateCell(rowIdx, col, e.target.value)}
-                                  style={{ ...controlBase, border: cellErr ? "1.5px solid #e53e3e" : "1.5px solid #0abe62" }}
+                                  style={{ ...controlBase, border: cellErr ? "1.5px solid #b83232" : "1.5px solid #0abe62" }}
                                   placeholder={cellErr ? "Required" : ""}
                                 />
-                                <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>{val} → {geoRes.value}</span>
+                                <span style={{ display: "block", fontSize: "10px", color: "#08784a", fontWeight: 600 }}>{val} → {geoRes.value}</span>
                               </>
                             ) : isDropSchool ? (
                               <select
@@ -2555,7 +2541,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
                       {/* Error summary cell */}
                       <td style={{ padding: "6px 10px", verticalAlign: "middle", minWidth: "120px" }}>
                         {missing.length > 0 && (
-                          <span style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 600, lineHeight: 1.4, display: "block" }}>
+                          <span style={{ fontSize: "11px", color: "#b83232", fontWeight: 600, lineHeight: 1.4, display: "block" }}>
                             Missing: {missing.join(", ")}
                           </span>
                         )}
@@ -2566,7 +2552,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
               </tbody>
             </table>
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>
+          <p style={{ margin: "8px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
             {editableRows.length} row{editableRows.length !== 1 ? "s" : ""} loaded. Click any cell to edit. Use the header row to bulk-set a column — press Enter to apply text fields.
           </p>
         </div>
@@ -2574,19 +2560,19 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 
       {/* Results */}
       {result && (
-        <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px", background: "rgba(3,72,82,0.04)" }}>
-          <p style={{ fontWeight: 700, color: "#034852", fontSize: "15px" }}>
-            ✅ {result.created} user{result.created !== 1 ? "s" : ""} created
-            {result.skipped > 0 && <>, ⚠️ {result.skipped} skipped</>}
+        <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
+          <p style={{ fontWeight: 600, color: "var(--color-text)", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <CheckCircle2 size={18} aria-hidden="true" style={{ color: "#08784a" }} />{result.created} user{result.created !== 1 ? "s" : ""} created
+            {result.skipped > 0 && <>, <AlertTriangle size={16} aria-hidden="true" style={{ color: "#b7791f" }} />{result.skipped} skipped</>}
           </p>
           {result.errors.length > 0 && (
-            <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
+            <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#b83232", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
           )}
           {result.corrections.length > 0 && (
             <details style={{ marginTop: "8px" }}>
-              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+              <summary style={{ fontSize: "12px", color: "#08784a", fontWeight: 700, cursor: "pointer" }}>
                 {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
               </summary>
               <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
@@ -2595,20 +2581,20 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
             </details>
           )}
           {result.skippedRows.length > 0 && (
-            <button onClick={() => downloadErroredUsersCsv(result, csvHeaders)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
-              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            <button onClick={() => downloadErroredUsersCsv(result, csvHeaders)} style={{ ...secondaryButton, marginTop: "10px", color: "#b83232" }}>
+              <Download size={16} aria-hidden="true" />Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
             </button>
           )}
           {result.credentials?.some((c) => c.tempPassword) && (
             <div style={{ marginTop: "16px", padding: "12px", background: "rgba(10,190,98,0.08)", borderRadius: "8px" }}>
-              <p style={{ fontSize: "13px", color: "#034852", marginBottom: "8px", fontWeight: 600 }}>
+              <p style={{ fontSize: "13px", color: "var(--color-text)", marginBottom: "8px", fontWeight: 600 }}>
                 Some UG students were created with temporary passwords.
               </p>
               <button
                 onClick={downloadCredentials}
-                style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" }}
+                style={primaryButton}
               >
-                ↓ Download Credentials CSV
+                <Download size={16} aria-hidden="true" />Download Credentials CSV
               </button>
             </div>
           )}
@@ -2624,7 +2610,7 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
 function StatusBadge({ status }: { status: string }) {
   const isActive = status === "ACTIVE";
   return (
-    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: isActive ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.10)", color: isActive ? "#0abe62" : "#dc2626" }}>
+    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: isActive ? "rgba(10,190,98,0.12)" : "rgba(220,38,38,0.10)", color: isActive ? "#08784a" : "#b83232" }}>
       {status}
     </span>
   );
@@ -2656,8 +2642,7 @@ function LoadingState() {
   return (
     <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={glassCard}>
-        <p style={labelStyle}>Loading</p>
-        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>Fetching users</p>
+        <p style={{ margin: 0, fontSize: "16px", fontWeight: 600, color: "var(--color-text)" }}>Fetching users</p>
         <p style={{ ...subtitleStyle, marginTop: "8px" }}>Loading user records&hellip;</p>
       </div>
     </div>
@@ -2666,68 +2651,62 @@ function LoadingState() {
 
 // ── Styles ─────────────────────────────────────────────────────
 
-function hoverIn(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.transform = "translateY(-2px)";
-  e.currentTarget.style.boxShadow = "0 12px 20px rgba(10,190,98,0.3)";
-}
-
-function hoverOut(e: React.MouseEvent<HTMLButtonElement>) {
-  e.currentTarget.style.transform = "translateY(0)";
-  e.currentTarget.style.boxShadow = "0 8px 16px rgba(10,190,98,0.2)";
-}
-
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "24px",
-  padding: "32px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
   textAlign: "center",
-  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
 };
 
-const labelStyle: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379" };
-const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
-const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "rgba(3,72,82,0.6)" };
+const labelStyle: React.CSSProperties = { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 };
+const panelTitleStyle: React.CSSProperties = { fontSize: "18px", fontWeight: 600, color: "var(--color-text)", margin: 0 };
+const titleStyle: React.CSSProperties = { fontSize: "22px", fontWeight: 700, color: "var(--color-text)" };
+const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "var(--color-text-muted)" };
 
 const primaryButton: React.CSSProperties = {
-  padding: "12px 24px", border: "none", borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px",
-  cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
-  transition: "all 280ms cubic-bezier(0.16,1,0.3,1)", whiteSpace: "nowrap",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+  minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px",
+  background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px",
+  cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none",
+};
+
+const secondaryButton: React.CSSProperties = {
+  ...primaryButton,
+  border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)",
 };
 
 const closeBtnStyle: React.CSSProperties = {
-  background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.5)",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "44px", minHeight: "44px",
+  background: "none", border: "none", fontSize: "18px", color: "var(--color-text-muted)",
   cursor: "pointer", padding: "4px 8px", borderRadius: "8px",
 };
 
 const formLabelStyle: React.CSSProperties = {
-  display: "block", fontSize: "11px", fontWeight: 600, textTransform: "uppercase",
-  letterSpacing: "0.05em", color: "rgba(3,72,82,0.7)", marginBottom: "6px",
+  display: "block", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", marginBottom: "6px",
 };
 
 const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)",
-  border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852",
+  width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)",
+  border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)",
   fontFamily: "var(--font-body)", fontSize: "14px", outline: "none",
 };
 
 const bulkInputStyle: React.CSSProperties = {
   width: "100%", padding: "4px 7px", borderRadius: "6px",
-  fontFamily: "var(--font-body)", fontSize: "11px", color: "#034852",
-  background: "rgba(0,109,108,0.06)", border: "1px solid rgba(3,72,82,0.2)",
+  fontFamily: "var(--font-body)", fontSize: "12px", color: "var(--color-text)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border-strong)",
   outline: "none", boxSizing: "border-box" as const,
 };
 
 const thStyle: React.CSSProperties = {
-  padding: "14px 20px", textAlign: "left", fontSize: "11px", fontWeight: 700,
-  textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379",
-  background: "rgba(32,147,121,0.04)",
+  padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 500,
+  color: "var(--color-text-muted)",
+  background: "#eef5f3",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "12px 20px", textAlign: "left", color: "rgba(3,72,82,0.75)", fontSize: "13px",
+  padding: "12px 16px", textAlign: "left", color: "var(--color-text-muted)", fontSize: "13px",
 };
 
 // ── Assign Batch Modal ─────────────────────────────────────────
@@ -2782,13 +2761,13 @@ function AssignBatchModal({
     <>
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", backdropFilter: "blur(4px)", zIndex: 50 }}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.25)", zIndex: 50 }}
       />
       <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", zIndex: 51 }}>
         <div style={{
-          background: "#ffffff",
-          border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px",
-          boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)", borderRadius: "12px", padding: "24px",
+          boxShadow: "0 8px 32px rgba(3,72,82,0.16)",
           opacity: 0, transform: "translateY(12px)",
           animation: "floatIn 0.35s cubic-bezier(0.16,1,0.3,1) forwards",
         }}>
@@ -2796,11 +2775,11 @@ function AssignBatchModal({
             <div>
               <p style={labelStyle}>Add to Batch</p>
               <h3 style={{ ...titleStyle, fontSize: "18px", margin: "4px 0 2px" }}>{student.name}</h3>
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>
                 {student.programme_type ?? "No programme"} · {student.email ?? student.roll_number ?? "—"}
               </p>
             </div>
-            <button onClick={onClose} style={closeBtnStyle}>✕</button>
+            <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
           </div>
 
           {success ? (
@@ -2809,11 +2788,11 @@ function AssignBatchModal({
                 background: "rgba(10,190,98,0.08)", border: "1px solid rgba(10,190,98,0.25)",
                 borderRadius: "12px", padding: "20px", textAlign: "center", marginBottom: "20px",
               }}>
-                <p style={{ fontSize: "28px", margin: "0 0 8px" }}>✅</p>
-                <p style={{ fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", fontSize: "16px", margin: 0 }}>
+                <CheckCircle2 size={28} aria-hidden="true" style={{ color: "#08784a", margin: "0 auto 8px", display: "block" }} />
+                <p style={{ fontWeight: 700, color: "var(--color-text)", fontSize: "16px", margin: 0 }}>
                   Added to batch
                 </p>
-                <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "6px 0 0" }}>
+                <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "6px 0 0" }}>
                   All batch content (courses, bundles, tests) is now assigned to this student.
                 </p>
               </div>
@@ -2831,11 +2810,11 @@ function AssignBatchModal({
                 style={{ ...inputStyle, marginBottom: "12px" }}
               />
 
-              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", marginBottom: "16px" }}>
+              <div style={{ maxHeight: "240px", overflowY: "auto", border: "1px solid var(--color-border)", borderRadius: "14px", marginBottom: "16px" }}>
                 {batchesLoading ? (
-                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading batches…</p>
+                  <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>Loading batches…</p>
                 ) : filtered.length === 0 ? (
-                  <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
+                  <p style={{ padding: "20px", textAlign: "center", color: "var(--color-text-muted)", fontSize: "13px" }}>
                     {search ? "No batches match your search." : "No active batches available."}
                   </p>
                 ) : (
@@ -2854,12 +2833,12 @@ function AssignBatchModal({
                         }}
                       >
                         <div>
-                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{batch.name}</p>
-                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>{batch.name}</p>
+                          <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
                             {batch.school_name ?? "Independent"} · {batch.member_count} student{batch.member_count !== 1 ? "s" : ""} · {batch.course_count + batch.bundle_count + batch.test_count} item{batch.course_count + batch.bundle_count + batch.test_count !== 1 ? "s" : ""}
                           </p>
                         </div>
-                        {active && <span style={{ fontSize: "16px", color: "#0abe62" }}>✓</span>}
+                        {active && <span style={{ fontSize: "16px", color: "#08784a" }}>✓</span>}
                       </div>
                     );
                   })
@@ -2867,11 +2846,11 @@ function AssignBatchModal({
               </div>
 
               {error && (
-                <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
+                <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginBottom: "12px" }}>{error}</p>
               )}
 
               <div style={{ display: "flex", gap: "10px" }}>
-                <button onClick={onClose} style={{ ...primaryButton, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>
+                <button onClick={onClose} style={{ ...secondaryButton, flex: 1 }}>
                   Cancel
                 </button>
                 <button

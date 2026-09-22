@@ -16,6 +16,7 @@ import { ClassFilterBar } from "./_components/ClassFilterBar";
 import { useClassFilters } from "./_components/useClassFilters";
 import { STATUS_LABEL, chipStyle, MUTED } from "@/lib/attendance-status";
 import { VideoIcon, RecordedIcon, LiveDot, CalendarIcon } from "@/components/icons/ClassIcons";
+import { Plus } from "lucide-react";
 import type { AttendanceStatus } from "@/lib/attendance-api";
 
 /**
@@ -138,16 +139,13 @@ function LiveClassesInner() {
 
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "28px" }}>
-        <div>
-          <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>Live Classes</h1>
-          <p style={{ fontSize: "14px", color: MUTED, marginTop: "4px" }}>
-            {classes.length} {isPast ? "past" : "upcoming"}
-          </p>
-        </div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "20px" }}>
+        <p role="status" style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>
+          {classes.length} {isPast ? "past" : "upcoming"} class{classes.length !== 1 ? "es" : ""}
+        </p>
         {canCreate && (
-          <Link href="/dashboard/live-classes/new" style={{ ...S.primaryBtn, textDecoration: "none" }}>
-            + Schedule Class
+          <Link href="/dashboard/live-classes/new" style={S.primaryBtn}>
+            <Plus size={18} aria-hidden="true" />Schedule class
           </Link>
         )}
       </div>
@@ -174,8 +172,8 @@ function LiveClassesInner() {
         <div style={{ ...glassCard, display: "flex", alignItems: "center", gap: "16px", padding: "16px 24px", marginBottom: "20px" }}>
           <CalendarIcon className="h-6 w-6 text-[var(--teal)]" />
           <div>
-            <p style={{ ...S.label, marginBottom: "2px" }}>My Attendance</p>
-            <p style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#034852" }}>
+            <p style={{ ...S.label, marginBottom: "2px" }}>My attendance</p>
+            <p style={{ margin: 0, fontSize: "15px", fontWeight: 600, color: "var(--color-text)" }}>
               {attended}/{recorded} classes attended
             </p>
           </div>
@@ -218,7 +216,7 @@ function LiveClassesInner() {
           do is make sure the student can still actually get to the class. */}
       {blockedUrl && (
         <div style={{ ...glassCard, marginTop: "16px", padding: "16px 20px" }} role="alert">
-          <p style={{ margin: 0, fontSize: "14px", color: "#034852" }}>
+          <p style={{ margin: 0, fontSize: "14px", color: "var(--color-text)" }}>
             Your browser blocked the meeting window. You&apos;re marked present —{" "}
             <a href={blockedUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--teal)", fontWeight: 700 }}>
               open the class
@@ -232,9 +230,10 @@ function LiveClassesInner() {
 
 function EmptyState({ isPast, canCreate, isStaff }: { isPast: boolean; canCreate: boolean; isStaff: boolean }) {
   return (
-    <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-      <p style={S.label}>{isPast ? "Nothing here" : "No Classes Scheduled"}</p>
-      <p style={{ ...S.heading, fontSize: "18px", marginTop: "12px" }}>
+    <div style={{ ...glassCard, display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", textAlign: "center", padding: "48px 24px" }}>
+      <CalendarIcon className="h-6 w-6 text-[var(--teal)]" />
+      <h2 style={{ ...S.heading, fontSize: "18px", margin: 0 }}>{isPast ? "Nothing here" : "No classes scheduled"}</h2>
+      <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: 0 }}>
         {isPast
           ? "No past classes match these filters."
           : isStaff
@@ -242,8 +241,8 @@ function EmptyState({ isPast, canCreate, isStaff }: { isPast: boolean; canCreate
             : "No live classes have been scheduled for you yet."}
       </p>
       {canCreate && !isPast && (
-        <Link href="/dashboard/live-classes/new" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>
-          + Schedule Class
+        <Link href="/dashboard/live-classes/new" style={{ ...S.primaryBtn, marginTop: "4px" }}>
+          <Plus size={18} aria-hidden="true" />Schedule class
         </Link>
       )}
     </div>
@@ -397,24 +396,22 @@ function LoadingState() {
  * and a style object cannot express one — so everything the card touches moved
  * to classes. The rest of the page keeps its inline styles for now.
  */
-const CARD = "rounded-[20px] border border-[rgba(3,72,82,0.08)] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.05)]";
-const BTN_BASE = "inline-flex min-h-[44px] items-center justify-center rounded-lg px-3.5 text-[13px] font-semibold";
-const LINK_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(0,109,108,0.35)] text-[var(--teal)]`;
-const GHOST_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(3,72,82,0.2)] text-[var(--dark-teal)]`;
-const DANGER_BTN = `${BTN_BASE} border-[1.5px] border-[rgba(198,40,40,0.35)] text-[#c62828]`;
+const CARD = "rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]";
+const BTN_BASE = "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 text-[13px] font-semibold";
+const LINK_BTN = `${BTN_BASE} text-[var(--teal)]`;
+const GHOST_BTN = `${BTN_BASE} text-[var(--color-text)]`;
+const DANGER_BTN = `${BTN_BASE} text-[#b83232]`;
 const PRIMARY_BTN =
-  "inline-flex min-h-[44px] items-center justify-center rounded-[10px] px-5 text-[13px] font-bold text-white " +
-  "bg-[linear-gradient(135deg,#067a3f_0%,#005b5a_100%)] shadow-[0_6px_14px_rgba(6,122,63,0.22)] " +
-  "[font-family:var(--font-heading)]";
+  "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-[var(--green)] bg-[var(--green)] px-4 text-sm font-semibold text-[var(--dark-teal)]";
 
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "20px", padding: "28px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
+const glassCard: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)" };
 const S = {
-  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "var(--teal)", margin: 0 } as React.CSSProperties,
-  heading: { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  primaryBtn: { minHeight: "44px", padding: "12px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(6,122,63,0.22)", display: "inline-block" } as React.CSSProperties,
-  segment: { minHeight: "44px", padding: "10px 18px", borderRadius: "10px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "var(--font-heading)", border: "1.5px solid rgba(3,72,82,0.15)", background: "transparent", color: "#034852" } as React.CSSProperties,
-  segmentOn: { border: "none", background: "linear-gradient(135deg, #067a3f 0%, #005b5a 100%)", color: "#fff" } as React.CSSProperties,
-  linkBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(0,109,108,0.35)", borderRadius: "8px", background: "transparent", color: "var(--teal)", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  ghostBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px", background: "transparent", color: "#034852", cursor: "pointer", fontFamily: "var(--font-body)" } as React.CSSProperties,
-  dangerBtn: { minHeight: "44px", padding: "10px 14px", fontSize: "13px", fontWeight: 600, border: "1.5px solid rgba(198,40,40,0.35)", borderRadius: "8px", background: "transparent", color: "#c62828", fontFamily: "var(--font-body)" } as React.CSSProperties,
+  label: { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading: { fontWeight: 600, color: "var(--color-text)" } as React.CSSProperties,
+  primaryBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
+  segment: { minHeight: "44px", padding: "8px 16px", borderRadius: "12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text-muted)" } as React.CSSProperties,
+  segmentOn: { borderColor: "var(--color-border-strong)", background: "var(--color-success-surface)", color: "var(--dark-teal)" } as React.CSSProperties,
+  linkBtn: { minHeight: "44px", padding: "8px 14px", fontSize: "13px", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", cursor: "pointer", color: "var(--teal)" } as React.CSSProperties,
+  ghostBtn: { minHeight: "44px", padding: "8px 14px", fontSize: "13px", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", cursor: "pointer", color: "var(--color-text)" } as React.CSSProperties,
+  dangerBtn: { minHeight: "44px", padding: "8px 14px", fontSize: "13px", fontWeight: 600, border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", cursor: "pointer", color: "#b83232" } as React.CSSProperties,
 };

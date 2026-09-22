@@ -15,8 +15,8 @@ export default function AnalyticsPage() {
   if (isLoading) return <LoadingPlaceholder />;
   if (!hasAny(...ANALYTICS_DASHBOARD_PERMISSIONS)) {
     return (
-      <div style={{ background: "#ffffff", borderRadius: "24px", padding: "48px 36px", textAlign: "center" }}>
-        <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.55)" }}>
+      <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px,4vw,24px)", textAlign: "center" }}>
+        <p style={{ fontSize: "14px", color: "var(--color-text-muted)" }}>
           You do not have access to analytics.
         </p>
       </div>
@@ -29,7 +29,7 @@ export default function AnalyticsPage() {
 function LoadingPlaceholder() {
   return (
     <div style={{ minHeight: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>Loading analytics…</p>
+      <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading analytics…</p>
     </div>
   );
 }

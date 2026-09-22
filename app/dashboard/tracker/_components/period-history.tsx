@@ -38,17 +38,17 @@ export function PeriodHistory({
   if (!recurring) return null;
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+    <div className="mt-3 border-t border-[var(--color-border)] pt-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
         Earlier periods
       </p>
 
       {first.isLoading ? (
-        <p className="flex items-center gap-2 text-xs text-gray-500">
+        <p className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Loading…
         </p>
       ) : !first.data || first.data.entries.length === 0 ? (
-        <p className="text-xs text-gray-400">No earlier occurrences yet.</p>
+        <p className="text-xs text-[var(--color-text-muted)]">No earlier occurrences yet.</p>
       ) : (
         <ol className="flex flex-col gap-1.5">
           {first.data.entries.map((e) => (
@@ -78,7 +78,7 @@ function MorePage({ recordId, before, studentId }: {
   const { data, isLoading } = useRecordPeriodHistory(recordId, true, before, undefined, studentId);
   if (isLoading) {
     return (
-      <li className="flex items-center gap-2 text-xs text-gray-500">
+      <li className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
         <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Loading…
       </li>
     );
@@ -119,7 +119,7 @@ function LoadMore({
     <button
       type="button"
       onClick={() => onLoad(next)}
-      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-teal-700 hover:underline"
+      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-[var(--teal)] hover:underline"
     >
       <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> Show earlier periods
     </button>
@@ -129,8 +129,8 @@ function LoadMore({
 function PeriodRow({ entry }: { entry: TrackerPeriodHistoryEntry }) {
   const done = entry.lifecycle === "done";
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-gray-100 bg-white px-2.5 py-1.5">
-      <span className="text-xs font-medium text-gray-800">{formatPeriod(entry.period_key)}</span>
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded border border-[var(--color-border)] bg-white px-2.5 py-1.5">
+      <span className="text-xs font-medium text-[var(--color-text)]">{formatPeriod(entry.period_key)}</span>
 
       <span
         className={
@@ -150,13 +150,13 @@ function PeriodRow({ entry }: { entry: TrackerPeriodHistoryEntry }) {
       </span>
 
       {done && entry.updated_by_name && (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[var(--color-text-muted)]">
           by {entry.updated_by_name} · {formatWhen(entry.updated_at)}
         </span>
       )}
 
       {entry.geo && (
-        <span className="text-xs text-gray-500">
+        <span className="text-xs text-[var(--color-text-muted)]">
           {entry.geo.accepted ? "visit verified" : "visit not verified"} ·{" "}
           {Math.round(entry.geo.distance_m)} m
         </span>
@@ -167,7 +167,7 @@ function PeriodRow({ entry }: { entry: TrackerPeriodHistoryEntry }) {
         <img
           src={entry.geo.preview_url}
           alt={`Visit photo for ${formatPeriod(entry.period_key)}`}
-          className="h-7 w-7 rounded border border-gray-200 object-cover"
+          className="h-7 w-7 rounded border border-[var(--color-border)] object-cover"
         />
       )}
     </li>

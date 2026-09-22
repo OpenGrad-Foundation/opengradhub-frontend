@@ -12,6 +12,7 @@ const FIVE_MIN = 5 * 60_000;
 type Role = "FELLOW" | "PROGRAM_MANAGER" | "ZONAL_MANAGER" | "GOVERNMENT" | "FUNDING_PARTNER";
 
 type InsightsResponse = {
+  scope?: { label: string };
   kpis: {
     students_reached: { value: number };
     districts_covered: { value: number };
@@ -40,9 +41,10 @@ function toWidgets(r: InsightsResponse): OverviewWidgets {
   const k = r.kpis;
   const trend = r.trend ?? [];
   return {
+    scopeLabel: r.scope?.label,
     stats: [
       { key: "students", label: "Students Reached", value: k.students_reached.value, helper: "No students yet" },
-      { key: "avg", label: "Avg Score %", value: Math.round(k.avg_score.value), helper: "No scores yet" },
+      { key: "avg", label: "Avg Score %", value: Math.round(k.avg_score.value), helper: "No submissions or a 0% average" },
       { key: "districts", label: `${ZONE_PLURAL} Covered`, value: k.districts_covered.value, helper: `No ${ZONE_LOWER}s yet` },
       { key: "ug", label: "UG Students", value: k.ug_pg_split.ug, helper: "No UG students" },
     ],
@@ -74,7 +76,7 @@ export function useInsightsOverview(role: Role, userId: string) {
     refetchOnWindowFocus: false,
     queryFn: async () => {
       const res = await apiFetch(`${API_BASE}/analytics/insights`);
-      if (!res.ok) return EMPTY;
+      if (!res.ok) throw new Error("Could not load programme summary. Please try again.");
       const raw = (await res.json()) as InsightsResponse;
       return toWidgets(raw);
     },

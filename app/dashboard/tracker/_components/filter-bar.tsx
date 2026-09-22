@@ -18,7 +18,7 @@ import {
  * wrong answer this screen can give.
  */
 
-const CTRL = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500";
+const CTRL = "h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-sm outline-none focus:border-[var(--teal)] focus:ring-1 focus:ring-[var(--teal)]";
 
 export function FilterBar<Row>({
   spec, state, set, clear, activeCount, role, primaryKeys, children,
@@ -77,29 +77,29 @@ export function FilterBar<Row>({
               type="button"
               onClick={() => setOpenExtra((o) => !o)}
               className={`${CTRL} inline-flex items-center gap-1.5 text-gray-700 transition-colors hover:border-teal-500 ${
-                openExtra ? "border-teal-500 ring-1 ring-teal-500" : ""
+                openExtra ? "border-[var(--teal)] ring-1 ring-[var(--teal)]" : ""
               }`}
               aria-expanded={openExtra}
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
               Add filter
               {extraActive.length > 0 && (
-                <span className="rounded-full bg-teal-600 px-1.5 text-[11px] font-semibold text-white">
+                <span className="rounded-full bg-[var(--green)] px-1.5 text-[11px] font-semibold text-[var(--dark-teal)]">
                   {extraActive.length}
                 </span>
               )}
             </button>
             {openExtra && (
               <div
-                className="absolute left-0 top-full z-30 mt-1.5 flex w-80 sm:w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-xl"
+                className="absolute left-0 top-full z-30 mt-1.5 flex w-80 sm:w-96 max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-xl border border-[var(--color-border)] bg-white p-4 shadow-xl"
                 role="dialog"
                 aria-label="Additional filters"
               >
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">Filters</span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]">Filters</span>
                     {extraActive.length > 0 && (
-                      <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700">
+                      <span className="rounded-full border border-teal-200 bg-[var(--color-success-surface)] px-2 py-0.5 text-xs font-medium text-[var(--teal)]">
                         {extraActive.length} active
                       </span>
                     )}
@@ -107,7 +107,7 @@ export function FilterBar<Row>({
                   <button
                     type="button"
                     onClick={() => setOpenExtra(false)}
-                    className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                    className="rounded-lg p-1 text-[var(--color-text-muted)] transition-colors hover:bg-[#eef5f3] hover:text-[var(--color-text-muted)]"
                     aria-label="Close filters"
                   >
                     <X className="h-4 w-4" aria-hidden="true" />
@@ -128,7 +128,7 @@ export function FilterBar<Row>({
                       <div key={def.key} className="flex flex-col gap-1.5">
                         <label
                           htmlFor={isRange(def.kind) ? `${id}-from` : id}
-                          className="text-xs font-medium text-gray-700"
+                          className="text-xs font-medium text-[var(--color-text)]"
                         >
                           {def.label}
                         </label>
@@ -139,8 +139,8 @@ export function FilterBar<Row>({
                 </div>
 
                 {extraActive.length > 0 && (
-                  <div className="flex items-center justify-between border-t border-gray-100 pt-2.5 text-xs">
-                    <span className="text-gray-500">
+                  <div className="flex items-center justify-between border-t border-[var(--color-border)] pt-2.5 text-xs">
+                    <span className="text-[var(--color-text-muted)]">
                       {extraActive.length} filter{extraActive.length > 1 ? "s" : ""} applied
                     </span>
                     <button
@@ -150,7 +150,7 @@ export function FilterBar<Row>({
                         extra.forEach((d) => { patch[d.key] = undefined; });
                         set(patch);
                       }}
-                      className="font-medium text-teal-600 hover:text-teal-800 hover:underline"
+                      className="font-medium text-[var(--teal)] hover:text-[var(--teal)] hover:underline"
                     >
                       Reset filters
                     </button>
@@ -170,14 +170,14 @@ export function FilterBar<Row>({
               key={def.key}
               type="button"
               onClick={() => set({ [def.key]: undefined })}
-              className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-800 hover:bg-teal-100"
+              className="inline-flex items-center gap-1 rounded-full border border-teal-200 bg-[var(--color-success-surface)] px-2.5 py-1 text-xs font-medium text-[var(--teal)] hover:bg-teal-100"
             >
               {def.label}: {describe(def, state[def.key])}
               <X className="h-3 w-3" aria-hidden="true" />
               <span className="sr-only">Remove {def.label} filter</span>
             </button>
           ))}
-          <button type="button" onClick={clear} className="px-1.5 py-1 text-xs font-medium text-gray-500 underline hover:text-gray-800">
+          <button type="button" onClick={clear} className="px-1.5 py-1 text-xs font-medium text-[var(--color-text-muted)] underline hover:text-[var(--color-text)]">
             Clear all
           </button>
         </div>
@@ -210,7 +210,7 @@ function Control<Row>({
           onChange={(e) => onChange({ ...range, from: e.target.value || undefined })}
           className={`${CTRL} ${full ? "min-w-0 flex-1 px-2 text-xs sm:text-sm" : "w-36"}`}
         />
-        <span className="shrink-0 text-xs font-medium text-gray-400" aria-hidden="true">→</span>
+        <span className="shrink-0 text-xs font-medium text-[var(--color-text-muted)]" aria-hidden="true">→</span>
         <input
           id={id ? `${id}-to` : undefined}
           type={type}
@@ -225,16 +225,16 @@ function Control<Row>({
   }
   if (def.kind === "toggle") {
     return (
-      <label className={`inline-flex cursor-pointer select-none items-center gap-2 text-sm text-gray-700 hover:text-gray-900 ${width}`}>
+      <label className={`inline-flex cursor-pointer select-none items-center gap-2 text-sm text-[var(--color-text)] hover:text-[var(--color-text)] ${width}`}>
         <input
           id={id}
           type="checkbox"
           checked={value === true}
           aria-label={def.label}
           onChange={(e) => onChange(e.target.checked ? true : undefined)}
-          className="h-4 w-4 cursor-pointer rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+          className="h-4 w-4 cursor-pointer rounded border-[var(--color-border-strong)] text-[var(--teal)] focus:ring-[var(--teal)]"
         />
-        <span className="font-medium text-gray-700">{def.label}</span>
+        <span className="font-medium text-[var(--color-text)]">{def.label}</span>
       </label>
     );
   }

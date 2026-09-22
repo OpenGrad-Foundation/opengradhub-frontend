@@ -215,16 +215,16 @@ export function GeoVerificationModal({
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-4 py-3">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3">
           <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-teal-600" aria-hidden="true" />
-            <h2 className="text-base font-semibold text-gray-950">School visit verification</h2>
+            <MapPin className="h-4 w-4 text-[var(--teal)]" aria-hidden="true" />
+            <h2 className="text-base font-semibold text-[var(--color-text)]">School visit verification</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close verification"
-            className="rounded p-1 text-gray-400 hover:text-gray-700"
+            className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           >
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -232,23 +232,23 @@ export function GeoVerificationModal({
 
         <div className="flex-1 overflow-y-auto px-4 py-3">
           {blocking && (
-            <p className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Verify this school visit before you can mark its {entryWord} done.
             </p>
           )}
 
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-[var(--color-text-muted)]">
             One photo covers all {entryWord} for this school. Take it at the school with
             location switched on, or upload one you took there earlier. We read the location
             the camera saved inside the photo — we never ask your browser for your location.
           </p>
 
           {isLoading ? (
-            <p className="mt-3 flex items-center gap-2 text-xs text-gray-500">
+            <p className="mt-3 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading verification…
             </p>
           ) : targets.length === 0 ? (
-            <p className="mt-3 text-xs text-gray-500">No schools in view.</p>
+            <p className="mt-3 text-xs text-[var(--color-text-muted)]">No schools in view.</p>
           ) : (
             <div className="mt-3 flex flex-col gap-3">
               {targets.map((school) => {
@@ -266,15 +266,15 @@ export function GeoVerificationModal({
                     key={school.key}
                     role="group"
                     aria-label={school.doerName ? `${school.schoolName} — ${school.doerName}` : school.schoolName}
-                    className="rounded-lg border border-gray-200 p-3"
+                    className="rounded-xl border border-[var(--color-border)] p-3"
                   >
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <span className="text-sm font-medium text-gray-900">{school.schoolName}</span>
+                      <span className="text-sm font-medium text-[var(--color-text)]">{school.schoolName}</span>
                       {school.doerName && !school.canUpload && (
-                        <span className="text-xs text-gray-500">{school.doerName}&apos;s visit</span>
+                        <span className="text-xs text-[var(--color-text-muted)]">{school.doerName}&apos;s visit</span>
                       )}
                       <StateBadge verification={v} />
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-[var(--color-text-muted)]">
                         {count} {count === 1 ? "entry" : "entries"}
                       </span>
                     </div>
@@ -286,10 +286,10 @@ export function GeoVerificationModal({
                           <img
                             src={v.preview_url}
                             alt={`Visit photo for ${school.schoolName}`}
-                            className="h-14 w-14 shrink-0 rounded border border-gray-200 object-cover"
+                            className="h-14 w-14 shrink-0 rounded border border-[var(--color-border)] object-cover"
                           />
                         )}
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-[var(--color-text-muted)]">
                           {formatDistance(v.distance_m)} from school · captured{" "}
                           {formatTime(v.exif_captured_at)}
                           {v.accuracy_m == null
@@ -304,7 +304,7 @@ export function GeoVerificationModal({
                     )}
 
                     {!readOnly && mayUpload && outOfTime && (
-                      <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
                         Past its due date, so no new photo can be added. Ask your ZM or PM for an
                         extension — the upload comes back while it lasts.
                       </p>
@@ -313,7 +313,7 @@ export function GeoVerificationModal({
                     {!readOnly && mayUpload && !outOfTime && (
                       <div className="mt-3">
                         {busy ? (
-                          <p className="inline-flex items-center gap-2 text-sm text-gray-600">
+                          <p className="inline-flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
                             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Checking photo…
                           </p>
                         ) : (
@@ -325,14 +325,14 @@ export function GeoVerificationModal({
                                 never be verified. */}
                             <label
                               htmlFor={`geo-photo-camera-${school.key}`}
-                              className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+                              className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg bg-[var(--green)] px-3 py-2 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)]"
                             >
                               <Camera className="h-4 w-4" aria-hidden="true" />
                               {v ? "Retake photo" : "Take photo"}
                             </label>
                             <label
                               htmlFor={`geo-photo-library-${school.key}`}
-                              className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                              className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]"
                             >
                               <ImageIcon className="h-4 w-4" aria-hidden="true" />
                               Choose existing photo
@@ -385,11 +385,11 @@ export function GeoVerificationModal({
           )}
         </div>
 
-        <div className="flex justify-end border-t border-gray-100 px-4 py-3">
+        <div className="flex justify-end border-t border-[var(--color-border)] px-4 py-3">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]"
           >
             Close
           </button>
@@ -402,7 +402,7 @@ export function GeoVerificationModal({
 function StateBadge({ verification }: { verification: TrackerGeoVerification | undefined }) {
   if (!verification) {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      <span className="inline-flex items-center gap-1 rounded-full bg-[#eef5f3] px-2 py-0.5 text-xs font-medium text-[var(--color-text-muted)]">
         Not uploaded
       </span>
     );
@@ -454,9 +454,9 @@ function OverrideForm({ verificationId, onDone }: { verificationId: string; onDo
     <form
       onSubmit={submit}
       aria-label="Override verification"
-      className="mt-2 flex w-full flex-col gap-2 rounded-md border border-amber-200 bg-amber-50/60 p-2"
+      className="mt-2 flex w-full flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2"
     >
-      <label htmlFor={`reason-${verificationId}`} className="text-xs font-medium text-gray-700">
+      <label htmlFor={`reason-${verificationId}`} className="text-xs font-medium text-[var(--color-text)]">
         Reason for accepting this visit
       </label>
       <textarea
@@ -464,21 +464,21 @@ function OverrideForm({ verificationId, onDone }: { verificationId: string; onDo
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         rows={2}
-        className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-amber-500"
+        className="w-full rounded border border-[var(--color-border-strong)] px-2 py-1 text-xs outline-none focus:border-amber-500"
       />
       {err && <p className="text-xs text-red-700">{err}</p>}
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={override.isPending}
-          className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
         >
           Confirm override
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-white"
+          className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-white"
         >
           Cancel
         </button>

@@ -1,13 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useBatches } from "@/lib/queries/batches";
+import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { BatchFormModal } from "./BatchFormModal";
+import { Plus, RefreshCw, Search, UsersRound } from "lucide-react";
+import styles from "../_components/catalogue.module.css";
+import local from "./batches.module.css";
+
+type StatusFilter = "ACTIVE" | "ARCHIVED" | "all";
 
 export default function BatchesPage() {
   const router = useRouter();
@@ -16,8 +23,8 @@ export default function BatchesPage() {
   const canCreate = has(PERM.batches.create);
   const canEdit = has(PERM.batches.edit);
 
-  const [statusFilter, setStatusFilter] = useState<"ACTIVE" | "ARCHIVED" | "all">("ACTIVE");
-  const { data: batches = [], isLoading, error, refetch } = useBatches(statusFilter);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE");
+  const { data: batches = [], isLoading, error, refetch, isFetching } = useBatches(statusFilter);
 
   const [showAdd, setShowAdd] = useState(false);
   const [query, setQuery] = useState("");
@@ -28,18 +35,51 @@ export default function BatchesPage() {
       .some((v) => (v ?? "").toLowerCase().includes(q))) return false;
     return true;
   });
+  const batchHref = (id: string) => withFrom(`/dashboard/batches/${id}`, currentUrl);
+  const statusWord = statusFilter === "ACTIVE" ? "active " : statusFilter === "ARCHIVED" ? "archived " : "";
 
   return (
-    <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Batches</h1>
-        </div>
-        {canCreate && (
-          <button onClick={() => setShowAdd(true)} style={primaryButton}>
-            + Add Batch
+    <div className={`${styles.catalogue} ${styles.content}`}>
+      {canCreate && (
+        <HeaderActions>
+          <button type="button" onClick={() => setShowAdd(true)} className={styles.primary}>
+            <Plus size={18} aria-hidden="true" />Add batch
           </button>
-        )}
+        </HeaderActions>
+      )}
+
+      <div className={styles.toolbar}>
+        <div className={styles.searchTools} style={{ flexWrap: "wrap" }}>
+          <label className={styles.search}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, school, or programme…"
+              aria-label="Search batches"
+            />
+          </label>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            aria-label="Filter by status"
+            className={styles.control}
+            style={{ width: "auto", minWidth: "140px" }}
+          >
+            <option value="ACTIVE">Active</option>
+            <option value="ARCHIVED">Archived</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+      </div>
+
+      <div className={styles.resultsBar}>
+        <p role="status" className={styles.resultsLabel}>
+          {isLoading ? "Loading batches…" : error ? "Batches unavailable"
+            : q ? `${visibleBatches.length} of ${batches.length}`
+            : `${batches.length} ${statusWord}batch${batches.length === 1 ? "" : "es"}`}
+        </p>
       </div>
 
       {showAdd && (
@@ -51,115 +91,92 @@ export default function BatchesPage() {
       )}
 
       {isLoading ? (
-        <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading batches…</p>
+        <div aria-hidden="true" className={styles.courseGrid}>
+          {[0, 1, 2].map((i) => <div key={i} className={styles.skeleton}><div /><div /><div /></div>)}
+        </div>
       ) : error ? (
-        <p style={{ color: "#c53030", fontWeight: 600 }}>
-          {error instanceof Error ? error.message : "Failed to load batches."}
-        </p>
+        <section role="alert" className={styles.empty}>
+          <UsersRound size={28} aria-hidden="true" />
+          <h2>Batches couldn’t be loaded</h2>
+          <p className={local.error}>{error instanceof Error ? error.message : "Failed to load batches."}</p>
+          <button type="button" disabled={isFetching} onClick={() => void refetch()} className={styles.secondary}>
+            <RefreshCw size={16} aria-hidden="true" />{isFetching ? "Retrying…" : "Try again"}
+          </button>
+        </section>
+      ) : batches.length === 0 ? (
+        <section className={styles.empty}>
+          <UsersRound size={28} aria-hidden="true" />
+          <h2>No batches yet.</h2>
+          <p>{canCreate ? "Group students into a batch, then assign courses, bundles and quizzes to them together." : "Batches will appear here once they’re created."}</p>
+          {canCreate && (
+            <button type="button" onClick={() => setShowAdd(true)} className={styles.primary}>
+              <Plus size={16} aria-hidden="true" />Add batch
+            </button>
+          )}
+        </section>
+      ) : visibleBatches.length === 0 ? (
+        <section className={styles.empty}>
+          <Search size={28} aria-hidden="true" />
+          <h2>No batches match &ldquo;{query}&rdquo;.</h2>
+          <p>Try another name, school or programme.</p>
+          <button type="button" onClick={() => setQuery("")} className={styles.secondary}>Clear search</button>
+        </section>
       ) : (
-        <>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
-            <div style={{ position: "relative", flex: "1 1 280px", maxWidth: "420px" }}>
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search name, school, or programme…"
-                aria-label="Search batches"
-                style={{ ...inputStyle, paddingLeft: "36px" }}
-              />
-              <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
-            </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "ACTIVE" | "ARCHIVED" | "all")}
-              aria-label="Filter by status"
-              style={{ ...inputStyle, width: "auto", minWidth: "140px" }}
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-              <option value="all">All</option>
-            </select>
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
-              {q ? `${visibleBatches.length} of ${batches.length}` : `${batches.length} batch${batches.length === 1 ? "" : "es"}`}
-            </span>
-          </div>
-
-          <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
-              <thead>
-                <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>School</th>
-                  <th style={thStyle}>Programme</th>
-                  <th style={thStyle}>Status</th>
-                  <th style={thStyle}>Dates</th>
-                  <th style={thStyle}>Students</th>
-                  <th style={thStyle}>Content</th>
-                  {canEdit && <th style={thStyle} />}
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <caption className="sr-only">Batches</caption>
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">School</th>
+                <th scope="col">Programme</th>
+                <th scope="col">Status</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Students</th>
+                <th scope="col">Content</th>
+                {canEdit && <th scope="col"><span className="sr-only">Actions</span></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleBatches.map((b) => (
+                <tr key={b.id} onClick={() => router.push(batchHref(b.id))} className={local.clickable}>
+                  <td>
+                    <Link href={batchHref(b.id)} onClick={(e) => e.stopPropagation()} className={local.rowLink}>{b.name}</Link>
+                  </td>
+                  <td>{b.school_name ?? <em className={local.muted}>Independent</em>}</td>
+                  <td>{b.programme_type ?? "—"}</td>
+                  <td>
+                    <span className={local.status} data-active={b.status === "ACTIVE"}>
+                      {b.status === "ACTIVE" ? "Active" : b.status === "ARCHIVED" ? "Archived" : b.status}
+                    </span>
+                  </td>
+                  <td className={local.nowrap}>
+                    {b.starts_on || b.ends_on ? `${b.starts_on ?? "…"} → ${b.ends_on ?? "…"}` : "—"}
+                  </td>
+                  <td>{b.member_count}</td>
+                  <td className={local.muted}>
+                    {b.course_count} courses · {b.bundle_count} bundles · {b.test_count} tests
+                  </td>
+                  {canEdit && (
+                    <td style={{ textAlign: "right" }}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(withFrom(`/dashboard/batches/${b.id}?tab=settings`, currentUrl));
+                        }}
+                        className={styles.secondary}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  )}
                 </tr>
-              </thead>
-              <tbody>
-                {batches.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No batches yet.</td></tr>
-                ) : visibleBatches.length === 0 ? (
-                  <tr><td colSpan={canEdit ? 8 : 7} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>No batches match &ldquo;{query}&rdquo;.</td></tr>
-                ) : visibleBatches.map((b) => (
-                  <tr
-                    key={b.id}
-                    onClick={() => router.push(withFrom(`/dashboard/batches/${b.id}`, currentUrl))}
-                    style={{ borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "pointer" }}
-                  >
-                    <td style={{ ...tdStyle, color: "#034852", fontWeight: 600 }}>
-                      {b.name}
-                    </td>
-                    <td style={tdStyle}>{b.school_name ?? <em style={{ color: "rgba(3,72,82,0.5)" }}>Independent</em>}</td>
-                    <td style={tdStyle}>{b.programme_type ?? "—"}</td>
-                    <td style={tdStyle}>
-                      <span style={{
-                        padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700,
-                        background: b.status === "ACTIVE" ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
-                        color: b.status === "ACTIVE" ? "#0abe62" : "rgba(3,72,82,0.6)",
-                      }}>
-                        {b.status}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {b.starts_on || b.ends_on
-                        ? `${b.starts_on ?? "…"} → ${b.ends_on ?? "…"}`
-                        : "—"}
-                    </td>
-                    <td style={tdStyle}>{b.member_count}</td>
-                    <td style={tdStyle}>
-                      {b.course_count} courses · {b.bundle_count} bundles · {b.test_count} tests
-                    </td>
-                    {canEdit && (
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(withFrom(`/dashboard/batches/${b.id}?tab=settings`, currentUrl));
-                          }}
-                          style={linkBtnStyle}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
 }
-
-const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
-const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 8px 16px rgba(10,190,98,0.2)", whiteSpace: "nowrap" };
-const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" };
-const thStyle: React.CSSProperties = { padding: "14px 20px", textAlign: "left", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#209379" };
-const tdStyle: React.CSSProperties = { padding: "12px 20px", color: "#034852" };
-const linkBtnStyle: React.CSSProperties = { background: "none", border: "none", color: "#0abe62", fontWeight: 700, fontSize: "13px", cursor: "pointer" };

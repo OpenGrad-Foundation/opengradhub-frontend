@@ -108,6 +108,8 @@ describe("a filtered report is shareable", () => {
 
   it("puts the date range in the URL", () => {
     const r = open();
+    expect(screen.queryByLabelText("From date")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Date range/ }));
     fireEvent.change(screen.getByLabelText("From date"), { target: { value: "2026-08-01" } });
     r.rerender(<RecordsTab />);
     expect(url.search).toContain("from=2026-08-01");

@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import styles from "../../_components/catalogue.module.css";
+import bundleStyles from "../bundles.module.css";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -21,17 +24,10 @@ export default function NewBundlePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (isLoading || permLoading) return null;
+  if (isLoading || permLoading) return <p role="status">Loading…</p>;
 
   if (!has(PERM.bundles.create)) {
-    return (
-      <div style={glassCard}>
-        <p style={labelSt}>Access Denied</p>
-        <p style={{ ...headingSt, marginTop: "12px", fontSize: "18px" }}>
-          You don&apos;t have permission to create bundles.
-        </p>
-      </div>
-    );
+    return <section className={styles.empty}><h1>You don’t have permission to create bundles.</h1><BackLink fallback="/dashboard/bundles" className={styles.secondary}>Back to Bundles</BackLink></section>;
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -52,111 +48,21 @@ export default function NewBundlePage() {
     }
   }
 
-  return (
-    <div style={{ maxWidth: "600px" }}>
-      {/* ── Back ───────────────────────────────────────────────── */}
-      <BackLink fallback="/dashboard/bundles" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Back to Bundles
-      </BackLink>
-
-      {/* ── Header ─────────────────────────────────────────────── */}
-      <div style={{ margin: "16px 0 28px" }}>
-        <h1 style={{ ...headingSt, fontSize: "28px", margin: "4px 0 0" }}>Create Bundle</h1>
-      </div>
-
-      <form onSubmit={(e) => void handleCreate(e)}>
-        <div style={glassCard}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <FieldGroup label="Bundle Name *">
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Foundation Year Pack"
-                style={inputSt}
-              />
-            </FieldGroup>
-
-            <FieldGroup label="Description">
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="What is this bundle for? Who should it be assigned to?"
-                rows={4}
-                style={{ ...inputSt, resize: "vertical", fontFamily: "var(--font-body)" }}
-              />
-            </FieldGroup>
-
-            {error && (
-              <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>
-            )}
-
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap-reverse" }}>
-              <Link href="/dashboard/bundles" style={{ ...ghostBtn, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "120px" }}>
-                Cancel
-              </Link>
-              <button type="submit" disabled={submitting} style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1, minWidth: "160px" }}>
-                {submitting ? "Creating…" : "Create Bundle & Add Courses →"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label style={{ display: "block", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.7)", marginBottom: "6px" }}>
-        {label}
+  return <div className={`${styles.catalogue} ${bundleStyles.form}`}>
+    <div><BackLink fallback="/dashboard/bundles" className={styles.secondary}><ArrowLeft size={16} aria-hidden="true" />Back to Bundles</BackLink></div>
+    <form onSubmit={event => void handleCreate(event)} className={bundleStyles.formPanel}>
+      <label className={styles.field}>Bundle name
+        <input autoFocus required value={name} onChange={event => setName(event.target.value)} placeholder="e.g. Foundation year" className={styles.control} />
       </label>
-      {children}
-    </div>
-  );
+      <label className={styles.field}>Description <span className="sr-only">(optional)</span>
+        <textarea value={description} onChange={event => setDescription(event.target.value)} placeholder="What will students learn in this bundle?" rows={4} className={styles.control} />
+      </label>
+      <p className={styles.resultsLabel}>You can add courses and quizzes after creating the bundle.</p>
+      {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+      <div className={bundleStyles.formActions}>
+        <Link href="/dashboard/bundles" className={styles.secondary}>Cancel</Link>
+        <button type="submit" disabled={submitting || !name.trim()} className={`${styles.primary} disabled:opacity-50 disabled:cursor-not-allowed`}>{submitting ? "Creating…" : "Create bundle"}<ArrowRight size={16} className="hidden sm:block" aria-hidden="true" /></button>
+      </div>
+    </form>
+  </div>;
 }
-
-// ── Styles ─────────────────────────────────────────────────────
-
-const glassCard: React.CSSProperties = {
-  background: "rgba(255,255,255,0.75)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: "20px",
-  padding: "32px",
-  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
-};
-
-const labelSt: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379", margin: 0,
-};
-
-const headingSt: React.CSSProperties = {
-  fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852", margin: 0,
-};
-
-const primaryBtn: React.CSSProperties = {
-  flex: 2, padding: "12px 22px", border: "none", borderRadius: "12px",
-  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-  color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-  fontSize: "14px", cursor: "pointer",
-  boxShadow: "0 6px 14px rgba(10,190,98,0.2)",
-};
-
-const ghostBtn: React.CSSProperties = {
-  flex: 1, padding: "12px 18px",
-  border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "12px",
-  background: "#ffffff", color: "#034852",
-  fontFamily: "var(--font-heading)", fontWeight: 600,
-  fontSize: "14px", cursor: "pointer", textAlign: "center",
-};
-
-const inputSt: React.CSSProperties = {
-  width: "100%", padding: "11px 14px",
-  background: "rgba(3,72,82,0.03)",
-  border: "1px solid rgba(3,72,82,0.12)",
-  borderRadius: "10px", color: "#034852",
-  fontFamily: "var(--font-body)", fontSize: "14px",
-  outline: "none", boxSizing: "border-box",
-};

@@ -261,18 +261,15 @@ export default function TrackerPage() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       {isManagerView && <PushNudge />}
-      <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h1 className="mt-2 text-3xl font-semibold text-gray-950">{TRACKER_NAME}</h1>
-          <p className="mt-2 text-sm text-gray-500">
-            {roleLabel(currentUser?.role.name, "Team")} workspace
-          </p>
-        </div>
+      <header className="-mt-2">
+        <p className="text-sm text-[var(--color-text-muted)]">
+          {roleLabel(currentUser?.role.name, "Team")} workspace
+        </p>
       </header>
 
-      <nav className="flex gap-2 overflow-x-auto border-b border-gray-200" aria-label={`${TRACKER_NAME} sections`}>
+      <nav className="flex gap-1.5 overflow-x-auto rounded-xl border border-[var(--color-border)] bg-[#eef5f3] p-1.5 [scrollbar-width:none]" aria-label={`${TRACKER_NAME} sections`}>
         {tabs.map((tab) => (
           <button
             key={tab}
@@ -280,10 +277,10 @@ export default function TrackerPage() {
             onClick={() => selectTab(tab)}
             aria-current={safeActiveTab === tab ? "page" : undefined}
             className={
-              "flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-colors " +
+              "flex min-h-11 flex-1 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm transition-colors " +
               (safeActiveTab === tab
-                ? "border-teal-600 text-teal-700"
-                : "border-transparent text-gray-500 hover:text-gray-900")
+                ? "bg-[var(--green)] font-semibold text-[var(--dark-teal)]"
+                : "font-medium text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]")
             }
           >
             <TabIcon tab={tab} />
@@ -319,7 +316,7 @@ export default function TrackerPage() {
           />
         ) : deepLinkDrill ? (
           <div className="flex flex-col gap-3">
-            <button type="button" onClick={() => openDrill(null)} className="self-start text-sm text-teal-700">Back to all tasks</button>
+            <button type="button" onClick={() => openDrill(null)} className="self-start text-sm text-[var(--teal)]">Back to all tasks</button>
             {drillTemplate.isLoading ? <TrackerLoading /> : <ErrorPanel message="Could not load this task." />}
           </div>
         ) : (
@@ -361,11 +358,11 @@ export default function TrackerPage() {
                       a different axis — task definitions, not whose tasks — so it reads as a
                       tool, not a third way of listing people. */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-                      <button type="button" onClick={() => selectTeamView("my")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>My tasks</button>
-                      <button type="button" onClick={() => selectTeamView("team")} className={"rounded-md px-3 py-1.5 text-sm font-medium transition " + (teamView === "team" ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900")}>By team</button>
+                    <div className="inline-flex rounded-xl border border-[var(--color-border)] bg-white p-1">
+                      <button type="button" onClick={() => selectTeamView("my")} className={"rounded-lg px-3 py-1.5 text-sm font-medium transition " + (teamView === "my" ? "bg-[var(--green)] text-[var(--dark-teal)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]")}>My tasks</button>
+                      <button type="button" onClick={() => selectTeamView("team")} className={"rounded-lg px-3 py-1.5 text-sm font-medium transition " + (teamView === "team" ? "bg-[var(--green)] text-[var(--dark-teal)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]")}>By team</button>
                     </div>
-                    <button type="button" onClick={() => selectTeamView("manage")} aria-pressed={teamView === "manage"} className={"inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "border-teal-600 bg-teal-600 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
+                    <button type="button" onClick={() => selectTeamView("manage")} aria-pressed={teamView === "manage"} className={"inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition " + (teamView === "manage" ? "border-[var(--green)] bg-[var(--green)] text-[var(--dark-teal)]" : "border-[var(--color-border-strong)] bg-white text-[var(--color-text)] hover:bg-[#eef5f3]")}>
                       <Settings2 className="h-4 w-4" aria-hidden="true" /> Manage tasks
                     </button>
                   </div>
@@ -455,10 +452,10 @@ function TasksPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <section className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <thead className="bg-[#eef5f3] text-xs uppercase text-[var(--color-text-muted)]">
               <tr>
                 <th className="px-4 py-3 font-semibold">Task</th>
                 <th className="px-4 py-3 font-semibold">Priority</th>
@@ -478,17 +475,17 @@ function TasksPanel({
                     key={template.id}
                     onClick={() => onSelect(template.id)}
                     className={
-                      "cursor-pointer border-t border-gray-100 transition-colors hover:bg-teal-50/50 " +
-                      (template.id === selectedId ? "bg-teal-50" : "bg-white")
+                      "cursor-pointer border-t border-[var(--color-border)] transition-colors hover:bg-[var(--color-success-surface)]/50 " +
+                      (template.id === selectedId ? "bg-[var(--color-success-surface)]" : "bg-white")
                     }
                   >
-                    <td className="px-4 py-3 font-medium text-gray-950">{template.name}</td>
-                    <td className="px-4 py-3"><span className="text-xs font-semibold capitalize text-gray-600">{template.priority}</span></td>
-                    <td className="px-4 py-3 text-gray-600">{template.deadline ? formatDate(template.deadline) : "—"}</td>
-                    <td className="px-4 py-3 text-gray-700">{c?.done ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-700">{c?.pending ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-700">{c?.blocked ?? "—"}</td>
-                    <td className="px-4 py-3 text-gray-700">{c?.overdue ?? "—"}</td>
+                    <td className="px-4 py-3 font-medium text-[var(--color-text)]">{template.name}</td>
+                    <td className="px-4 py-3"><span className="text-xs font-semibold capitalize text-[var(--color-text-muted)]">{template.priority}</span></td>
+                    <td className="px-4 py-3 text-[var(--color-text-muted)]">{template.deadline ? formatDate(template.deadline) : "—"}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">{c?.done ?? "—"}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">{c?.pending ?? "—"}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">{c?.blocked ?? "—"}</td>
+                    <td className="px-4 py-3 text-[var(--color-text)]">{c?.overdue ?? "—"}</td>
                     <td className="px-4 py-3">
                       <StatusPill label={template.status === "active" ? "Active" : template.status} tone={template.status === "active" ? "green" : "gray"} />
                     </td>
@@ -546,12 +543,12 @@ function ManageTasksPanel({ canAuthor, canShareExternally, canFill, canClear, ca
   const grid = useTrackerGrid(gridId ?? undefined);
 
   const tabCls = (on: boolean) =>
-    "rounded-md px-3 py-1.5 text-sm font-medium transition " + (on ? "bg-teal-600 text-white" : "text-gray-600 hover:text-gray-900");
+    "rounded-lg px-3 py-1.5 text-sm font-medium transition " + (on ? "bg-[var(--green)] text-[var(--dark-teal)]" : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]");
 
   if (gridId) {
     return (
       <div className="flex flex-col gap-3">
-        <button type="button" onClick={() => setGridId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+        <button type="button" onClick={() => setGridId(null)} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to task
         </button>
         <GridPanel template={templates.find((t) => t.id === gridId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} embedded />
@@ -573,7 +570,7 @@ function ManageTasksPanel({ canAuthor, canShareExternally, canFill, canClear, ca
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
+      <div className="inline-flex self-start rounded-xl border border-[var(--color-border)] bg-white p-1">
         <button type="button" onClick={() => setListView("active")} className={tabCls(listView === "active")}>Active</button>
         <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Archived</button>
       </div>
@@ -607,7 +604,7 @@ function TaskDetailRoute({
     if (isLoading) return <TrackerLoading />;
     return (
       <div className="flex flex-col gap-3">
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
         <ErrorPanel message={error instanceof Error ? error.message : "Could not open that task."} />
@@ -649,8 +646,8 @@ function OverviewFilteredTasks({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-950">{meta.label} tasks</h3>
-        <button type="button" onClick={onClear} className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900">
+        <h3 className="text-sm font-semibold text-[var(--color-text)]">{meta.label} tasks</h3>
+        <button type="button" onClick={onClear} className="inline-flex items-center gap-1 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           <X className="h-4 w-4" aria-hidden="true" /> Clear filter
         </button>
       </div>
@@ -659,7 +656,7 @@ function OverviewFilteredTasks({
       ) : tasks.length === 0 ? (
         <EmptyPanel title={`No ${meta.label.toLowerCase()} tasks`} detail="Nothing matches this status right now." />
       ) : (
-        <ul className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <ul className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
           {tasks.map((task) => {
             const total = task.done + task.pending + task.blocked + task.overdue;
             return (
@@ -667,15 +664,15 @@ function OverviewFilteredTasks({
                 <button
                   type="button"
                   onClick={() => onOpen(task.template_id)}
-                  className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-teal-50/50"
+                  className="flex w-full items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-[var(--color-success-surface)]/50"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-gray-950">{task.name}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">{task.done}/{total} done · {total} target{total === 1 ? "" : "s"}</p>
+                    <p className="truncate text-sm font-medium text-[var(--color-text)]">{task.name}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{task.done}/{total} done · {total} target{total === 1 ? "" : "s"}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <StatusPill label={meta.label} tone={meta.tone} />
-                    <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                    <ChevronRight className="h-4 w-4 text-[var(--color-text-muted)]" aria-hidden="true" />
                   </div>
                 </button>
               </li>
@@ -706,7 +703,7 @@ function BackFromTask({
   onStay: () => void;
 }) {
   const className =
-    "inline-flex items-center gap-1.5 self-start text-sm font-medium text-gray-600 hover:text-gray-900";
+    "inline-flex items-center gap-1.5 self-start text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]";
   if (active && from) {
     const href = getBackHref(from, "");
     if (href) {
@@ -903,28 +900,28 @@ function BlockerList({
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load blockers."} />;
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h2 className="text-base font-semibold text-gray-950">{title}</h2>
+    <section className="rounded-xl border border-[var(--color-border)] bg-white">
+      <div className="border-b border-[var(--color-border)] px-4 py-3">
+        <h2 className="text-base font-semibold text-[var(--color-text)]">{title}</h2>
       </div>
       {blockers.length === 0 ? (
-        <p className="px-4 py-8 text-sm text-gray-500">No blockers.</p>
+        <p className="px-4 py-8 text-sm text-[var(--color-text-muted)]">No blockers.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-[var(--color-border)]">
           {blockers.map((blocker) => (
             <li
               key={blocker.id}
               onClick={() => onOpen(blocker.id)}
-              className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3 hover:bg-gray-50"
+              className="flex cursor-pointer items-start justify-between gap-3 px-4 py-3 hover:bg-[#eef5f3]"
             >
               <div>
                 {blocker.task_name && (
-                  <p className="text-xs font-medium text-teal-700">
+                  <p className="text-xs font-medium text-[var(--teal)]">
                     {blocker.task_name}{blocker.target_name ? ` · ${blocker.target_name}` : ""}
                   </p>
                 )}
-                <p className="text-sm font-medium text-gray-950">{blocker.text}</p>
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="text-sm font-medium text-[var(--color-text)]">{blocker.text}</p>
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                   Raised {formatDate(blocker.raised_at)}
                   {blocker.escalated_to_pm_at ? " · escalated to PM" : blocker.escalated_to_zm_at ? " · escalated to ZM" : ""}
                 </p>
@@ -933,7 +930,7 @@ function BlockerList({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onOpen(blocker.id); }}
-                  className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-100"
+                  className="rounded-lg border border-teal-300 bg-[var(--color-success-surface)] px-2.5 py-1.5 text-xs font-medium text-[var(--teal)] hover:bg-teal-100"
                 >
                   Respond
                 </button>
@@ -942,7 +939,7 @@ function BlockerList({
                     type="button"
                     onClick={(e) => { e.stopPropagation(); clear.mutate(blocker.id); }}
                     disabled={clear.isPending}
-                    className="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-50"
                   >
                     Clear
                   </button>
@@ -960,7 +957,7 @@ function BlockerList({
 function StatusPill({ label, tone }: { label: string; tone: "green" | "gray" | "red" | "amber" }) {
   const toneClass = {
     green: "bg-emerald-50 text-emerald-700",
-    gray: "bg-gray-100 text-gray-700",
+    gray: "bg-[#eef5f3] text-[var(--color-text)]",
     red: "bg-red-50 text-red-700",
     amber: "bg-amber-50 text-amber-700",
   }[tone];
@@ -985,24 +982,24 @@ function BlockerDrawer({ blockerId, canClear, onClose }: { blockerId: string; ca
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
       <aside className="flex h-full w-full max-w-md flex-col bg-white shadow-xl" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Blocker">
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          <h3 className="text-base font-semibold text-gray-950">Blocker</h3>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-gray-400 hover:text-gray-700"><X className="h-5 w-5" aria-hidden="true" /></button>
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+          <h3 className="text-base font-semibold text-[var(--color-text)]">Blocker</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"><X className="h-5 w-5" aria-hidden="true" /></button>
         </div>
         {isLoading ? (
-          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+          <div className="flex flex-1 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
         ) : error || !blocker ? (
           <p className="p-4 text-sm text-red-700">{error instanceof Error ? error.message : "Failed to load."}</p>
         ) : (
           <>
-            <div className="border-b border-gray-100 px-4 py-3">
+            <div className="border-b border-[var(--color-border)] px-4 py-3">
               {blocker.task_name && (
-                <p className="text-xs font-medium text-teal-700">
+                <p className="text-xs font-medium text-[var(--teal)]">
                   {blocker.task_name}{blocker.target_name ? ` · ${blocker.target_name}` : ""}
                 </p>
               )}
-              <p className="mt-0.5 text-sm font-medium text-gray-950">{blocker.text}</p>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="mt-0.5 text-sm font-medium text-[var(--color-text)]">{blocker.text}</p>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                 Raised by {blocker.raised_by_name ?? "someone"} · {formatDate(blocker.raised_at)}
                 {blocker.escalated_to_pm_at ? " · escalated to PM" : blocker.escalated_to_zm_at ? " · escalated to ZM" : ""}
                 {blocker.status === "cleared" ? " · cleared" : ""}
@@ -1012,32 +1009,32 @@ function BlockerDrawer({ blockerId, canClear, onClose }: { blockerId: string; ca
               <ol className="flex flex-col gap-3">
                 {data!.events.map((ev) => (
                   <li key={ev.id} className="flex gap-3">
-                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden="true" />
+                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-success-surface)]0" aria-hidden="true" />
                     <div className="min-w-0">
-                      <p className="text-sm text-gray-900">{describeBlockerEvent(ev)}</p>
-                      <p className="mt-0.5 text-xs text-gray-500">{ev.actor_name ? `${ev.actor_name} · ` : ""}{formatDate(ev.at)}</p>
+                      <p className="text-sm text-[var(--color-text)]">{describeBlockerEvent(ev)}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{ev.actor_name ? `${ev.actor_name} · ` : ""}{formatDate(ev.at)}</p>
                     </div>
                   </li>
                 ))}
               </ol>
             </div>
-            <div className="border-t border-gray-100 p-3">
+            <div className="border-t border-[var(--color-border)] p-3">
               {open ? (
                 <>
                   <div className="flex items-end gap-2">
-                    <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="How can this be cleared? Write a response…" className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm outline-none focus:border-teal-500" />
-                    <button type="button" onClick={send} disabled={comment.isPending || !text.trim()} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50">
+                    <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="How can this be cleared? Write a response…" className="flex-1 rounded-lg border border-[var(--color-border-strong)] px-2 py-1.5 text-sm outline-none focus:border-[var(--green)]" />
+                    <button type="button" onClick={send} disabled={comment.isPending || !text.trim()} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-2 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-50">
                       {comment.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Send className="h-4 w-4" aria-hidden="true" />} Send
                     </button>
                   </div>
                   {canClear && (
-                    <button type="button" onClick={() => clear.mutate(blocker.id, { onSuccess: onClose })} disabled={clear.isPending} className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                    <button type="button" onClick={() => clear.mutate(blocker.id, { onSuccess: onClose })} disabled={clear.isPending} className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-50">
                       Mark cleared
                     </button>
                   )}
                 </>
               ) : (
-                <p className="text-sm text-gray-500">This blocker is cleared.</p>
+                <p className="text-sm text-[var(--color-text-muted)]">This blocker is cleared.</p>
               )}
             </div>
           </>
@@ -1070,15 +1067,15 @@ function TabIcon({ tab }: { tab: TrackerTab }) {
 
 function TrackerLoading() {
   return (
-    <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white">
-      <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+    <div className="flex min-h-40 items-center justify-center rounded-xl border border-[var(--color-border)] bg-white">
+      <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
     </div>
   );
 }
 
 function ErrorPanel({ message }: { message: string }) {
   return (
-    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-5 text-center">
+    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-5 text-center">
       <AlertCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
       <p className="text-sm font-medium text-red-800">{message}</p>
     </div>
@@ -1087,10 +1084,10 @@ function ErrorPanel({ message }: { message: string }) {
 
 function EmptyPanel({ title, detail }: { title: string; detail: string }) {
   return (
-    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-5 text-center">
-      <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
-      <p className="text-sm font-semibold text-gray-950">{title}</p>
-      <p className="text-sm text-gray-500">{detail}</p>
+    <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-white px-5 text-center">
+      <CheckCircle2 className="h-6 w-6 text-[var(--color-text-muted)]" aria-hidden="true" />
+      <p className="text-sm font-semibold text-[var(--color-text)]">{title}</p>
+      <p className="text-sm text-[var(--color-text-muted)]">{detail}</p>
     </div>
   );
 }

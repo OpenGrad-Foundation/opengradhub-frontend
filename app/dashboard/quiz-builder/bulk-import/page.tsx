@@ -45,28 +45,19 @@ function jobStatusLabel(status: BulkParseJobStatus): string {
 
 const S = {
   pageOuter: {
-    minHeight: "100vh",
-    background: "#f0f2f5",
-    fontFamily: "'Inter', sans-serif",
-    color: "#034852",
+    color: "var(--color-text)",
   } as React.CSSProperties,
   pageInner: {
     maxWidth: "880px",
-    margin: "0 auto",
-    padding: "clamp(16px, 4vw, 32px) clamp(16px, 4vw, 20px) 80px",
+    paddingBottom: "80px",
   } as React.CSSProperties,
   glassCard: {
-    background: "rgba(255,255,255,0.95)",
-    border: "1px solid rgba(255,255,255,0.2)",
-    borderRadius: "20px",
-    padding: "clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+    background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)",
-    fontSize: "26px",
-    fontWeight: 800,
-    color: "#034852",
+    fontSize: "20px",
+    fontWeight: 600,
+    color: "var(--color-text)",
     margin: "0 0 8px 0",
   } as React.CSSProperties,
   banner: {
@@ -75,25 +66,15 @@ const S = {
     gap: "10px",
     padding: "10px 14px",
     marginBottom: "20px",
-    borderRadius: "10px",
-    background: "rgba(32,147,121,0.08)",
-    border: "1px solid rgba(32,147,121,0.2)",
-    color: "#0f6b58",
+    borderRadius: "12px",
+    background: "#eef5f3",
+    border: "1px solid var(--color-border)",
+    color: "var(--dark-teal)",
     fontSize: "13px",
     fontWeight: 600,
   } as React.CSSProperties,
   primaryBtn: {
-    padding: "12px 28px",
-    border: "none",
-    borderRadius: "12px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#fff",
-    fontFamily: "var(--font-heading)",
-    fontWeight: 700,
-    fontSize: "15px",
-    cursor: "pointer",
-    boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
-    transition: "all 0.2s",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer",
   } as React.CSSProperties,
 };
 
@@ -397,7 +378,7 @@ export default function BulkImportQuizPage() {
           ) : previewData === null ? (
             // ── Step 1: Upload ──────────────────────────────────────────────
             <>
-              <h1 style={S.heading}>Upload Entire Quiz</h1>
+              <h2 style={S.heading}>Upload a quiz file</h2>
               {/* The destination banner above (S.banner) states this on every step,
                   so the module-only notice that used to sit here was duplicate. */}
               <p style={{ color: "rgba(3,72,82,0.6)", fontSize: "15px", marginBottom: "12px" }}>
@@ -546,7 +527,7 @@ export default function BulkImportQuizPage() {
           ) : (
             // ── Step 2: Preview & Edit ──────────────────────────────────────
             <>
-              <h1 style={{ ...S.heading, margin: "0 0 24px 0" }}>Review Parsed Quiz</h1>
+              <h2 style={{ ...S.heading, margin: "0 0 24px 0" }}>Review parsed quiz</h2>
               <QuizPreviewEditor
                 // Remount per parse so the diagnostics buckets re-seed.
                 key={parseSeq}

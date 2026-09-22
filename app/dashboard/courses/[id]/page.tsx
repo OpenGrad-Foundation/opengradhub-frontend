@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +37,7 @@ function CourseMaterialView({ courseId }: { courseId: string }) {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{preview.error?.message ?? "Course material not found."}</p>
-        <BackLink fallback="/dashboard/courses/duplicate" style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>← Back to browse</BackLink>
+        <BackLink fallback="/dashboard/courses/duplicate" style={{ ...S.secondaryBtn, marginTop: "16px" }}><ArrowLeft size={16} aria-hidden="true" />Back to browse</BackLink>
       </div>
     );
   }
@@ -45,8 +46,8 @@ function CourseMaterialView({ courseId }: { courseId: string }) {
 
   return (
     <div>
-      <BackLink fallback="/dashboard/courses/duplicate" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Browse courses to duplicate
+      <BackLink fallback="/dashboard/courses/duplicate" style={S.secondaryBtn}>
+        <ArrowLeft size={16} aria-hidden="true" />Browse courses to duplicate
       </BackLink>
       <CourseView
         course={course}
@@ -58,17 +59,17 @@ function CourseMaterialView({ courseId }: { courseId: string }) {
         headerAside={
           <div style={{ flexShrink: 0, minWidth: "240px", display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-end" }}>
             <span style={{
-              display: "inline-block", padding: "4px 12px", borderRadius: "100px",
-              fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
-              background: "rgba(3,72,82,0.06)", color: "rgba(3,72,82,0.6)",
+              display: "inline-block", padding: "3px 8px", borderRadius: "6px",
+              fontSize: "12px", fontWeight: 600,
+              background: "var(--color-surface-sunken)", color: "var(--color-text-muted)",
             }}>
-              DUPLICATION REVIEW
+              Duplication review
             </span>
             <DuplicateAction kind="courses" sourceId={courseId} />
           </div>
         }
       />
-      <p style={{ marginTop: "18px", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
+      <p style={{ marginTop: "18px", fontSize: "12px", color: "var(--color-text-muted)" }}>
         Copies share question-bank questions; editing a shared question changes every use. Learner records are never copied.
       </p>
     </div>
@@ -108,7 +109,7 @@ function CourseOverview() {
       <div style={glassCard}>
         <p style={S.label}>Error</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>{error ?? "Course not found."}</p>
-        <BackLink fallback={backHref} style={{ ...S.primaryBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>{fromManagement ? "← Back to Course Management" : "← Back to Courses"}</BackLink>
+        <BackLink fallback={backHref} style={{ ...S.secondaryBtn, marginTop: "16px" }}><ArrowLeft size={16} aria-hidden="true" />{fromManagement ? "Back to Course Management" : "Back to Courses"}</BackLink>
       </div>
     );
   }
@@ -120,8 +121,8 @@ function CourseOverview() {
   return (
     <div>
       {/* ── Back link ─────────────────────────────────────── */}
-      <BackLink fallback={backHref} style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        {fromManagement ? "← Course Management" : isPreview ? "← Courses" : "← My Courses"}
+      <BackLink fallback={backHref} style={S.secondaryBtn}>
+        <ArrowLeft size={16} aria-hidden="true" />{fromManagement ? "Course Management" : isPreview ? "Courses" : "My Courses"}
       </BackLink>
 
       <CourseView

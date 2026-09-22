@@ -2,7 +2,7 @@ import { TASK_STATE_META, TASK_STATE_ORDER, type StateCounts, type TaskState } f
 
 const TONE_TEXT = {
   green: "text-emerald-700",
-  gray: "text-gray-700",
+  gray: "text-[var(--color-text)]",
   amber: "text-amber-700",
   red: "text-red-700",
 } as const;
@@ -10,7 +10,7 @@ const TONE_TEXT = {
 /** Active-card ring + tint per tone (used when a card is the selected filter). */
 const TONE_ACTIVE = {
   green: "ring-emerald-500 bg-emerald-50",
-  gray: "ring-gray-400 bg-gray-50",
+  gray: "ring-[var(--color-border-strong)] bg-[#eef5f3]",
   amber: "ring-amber-500 bg-amber-50",
   red: "ring-red-500 bg-red-50",
 } as const;
@@ -35,13 +35,13 @@ export function StatusCards({
         const active = activeState === state;
         const body = (
           <>
-            <p className="text-xs font-medium uppercase text-gray-500">{meta.label}</p>
+            <p className="text-xs font-medium uppercase text-[var(--color-text-muted)]">{meta.label}</p>
             <p className={`mt-1 text-2xl font-semibold ${TONE_TEXT[meta.tone]}`}>{counts[state]}</p>
           </>
         );
         if (!onSelect) {
           return (
-            <div key={state} className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div key={state} className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-3">
               {body}
             </div>
           );
@@ -53,10 +53,10 @@ export function StatusCards({
             onClick={() => onSelect(state)}
             aria-pressed={active}
             className={
-              "rounded-lg border px-4 py-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-teal-500 " +
+              "rounded-xl border px-4 py-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[var(--teal)] " +
               (active
                 ? `border-transparent ring-2 ${TONE_ACTIVE[meta.tone]}`
-                : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50")
+                : "border-[var(--color-border)] bg-white hover:border-[var(--color-border-strong)] hover:bg-[#eef5f3]")
             }
           >
             {body}

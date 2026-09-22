@@ -26,7 +26,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * internal retry reuses stale headers): each (re)connect mints a FRESH token, so
  * the server's periodic force-close cycles a new token in cleanly.
  *
- * Mount once, high in the authenticated tree (DashboardTopbar). Pass enabled to
+ * Mount once, high in the authenticated tree (DashboardAccountControls). Pass enabled to
  * gate on having an authenticated user.
  */
 export function useRealtime(enabled: boolean): void {

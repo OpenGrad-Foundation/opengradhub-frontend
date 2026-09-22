@@ -31,7 +31,7 @@ export function ExtensionPanel({
   const live = grants.find((g) => g.active) ?? null;
 
   return (
-    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50/60 p-3">
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <CalendarClock className="h-4 w-4 text-amber-700" aria-hidden="true" />
         <p className="text-sm font-semibold text-amber-900">
@@ -46,7 +46,7 @@ export function ExtensionPanel({
       </p>
 
       {isLoading ? (
-        <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+        <p className="mt-2 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Loading…
         </p>
       ) : grants.length > 0 ? (
@@ -65,7 +65,7 @@ export function ExtensionPanel({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="rounded-md border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
+              className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-50"
             >
               {live ? "Extend again" : "Grant extension"}
             </button>
@@ -79,12 +79,12 @@ export function ExtensionPanel({
 function GrantRow({ grant }: { grant: TrackerExtension }) {
   return (
     <li className="text-xs text-amber-900/90">
-      <span className={grant.active ? "font-medium" : "text-gray-500 line-through"}>
+      <span className={grant.active ? "font-medium" : "text-[var(--color-text-muted)] line-through"}>
         until {formatDate(grant.extended_to)}
       </span>
-      {!grant.active && <span className="ml-1 text-gray-500">(expired)</span>}
-      {grant.granted_by_name && <span className="text-gray-600"> · {grant.granted_by_name}</span>}
-      <span className="text-gray-600"> · {grant.reason}</span>
+      {!grant.active && <span className="ml-1 text-[var(--color-text-muted)]">(expired)</span>}
+      {grant.granted_by_name && <span className="text-[var(--color-text-muted)]"> · {grant.granted_by_name}</span>}
+      <span className="text-[var(--color-text-muted)]"> · {grant.reason}</span>
     </li>
   );
 }
@@ -114,9 +114,9 @@ function GrantForm({ recordId, onDone }: { recordId: string; onDone: () => void 
     <form
       onSubmit={submit}
       aria-label="Grant extension"
-      className="flex flex-col gap-2 rounded-md border border-amber-300 bg-white p-2"
+      className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-white p-2"
     >
-      <label htmlFor={`ext-date-${recordId}`} className="text-xs font-medium text-gray-700">
+      <label htmlFor={`ext-date-${recordId}`} className="text-xs font-medium text-[var(--color-text)]">
         New due date
       </label>
       <input
@@ -124,9 +124,9 @@ function GrantForm({ recordId, onDone }: { recordId: string; onDone: () => void 
         type="date"
         value={date}
         onChange={(e) => setDate(e.target.value)}
-        className="h-8 w-fit rounded border border-gray-300 px-2 text-xs outline-none focus:border-amber-500"
+        className="h-8 w-fit rounded border border-[var(--color-border-strong)] px-2 text-xs outline-none focus:border-amber-500"
       />
-      <label htmlFor={`ext-reason-${recordId}`} className="text-xs font-medium text-gray-700">
+      <label htmlFor={`ext-reason-${recordId}`} className="text-xs font-medium text-[var(--color-text)]">
         Reason
       </label>
       <textarea
@@ -134,21 +134,21 @@ function GrantForm({ recordId, onDone }: { recordId: string; onDone: () => void 
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         rows={2}
-        className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-amber-500"
+        className="w-full rounded border border-[var(--color-border-strong)] px-2 py-1 text-xs outline-none focus:border-amber-500"
       />
       {err && <p className="text-xs text-red-700">{err}</p>}
       <div className="flex items-center gap-2">
         <button
           type="submit"
           disabled={grant.isPending}
-          className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
+          className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
         >
           Confirm extension
         </button>
         <button
           type="button"
           onClick={onDone}
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+          className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]"
         >
           Cancel
         </button>

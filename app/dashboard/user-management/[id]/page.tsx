@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { BackLink } from "@/components/back-link";
 import { UserDetailPanel } from "@/app/dashboard/_components/UserDetailPanel";
@@ -15,7 +16,12 @@ import {
   OrgSection, TasksSection, DoubtsSection, SchoolsSection, AttendanceSection, ContentSection, ActivitySection,
 } from "./_components/profile-sections";
 
-const backLinkStyle: React.CSSProperties = { fontSize: "13px", fontWeight: 700, color: "#0abe62", textDecoration: "none" };
+const backLinkStyle: React.CSSProperties = {
+  display: "inline-flex", alignItems: "center", gap: "8px", alignSelf: "flex-start", minHeight: "44px", padding: "8px 16px",
+  borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)",
+  color: "var(--color-text)", fontSize: "14px", fontWeight: 600, textDecoration: "none",
+};
+const backLink = <BackLink fallback="/dashboard/user-management" style={backLinkStyle}><ArrowLeft size={16} aria-hidden="true" />Back</BackLink>;
 
 /**
  * One page per non-student user: identity, reporting line, and whatever sections
@@ -34,7 +40,7 @@ export default function StaffProfilePage() {
   if (error) {
     return (
       <div>
-        <BackLink fallback="/dashboard/user-management" style={backLinkStyle} />
+        {backLink}
         <p style={{ color: BRAND.red, fontWeight: 600, marginTop: "16px" }}>
           {error instanceof Error ? error.message : "User not found."}
         </p>
@@ -44,7 +50,7 @@ export default function StaffProfilePage() {
   if (isPending || !data) {
     return (
       <div>
-        <BackLink fallback="/dashboard/user-management" style={backLinkStyle} />
+        {backLink}
         <p style={{ ...muted, marginTop: "16px" }}>Loading profile…</p>
       </div>
     );
@@ -65,29 +71,29 @@ export default function StaffProfilePage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      <BackLink fallback="/dashboard/user-management" style={backLinkStyle} />
+      {backLink}
 
       <div style={card}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px" }}>
-          <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "24px", fontWeight: 700, color: BRAND.dark, margin: 0 }}>
+          <h2 style={{ fontSize: "24px", fontWeight: 700, color: BRAND.dark, margin: 0 }}>
             {user.name}
-          </h1>
+          </h2>
           <RoleBadge role={user.role} />
           {data.caps.manage && data.edit_user && (
             <button
               type="button"
               onClick={() => setEditing(true)}
-              style={{ marginLeft: "auto", padding: "8px 14px", borderRadius: "10px", border: "1px solid rgba(3,72,82,0.15)",
-                       background: "#fff", fontWeight: 700, fontSize: "13px", color: BRAND.dark, cursor: "pointer" }}
+              style={{ marginLeft: "auto", minHeight: "44px", padding: "8px 16px", borderRadius: "12px", border: "1px solid var(--color-border)",
+                       background: "var(--color-surface)", fontWeight: 600, fontSize: "14px", color: "var(--color-text)", cursor: "pointer" }}
             >
               Manage user
             </button>
           )}
         </div>
         {meta.length > 0 && (
-          <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "8px 0 0" }}>{meta.join(" · ")}</p>
+          <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "8px 0 0" }}>{meta.join(" · ")}</p>
         )}
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)", margin: "4px 0 0" }}>
+        <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
           Joined {formatDate(user.created_at)} · Last check-in {formatDate(user.last_check_in_at)}
           {user.email !== undefined && <> · {user.email ?? "no email"}</>}
           {user.phone !== undefined && <> · {user.phone ?? "no phone"}</>}

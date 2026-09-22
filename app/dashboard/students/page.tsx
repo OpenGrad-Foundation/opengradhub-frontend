@@ -9,7 +9,10 @@ import { useStudentFacets, useStudentsList } from "@/lib/queries/students";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
 import type { StudentFacets } from "@/lib/api";
-import { secondaryButton, tdStyle, thStyle, titleStyle } from "@/app/dashboard/schools/styles";
+import { GraduationCap } from "lucide-react";
+import { PaginationBar } from "../_components/PaginationBar";
+import styles from "../_components/catalogue.module.css";
+import local from "./students.module.css";
 import { Filters, type DirectoryFilterValue } from "./_components/filters";
 
 const LIMIT = 50;
@@ -83,7 +86,6 @@ export default function StudentsPage() {
   const rows = canViewStudents ? data?.rows ?? [] : [];
   const total = data?.total ?? 0;
   const showEmail = has(PERM.students.view_contact) && rows.some(row => "email" in row);
-  const columnCount = showEmail ? 7 : 6;
   const firstShown = rows.length === 0 ? 0 : offset + 1;
   const lastShown = rows.length === 0 ? 0 : Math.min(offset + rows.length, total);
 
@@ -115,93 +117,95 @@ export default function StudentsPage() {
     writeUrl(filters, next);
   };
 
+  const hasFilters = Object.values(filters).some(Boolean);
+  const totalPages = Math.max(Math.ceil(total / LIMIT), page + 1);
+
   if (!canViewStudents) return <p>You do not have permission to view students.</p>;
 
   return (
-    <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Students</h1>
-        </div>
-      </div>
-
+    <div className={`${styles.catalogue} ${styles.content}`}>
       <Filters facets={facets} value={filters} onChange={updateFilters} />
 
       {isPending ? (
-        <p style={{ color: "rgba(3,72,82,0.6)" }}>Loading students…</p>
+        <div role="status" aria-label="Loading students" className={local.skeletonTable}>
+          {[0, 1, 2, 3, 4].map((index) => <div key={index} aria-hidden="true" />)}
+        </div>
       ) : error ? (
-        <p style={{ color: "#c53030", fontWeight: 600 }}>
-          {error instanceof Error ? error.message : "Failed to load students."}
-        </p>
+        <section role="alert" className={styles.empty}>
+          <GraduationCap size={28} aria-hidden="true" />
+          <h2>Students couldn’t be loaded</h2>
+          <p>{error instanceof Error ? error.message : "Failed to load students."}</p>
+        </section>
       ) : (
         <>
-          <div style={{ overflowX: "auto", borderRadius: "16px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
-              <thead>
-                <tr style={{ background: "rgba(3,72,82,0.05)", textAlign: "left" }}>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>Roll No</th>
-                  <th style={thStyle}>School</th>
-                  <th style={thStyle}>{IN_CHARGE}</th>
-                  <th style={thStyle}>{ZONE}</th>
-                  <th style={thStyle}>Programme</th>
-                  {showEmail && <th style={thStyle}>Email</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={columnCount} style={{ padding: "20px", color: "rgba(3,72,82,0.5)" }}>
-                      No students in your scope.
-                    </td>
-                  </tr>
-                ) : rows.map((row) => (
-                  <tr key={row.user_id} style={{ borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-                    <td style={{ ...tdStyle, fontWeight: 600 }}>
-                      <EntityLink
-                        permissions={STUDENT_PROFILE_PERMISSIONS}
-                        requiredPermissions={[PERM.students.view]}
-                        href={`/dashboard/students/${row.user_id}`}
-                        style={{ color: "#0abe62", textDecoration: "none" }}
-                      >
-                        {row.name}
-                      </EntityLink>
-                    </td>
-                    <td style={tdStyle}>{row.roll_number ?? "—"}</td>
-                    <td style={tdStyle}>{row.school_name ?? "—"}</td>
-                    <td style={tdStyle}>{row.in_charge_name ?? "—"}</td>
-                    <td style={tdStyle}>{row.district ?? "—"}</td>
-                    <td style={tdStyle}>{row.programme_name ?? "—"}</td>
-                    {showEmail && <td style={tdStyle}>{row.email ?? "—"}</td>}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className={styles.resultsBar}>
+            <p role="status" className={styles.resultsLabel}>
+              Showing {firstShown}-{lastShown} of {total}
+            </p>
+            {hasFilters && (
+              <button type="button" className={styles.clearFilters} onClick={() => updateFilters({})}>
+                Clear filters
+              </button>
+            )}
           </div>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
-              Showing {firstShown}-{lastShown} of {total}
-            </span>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                style={secondaryButton}
-                disabled={page === 0}
-                onClick={() => updatePage(Math.max(page - 1, 0))}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                style={secondaryButton}
-                disabled={offset + LIMIT >= total}
-                onClick={() => updatePage(page + 1)}
-              >
-                Next
-              </button>
+          {rows.length === 0 ? (
+            <section className={styles.empty}>
+              <GraduationCap size={28} aria-hidden="true" />
+              <h2>{hasFilters ? "No matching students" : "No students in your scope"}</h2>
+              <p>
+                {hasFilters
+                  ? "Try a different search or clear the filters."
+                  : "Students appear here once they’re enrolled in a school or batch you can see."}
+              </p>
+            </section>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className={styles.table}>
+                <caption className="sr-only">Students</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Roll No</th>
+                    <th scope="col">School</th>
+                    <th scope="col">{IN_CHARGE}</th>
+                    <th scope="col">{ZONE}</th>
+                    <th scope="col">Programme</th>
+                    {showEmail && <th scope="col">Email</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.user_id}>
+                      <td className={local.name}>
+                        <EntityLink
+                          permissions={STUDENT_PROFILE_PERMISSIONS}
+                          requiredPermissions={[PERM.students.view]}
+                          href={`/dashboard/students/${row.user_id}`}
+                          style={{ color: "var(--color-text)" }}
+                        >
+                          {row.name}
+                        </EntityLink>
+                      </td>
+                      <td>{row.roll_number ?? "—"}</td>
+                      <td>{row.school_name ?? "—"}</td>
+                      <td>{row.in_charge_name ?? "—"}</td>
+                      <td>{row.district ?? "—"}</td>
+                      <td>{row.programme_name ?? "—"}</td>
+                      {showEmail && <td>{row.email ?? "—"}</td>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </div>
+          )}
+
+          <PaginationBar
+            ariaLabel="Student pages"
+            currentPage={page + 1}
+            totalPages={totalPages}
+            onPageChange={(next) => updatePage(next - 1)}
+          />
         </>
       )}
     </div>

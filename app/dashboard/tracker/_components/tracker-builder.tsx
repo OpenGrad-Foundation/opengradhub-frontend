@@ -165,7 +165,7 @@ export function TrackerBuilder({
 
   if (!canAuthor) {
     return (
-      <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-5 text-center">
+      <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-5 text-center">
         <p className="text-sm font-medium text-red-800">Creating tasks needs manager access.</p>
       </div>
     );
@@ -329,18 +329,18 @@ export function TrackerBuilder({
   }
 
   const inputClass =
-    "h-10 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+    "h-10 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm text-[var(--color-text)] outline-none transition focus:border-[var(--teal)] focus:ring-2 focus:ring-teal-100";
   const filterClass =
-    "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+    "h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--teal)] focus:ring-2 focus:ring-teal-100";
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
-      <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-2">
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+      <section className="grid gap-4 rounded-xl border border-[var(--color-border)] bg-white p-5 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)] sm:col-span-2">
           Task name
           <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Monthly Report" className={inputClass} />
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)] sm:col-span-2">
           Description
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </label>
@@ -348,7 +348,7 @@ export function TrackerBuilder({
             so the question is what each entry is about, and the helper line says who
             ends up filling it for that choice. */}
         <div className="flex flex-col gap-1 sm:col-span-2">
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
             Task Target
             <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
               <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
@@ -356,10 +356,10 @@ export function TrackerBuilder({
               <option value="student">A student — one entry per student</option>
             </select>
           </label>
-          <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
+          <p className="text-xs text-[var(--color-text-muted)]">{DOER_HINT[targetType]}</p>
         </div>
         {targetType === "student" && (
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
             Assign to a batch (optional){/* picks are people, so they survive a batch change too */}
             <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass}>
               <option value="">All my students</option>
@@ -367,11 +367,11 @@ export function TrackerBuilder({
             </select>
           </label>
         )}
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
           Due date
           <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
           Priority
           <select value={priority} onChange={(e) => setPriority(e.target.value as TrackerPriority)} className={inputClass}>
             <option value="low">Low</option>
@@ -379,7 +379,7 @@ export function TrackerBuilder({
             <option value="high">High</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
           Repeats
           <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as "" | TrackerRecurrence)} className={inputClass}>
             <option value="">One-time</option>
@@ -388,7 +388,7 @@ export function TrackerBuilder({
             <option value="monthly">Every month</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+        <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
           How is it completed?
           <select value={completionStyle} onChange={(e) => setCompletionStyle(e.target.value as TrackerCompletionStyle)} className={inputClass}>
             <option value="checklist">Tick when done</option>
@@ -397,19 +397,19 @@ export function TrackerBuilder({
         </label>
         {completionStyle === "workflow" && (
           <>
-            <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
               Steps (comma-separated)
               <input value={statusesText} onChange={(e) => setStatusesText(e.target.value)} placeholder="applied, paid, done" className={inputClass} />
             </label>
-            <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
               Which step means done?
               <input value={doneStatus} onChange={(e) => setDoneStatus(e.target.value)} placeholder="done" className={inputClass} />
             </label>
           </>
         )}
         <div className="flex flex-col gap-2 sm:col-span-2">
-          <span className="text-sm font-medium text-gray-700">Proof of visit</span>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <span className="text-sm font-medium text-[var(--color-text)]">Proof of visit</span>
+          <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
             <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
             Require a photo before it can be marked done
           </label>
@@ -417,11 +417,11 @@ export function TrackerBuilder({
               task does not have — a fellow may cover several. */}
           {targetType !== "fellow" && (
             <>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
+              <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
                 <input type="checkbox" checked={requireGeo} onChange={(e) => setRequireGeo(e.target.checked)} />
                 Verify school visit using photo location metadata
               </label>
-              <p className="ml-6 text-xs text-gray-500">
+              <p className="ml-6 text-xs text-[var(--color-text-muted)]">
                 The {IN_CHARGE_LOWER} uploads one photo taken at the school with their phone camera; we read the
                 location saved inside it. One photo covers all entries for that school in each period.
                 This checks verified photo metadata, which can be edited — it is evidence, not proof of
@@ -438,12 +438,12 @@ export function TrackerBuilder({
             seat — there is nothing to choose, and an empty dropdown would read as
             a missing option rather than a state of the world. */}
         {canAttachProgramme && (
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+          <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)] sm:col-span-2">
             Programme
             <select
               value={effectiveProgrammeId}
               onChange={(e) => setProgrammeId(e.target.value)}
-              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+              className="h-10 w-full rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm outline-none focus:border-[var(--teal)] focus:ring-2 focus:ring-teal-100"
             >
               {/* Only offered when there is a real choice to make. With one seat the
                   value is already applied, and an "unassigned" option would invite
@@ -453,7 +453,7 @@ export function TrackerBuilder({
                 <option key={pr.id} value={pr.id}>{pr.name}</option>
               ))}
             </select>
-            <span className="text-xs font-normal text-gray-500">
+            <span className="text-xs font-normal text-[var(--color-text-muted)]">
               {programmeOpts.length === 1
                 ? "This task type belongs to your programme. It decides who can see it, and which officials it can be shared with."
                 : "Decides who can see this task type, and which officials it can be shared with. It cannot be changed later."}
@@ -468,7 +468,7 @@ export function TrackerBuilder({
             server exposes — since "share with partners" reads as a summary and
             this is not something to summarise. */}
         {canShareExternally && (
-        <div className="flex flex-col gap-2 sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="flex flex-col gap-2 sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
           <label className="flex items-start gap-2 text-sm text-amber-900">
             <input
@@ -506,17 +506,17 @@ export function TrackerBuilder({
         )}
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5">
+      <section className="rounded-xl border border-[var(--color-border)] bg-white p-5">
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-950">What to fill in</h3>
-          <button type="button" onClick={() => setColumns((c) => [...c, emptyColumn(profilePaths[0] ?? "")])} className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+          <h3 className="text-sm font-semibold text-[var(--color-text)]">What to fill in</h3>
+          <button type="button" onClick={() => setColumns((c) => [...c, emptyColumn(profilePaths[0] ?? "")])} className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">
             <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add field
           </button>
         </div>
-        <p className="mb-3 text-xs text-gray-500">Optional. Leave empty for a simple tick-when-done task.</p>
+        <p className="mb-3 text-xs text-[var(--color-text-muted)]">Optional. Leave empty for a simple tick-when-done task.</p>
         <div className="flex flex-col gap-3">
           {columns.map((col, i) => (
-            <div key={i} className="grid items-end gap-2 rounded-md border border-gray-100 bg-gray-50/60 p-3 md:grid-cols-5">
+            <div key={i} className="grid items-end gap-2 rounded-lg border border-[var(--color-border)] bg-[#eef5f3]/60 p-3 md:grid-cols-5">
               <input value={col.label} onChange={(e) => setColumn(i, { label: e.target.value })} placeholder="Field label" className={inputClass} />
               <select value={col.field_type} onChange={(e) => setColumn(i, { field_type: e.target.value as TrackerFieldType })} className={inputClass}>
                 {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -547,10 +547,10 @@ export function TrackerBuilder({
                 <div />
               )}
               <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)]">
                   <input type="checkbox" checked={col.required} onChange={(e) => setColumn(i, { required: e.target.checked })} /> Required
                 </label>
-                <button type="button" onClick={() => setColumns((c) => c.filter((_, idx) => idx !== i))} aria-label="Remove field" className="text-gray-400 hover:text-red-600">
+                <button type="button" onClick={() => setColumns((c) => c.filter((_, idx) => idx !== i))} aria-label="Remove field" className="text-[var(--color-text-muted)] hover:text-red-600">
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
@@ -559,26 +559,26 @@ export function TrackerBuilder({
         </div>
       </section>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-1 text-sm font-semibold text-gray-950">Who fills this in?</h3>
-        <p className="mb-2 text-xs text-gray-500">{AUDIENCE_HINT}</p>
+      <section className="rounded-xl border border-[var(--color-border)] bg-white p-5">
+        <h3 className="mb-1 text-sm font-semibold text-[var(--color-text)]">Who fills this in?</h3>
+        <p className="mb-2 text-xs text-[var(--color-text-muted)]">{AUDIENCE_HINT}</p>
         {prefill?.label && (
-          <p className="mb-2 text-xs text-gray-500">
-            Pre-selected <span className="font-semibold text-gray-700">{prefill.label}</span>. Add or remove anyone below.
+          <p className="mb-2 text-xs text-[var(--color-text-muted)]">
+            Pre-selected <span className="font-semibold text-[var(--color-text)]">{prefill.label}</span>. Add or remove anyone below.
           </p>
         )}
         <AudiencePicker canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} />
       </section>
 
-      {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-      {result && <p className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
+      {error && <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {result && <p className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
 
       <div className="flex flex-wrap items-center gap-4">
-        <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 disabled:opacity-60">
+        <button type="submit" disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-[var(--green)] px-4 py-2.5 text-sm font-semibold text-[var(--dark-teal)] transition hover:bg-[var(--green)] disabled:opacity-60">
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           {saveAsDraft ? "Save draft" : "Create & publish"}
         </button>
-        <label className="flex items-center gap-2 text-sm text-gray-600">
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
           <input type="checkbox" checked={saveAsDraft} onChange={(e) => setSaveAsDraft(e.target.checked)} />
           Save as draft (hidden from {IN_CHARGE_LOWER_PLURAL} until published)
         </label>

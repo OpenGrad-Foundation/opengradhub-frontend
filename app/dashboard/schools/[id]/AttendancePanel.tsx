@@ -16,6 +16,7 @@ import type React from "react";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
 import { useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useSchoolRegister } from "@/lib/queries/attendance";
 import { titleStyle, thStyle, tdStyle } from "../styles";
 
@@ -53,11 +54,9 @@ export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { sc
         style={sectionHeaderStyle}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          <span aria-hidden="true" style={{ fontSize: "12px", color: "#209379" }}>
-            {open ? "▾" : "▸"}
-          </span>
+          <ChevronRight size={16} aria-hidden="true" style={{ color: "var(--color-text-muted)", transform: open ? "rotate(90deg)" : undefined, transition: "transform 150ms" }} />
           <h3 style={{ ...titleStyle, fontSize: "16px", margin: 0 }}>Attendance</h3>
-          <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
+          <span style={{ fontSize: "13px", color: "var(--color-text-muted)" }}>
             Committed register days
           </span>
         </div>
@@ -87,7 +86,7 @@ export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { sc
             <div style={tableWrapStyle}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
                 <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+                  <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
                     <th style={thStyle}>Student</th>
                     <th style={{ ...thStyle, whiteSpace: "nowrap" }}>Present</th>
                     {data.dates.map((d) => (
@@ -105,18 +104,18 @@ export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { sc
                     // if it were.
                     <tr
                       key={s.student_id}
-                      style={{ borderBottom: "1px solid rgba(3,72,82,0.06)", opacity: s.official ? 1 : 0.5 }}
+                      style={{ borderBottom: "1px solid var(--color-border)", opacity: s.official ? 1 : 0.5 }}
                       title={s.official ? undefined : "Tracked online — not counted from this register."}
                     >
                       <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
                         {s.name}
                         {!s.official && (
-                          <span style={{ marginLeft: "6px", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+                          <span style={{ marginLeft: "6px", fontSize: "11px", color: "var(--color-text-muted)" }}>
                             · tracked online
                           </span>
                         )}
                       </td>
-                      <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "rgba(3,72,82,0.7)" }}>
+                      <td style={{ ...tdStyle, whiteSpace: "nowrap", color: "var(--color-text-muted)" }}>
                         {s.present}/{s.total}
                         {s.total > 0 && ` (${Math.round((s.present / s.total) * 100)}%)`}
                       </td>
@@ -125,7 +124,7 @@ export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { sc
                         return (
                           <td key={d} style={{ ...tdStyle, padding: "12px 8px", textAlign: "center" }}>
                             {mark === undefined ? (
-                              <span style={{ color: "rgba(3,72,82,0.25)" }}>·</span>
+                              <span style={{ color: "var(--color-text-muted)" }}>·</span>
                             ) : (
                               <span style={mark ? presentStyle : absentStyle}>{mark ? "P" : "A"}</span>
                             )}
@@ -144,9 +143,9 @@ export function AttendancePanel({ schoolId, canView, defaultOpen = false }: { sc
   );
 }
 
-const sectionHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "14px 18px", borderRadius: "14px", border: "1px solid rgba(3,72,82,0.08)", background: "#fff", cursor: "pointer", userSelect: "none" };
-const selectStyle: React.CSSProperties = { padding: "6px 10px", borderRadius: "10px", border: "1px solid rgba(3,72,82,0.2)", background: "#fff", color: "#034852", fontSize: "13px", fontWeight: 600, cursor: "pointer" };
-const tableWrapStyle: React.CSSProperties = { background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "14px", overflowX: "auto" };
-const emptyStyle: React.CSSProperties = { padding: "16px 18px", background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "14px", color: "rgba(3,72,82,0.6)", fontSize: "13px" };
-const presentStyle: React.CSSProperties = { display: "inline-block", minWidth: "22px", padding: "2px 6px", borderRadius: "8px", background: "rgba(10,190,98,0.12)", color: "#0a7c45", fontWeight: 700, fontSize: "12px" };
-const absentStyle: React.CSSProperties = { display: "inline-block", minWidth: "22px", padding: "2px 6px", borderRadius: "8px", background: "rgba(197,48,48,0.1)", color: "#c53030", fontWeight: 700, fontSize: "12px" };
+const sectionHeaderStyle: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", padding: "14px 18px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)", cursor: "pointer", userSelect: "none" };
+const selectStyle: React.CSSProperties = { minHeight: "44px", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--color-border-strong)", background: "var(--color-surface)", color: "var(--color-text)", fontSize: "14px", cursor: "pointer" };
+const tableWrapStyle: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", overflowX: "auto" };
+const emptyStyle: React.CSSProperties = { padding: "16px 18px", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", color: "var(--color-text-muted)", fontSize: "13px" };
+const presentStyle: React.CSSProperties = { display: "inline-block", minWidth: "22px", padding: "2px 6px", borderRadius: "6px", background: "rgba(10,190,98,0.12)", color: "#08784a", fontWeight: 600, fontSize: "12px" };
+const absentStyle: React.CSSProperties = { display: "inline-block", minWidth: "22px", padding: "2px 6px", borderRadius: "6px", background: "rgba(184,50,50,0.1)", color: "#b83232", fontWeight: 600, fontSize: "12px" };

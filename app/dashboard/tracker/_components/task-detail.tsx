@@ -70,31 +70,31 @@ export function TaskDetail({
   return (
     <section className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
         <div className="flex items-center gap-2">
           {canAuthor && !editing && (
             <>
               {isArchived ? (
-                <button type="button" onClick={async () => { try { await archive.mutateAsync({ status: "active" }); onBack(); } catch { /* surfaced via archive.isError */ } }} disabled={archive.isPending} className="inline-flex items-center gap-1.5 rounded-md border border-teal-300 px-3 py-1.5 text-sm font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-60">
+                <button type="button" onClick={async () => { try { await archive.mutateAsync({ status: "active" }); onBack(); } catch { /* surfaced via archive.isError */ } }} disabled={archive.isPending} className="inline-flex items-center gap-1.5 rounded-lg border border-teal-300 px-3 py-1.5 text-sm font-medium text-[var(--teal)] hover:bg-[var(--color-success-surface)] disabled:opacity-60">
                   {archive.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArchiveRestore className="h-4 w-4" aria-hidden="true" />} Restore
                 </button>
               ) : (
-                <button type="button" onClick={() => setConfirmArchive(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <button type="button" onClick={() => setConfirmArchive(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">
                   <Archive className="h-4 w-4" aria-hidden="true" /> Mark done &amp; archive
                 </button>
               )}
-              <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">
                 <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
               </button>
-              <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50">
+              <button type="button" onClick={() => setConfirmDelete(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50">
                 <Trash2 className="h-4 w-4" aria-hidden="true" /> Delete
               </button>
             </>
           )}
           {onOpenGrid && (
-            <button type="button" onClick={onOpenGrid} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-teal-700">
+            <button type="button" onClick={onOpenGrid} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)]">
               <Table2 className="h-4 w-4" aria-hidden="true" /> Open task
             </button>
           )}
@@ -102,33 +102,33 @@ export function TaskDetail({
       </div>
 
       {confirmDelete && (
-        <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
           <div>
             <p className="text-sm font-semibold text-red-900">Delete “{template.name}”?</p>
             <p className="mt-1 text-sm text-red-800">This permanently removes the task and every assigned row, filled value, blocker, and history entry. This can’t be undone.</p>
           </div>
           {del.isError && <p className="text-sm text-red-700">{del.error instanceof Error ? del.error.message : "Could not delete."}</p>}
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onDelete} disabled={del.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+            <button type="button" onClick={onDelete} disabled={del.isPending} className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-[var(--dark-teal)] hover:bg-red-700 disabled:opacity-60">
               {del.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Delete permanently
             </button>
-            <button type="button" onClick={() => setConfirmDelete(false)} disabled={del.isPending} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button type="button" onClick={() => setConfirmDelete(false)} disabled={del.isPending} className="rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-60">Cancel</button>
           </div>
         </div>
       )}
 
       {confirmArchive && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div>
             <p className="text-sm font-semibold text-amber-900">Archive “{template.name}”?</p>
             <p className="mt-1 text-sm text-amber-800">It leaves the active task list and stops generating new recurring rows. All existing data and history are kept, and you can restore it anytime.</p>
           </div>
           {archive.isError && <p className="text-sm text-red-700">{archive.error instanceof Error ? archive.error.message : "Could not archive."}</p>}
           <div className="flex items-center gap-2">
-            <button type="button" disabled={archive.isPending} onClick={async () => { try { await archive.mutateAsync({ status: "archived" }); setConfirmArchive(false); onBack(); } catch { /* surfaced above */ } }} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
+            <button type="button" disabled={archive.isPending} onClick={async () => { try { await archive.mutateAsync({ status: "archived" }); setConfirmArchive(false); onBack(); } catch { /* surfaced above */ } }} className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-[var(--dark-teal)] hover:bg-amber-700 disabled:opacity-60">
               {archive.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Archive
             </button>
-            <button type="button" onClick={() => setConfirmArchive(false)} disabled={archive.isPending} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
+            <button type="button" onClick={() => setConfirmArchive(false)} disabled={archive.isPending} className="rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-60">Cancel</button>
           </div>
         </div>
       )}
@@ -136,12 +136,12 @@ export function TaskDetail({
       {editing ? (
         <EditTemplate template={template} canShareExternally={canShareExternally} onDone={() => setEditing(false)} />
       ) : (
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-semibold text-gray-950">{template.name}</h2>
+            <h2 className="text-xl font-semibold text-[var(--color-text)]">{template.name}</h2>
             <StatusPill label={template.status === "active" ? "Active" : template.status} tone={template.status === "active" ? "green" : "gray"} />
           </div>
-          {template.description && <p className="mt-2 text-sm text-gray-600">{template.description}</p>}
+          {template.description && <p className="mt-2 text-sm text-[var(--color-text-muted)]">{template.description}</p>}
           <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
             <Meta label="Applies to" value={TARGET_LABEL[template.target_type] ?? template.target_type} />
             <Meta label="How it's completed" value={template.completion_style === "workflow" ? "Move through steps" : "Tick when done"} />
@@ -169,18 +169,18 @@ export function TaskDetail({
 
       {canAuthor && !editing && <AssignSection template={template} canAuthor={canAuthor} />}
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="border-b border-gray-100 px-4 py-3">
-          <h3 className="text-base font-semibold text-gray-950">Fields in this task</h3>
+      <div className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
+        <div className="border-b border-[var(--color-border)] px-4 py-3">
+          <h3 className="text-base font-semibold text-[var(--color-text)]">Fields in this task</h3>
         </div>
         {isLoading ? (
-          <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+          <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
         ) : error ? (
           <p className="flex items-center gap-2 px-4 py-6 text-sm text-red-700"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error instanceof Error ? error.message : "Failed to load."}</p>
         ) : fields.length === 0 ? (
-          <p className="px-4 py-6 text-sm text-gray-500">No fields — this is a simple tick-when-done task.</p>
+          <p className="px-4 py-6 text-sm text-[var(--color-text-muted)]">No fields — this is a simple tick-when-done task.</p>
         ) : (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-[var(--color-border)]">
             {fields.map((f) => (
               <FieldRow key={f.field_key} templateId={template.id} field={f} editing={editing} />
             ))}
@@ -215,21 +215,21 @@ function FieldRow({ templateId, field: f, editing }: { templateId: string; field
   return (
     <li className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-gray-950">
+        <p className="text-sm font-medium text-[var(--color-text)]">
           {f.label}
           {f.required && <span className="ml-2 rounded bg-red-50 px-1.5 py-0.5 text-[11px] font-semibold text-red-600">Required</span>}
         </p>
-        {fieldHint(f) && <p className="mt-0.5 text-xs text-gray-500">{fieldHint(f)}</p>}
+        {fieldHint(f) && <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{fieldHint(f)}</p>}
       </div>
       <div className="flex items-center gap-2">
         {f.source === "profile" ? <StatusPill label="Auto-filled" tone="amber" /> : <StatusPill label="You enter" tone="gray" />}
         {editing && f.id && (
-          <button type="button" onClick={() => setOpen(true)} aria-label={`Edit ${f.label}`} className="text-gray-400 hover:text-teal-700">
+          <button type="button" onClick={() => setOpen(true)} aria-label={`Edit ${f.label}`} className="text-[var(--color-text-muted)] hover:text-[var(--teal)]">
             <Pencil className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
         {editing && f.id && (
-          <button type="button" onClick={() => del.mutate(f.id!)} disabled={del.isPending} aria-label="Remove field" className="text-gray-400 hover:text-red-600 disabled:opacity-50">
+          <button type="button" onClick={() => del.mutate(f.id!)} disabled={del.isPending} aria-label="Remove field" className="text-[var(--color-text-muted)] hover:text-red-600 disabled:opacity-50">
             <Trash2 className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
@@ -250,7 +250,7 @@ function EditFieldForm({ templateId, field: f, onDone }: { templateId: string; f
   const [optionsText, setOptionsText] = useState((f.options ?? []).join(", "));
   const [err, setErr] = useState<string | null>(null);
   const hasOptions = f.field_type === "select" || f.field_type === "multiselect";
-  const inputClass = "h-9 w-full rounded-md border border-gray-300 bg-white px-2.5 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+  const inputClass = "h-9 w-full rounded-lg border border-[var(--color-border-strong)] bg-white px-2.5 text-sm outline-none focus:border-[var(--green)] focus:ring-2 focus:ring-teal-100";
 
   async function save() {
     setErr(null);
@@ -270,7 +270,7 @@ function EditFieldForm({ templateId, field: f, onDone }: { templateId: string; f
   }
 
   return (
-    <div className="rounded-md border border-teal-200 bg-teal-50/40 p-3">
+    <div className="rounded-lg border border-teal-200 bg-[var(--color-success-surface)]/40 p-3">
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
         <input value={label} onChange={(e) => setLabel(e.target.value)} aria-label="Field label" className={inputClass} />
         {hasOptions ? (
@@ -278,22 +278,22 @@ function EditFieldForm({ templateId, field: f, onDone }: { templateId: string; f
         ) : (
           <div />
         )}
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)]">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
         </label>
       </div>
       {/* Says why the two immutable parts are missing, rather than leaving their absence
           to be read as a bug. */}
-      <p className="mt-2 text-xs text-gray-500">
+      <p className="mt-2 text-xs text-[var(--color-text-muted)]">
         The field type ({f.field_type}) and its key cannot change — answers already filled in
         are stored against them.
       </p>
       {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
       <div className="mt-2 flex items-center gap-2">
-        <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+        <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-xs font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-60">
           {update.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Save field
         </button>
-        <button type="button" onClick={onDone} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button type="button" onClick={onDone} className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">Cancel</button>
       </div>
     </div>
   );
@@ -325,13 +325,13 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-5">
-      <h3 className="mb-1 text-base font-semibold text-gray-950">Assign to more people</h3>
+    <div className="rounded-xl border border-[var(--color-border)] bg-white p-5">
+      <h3 className="mb-1 text-base font-semibold text-[var(--color-text)]">Assign to more people</h3>
       <AudiencePicker canAuthor={canAuthor} selected={selected} onChange={setSelected} />
-      {error && <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
-      {result && <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
+      {error && <p className="mt-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
+      {result && <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
       <div className="mt-3">
-        <button type="button" onClick={assign} disabled={busy || selected.size === 0} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+        <button type="button" onClick={assign} disabled={busy || selected.size === 0} className="inline-flex items-center gap-2 rounded-lg bg-[var(--green)] px-4 py-2.5 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-60">
           {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           Assign to {selected.size} {word}
         </button>
@@ -351,26 +351,26 @@ function TaskSummary({ templateId }: { templateId: string }) {
     { done: 0, pending: 0, blocked: 0, overdue: 0 },
   );
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <div className="border-b border-gray-100 px-4 py-3">
-        <h3 className="text-base font-semibold text-gray-950">Progress</h3>
+    <div className="rounded-xl border border-[var(--color-border)] bg-white">
+      <div className="border-b border-[var(--color-border)] px-4 py-3">
+        <h3 className="text-base font-semibold text-[var(--color-text)]">Progress</h3>
       </div>
       {isLoading ? (
-        <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+        <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
       ) : (
         <div className="p-4">
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <SummaryMetric label="Done" value={totals.done} tone="text-emerald-700" />
-            <SummaryMetric label="Pending" value={totals.pending} tone="text-gray-700" />
+            <SummaryMetric label="Pending" value={totals.pending} tone="text-[var(--color-text)]" />
             <SummaryMetric label="Blocked" value={totals.blocked} tone="text-red-700" />
             <SummaryMetric label="Overdue" value={totals.overdue} tone="text-amber-700" />
           </div>
           {rows.length === 0 ? (
-            <p className="text-sm text-gray-500">No one assigned yet.</p>
+            <p className="text-sm text-[var(--color-text-muted)]">No one assigned yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left text-sm">
-                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                <thead className="bg-[#eef5f3] text-xs uppercase text-[var(--color-text-muted)]">
                   <tr>
                     <th className="px-3 py-2 font-semibold">{ownerHeader}</th>
                     <th className="px-3 py-2 font-semibold">Done</th>
@@ -381,12 +381,12 @@ function TaskSummary({ templateId }: { templateId: string }) {
                 </thead>
                 <tbody>
                   {rows.map((r) => (
-                    <tr key={r.fellow_id ?? "unassigned"} className="border-t border-gray-100">
-                      <td className="px-3 py-2 font-medium text-gray-950">{r.fellow_name ?? r.fellow_id ?? "Unassigned"}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.done}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.pending}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.blocked}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.overdue}</td>
+                    <tr key={r.fellow_id ?? "unassigned"} className="border-t border-[var(--color-border)]">
+                      <td className="px-3 py-2 font-medium text-[var(--color-text)]">{r.fellow_name ?? r.fellow_id ?? "Unassigned"}</td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{r.done}</td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{r.pending}</td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{r.blocked}</td>
+                      <td className="px-3 py-2 text-[var(--color-text)]">{r.overdue}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -401,8 +401,8 @@ function TaskSummary({ templateId }: { templateId: string }) {
 
 function SummaryMetric({ label, value, tone }: { label: string; value: number; tone: string }) {
   return (
-    <div className="rounded-lg border border-gray-200 px-3 py-2">
-      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
+    <div className="rounded-xl border border-[var(--color-border)] px-3 py-2">
+      <p className="text-xs font-medium uppercase text-[var(--color-text-muted)]">{label}</p>
       <p className={`mt-0.5 text-2xl font-semibold ${tone}`}>{value}</p>
     </div>
   );
@@ -431,7 +431,7 @@ function AddFieldForm({
   const [required, setRequired] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const inputClass = "h-10 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+  const inputClass = "h-10 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm outline-none focus:border-[var(--green)] focus:ring-2 focus:ring-teal-100";
 
   async function save() {
     setErr(null);
@@ -461,8 +461,8 @@ function AddFieldForm({
 
   if (!open) {
     return (
-      <div className="border-t border-gray-100 px-4 py-3">
-        <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+      <div className="border-t border-[var(--color-border)] px-4 py-3">
+        <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">
           <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Add field
         </button>
       </div>
@@ -470,7 +470,7 @@ function AddFieldForm({
   }
 
   return (
-    <div className="border-t border-gray-100 bg-gray-50/60 px-4 py-3">
+    <div className="border-t border-[var(--color-border)] bg-[#eef5f3]/60 px-4 py-3">
       <div className="grid items-end gap-2 md:grid-cols-5">
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Field label" className={inputClass} />
         <select value={fieldType} onChange={(e) => setFieldType(e.target.value as TrackerFieldType)} className={inputClass}>
@@ -488,16 +488,16 @@ function AddFieldForm({
         ) : (
           <div />
         )}
-        <label className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+        <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-text-muted)]">
           <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> Required
         </label>
       </div>
       {err && <p className="mt-2 text-xs text-red-700">{err}</p>}
       <div className="mt-2 flex items-center gap-2">
-        <button type="button" onClick={save} disabled={add.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+        <button type="button" onClick={save} disabled={add.isPending} className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-xs font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-60">
           {add.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />} Add field
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button type="button" onClick={() => setOpen(false)} className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">Cancel</button>
       </div>
     </div>
   );
@@ -525,7 +525,7 @@ function EditTemplate({
   // letting the author tick a box that will bounce.
   const hasProgramme = Boolean(template.programme_id);
 
-  const inputClass = "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+  const inputClass = "h-10 w-full rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm outline-none focus:border-[var(--green)] focus:ring-2 focus:ring-teal-100";
 
   async function save() {
     setErr(null);
@@ -550,20 +550,20 @@ function EditTemplate({
   }
 
   return (
-    <div className="grid gap-4 rounded-lg border border-teal-200 bg-teal-50/40 p-5 sm:grid-cols-2">
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+    <div className="grid gap-4 rounded-xl border border-teal-200 bg-[var(--color-success-surface)]/40 p-5 sm:grid-cols-2">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)] sm:col-span-2">
         Task name
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)] sm:col-span-2">
         Description
         <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
         Due date
         <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
         Repeats
         <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as "" | TrackerRecurrence)} className={inputClass}>
           <option value="">One-time</option>
@@ -572,7 +572,7 @@ function EditTemplate({
           <option value="monthly">Every month</option>
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
         Status
         <select value={status} onChange={(e) => setStatus(e.target.value as TrackerTemplate["status"])} className={inputClass}>
           <option value="draft">Draft</option>
@@ -580,7 +580,7 @@ function EditTemplate({
           <option value="archived">Archived</option>
         </select>
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+      <label className="flex flex-col gap-1 text-sm font-medium text-[var(--color-text)]">
         Priority
         <select value={priority} onChange={(e) => setPriority(e.target.value as TrackerPriority)} className={inputClass}>
           <option value="low">Low</option>
@@ -589,14 +589,14 @@ function EditTemplate({
         </select>
       </label>
       <div className="flex flex-col gap-2 sm:col-span-2">
-        <span className="text-sm font-medium text-gray-700">Proof of visit</span>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
+        <span className="text-sm font-medium text-[var(--color-text)]">Proof of visit</span>
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
           <input type="checkbox" checked={requirePhoto} onChange={(e) => setRequirePhoto(e.target.checked)} />
           Require a photo
         </label>
         {/* Needs a single school to measure against, which a staff task does not have. */}
         {template.target_type !== "fellow" && (
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+          <label className="flex items-center gap-2 text-sm text-[var(--color-text)]">
             <input type="checkbox" checked={requireGeo} onChange={(e) => setRequireGeo(e.target.checked)} />
             Verify school visit using photo location metadata
           </label>
@@ -605,7 +605,7 @@ function EditTemplate({
       {/* Sharing outside the organisation. Same warning-shaped block as the builder,
           because it is the only control here whose effect leaves the building. */}
       {canShareExternally && (
-        <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-4 sm:col-span-2">
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:col-span-2">
           <span className="text-sm font-medium text-amber-900">Share outside the organisation</span>
           <label className="flex items-start gap-2 text-sm text-amber-900">
             <input
@@ -638,10 +638,10 @@ function EditTemplate({
       )}
       {err && <p className="text-sm text-red-700 sm:col-span-2">{err}</p>}
       <div className="flex items-center gap-2 sm:col-span-2">
-        <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60">
+        <button type="button" onClick={save} disabled={update.isPending} className="inline-flex items-center gap-2 rounded-lg bg-[var(--green)] px-4 py-2 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-60">
           {update.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Save changes
         </button>
-        <button type="button" onClick={onDone} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+        <button type="button" onClick={onDone} className="rounded-lg border border-[var(--color-border-strong)] px-4 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">Cancel</button>
       </div>
     </div>
   );
@@ -661,14 +661,14 @@ function fieldHint(f: TrackerField): string {
 function Meta({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
   return (
     <div className={wide ? "sm:col-span-2 lg:col-span-3" : ""}>
-      <dt className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</dt>
-      <dd className="mt-0.5 text-sm text-gray-900">{value}</dd>
+      <dt className="text-xs font-medium uppercase tracking-wide text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="mt-0.5 text-sm text-[var(--color-text)]">{value}</dd>
     </div>
   );
 }
 
 function StatusPill({ label, tone }: { label: string; tone: "green" | "gray" | "amber" }) {
-  const toneClass = { green: "bg-emerald-50 text-emerald-700", gray: "bg-gray-100 text-gray-700", amber: "bg-amber-50 text-amber-700" }[tone];
+  const toneClass = { green: "bg-emerald-50 text-emerald-700", gray: "bg-[#eef5f3] text-[var(--color-text)]", amber: "bg-amber-50 text-amber-700" }[tone];
   return <span className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${toneClass}`}>{label}</span>;
 }
 

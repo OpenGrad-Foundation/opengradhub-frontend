@@ -37,8 +37,8 @@ function sameDraft(draft: RowDraft, sent: TrackerBatchEdit): boolean {
   return true;
 }
 
-const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg";
-const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-[var(--color-border)] bg-white py-1 shadow-lg";
+const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-[#eef5f3] disabled:cursor-not-allowed disabled:opacity-50";
 
 export function TrackerEditableGrid({
   template,
@@ -347,7 +347,7 @@ export function TrackerEditableGrid({
     }
   }
 
-  const inputClass = "h-9 w-full rounded border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-100";
+  const inputClass = "h-9 w-full rounded border border-[var(--color-border-strong)] bg-white px-2 text-sm outline-none focus:border-[var(--teal)] focus:ring-1 focus:ring-teal-100";
 
   // Shared cell renderers, reused by the desktop table and the mobile card list.
   const proofHint = template.require_photo && template.require_location ? "Add a photo and capture your location first"
@@ -415,7 +415,7 @@ export function TrackerEditableGrid({
               if (gateable && e.target.value === doneStatus) { openGate(); return; }
               setStatus(row.record_id, e.target.value);
             }}
-            className={big ? "h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base outline-none focus:border-teal-500" : inputClass}
+            className={big ? "h-11 w-full rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-base outline-none focus:border-[var(--teal)]" : inputClass}
           >
             {(template.workflow_statuses ?? []).map((s) => <option key={s} value={s} disabled={blocked && s === doneStatus}>{s}</option>)}
           </select>
@@ -435,7 +435,7 @@ export function TrackerEditableGrid({
               if (gateable) { openGate(); return; }
               setStatus(row.record_id, done ? "not_started" : "done");
             }}
-            className={"flex h-12 w-full items-center justify-center gap-2 rounded-lg text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-gray-300 text-gray-700")}
+            className={"flex h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-semibold transition disabled:opacity-60 " + (done ? "bg-emerald-600 text-white" : "border-2 border-[var(--color-border-strong)] text-[var(--color-text)]")}
           >
             <Check className="h-5 w-5" aria-hidden="true" /> {done ? "Done" : "Mark done"}
           </button>
@@ -444,7 +444,7 @@ export function TrackerEditableGrid({
       );
     }
     return (
-      <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600" title={proofBlocking || waiving || gateable || correcting ? hint : undefined}>
+      <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)]" title={proofBlocking || waiving || gateable || correcting ? hint : undefined}>
         <input
           type="checkbox"
           disabled={!canEditRow(row) || proofBlocking}
@@ -475,17 +475,17 @@ export function TrackerEditableGrid({
               type="button"
               onClick={() => setDetailsStudent({ id: row.target_id, name: row.target_name ?? "this student" })}
               title="Fill student details"
-              className="text-gray-500 underline decoration-dashed underline-offset-2 hover:text-teal-700"
+              className="text-[var(--color-text-muted)] underline decoration-dashed underline-offset-2 hover:text-[var(--teal)]"
             >
               Not set
             </button>
           );
         }
-        return <span className="text-gray-400">Not set</span>;
+        return <span className="text-[var(--color-text-muted)]">Not set</span>;
       }
       const href = trackerLinkHref(value);
       return href
-        ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="break-all text-teal-700 underline underline-offset-2 hover:text-teal-900">{display(value)}</a>
+        ? <a href={href} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="break-all text-[var(--teal)] underline underline-offset-2 hover:text-teal-900">{display(value)}</a>
         : <span>{display(value)}</span>;
     }
     return <EditableCell col={col} value={value} onChange={(v) => setCell(row.record_id, col.field_key, v)} inputClass={inputClass} />;
@@ -501,7 +501,7 @@ export function TrackerEditableGrid({
               type="button"
               onClick={() => onClear(row.blocker!.id)}
               disabled={clear.isPending}
-              className="inline-flex w-fit items-center gap-1 rounded border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="inline-flex w-fit items-center gap-1 rounded border border-[var(--color-border-strong)] px-2 py-1 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-50"
             >
               <Check className="h-3.5 w-3.5" aria-hidden="true" /> Mark cleared
             </button>
@@ -509,7 +509,7 @@ export function TrackerEditableGrid({
         </div>
       );
     }
-    if (!authorityOf(row).blocker) return <span className="text-gray-400">—</span>;
+    if (!authorityOf(row).blocker) return <span className="text-[var(--color-text-muted)]">—</span>;
     return (
       <div className="flex items-center gap-1">
         <input
@@ -517,13 +517,13 @@ export function TrackerEditableGrid({
           onChange={(e) => setBlockerText((b) => ({ ...b, [row.record_id]: e.target.value }))}
           onKeyDown={(e) => { if (e.key === "Enter") onRaise(row.record_id); }}
           placeholder="What's stuck?"
-          className="h-9 w-full min-w-0 rounded border border-gray-300 px-2 text-sm outline-none focus:border-teal-500"
+          className="h-9 w-full min-w-0 rounded border border-[var(--color-border-strong)] px-2 text-sm outline-none focus:border-[var(--teal)]"
         />
         <button
           type="button"
           onClick={() => onRaise(row.record_id)}
           disabled={raise.isPending || !(blockerText[row.record_id] ?? "").trim()}
-          className="shrink-0 rounded border border-gray-300 px-2 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          className="shrink-0 rounded border border-[var(--color-border-strong)] px-2 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-50"
         >
           Save
         </button>
@@ -535,7 +535,7 @@ export function TrackerEditableGrid({
     <button
       type="button"
       onClick={() => setHistoryRecordId(row.record_id)}
-      className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+      className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[#eef5f3]"
     >
       <Clock className="h-3.5 w-3.5" aria-hidden="true" /> History
     </button>
@@ -546,7 +546,7 @@ export function TrackerEditableGrid({
       <button
         type="button"
         onClick={() => setDetailsStudent({ id: row.target_id, name: row.target_name ?? "this student" })}
-        className="inline-flex items-center gap-1 rounded border border-gray-200 px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+        className="inline-flex items-center gap-1 rounded border border-[var(--color-border)] px-2 py-1.5 text-xs font-medium text-[var(--color-text-muted)] hover:bg-[#eef5f3]"
       >
         <UserCog className="h-3.5 w-3.5" aria-hidden="true" /> Details
       </button>
@@ -556,12 +556,12 @@ export function TrackerEditableGrid({
   // and an overflow-hidden here cuts them off at the card's edge, whatever their z-index.
   // The two row containers below round their own bottom corners instead.
   return (
-    <section className="rounded-lg border border-gray-200 bg-white">
-      {filterBar ? <div className="border-b border-gray-100 px-4 py-3">{filterBar}</div> : null}
-      <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
+    <section className="rounded-xl border border-[var(--color-border)] bg-white">
+      {filterBar ? <div className="border-b border-[var(--color-border)] px-4 py-3">{filterBar}</div> : null}
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
-          <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
+          <h2 className="text-base font-semibold text-[var(--color-text)]">{template.name}</h2>
+          <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-xs outline-none focus:border-[var(--teal)]">
             <option value="">All statuses</option>
             {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
@@ -581,7 +581,7 @@ export function TrackerEditableGrid({
             title={outstandingCount === 0
               ? "Every row here is complete — correct an entry in their name"
               : `Fill ${outstandingCount} outstanding row${outstandingCount === 1 ? "" : "s"} in their name`}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
             Fill on behalf
@@ -599,13 +599,13 @@ export function TrackerEditableGrid({
                 disabled={exporting !== null}
                 aria-haspopup="menu"
                 aria-expanded={menu === "export"}
-                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {exporting
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
                   : <Download className="h-3.5 w-3.5" aria-hidden="true" />}
                 Export
-                <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                <ChevronDown className="h-3.5 w-3.5 text-[var(--color-text-muted)]" aria-hidden="true" />
               </button>
               {menu === "export" && (
                 <div role="menu" className={menuClass}>
@@ -615,8 +615,8 @@ export function TrackerEditableGrid({
                     onClick={() => { setMenu(null); void onExport(false); }}
                     className={menuItemClass}
                   >
-                    <span className="font-medium text-gray-800">Records only (.csv)</span>
-                    <span className="text-[11px] text-gray-500">All {grid.rows.length} rows with status, evidence and last update</span>
+                    <span className="font-medium text-[var(--color-text)]">Records only (.csv)</span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">All {grid.rows.length} rows with status, evidence and last update</span>
                   </button>
                   <button
                     type="button"
@@ -624,8 +624,8 @@ export function TrackerEditableGrid({
                     onClick={() => { setMenu(null); void onExport(true); }}
                     className={menuItemClass}
                   >
-                    <span className="font-medium text-gray-800">Records + history (.zip)</span>
-                    <span className="text-[11px] text-gray-500">Adds the full event log, one row per change</span>
+                    <span className="font-medium text-[var(--color-text)]">Records + history (.zip)</span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">Adds the full event log, one row per change</span>
                   </button>
                 </div>
               )}
@@ -638,10 +638,10 @@ export function TrackerEditableGrid({
                 onClick={() => setMenu((m) => (m === "bulk" ? null : "bulk"))}
                 aria-haspopup="menu"
                 aria-expanded={menu === "bulk"}
-                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1.5 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]"
               >
                 <FileUp className="h-3.5 w-3.5" aria-hidden="true" /> Bulk fill
-                <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                <ChevronDown className="h-3.5 w-3.5 text-[var(--color-text-muted)]" aria-hidden="true" />
               </button>
               {menu === "bulk" && (
                 <div role="menu" className={menuClass}>
@@ -655,8 +655,8 @@ export function TrackerEditableGrid({
                     title={dirtyCount > 0 ? "Save your changes first" : undefined}
                     className={menuItemClass}
                   >
-                    <span className="font-medium text-gray-800">Download template (CSV)</span>
-                    <span className="text-[11px] text-gray-500">{visibleRows.length} rows, ready to fill in</span>
+                    <span className="font-medium text-[var(--color-text)]">Download template (CSV)</span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">{visibleRows.length} rows, ready to fill in</span>
                   </button>
                   <button
                     type="button"
@@ -666,12 +666,12 @@ export function TrackerEditableGrid({
                     title={dirtyCount > 0 ? "Save your changes first" : undefined}
                     className={menuItemClass}
                   >
-                    <span className="font-medium text-gray-800">Download template (Excel)</span>
-                    <span className="text-[11px] text-gray-500">Same rows as an .xlsx workbook</span>
+                    <span className="font-medium text-[var(--color-text)]">Download template (Excel)</span>
+                    <span className="text-[11px] text-[var(--color-text-muted)]">Same rows as an .xlsx workbook</span>
                   </button>
                   {anyOwnRow && (
                     <>
-                      <span className="my-1 block h-px bg-gray-100" aria-hidden="true" />
+                      <span className="my-1 block h-px bg-[#eef5f3]" aria-hidden="true" />
                       <button
                         type="button"
                         role="menuitem"
@@ -680,8 +680,8 @@ export function TrackerEditableGrid({
                         title={dirtyCount > 0 ? "Save your changes first" : undefined}
                         className={menuItemClass}
                       >
-                        <span className="font-medium text-gray-800">Upload filled file…</span>
-                        <span className="text-[11px] text-gray-500">Check it against these rows, then save</span>
+                        <span className="font-medium text-[var(--color-text)]">Upload filled file…</span>
+                        <span className="text-[11px] text-[var(--color-text-muted)]">Check it against these rows, then save</span>
                       </button>
                     </>
                   )}
@@ -694,7 +694,7 @@ export function TrackerEditableGrid({
               type="button"
               onClick={onSave}
               disabled={saving || dirtyCount === 0}
-              className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--green)] px-3 py-1.5 text-sm font-semibold text-[var(--dark-teal)] disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {onBehalfMode ? "Save on behalf" : "Save"}{dirtyCount > 0 ? ` (${dirtyCount})` : ""}
@@ -715,7 +715,7 @@ export function TrackerEditableGrid({
           <button
             type="button"
             onClick={exitOnBehalf}
-            className="shrink-0 rounded-md border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+            className="shrink-0 rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
           >
             {overrideDirtyCount > 0 ? `Exit (discards ${overrideDirtyCount})` : "Exit"}
           </button>
@@ -750,7 +750,7 @@ export function TrackerEditableGrid({
       {error && <p className="border-b border-red-100 bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
       <div className="hidden overflow-x-auto rounded-b-lg md:block">
         <table className="w-full min-w-[820px] border-collapse text-left text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+          <thead className="bg-[#eef5f3] text-xs uppercase text-[var(--color-text-muted)]">
             <tr>
               <th className="px-3 py-3 font-semibold">{template.completion_style === "workflow" ? "Stage" : "Done?"}</th>
               {hasName && <th className="px-3 py-3 font-semibold">{nameHeader}</th>}
@@ -765,12 +765,12 @@ export function TrackerEditableGrid({
           <tbody>
             {visibleRows.map((row) => (
               <Fragment key={row.record_id}>
-                <tr className="border-t border-gray-100 align-top">
+                <tr className="border-t border-[var(--color-border)] align-top">
                   <td className="px-3 py-3">{statusControl(row, false)}</td>
-                  {hasName && <td className="px-3 py-3 font-medium text-gray-900">{row.target_name ?? "—"}</td>}
-                  {hasSchool && <td className="px-3 py-3 text-gray-700">{row.school_name ?? "—"}</td>}
+                  {hasName && <td className="px-3 py-3 font-medium text-[var(--color-text)]">{row.target_name ?? "—"}</td>}
+                  {hasSchool && <td className="px-3 py-3 text-[var(--color-text)]">{row.school_name ?? "—"}</td>}
                   {grid.columns.map((col) => (
-                    <td key={col.field_key} className="px-3 py-3 text-gray-700">{fieldControl(row, col)}</td>
+                    <td key={col.field_key} className="px-3 py-3 text-[var(--color-text)]">{fieldControl(row, col)}</td>
                   ))}
                   <td className="px-3 py-3">{blockerControl(row)}</td>
                   <td className="px-3 py-3">
@@ -781,7 +781,7 @@ export function TrackerEditableGrid({
                   </td>
                 </tr>
                 {authorityOf(row).evidence && requiresProof && (
-                  <tr className="border-t border-gray-50">
+                  <tr className="border-t border-[var(--color-border)]">
                     <td colSpan={99} className="px-3 pb-3">{proofsFor(row)}</td>
                   </tr>
                 )}
@@ -794,11 +794,11 @@ export function TrackerEditableGrid({
       {/* Mobile: one card per row — big tap targets, stacked fields, no horizontal scroll. */}
       <div className="flex flex-col gap-3 overflow-hidden rounded-b-lg p-3 md:hidden">
         {visibleRows.map((row) => (
-          <div key={row.record_id} className="rounded-lg border border-gray-200 p-3">
+          <div key={row.record_id} className="rounded-xl border border-[var(--color-border)] p-3">
             <div className="mb-2 flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-gray-950">{row.target_name ?? "—"}</p>
-                {row.school_name && <p className="truncate text-xs text-gray-500">{row.school_name}</p>}
+                <p className="truncate text-sm font-semibold text-[var(--color-text)]">{row.target_name ?? "—"}</p>
+                {row.school_name && <p className="truncate text-xs text-[var(--color-text-muted)]">{row.school_name}</p>}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 {detailsButton(row)}
@@ -807,15 +807,15 @@ export function TrackerEditableGrid({
             </div>
             <div className="flex flex-col gap-3">
               {grid.columns.map((col) => (
-                <label key={col.field_key} className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                <label key={col.field_key} className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">
                   {col.label}
-                  <div className="text-sm text-gray-800">{fieldControl(row, col)}</div>
+                  <div className="text-sm text-[var(--color-text)]">{fieldControl(row, col)}</div>
                 </label>
               ))}
             </div>
             {authorityOf(row).evidence && requiresProof && <div className="mt-3">{proofsFor(row)}</div>}
             <div className="mt-3">{statusControl(row, true)}</div>
-            <div className="mt-3 border-t border-gray-100 pt-3">{blockerControl(row)}</div>
+            <div className="mt-3 border-t border-[var(--color-border)] pt-3">{blockerControl(row)}</div>
           </div>
         ))}
       </div>
@@ -874,14 +874,14 @@ function ReasonPrompt({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
-        <h3 className="text-base font-semibold text-gray-950">Fill on behalf of {ownerName}</h3>
-        <p className="mt-1 text-sm text-gray-600">
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-[var(--color-text)]">Fill on behalf of {ownerName}</h3>
+        <p className="mt-1 text-sm text-[var(--color-text-muted)]">
           You are about to fill these rows in their name. It is recorded in the task history with
           your name and this reason, and {ownerName} is notified — along with their manager, if
           that is not you.
         </p>
-        <label className="mt-4 block text-xs font-medium text-gray-700">
+        <label className="mt-4 block text-xs font-medium text-[var(--color-text)]">
           Why are you filling for them?
           <textarea
             value={value}
@@ -889,14 +889,14 @@ function ReasonPrompt({
             rows={3}
             maxLength={2000}
             placeholder="e.g. On emergency leave; visit confirmed by phone with the head teacher."
-            className="mt-1 w-full rounded-md border border-gray-300 p-2 text-sm outline-none focus:border-teal-500"
+            className="mt-1 w-full rounded-lg border border-[var(--color-border-strong)] p-2 text-sm outline-none focus:border-[var(--teal)]"
           />
         </label>
         <div className="mt-4 flex justify-end gap-2">
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3]"
           >
             Cancel
           </button>
@@ -904,7 +904,7 @@ function ReasonPrompt({
             type="button"
             onClick={onConfirm}
             disabled={!value.trim()}
-            className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+            className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
           >
             Start filling
           </button>
@@ -931,9 +931,9 @@ function HistoryDrawer({
         role="dialog"
         aria-label="Task history"
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          <h3 className="text-base font-semibold text-gray-950">History</h3>
-          <button type="button" onClick={onClose} aria-label="Close history" className="rounded p-1 text-gray-400 hover:text-gray-700">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+          <h3 className="text-base font-semibold text-[var(--color-text)]">History</h3>
+          <button type="button" onClick={onClose} aria-label="Close history" className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
@@ -945,24 +945,24 @@ function HistoryDrawer({
           <PeriodHistory recordId={recordId} recurring={recurring} />
           {(requirePhoto || requireLocation) && (
             <div className="mb-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Proof</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">Proof</p>
               <RecordProofs recordId={recordId} requirePhoto={requirePhoto} requireLocation={requireLocation} editable={false} />
             </div>
           )}
           {isLoading ? (
-            <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+            <div className="flex min-h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
           ) : error ? (
             <p className="text-sm text-red-700">{error instanceof Error ? error.message : "Failed to load history."}</p>
           ) : !data || data.length === 0 ? (
-            <p className="text-sm text-gray-500">No history yet.</p>
+            <p className="text-sm text-[var(--color-text-muted)]">No history yet.</p>
           ) : (
             <ol className="flex flex-col gap-3">
               {data.map((ev) => (
                 <li key={ev.id} className="flex gap-3">
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-teal-500" aria-hidden="true" />
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[var(--color-success-surface)]0" aria-hidden="true" />
                   <div className="min-w-0">
-                    <p className="text-sm text-gray-900">{describeEvent(ev)}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">
+                    <p className="text-sm text-[var(--color-text)]">{describeEvent(ev)}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                       {ev.actor_name ? `${ev.actor_name} · ` : ""}{formatDateTime(ev.at)}
                     </p>
                   </div>
@@ -1082,7 +1082,7 @@ function EditableCell({
       const href = trackerLinkHref(value);
       return <div className="flex items-center gap-1">
         <input aria-label={col.label} type={col.field_type === "url" ? "url" : "text"} value={value == null ? "" : String(value)} onChange={(e) => onChange(e.target.value)} className={inputClass} />
-        {href && <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${col.label}`} title="Open link in a new tab" onClick={event => event.stopPropagation()} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 hover:text-teal-900">
+        {href && <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`Open ${col.label}`} title="Open link in a new tab" onClick={event => event.stopPropagation()} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-[var(--teal)] hover:bg-[var(--color-success-surface)] hover:text-teal-900">
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>}
       </div>;
@@ -1176,8 +1176,8 @@ function MultiSelectCell({
         title={picked.join(", ") || undefined}
         className={inputClass + " flex min-w-[9rem] items-center justify-between gap-2 text-left"}
       >
-        <span className={"truncate " + (picked.length ? "text-gray-900" : "text-gray-400")}>{summary}</span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+        <span className={"truncate " + (picked.length ? "text-[var(--color-text)]" : "text-[var(--color-text-muted)]")}>{summary}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden="true" />
       </button>
       {open && pos && typeof document !== "undefined" && createPortal(
         <div
@@ -1185,17 +1185,17 @@ function MultiSelectCell({
           role="group"
           aria-label={label}
           style={{ position: "fixed", top: pos.top, bottom: pos.bottom, left: pos.left, width: pos.width, maxHeight: pos.maxHeight }}
-          className="z-[1000] overflow-y-auto overscroll-contain rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          className="z-[1000] overflow-y-auto overscroll-contain rounded-lg border border-[var(--color-border)] bg-white py-1 shadow-lg"
         >
           {options.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400">No options</p>
+            <p className="px-3 py-2 text-xs text-[var(--color-text-muted)]">No options</p>
           ) : (
             options.map((o) => {
               const on = selected.includes(o);
               return (
                 <label
                   key={o}
-                  className={"flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 " + (on ? "text-teal-800" : "text-gray-700")}
+                  className={"flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-[#eef5f3] " + (on ? "text-[var(--teal)]" : "text-[var(--color-text)]")}
                 >
                   <input type="checkbox" checked={on} onChange={() => toggle(o)} className="h-4 w-4 accent-teal-600" />
                   {o}
@@ -1207,7 +1207,7 @@ function MultiSelectCell({
             <button
               type="button"
               onClick={() => onChange([])}
-              className="mt-1 w-full border-t border-gray-100 px-3 py-2 text-left text-xs text-gray-500 hover:bg-gray-50"
+              className="mt-1 w-full border-t border-[var(--color-border)] px-3 py-2 text-left text-xs text-[var(--color-text-muted)] hover:bg-[#eef5f3]"
             >
               Clear selection
             </button>
@@ -1236,21 +1236,21 @@ function RecordGeoSummary({ recordId }: { recordId: string }) {
   const { data, isLoading } = useRecordGeoVerification(recordId);
   if (isLoading) {
     return (
-      <div className="mb-4 flex items-center gap-2 text-xs text-gray-500">
+      <div className="mb-4 flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading visit verification…
       </div>
     );
   }
   return (
     <div className="mb-4">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-text-muted)]">
         School visit verification
       </p>
       {!data ? (
-        <p className="text-xs text-gray-400">No visit verification for this row yet.</p>
+        <p className="text-xs text-[var(--color-text-muted)]">No visit verification for this row yet.</p>
       ) : (
-        <div className="flex flex-col gap-1 rounded-md border border-gray-200 bg-gray-50/60 p-3 text-xs">
-          <p className="font-medium text-gray-800">
+        <div className="flex flex-col gap-1 rounded-lg border border-[var(--color-border)] bg-[#eef5f3]/60 p-3 text-xs">
+          <p className="font-medium text-[var(--color-text)]">
             {data.override_by ? "Overridden" : data.status === "verified" ? "Verified" : "Outside radius"}
             {" · "}
             {data.distance_m >= 1000
@@ -1258,11 +1258,11 @@ function RecordGeoSummary({ recordId }: { recordId: string }) {
               : `${Math.round(data.distance_m)} m`}{" "}
             from school (limit {data.radius_m} m)
           </p>
-          <p className="text-gray-500">Photo taken {formatDateTime(data.exif_captured_at)}</p>
+          <p className="text-[var(--color-text-muted)]">Photo taken {formatDateTime(data.exif_captured_at)}</p>
           {data.override_reason && (
             <p className="text-amber-800">Override reason: {data.override_reason}</p>
           )}
-          <p className="text-gray-400">Shared across this school visit.</p>
+          <p className="text-[var(--color-text-muted)]">Shared across this school visit.</p>
         </div>
       )}
     </div>

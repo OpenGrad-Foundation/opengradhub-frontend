@@ -8,7 +8,8 @@ import { PERM } from "@/lib/permissions";
 import { isKnownState, isValidDistrictForState, normState, ALL_STATE, STATES, resolveState, resolveDistrict } from "@/lib/geo";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { ZONE } from "@/lib/labels";
-import { labelStyle, closeBtnStyle, formLabelStyle, inputStyle } from "./styles";
+import { AlertTriangle, CheckCircle2, Download, Trash2, X } from "lucide-react";
+import { closeBtnStyle, formLabelStyle, inputStyle, primaryButton, secondaryButton, cardStyle } from "./styles";
 
 // Mirrors SCHOOL_CSV_COLUMNS in the backend schools service. The three geo columns
 // are optional — they only enable school-visit verification for that school.
@@ -178,28 +179,28 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   const hasData = rows.length > 0;
 
   return (
-    <div style={{ ...glassCard, textAlign: "left", marginBottom: "24px" }}>
+    <div style={{ ...cardStyle, textAlign: "left", marginBottom: "24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <p style={labelStyle}>Bulk Upload Schools</p>
-        <button onClick={onClose} style={closeBtnStyle}>✕</button>
+        <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 600, color: "var(--color-text)" }}>Bulk Upload Schools</h2>
+        <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={18} aria-hidden="true" /></button>
       </div>
 
       <a href={getSchoolTemplateUrl()} download="opengrad_schools_template.csv"
-        style={{ ...primaryButton, display: "inline-flex", alignItems: "center", gap: "6px", textDecoration: "none", fontSize: "12px", padding: "10px 20px", background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }}>
-        ↓ Download Template CSV
+        style={secondaryButton}>
+        <Download size={16} aria-hidden="true" />Download Template CSV
       </a>
 
       {canAttachProgramme && (
         <div style={{ marginTop: "20px" }}>
           <label style={formLabelStyle} htmlFor="bulk-programme">Attach to programme (optional)</label>
           <select id="bulk-programme" value={programmeId} onChange={(e) => setProgrammeId(e.target.value)}
-            style={{ ...inputStyle, padding: "10px" }}>
+            style={inputStyle}>
             <option value="">— No programme —</option>
             {programmes.map((p) => (
               <option key={p.id} value={p.id}>{p.name}{p.cohort_label ? ` · ${p.cohort_label}` : ""}</option>
             ))}
           </select>
-          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>
+          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
             Every school created by this upload is attached to the selected programme.
           </p>
         </div>
@@ -209,11 +210,11 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
         <label style={formLabelStyle}>Upload CSV File</label>
         <input type="file" accept=".csv"
           onChange={(e) => { setFile(e.target.files?.[0] ?? null); setResult(null); }}
-          style={{ ...inputStyle, padding: "10px" }} />
+          style={inputStyle} />
       </div>
 
       {parseError && (
-        <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px", background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.2)", fontSize: "12px", fontWeight: 600, color: "#c53030" }}>
+        <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "10px", background: "rgba(229,62,62,0.06)", border: "1px solid rgba(229,62,62,0.2)", fontSize: "12px", fontWeight: 600, color: "#b83232" }}>
           {parseError}
         </div>
       )}
@@ -222,8 +223,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
         <div style={{ marginTop: "20px" }}>
           <p style={formLabelStyle}>Preview &amp; Edit</p>
           <div style={{ display: "flex", alignItems: "center", gap: "14px", flexWrap: "wrap", padding: "12px 16px", borderRadius: "12px", marginBottom: "12px", background: errorCount > 0 ? "rgba(229,62,62,0.05)" : "rgba(10,190,98,0.06)", border: `1px solid ${errorCount > 0 ? "rgba(229,62,62,0.2)" : "rgba(10,190,98,0.2)"}` }}>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "#0abe62" }}>✓ {readyCount} ready</span>
-            {errorCount > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#e53e3e" }}>✗ {errorCount} with errors</span>}
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#08784a" }}>✓ {readyCount} ready</span>
+            {errorCount > 0 && <span style={{ fontSize: "13px", fontWeight: 700, color: "#b83232" }}>✗ {errorCount} with errors</span>}
             {warnCount > 0 && (
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#b7791f" }}>
                 ⚠ {warnCount} to review
@@ -231,23 +232,23 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
             )}
             <div style={{ marginLeft: "auto" }}>
               <button onClick={() => void doUpload(errorCount > 0 ? readyResolved : resolvedRows)} disabled={uploading || readyCount === 0}
-                style={{ ...primaryButton, padding: "8px 16px", fontSize: "12px", opacity: uploading || readyCount === 0 ? 0.5 : 1 }}>
+                style={{ ...primaryButton, opacity: uploading || readyCount === 0 ? 0.5 : 1 }}>
                 {uploading ? "Uploading…" : errorCount > 0 ? `Import Ready Rows (${readyCount})` : `Import All (${rows.length})`}
               </button>
             </div>
           </div>
 
-          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.10)", background: "rgba(255,255,255,0.55)", maxHeight: "400px", overflowY: "auto" }}>
+          <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)", maxHeight: "400px", overflowY: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px", minWidth: "640px" }}>
               <thead style={{ position: "sticky", top: 0, zIndex: 1 }}>
-                <tr style={{ background: "rgba(3,72,82,0.07)", textAlign: "left" }}>
+                <tr style={{ background: "#eef5f3", textAlign: "left" }}>
                   <th style={{ padding: "9px 10px", width: "32px" }} />
                   {HEADERS.map((h) => (
-                    <th key={h} style={{ padding: "9px 10px", color: "rgba(3,72,82,0.7)", textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "10px", fontWeight: 700 }}>
+                    <th key={h} style={{ padding: "9px 10px", color: "var(--color-text-muted)", fontSize: "12px", fontWeight: 500 }}>
                       {HEADER_LABELS[h]}
                     </th>
                   ))}
-                  <th style={{ padding: "9px 10px", color: "rgba(3,72,82,0.5)", fontSize: "10px", minWidth: "120px" }}>ERRORS</th>
+                  <th style={{ padding: "9px 10px", color: "var(--color-text-muted)", fontSize: "12px", fontWeight: 500, minWidth: "120px" }}>Errors</th>
                   <th style={{ padding: "9px 10px", width: "40px" }} />
                 </tr>
               </thead>
@@ -256,9 +257,9 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                   const errs = errsPerRow[idx];
                   const hasErr = errs.length > 0;
                   return (
-                    <tr key={idx} style={{ borderBottom: "1px solid rgba(3,72,82,0.06)", background: hasErr ? "rgba(229,62,62,0.02)" : "transparent" }}>
+                    <tr key={idx} style={{ borderBottom: "1px solid var(--color-border)", background: hasErr ? "rgba(229,62,62,0.02)" : "transparent" }}>
                       <td style={{ padding: "6px 8px", textAlign: "center" }}>
-                        <span title={hasErr ? errs.join(", ") : "Row is valid"}>{hasErr ? "⚠️" : "✅"}</span>
+                        <span title={hasErr ? errs.join(", ") : "Row is valid"} style={{ display: "inline-flex", color: hasErr ? "#b83232" : "#08784a" }}>{hasErr ? <AlertTriangle size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />}</span>
                       </td>
                       {HEADERS.map((col) => {
                         const val = row[col] ?? "";
@@ -273,7 +274,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                           return (
                             <td key={col} style={{ padding: "4px 6px" }}>
                               <select value={val} onChange={(e) => updateCell(idx, col, e.target.value)}
-                                style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", border: "1.5px solid #b7791f", color: "#034852", boxSizing: "border-box", minWidth: "90px" }}>
+                                style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", border: "1.5px solid #b7791f", color: "var(--color-text)", boxSizing: "border-box", minWidth: "90px" }}>
                                 <option value={val}>{val} (keep)</option>
                                 {res.candidates.map((c) => <option key={c} value={c}>{c}</option>)}
                               </select>
@@ -285,13 +286,13 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                           <td key={col} style={{ padding: "4px 6px" }}>
                             <input type="text" value={val}
                               onChange={(e) => updateCell(idx, col, e.target.value)}
-                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "#034852",
+                              style={{ width: "100%", padding: "5px 7px", borderRadius: "6px", fontSize: "12px", color: "var(--color-text)",
                                 background: cellErr ? "rgba(229,62,62,0.04)" : corrected ? "rgba(10,190,98,0.06)" : "transparent",
-                                border: cellErr ? "1.5px solid #e53e3e" : corrected ? "1.5px solid #0abe62" : "1px solid transparent",
+                                border: cellErr ? "1.5px solid #b83232" : corrected ? "1.5px solid #0abe62" : "1px solid transparent",
                                 outline: "none", boxSizing: "border-box", minWidth: "90px" }}
                               placeholder={cellErr ? "Required" : ""} />
                             {corrected && (
-                              <span style={{ display: "block", fontSize: "10px", color: "#0abe62", fontWeight: 600 }}>
+                              <span style={{ display: "block", fontSize: "10px", color: "#08784a", fontWeight: 600 }}>
                                 {val} → {res!.value}
                               </span>
                             )}
@@ -299,7 +300,7 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                         );
                       })}
                       <td style={{ padding: "6px 10px", minWidth: "120px" }}>
-                        {hasErr && <span style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 600 }}>{errs.join(", ")}</span>}
+                        {hasErr && <span style={{ fontSize: "11px", color: "#b83232", fontWeight: 600 }}>{errs.join(", ")}</span>}
                         {warnsPerRow[idx].length > 0 && (
                           <span style={{ display: "block", fontSize: "11px", color: "#b7791f", fontWeight: 600 }}>
                             ⚠ {warnsPerRow[idx].join(", ")}
@@ -307,8 +308,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
                         )}
                       </td>
                       <td style={{ padding: "6px 8px", textAlign: "center" }}>
-                        <button onClick={() => deleteRow(idx)} title="Remove row"
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#c53030" }}>🗑</button>
+                        <button onClick={() => deleteRow(idx)} title="Remove row" aria-label="Remove row"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#b83232", display: "inline-flex", padding: "4px" }}><Trash2 size={16} aria-hidden="true" /></button>
                       </td>
                     </tr>
                   );
@@ -316,26 +317,26 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
               </tbody>
             </table>
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>
-            {rows.length} row{rows.length !== 1 ? "s" : ""} loaded. Click any cell to edit; use 🗑 to remove a row.
+          <p style={{ margin: "8px 0 0", fontSize: "11px", color: "var(--color-text-muted)" }}>
+            {rows.length} row{rows.length !== 1 ? "s" : ""} loaded. Click any cell to edit; use the bin icon to remove a row.
           </p>
         </div>
       )}
 
       {result && (
-        <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px", background: "rgba(3,72,82,0.04)" }}>
-          <p style={{ fontWeight: 700, color: "#034852", fontSize: "15px" }}>
-            ✅ {result.created} school{result.created !== 1 ? "s" : ""} created
-            {result.skipped > 0 && <>, ⚠️ {result.skipped} skipped</>}
+        <div style={{ marginTop: "20px", padding: "16px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
+          <p style={{ fontWeight: 600, color: "var(--color-text)", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+            <CheckCircle2 size={18} aria-hidden="true" style={{ color: "#08784a" }} />{result.created} school{result.created !== 1 ? "s" : ""} created
+            {result.skipped > 0 && <>, <AlertTriangle size={16} aria-hidden="true" style={{ color: "#b7791f" }} />{result.skipped} skipped</>}
           </p>
           {result.errors.length > 0 && (
-            <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#e53e3e", lineHeight: 1.8 }}>
+            <ul style={{ marginTop: "10px", paddingLeft: "20px", fontSize: "12px", color: "#b83232", lineHeight: 1.8 }}>
               {result.errors.map((err, i) => <li key={i}>{err}</li>)}
             </ul>
           )}
           {result.corrections.length > 0 && (
             <details style={{ marginTop: "8px" }}>
-              <summary style={{ fontSize: "12px", color: "#0abe62", fontWeight: 700, cursor: "pointer" }}>
+              <summary style={{ fontSize: "12px", color: "#08784a", fontWeight: 700, cursor: "pointer" }}>
                 {result.corrections.length} auto-correction{result.corrections.length === 1 ? "" : "s"}
               </summary>
               <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "11px", color: "#0a7d4a", lineHeight: 1.7 }}>
@@ -344,8 +345,8 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
             </details>
           )}
           {result.skippedRows.length > 0 && (
-            <button onClick={() => downloadErroredCsv(result)} style={{ ...primaryButton, marginTop: "10px", padding: "8px 16px", fontSize: "12px", background: "linear-gradient(135deg, #e53e3e 0%, #c53030 100%)" }}>
-              ↓ Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
+            <button onClick={() => downloadErroredCsv(result)} style={{ ...secondaryButton, marginTop: "10px", color: "#b83232" }}>
+              <Download size={16} aria-hidden="true" />Download {result.skippedRows.length} errored row{result.skippedRows.length === 1 ? "" : "s"}
             </button>
           )}
         </div>
@@ -354,8 +355,6 @@ export function SchoolBulkUploadPanel({ onClose, onDone }: { onClose: () => void
   );
 }
 
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" };
-const primaryButton: React.CSSProperties = { padding: "12px 24px", border: "none", borderRadius: "12px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap" };
 
 /**
  * Optional visit-verification columns. Blank is normal and never an error; only a

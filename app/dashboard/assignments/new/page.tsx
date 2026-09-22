@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -75,12 +76,10 @@ export default function NewAssignmentPage() {
   }
 
   return (
-    <div style={{ maxWidth: "680px" }}>
-      <Link href="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>← Assignments</Link>
+    <div>
+      <Link href="/dashboard/assignments" style={S.outlineBtn}><ArrowLeft size={16} aria-hidden="true" />Assignments</Link>
 
-      <div style={{ marginTop: "14px", marginBottom: "24px" }}>
-        <h1 style={{ ...S.heading, fontSize: "26px", margin: "4px 0 0" }}>Create Assignment</h1>
-      </div>
+      <div style={{ height: "20px" }} />
 
       <form onSubmit={(e) => void handleSubmit(e)}>
         <div style={{ ...glassCard, display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -109,7 +108,7 @@ export default function NewAssignmentPage() {
               <option value="LINK">Google Drive link — for video or anything large</option>
               <option value="BOTH">Either a file or a Google Drive link</option>
             </select>
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)", margin: "6px 0 0", lineHeight: 1.6 }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "6px 0 0", lineHeight: 1.6 }}>
               This can&apos;t be changed once students start submitting.
             </p>
           </Field>
@@ -153,7 +152,7 @@ export default function NewAssignmentPage() {
             />
           </Field>
 
-          {error && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{error}</p>}
+          {error && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, margin: 0 }}>{error}</p>}
 
           <div style={{ display: "flex", gap: "10px" }}>
             <Link href="/dashboard/assignments" style={{ ...S.outlineBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
@@ -172,20 +171,20 @@ export default function NewAssignmentPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p style={{ margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>{label}</p>
+      <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</p>
       {children}
     </div>
   );
 }
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
 const S = {
-  label: { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading: { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input: { width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn: { padding: "11px 22px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 220ms ease" } as React.CSSProperties,
-  outlineBtn: { padding: "11px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px", background: "transparent", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer" } as React.CSSProperties,
+  label: { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading: { fontWeight: 700, color: "var(--color-text)" } as React.CSSProperties,
+  input: { width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
+  outlineBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", color: "var(--color-text)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
 };

@@ -45,10 +45,10 @@ export default function ReportBugButton() {
       onClick={openForm}
       title="Report a bug"
       aria-label="Report a bug"
-      className="flex items-center gap-1.5 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
+      className="flex w-full items-center gap-2 px-4 py-2.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
     >
       <Bug size={18} aria-hidden="true" />
-      <span className="hidden sm:inline text-sm font-medium">Report bug</span>
+      <span className="text-sm font-medium">Report bug</span>
     </button>
   );
 }

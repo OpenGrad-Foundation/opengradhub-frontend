@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, Check, Eye, Plus, Upload, Library } from "lucide-react";
 import { getBackHref } from "@/lib/nav";
+import { Tabs } from "@/app/dashboard/_components/Tabs";
+import workspace from "@/components/dashboard/workspace.module.css";
+import styles from "@/app/dashboard/course-management/management.module.css";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
   getQuizById,
@@ -285,153 +289,78 @@ export default function QuizBuilderPage() {
   }
 
   const quizType = quiz?.quiz_type ?? "GLOBAL_TEST";
+  const totalQuestions = (quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length;
 
-  return (
-    <div style={{ position: "relative" }}>
-      {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ marginBottom: "28px" }}>
-        {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
-        <a
-          href={getBackHref(from, backHref)}
-          style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}
-        >
-          ← {courseId ? "Back to Course Builder" : from ? "Back" : "Back to Question Bank"}
-        </a>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: "12px", flexWrap: "wrap", gap: "16px" }}>
-          <div>
-            <p style={S.label}>{quizType === "MODULE_TEST" ? "Module Quiz" : "Global Quiz"}</p>
-            <h1 style={{ ...S.heading, fontSize: "28px", margin: "4px 0 0" }}>{quiz?.title ?? "Quiz Builder"}</h1>
-            <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.6)", marginTop: "4px" }}>
-              {questions.length} question{questions.length !== 1 ? "s" : ""}
-            </p>
-          </div>
+  const settingsPanel = (
+    <form onSubmit={(e) => void saveSettings(e)} style={{ display: "grid", gap: "16px" }}>
+      <SettingsSection title="Basics" description="What students see before they start.">
+        <Field label="Title">
+          <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
+        </Field>
+        <Field label="Instructions" hint="Shown to students on the start screen. Optional.">
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            rows={4}
+            placeholder="Rules, allowed materials, or context for this quiz…"
+            style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </Field>
+      </SettingsSection>
 
-          <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", flexWrap: "wrap" }}>
-            {/* Preview + Publish controls */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-              <button
-                onClick={() => setPreviewOpen(true)}
-                disabled={(quiz?.is_sectioned ? quiz.sections.flatMap(s => s.questions) : questions).length === 0}
-                style={{
-                  padding: "10px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px",
-                  background: "transparent", color: "#034852",
-                  fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-                  cursor: "pointer", transition: "all 220ms ease",
-                }}
-              >
-                Student Preview
-              </button>
-            </div>
-
-            {/* Publish control */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
-              {quiz?.published ? (
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: "6px",
-                  padding: "10px 18px", borderRadius: "10px",
-                  background: "rgba(10,190,98,0.1)", border: "1.5px solid rgba(10,190,98,0.3)",
-                  color: "#0abe62", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px",
-                }}>
-                  ✓ Published
-                </span>
-              ) : (
-                <button
-                  onClick={() => void handlePublish()}
-                  disabled={publishing}
-                  style={{
-                    padding: "10px 20px", border: "none", borderRadius: "10px",
-                    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-                    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-                    fontSize: "13px", cursor: publishing ? "default" : "pointer",
-                    boxShadow: "0 6px 14px rgba(10,190,98,0.25)",
-                    opacity: publishing ? 0.6 : 1, transition: "all 220ms ease",
-                  }}
-                >
-                  {publishing ? "Publishing…" : "Publish Quiz"}
-                </button>
-              )}
-              {publishErr && (
-                <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{publishErr}</p>
-              )}
-            </div>
-          </div>
+      <SettingsSection title="Timing and attempts">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
+          <Field label="Duration (minutes)" hint="0 or empty = untimed">
+            <input type="number" min="0" inputMode="numeric" value={duration} onChange={e => setDuration(e.target.value)} style={S.input} placeholder="Untimed" />
+          </Field>
+          <Field label="Max attempts" hint="0 or empty = unlimited">
+            <input type="number" min="0" inputMode="numeric" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} style={S.input} placeholder="Unlimited" />
+          </Field>
+          <Field label="Pass mark (%)">
+            <input type="number" min="0" max="100" inputMode="numeric" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
+          </Field>
         </div>
+        <Field label="Due date" hint="A batch's own due date overrides this. Leave empty for no deadline.">
+          <input type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} style={{ ...S.input, maxWidth: "20rem" }} />
+        </Field>
+      </SettingsSection>
+
+      <SettingsSection title="Scoring">
+        <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking" description="Deduct marks for wrong answers. Blank answers are never penalised." />
+        {negativeMarking && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px", paddingBottom: "4px" }}>
+            <Field label="Marks per correct answer">
+              <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
+            </Field>
+            <Field label="Penalty per wrong answer">
+              <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="1" />
+            </Field>
+          </div>
+        )}
+        <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts" description="Students can retake, but only the first attempt is graded." />
+        <Toggle value={showAnswers} onChange={setShowAnswers} label="Show answers after submission" description="Reveal correct answers and explanations on the review screen." />
+      </SettingsSection>
+
+      <SettingsSection title="Delivery">
+        <Toggle value={shuffle} onChange={setShuffle} label="Shuffle questions" description="Each attempt gets its own question order." />
+        <Toggle value={isSectioned} onChange={setIsSectioned} label="Sections" description="Split the quiz into labelled sections." />
+        {isSectioned && (
+          <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential sections" description="Sections in order, each with its own timer. No going back." />
+        )}
+        <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen" description="Desktop only; the quiz is blocked on mobile." />
+      </SettingsSection>
+
+      <div style={{ position: "sticky", bottom: "16px", justifySelf: "end", display: "flex", alignItems: "center", gap: "12px" }}>
+        {settingsErr && <span role="alert" style={{ padding: "8px 12px", borderRadius: "12px", border: "1px solid #f3c7c7", background: "#fff5f5", color: "#b83232", fontSize: "13px", fontWeight: 600 }}>{settingsErr}</span>}
+        <button type="submit" disabled={saving} aria-live="polite" style={{ ...S.primaryBtn, boxShadow: "0 6px 20px rgba(3,72,82,0.18)" }}>
+          {saving ? "Saving…" : settingsSaved ? <><Check size={16} aria-hidden="true" />Saved</> : "Save settings"}
+        </button>
       </div>
+    </form>
+  );
 
-      {/* ── Settings card ─────────────────────────────────── */}
-      <form onSubmit={(e) => void saveSettings(e)}>
-        <div style={{ ...glassCard, padding: "clamp(16px, 4vw, 24px)", marginBottom: "24px" }}>
-          <p style={{ ...S.sectionHeader, marginBottom: "16px" }}>Quiz Settings</p>
-          <div style={{ display: "grid", gap: "16px" }}>
-            <Field label="Title *">
-              <input value={title} onChange={e => setTitle(e.target.value)} style={S.input} placeholder="Quiz title" required />
-            </Field>
-            <Field label="Test Instructions (shown to students before they start)">
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                placeholder="Optional instructions, rules, or context for this test…"
-                style={{ ...S.input, resize: "vertical", lineHeight: 1.5 }}
-              />
-            </Field>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "12px" }}>
-              <Field label="Duration (min, 0=untimed)">
-                <input type="number" min="0" value={duration} onChange={e => setDuration(e.target.value)} style={S.input} placeholder="0" />
-              </Field>
-              <Field label="Max Attempts (0=unlimited)">
-                <input type="number" min="0" value={maxAttempts} onChange={e => setMaxAttempts(e.target.value)} style={S.input} placeholder="0" />
-              </Field>
-              <Field label="Pass Threshold (%)">
-                <input type="number" min="0" max="100" value={passThreshold} onChange={e => setPassThreshold(e.target.value)} style={S.input} placeholder="60" />
-              </Field>
-            </div>
-            <Field label="Due Date (optional)">
-              <input
-                type="datetime-local"
-                value={dueAt}
-                onChange={e => setDueAt(e.target.value)}
-                style={S.input}
-              />
-              <p style={{ margin: "6px 0 0", fontSize: 12, color: "#6b7280" }}>
-                Default deadline for this quiz. A batch that sets its own due date overrides
-                it. Leave empty for no deadline.
-              </p>
-            </Field>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px" }}>
-              <Toggle value={shuffle} onChange={setShuffle} label="Shuffle Questions" />
-              <Toggle value={showAnswers} onChange={setShowAnswers} label="Show Answers After Submission" />
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <Toggle value={isSectioned} onChange={setIsSectioned} label="Section-wise quiz (multiple labeled sections)" />
-              {isSectioned && (
-                <Toggle value={sequentialSections} onChange={setSequentialSections} label="Sequential — students complete sections in order; each section has its own timer; no going back." />
-              )}
-              <Toggle value={firstAttemptCounts} onChange={setFirstAttemptCounts} label="First attempt counts (subsequent retakes allowed but won't change the grade)" />
-              <Toggle value={requireFullscreen} onChange={setRequireFullscreen} label="Require fullscreen during attempt (desktop only — mobile blocked)" />
-              <Toggle value={negativeMarking} onChange={setNegativeMarking} label="Negative marking (deduct marks for wrong answers; blanks never penalized)" />
-              {negativeMarking && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "12px" }}>
-                  <Field label="Marks per correct answer">
-                    <input type="text" inputMode="decimal" value={correctMarks} onChange={e => setCorrectMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="4" />
-                  </Field>
-                  <Field label="Penalty per wrong answer">
-                    <input type="text" inputMode="decimal" value={wrongMarks} onChange={e => setWrongMarks(e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1"))} style={S.input} placeholder="1" />
-                  </Field>
-                </div>
-              )}
-            </div>
-          </div>
-          {settingsErr && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "12px 0 0" }}>{settingsErr}</p>}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "16px" }}>
-            <button type="submit" disabled={saving} style={{ ...S.primaryBtn, opacity: saving ? 0.6 : 1 }}>
-              {saving ? "Saving…" : "Save Settings"}
-            </button>
-            {settingsSaved && <span style={{ fontSize: "13px", color: "#0abe62", fontWeight: 600 }}>✓ Saved</span>}
-          </div>
-        </div>
-      </form>
-
+  const questionsPanel = (
+    <>
       {/* ── Bulk CSV upload into this quiz ────────────────── */}
       {csvOpen && csvTarget && (
         <QuestionBulkUploadPanel
@@ -460,10 +389,10 @@ export default function QuizBuilderPage() {
           <>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", flexWrap: "wrap", gap: "12px" }}>
               <p style={S.sectionHeader}>Questions ({questions.length})</p>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button onClick={() => setBankOpen(true)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add from Bank</button>
-                <button onClick={() => setCsvOpen((v) => !v)} style={{ ...S.outlineBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px", color: "#932079", borderColor: "rgba(147,32,121,0.3)" }}>⬆ Upload CSV</button>
-                <button onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={{ ...S.primaryBtn, textAlign: "center", whiteSpace: "nowrap", padding: "8px 10px", fontSize: "13px" }}>+ Add Question</button>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                <button type="button" onClick={() => setBankOpen(true)} style={S.outlineBtn}><Library size={16} aria-hidden="true" />From bank</button>
+                <button type="button" onClick={() => setCsvOpen((v) => !v)} aria-expanded={csvOpen} style={S.outlineBtn}><Upload size={16} aria-hidden="true" />Upload CSV</button>
+                <button type="button" onClick={() => { setEditTarget(null); setPanelOpen(true); }} style={S.primaryBtn}><Plus size={16} aria-hidden="true" />Add question</button>
               </div>
             </div>
 
@@ -493,6 +422,52 @@ export default function QuizBuilderPage() {
             </p>
           </>
         )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className={`${workspace.workspace} ${styles.page}`}>
+      <div className={styles.courseHeader}>
+        <div className={styles.courseToolbar}>
+          {/* Hard-navigate so the course builder always re-mounts and re-fetches */}
+          <a href={getBackHref(from, backHref)} className={styles.secondary}>
+            <ArrowLeft size={16} aria-hidden="true" />
+            <span>{courseId ? "Course builder" : from ? "Back" : "Question Bank"}</span>
+          </a>
+          <div className={styles.headerActions}>
+            <button type="button" onClick={() => setPreviewOpen(true)} disabled={totalQuestions === 0} className={styles.secondary}>
+              <Eye size={16} aria-hidden="true" />Preview
+            </button>
+            {quiz?.published ? (
+              <span className={styles.secondary} style={{ cursor: "default", color: "var(--teal)" }}>
+                <Check size={16} aria-hidden="true" />Published
+              </span>
+            ) : (
+              <button type="button" onClick={() => void handlePublish()} disabled={publishing} className={styles.primary}>
+                {publishing ? "Publishing…" : "Publish quiz"}
+              </button>
+            )}
+          </div>
+        </div>
+        {publishErr && <p role="alert" style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, margin: 0 }}>{publishErr}</p>}
+        <div className={styles.courseIdentity}>
+          <h2>{quiz?.title ?? "Untitled quiz"}</h2>
+          <div className={styles.courseMeta}>
+            <span>{quizType === "MODULE_TEST" ? "Module quiz" : "Global quiz"}</span>
+            <span>{totalQuestions} question{totalQuestions !== 1 ? "s" : ""}</span>
+            {quiz?.is_sectioned && <span>{quiz.sections.length} section{quiz.sections.length !== 1 ? "s" : ""}</span>}
+            <span>{quiz?.duration_minutes ? `${quiz.duration_minutes} min` : "Untimed"}</span>
+            {!quiz?.published && <span>Draft</span>}
+          </div>
+        </div>
+      </div>
+
+      <div className={`${workspace.stickyTabs} ${styles.courseTabs}`}>
+      <Tabs ariaLabel="Quiz builder" compactOnScroll tabs={[
+        { key: "questions", label: "Questions", count: totalQuestions, panel: questionsPanel },
+        { key: "settings", label: "Settings", panel: settingsPanel },
+      ]} />
       </div>
 
       {/* ── Student preview ───────────────────────────────── */}
@@ -1126,23 +1101,39 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
 
 // ── Small components ───────────────────────────────────────────
 
-function Field({ label: lbl, children }: { label: string; children: React.ReactNode }) {
+function SettingsSection({ title: heading, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div>
-      <p style={{ margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>{lbl}</p>
+    <section style={{ ...glassCard, display: "grid", gap: "16px" }}>
+      <div>
+        <h3 style={S.sectionHeader}>{heading}</h3>
+        {description && <p style={{ margin: "4px 0 0", fontSize: "13px", color: "var(--color-text-muted)" }}>{description}</p>}
+      </div>
       {children}
-    </div>
+    </section>
   );
 }
 
-function Toggle({ value, onChange, label: lbl }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
+function Field({ label: lbl, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: "rgba(3,72,82,0.03)", borderRadius: "10px", border: "1px solid rgba(3,72,82,0.07)" }}>
-      <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#034852" }}>{lbl}</p>
-      <button type="button" onClick={() => onChange(!value)} style={{ width: "40px", height: "22px", borderRadius: "11px", border: "none", cursor: "pointer", background: value ? "#0abe62" : "rgba(3,72,82,0.15)", position: "relative", transition: "background 200ms ease", flexShrink: 0 }}>
-        <span style={{ position: "absolute", top: "2px", left: value ? "20px" : "2px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 200ms ease", boxShadow: "0 1px 4px rgba(0,0,0,0.2)" }} />
+    <label style={{ display: "block", minWidth: 0 }}>
+      <span style={{ display: "block", margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{lbl}</span>
+      {children}
+      {hint && <span style={{ display: "block", marginTop: "6px", fontSize: "12px", color: "var(--color-text-muted)" }}>{hint}</span>}
+    </label>
+  );
+}
+
+function Toggle({ value, onChange, label: lbl, description }: { value: boolean; onChange: (v: boolean) => void; label: string; description?: string }) {
+  return (
+    <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", paddingTop: "12px", borderTop: "1px solid var(--color-border)", cursor: "pointer" }}>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: "14px", fontWeight: 600, color: "var(--color-text)" }}>{lbl}</span>
+        {description && <span style={{ display: "block", marginTop: "2px", fontSize: "13px", color: "var(--color-text-muted)" }}>{description}</span>}
+      </span>
+      <button type="button" role="switch" aria-checked={value} onClick={() => onChange(!value)} style={{ width: "44px", height: "24px", borderRadius: "12px", border: "none", cursor: "pointer", background: value ? "var(--teal)" : "var(--color-border-strong)", position: "relative", transition: "background 200ms ease", flexShrink: 0 }}>
+        <span aria-hidden="true" style={{ position: "absolute", top: "2px", left: value ? "22px" : "2px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 200ms ease", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
       </button>
-    </div>
+    </label>
   );
 }
 
@@ -1160,38 +1151,35 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "clamp(16px, 5vw, 28px) clamp(16px, 5vw, 32px)", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 20px)",
 };
 
 const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
+    fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852",
+    fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
   sectionHeader: {
-    fontFamily: "var(--font-heading)", fontSize: "15px", fontWeight: 700,
-    color: "#034852", margin: 0,
+    fontSize: "15px", fontWeight: 600, color: "var(--color-text)", margin: 0,
   } as React.CSSProperties,
   primaryBtn: {
-    padding: "10px 20px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700,
-    fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 12px rgba(10,190,98,0.2)",
-    transition: "all 220ms ease", whiteSpace: "nowrap",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 14px", border: "1px solid var(--green)", borderRadius: "12px",
+    background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600,
+    fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap",
   } as React.CSSProperties,
   outlineBtn: {
-    padding: "7px 14px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "8px",
-    background: "transparent", color: "#034852", fontFamily: "var(--font-body)",
-    fontWeight: 600, fontSize: "12px", cursor: "pointer",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 14px", border: "1px solid var(--color-border)", borderRadius: "12px",
+    background: "var(--color-surface)", color: "var(--color-text)",
+    fontWeight: 600, fontSize: "13px", cursor: "pointer",
   } as React.CSSProperties,
   input: {
-    width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)",
-    border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852",
-    fontFamily: "var(--font-body)", fontSize: "14px",
-    outline: "none", boxSizing: "border-box",
+    width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)",
+    border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)",
+    fontSize: "14px", boxSizing: "border-box",
   } as React.CSSProperties,
 };

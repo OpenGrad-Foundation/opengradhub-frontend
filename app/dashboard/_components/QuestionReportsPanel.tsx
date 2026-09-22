@@ -56,7 +56,7 @@ export function QuestionReportsPanel({ questionId }: { questionId: string }) {
 
   return (
     <div style={{ marginTop: "8px", paddingTop: "16px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
-      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)", margin: "0 0 10px" }}>
+      <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.55)", margin: "0 0 10px" }}>
         Student reports ({openCount} open)
       </p>
 

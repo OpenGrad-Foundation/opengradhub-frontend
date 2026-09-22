@@ -9,6 +9,7 @@ import {
   BUILTIN_ROLES,
 } from "@/app/dashboard/role-management/role-management.utils";
 import { RolePermissionPanel } from "@/app/dashboard/_components/RolePermissionPanel";
+import { Plus } from "lucide-react";
 
 type Role = { code: string; name: string };
 
@@ -56,9 +57,7 @@ export default function RoleManagementPage() {
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 768px) {
           .rm-container { padding: 0 12px !important; }
-          .rm-header { margin-bottom: 20px !important; }
-          .rm-title { font-size: 22px !important; }
-          .rm-card { padding: 18px !important; border-radius: 16px !important; }
+          .rm-card { padding: 16px !important; }
           .rm-card-header { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; }
           .rm-add-btn { width: 100% !important; }
           .rm-create-form { flex-direction: column !important; align-items: stretch !important; }
@@ -67,7 +66,7 @@ export default function RoleManagementPage() {
           .rm-table thead { display: none !important; }
           .rm-table, .rm-table tbody, .rm-table tr, .rm-table td { display: block !important; width: 100% !important; }
           .rm-table tr {
-            border: 1px solid rgba(0,0,0,0.08) !important;
+            border: 1px solid var(--color-border) !important;
             border-radius: 12px !important;
             padding: 12px 14px !important;
             margin-bottom: 10px !important;
@@ -81,35 +80,31 @@ export default function RoleManagementPage() {
           .rm-table td:last-child { text-align: left !important; margin-top: 4px; }
         }
       ` }} />
-      <div className="rm-header" style={{ marginBottom: "32px" }}>
-        <h1 className="rm-title" style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>Role Management</h1>
-      </div>
-
       <div className="rm-card" style={glassCard}>
         <div className="rm-card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
-            <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Default Permissions</h2>
+            <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 0" }}>Default permissions</h2>
           </div>
           {canManage && !adding && (
-            <button className="rm-add-btn" onClick={() => { setAdding(true); setCreateErr(null); }} style={primaryBtn}>＋ Add Role</button>
+            <button className="rm-add-btn" onClick={() => { setAdding(true); setCreateErr(null); }} style={primaryBtn}><Plus size={16} aria-hidden="true" /> Add role</button>
           )}
         </div>
 
         {adding && (
-          <div className="rm-create-form" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "rgba(10,190,98,0.04)", border: "1px solid rgba(10,190,98,0.2)" }}>
+          <div className="rm-create-form" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "flex-end", marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "var(--color-surface)", border: "1px solid var(--color-border)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: "160px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379" }}>CODE</span>
+              <span style={fieldLabel}>Code</span>
               <input value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase())} placeholder="E.G. CONTENT_EDITOR" style={inputStyle} />
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: "160px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379" }}>NAME</span>
+              <span style={fieldLabel}>Name</span>
               <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Content Editor" style={inputStyle} />
             </label>
             <button onClick={() => void handleCreate()} disabled={creating || !newCode.trim() || !newName.trim()} style={{ ...primaryBtn, opacity: creating || !newCode.trim() || !newName.trim() ? 0.5 : 1 }}>
               {creating ? "Creating…" : "Create"}
             </button>
             <button onClick={() => { setAdding(false); setCreateErr(null); }} style={ghostBtn}>Cancel</button>
-            {createErr && <p style={{ width: "100%", fontSize: "12px", color: "#e53e3e", margin: 0 }}>{createErr}</p>}
+            {createErr && <p style={{ width: "100%", fontSize: "12px", color: "#b83232", margin: 0 }}>{createErr}</p>}
           </div>
         )}
 
@@ -133,15 +128,15 @@ export default function RoleManagementPage() {
                       onClick={() => setSelected(r)}
                       style={{ cursor: "pointer", background: isSelected ? "rgba(10,190,98,0.05)" : "transparent" }}
                     >
-                      <td style={tdStyle}><span style={{ fontWeight: 600, color: "#034852" }}>{r.name}</span></td>
-                      <td style={tdStyle}><span style={{ color: "rgba(3,72,82,0.6)" }}>{r.code}</span></td>
+                      <td style={tdStyle}><span style={{ fontWeight: 600, color: "var(--color-text)" }}>{r.name}</span></td>
+                      <td style={tdStyle}><span style={{ color: "var(--color-text-muted)" }}>{r.code}</span></td>
                       <td style={tdStyle}>
-                        <span style={{ padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: builtin ? "rgba(3,72,82,0.08)" : "rgba(255,222,89,0.25)", color: builtin ? "#034852" : "#7a6000" }}>
-                          {builtin ? "BUILT-IN" : "CUSTOM"}
+                        <span style={{ padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: builtin ? "#eef5f3" : "rgba(255,222,89,0.25)", color: builtin ? "var(--color-text)" : "#7a6000" }}>
+                          {builtin ? "Built-in" : "Custom"}
                         </span>
                       </td>
                       <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 600, color: "#209379", opacity: isSelected ? 1 : 0.5 }}>
+                        <span style={{ fontSize: "13px", fontWeight: 600, color: "#08784a", opacity: isSelected ? 1 : 0.7 }}>
                           {isSelected ? "Open ›" : (canManage ? "Edit →" : "View →")}
                         </span>
                       </td>
@@ -149,7 +144,7 @@ export default function RoleManagementPage() {
                   );
                 })}
                 {roles.length === 0 && (
-                  <tr><td colSpan={4} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.4)" }}>No roles found.</td></tr>
+                  <tr><td colSpan={4} style={{ padding: "24px", textAlign: "center", color: "var(--color-text-muted)" }}>No roles found.</td></tr>
                 )}
               </tbody>
             </table>
@@ -171,11 +166,12 @@ export default function RoleManagementPage() {
   );
 }
 
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(255,255,255,0.3)", borderRadius: "24px", padding: "32px", boxShadow: "0 2px 8px rgba(0,0,0,0.05)" };
-const titleStyle: React.CSSProperties = { fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852" };
-const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "rgba(3,72,82,0.6)" };
-const inputStyle: React.CSSProperties = { padding: "10px 16px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "12px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none" };
-const primaryBtn: React.CSSProperties = { padding: "10px 18px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer" };
-const ghostBtn: React.CSSProperties = { padding: "10px 18px", background: "none", border: "1px solid rgba(3,72,82,0.2)", borderRadius: "10px", color: "#034852", fontWeight: 600, fontSize: "13px", cursor: "pointer" };
-const thStyle: React.CSSProperties = { padding: "10px 12px", textAlign: "left", fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(3,72,82,0.5)", borderBottom: "1px solid rgba(0,0,0,0.08)", whiteSpace: "nowrap" };
-const tdStyle: React.CSSProperties = { padding: "12px", borderBottom: "1px solid rgba(0,0,0,0.05)", verticalAlign: "middle" };
+const glassCard: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px,4vw,24px)" };
+const titleStyle: React.CSSProperties = { fontSize: "22px", fontWeight: 700, color: "var(--color-text)" };
+const subtitleStyle: React.CSSProperties = { fontSize: "14px", color: "var(--color-text-muted)" };
+const fieldLabel: React.CSSProperties = { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" };
+const inputStyle: React.CSSProperties = { minHeight: "44px", padding: "0 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px" };
+const primaryBtn: React.CSSProperties = { minHeight: "44px", padding: "0 18px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px" };
+const ghostBtn: React.CSSProperties = { minHeight: "44px", padding: "0 18px", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", color: "var(--color-text)", fontWeight: 600, fontSize: "14px", cursor: "pointer" };
+const thStyle: React.CSSProperties = { padding: "10px 12px", textAlign: "left", fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)", background: "#eef5f3", borderBottom: "1px solid var(--color-border)", whiteSpace: "nowrap" };
+const tdStyle: React.CSSProperties = { padding: "12px", borderBottom: "1px solid var(--color-border)", verticalAlign: "middle" };

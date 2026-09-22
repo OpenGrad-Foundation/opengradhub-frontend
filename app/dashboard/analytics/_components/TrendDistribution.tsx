@@ -10,10 +10,10 @@ import { Bar, Line } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
 const card: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "20px",
-  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
-  padding: "24px 28px",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px,4vw,24px)",
 };
 
 const entityLabel: Record<InsightsResponse["distribution"]["entity"], string> = {
@@ -35,11 +35,11 @@ export function TrendDistribution({
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: "16px", marginBottom: "20px" }}>
       <div style={card}>
-        <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px" }}>
+        <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text)", marginBottom: "12px" }}>
           12-month trend
         </p>
         {trend.length === 0 ? (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>
             Not enough history yet — trend will fill in after first 60 days.
           </p>
         ) : (
@@ -75,11 +75,11 @@ export function TrendDistribution({
       </div>
 
       <div style={card}>
-        <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", letterSpacing: "0.22em", textTransform: "uppercase", marginBottom: "12px" }}>
+        <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text)", marginBottom: "12px" }}>
           {entityLabel[distribution.entity]}
         </p>
         {distribution.rows.length === 0 ? (
-          <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "13px" }}>No data yet.</p>
+          <p style={{ color: "var(--color-text-muted)", fontSize: "13px" }}>No data yet.</p>
         ) : (
           <Bar
             data={{

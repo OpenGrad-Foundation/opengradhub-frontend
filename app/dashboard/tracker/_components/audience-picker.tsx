@@ -93,13 +93,13 @@ export function AudiencePicker({
     onChange(next);
   };
 
-  const filterClass = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+  const filterClass = "h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--teal)] focus:ring-2 focus:ring-teal-100";
 
   return (
     <div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {programmeOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Programme
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">Programme
             <select value={programmeFilter} onChange={(e) => onProgramme(e.target.value)} className={filterClass}>
               <option value="">All programmes</option>
               {programmeOpts.map((pr) => <option key={pr.id} value={pr.id}>{pr.name}</option>)}
@@ -107,7 +107,7 @@ export function AudiencePicker({
           </label>
         )}
         {roleOpts.length > 1 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Role
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">Role
             <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={filterClass}>
               <option value="">All roles</option>
               {roleOpts.map((r) => <option key={r} value={r}>{prettyRole(r)}</option>)}
@@ -115,7 +115,7 @@ export function AudiencePicker({
           </label>
         )}
         {stateOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">State
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">State
             <select value={stateFilter} onChange={(e) => onState(e.target.value)} className={filterClass}>
               <option value="">All states</option>
               {stateOpts.map((s) => <option key={s} value={s}>{prettyState(s)}</option>)}
@@ -123,7 +123,7 @@ export function AudiencePicker({
           </label>
         )}
         {districtOpts.length > 0 && (
-          <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">{ZONE}
+          <label className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">{ZONE}
             <select value={districtFilter} onChange={(e) => onDistrict(e.target.value)} className={filterClass}>
               <option value="">All districts</option>
               {districtOpts.map((d) => <option key={d} value={d}>{d}</option>)}
@@ -131,20 +131,20 @@ export function AudiencePicker({
           </label>
         )}
         {schoolOpts.length > 0 && (
-          <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">School
+          <div className="flex flex-col gap-1 text-xs font-medium text-[var(--color-text-muted)]">School
             <SearchableSelect value={schoolFilter} onChange={setSchoolFilter} options={schoolOpts} placeholder="All schools" />
           </div>
         )}
       </div>
 
       {assignable.isLoading ? (
-        <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+        <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
       ) : visible.length === 0 ? (
-        <p className="py-4 text-sm text-gray-500">No staff in your scope for this filter.</p>
+        <p className="py-4 text-sm text-[var(--color-text-muted)]">No staff in your scope for this filter.</p>
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onChange(new Set([...selected, ...visible.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
+            <button type="button" onClick={() => onChange(new Set([...selected, ...visible.map((t) => t.id)]))} className="rounded-lg border border-teal-300 bg-[var(--color-success-surface)] px-2.5 py-1 text-xs font-medium text-[var(--teal)] hover:bg-teal-100">
               Select all {visible.length}
             </button>
             {/* One-click "everyone in this role" — the common case is "all ZMs" or "all
@@ -155,7 +155,7 @@ export function AudiencePicker({
               const label = prettyRole(r);
               return (
                 <button key={r} type="button" onClick={() => onChange(new Set([...selected, ...ids]))}
-                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                  className="rounded-lg border border-[var(--color-border-strong)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--color-text)] hover:bg-[#eef5f3]">
                   All {label.toLowerCase().endsWith("s") ? label : `${label}s`} ({ids.length})
                 </button>
               );
@@ -163,13 +163,13 @@ export function AudiencePicker({
           </div>
           <div className="grid max-h-56 gap-1 overflow-auto sm:grid-cols-2">
             {visible.map((t) => (
-              <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+              <label key={t.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-[#eef5f3]">
                 <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
-                <span className="text-gray-900">{t.name}</span>
+                <span className="text-[var(--color-text)]">{t.name}</span>
                 {roleOpts.length > 1 && t.role && (
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">{prettyRole(t.role)}</span>
+                  <span className="rounded bg-[#eef5f3] px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">{prettyRole(t.role)}</span>
                 )}
-                {t.state && <span className="text-xs text-gray-400">{prettyState(t.state)}</span>}
+                {t.state && <span className="text-xs text-[var(--color-text-muted)]">{prettyState(t.state)}</span>}
               </label>
             ))}
           </div>
@@ -177,13 +177,13 @@ export function AudiencePicker({
       )}
       {/* Clear lives outside the list so a filter that empties the view cannot strand
           picks the author can no longer see. */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--color-text-muted)]">
         <span>
           {selected.size} selected.
           {hiddenPicks > 0 && ` ${hiddenPicks} hidden by the filters above.`}
         </span>
         {selected.size > 0 && (
-          <button type="button" onClick={() => onChange(new Set())} className="font-medium text-gray-500 hover:text-gray-800">Clear</button>
+          <button type="button" onClick={() => onChange(new Set())} className="font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Clear</button>
         )}
       </div>
     </div>

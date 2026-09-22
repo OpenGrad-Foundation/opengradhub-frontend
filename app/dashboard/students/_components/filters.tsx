@@ -1,6 +1,8 @@
 import type { StudentDirectoryFilters, StudentFacets } from "@/lib/api";
 import { IN_CHARGE, ZONE } from "@/lib/labels";
-import { inputStyle } from "@/app/dashboard/schools/styles";
+import { Search } from "lucide-react";
+import catalogue from "@/app/dashboard/_components/catalogue.module.css";
+import styles from "../students.module.css";
 
 export type DirectoryFilterValue = Pick<
   StudentDirectoryFilters,
@@ -13,88 +15,66 @@ type FiltersProps = {
   onChange: (value: DirectoryFilterValue) => void;
 };
 
+type Option = { id: string; name: string };
+
 export function Filters({ facets, value, onChange }: FiltersProps) {
   const update = (key: keyof DirectoryFilterValue, next: string) => {
     onChange({ ...value, [key]: next || undefined });
   };
 
+  const select = (key: keyof DirectoryFilterValue, label: string, ariaLabel: string, all: string, options: Option[]) => (
+    <label className={catalogue.field}>
+      {label}
+      <select
+        className={catalogue.control}
+        value={value[key] ?? ""}
+        onChange={(e) => update(key, e.target.value)}
+        aria-label={ariaLabel}
+      >
+        <option value="">{all}</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>{option.name}</option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const text = (key: keyof DirectoryFilterValue, label: string, ariaLabel: string) => (
+    <label className={catalogue.field}>
+      {label}
+      <input
+        className={catalogue.control}
+        value={value[key] ?? ""}
+        onChange={(e) => update(key, e.target.value)}
+        placeholder={`Any ${label.toLowerCase()}`}
+        aria-label={ariaLabel}
+      />
+    </label>
+  );
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
-      <div style={{ position: "relative", flex: "1 1 280px", maxWidth: "420px" }}>
-        <input
-          type="search"
-          value={value.q ?? ""}
-          onChange={(e) => update("q", e.target.value)}
-          placeholder="Search students…"
-          aria-label="Search students"
-          style={{ ...inputStyle, paddingLeft: "36px" }}
-        />
-        <span aria-hidden="true" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", fontSize: "14px", pointerEvents: "none" }}>⌕</span>
+    <>
+      <div className={catalogue.toolbar}>
+        <label className={catalogue.search}>
+          <Search size={18} aria-hidden="true" />
+          <input
+            type="search"
+            value={value.q ?? ""}
+            onChange={(e) => update("q", e.target.value)}
+            placeholder="Search students…"
+            aria-label="Search students"
+          />
+        </label>
       </div>
 
-      <select
-        value={value.programme_id ?? ""}
-        onChange={(e) => update("programme_id", e.target.value)}
-        aria-label="Filter by programme"
-        style={{ ...inputStyle, width: "auto", minWidth: "170px" }}
-      >
-        <option value="">All programmes</option>
-        {facets.programmes.map((option) => (
-          <option key={option.id} value={option.id}>{option.name}</option>
-        ))}
-      </select>
-
-      <select
-        value={value.school_id ?? ""}
-        onChange={(e) => update("school_id", e.target.value)}
-        aria-label="Filter by school"
-        style={{ ...inputStyle, width: "auto", minWidth: "170px" }}
-      >
-        <option value="">All schools</option>
-        {facets.schools.map((option) => (
-          <option key={option.id} value={option.id}>{option.name}</option>
-        ))}
-      </select>
-
-      <input
-        value={value.state ?? ""}
-        onChange={(e) => update("state", e.target.value)}
-        placeholder="Filter by state"
-        aria-label="Filter by state"
-        style={{ ...inputStyle, width: "auto", minWidth: "150px" }}
-      />
-
-      <input
-        value={value.district ?? ""}
-        onChange={(e) => update("district", e.target.value)}
-        placeholder={`Filter by ${ZONE.toLowerCase()}`}
-        aria-label={`Filter by ${ZONE.toLowerCase()}`}
-        style={{ ...inputStyle, width: "auto", minWidth: "150px" }}
-      />
-
-      <select
-        value={value.batch_id ?? ""}
-        onChange={(e) => update("batch_id", e.target.value)}
-        aria-label="Filter by batch"
-        style={{ ...inputStyle, width: "auto", minWidth: "170px" }}
-      >
-        <option value="">All batches</option>
-        {facets.batches.map((option) => (
-          <option key={option.id} value={option.id}>{option.name}</option>
-        ))}
-      </select>
-
-      <select
-        value={value.in_charge_id ?? ""}
-        onChange={(e) => update("in_charge_id", e.target.value)}
-        aria-label={`Filter by ${IN_CHARGE.toLowerCase()}`}
-        style={{ ...inputStyle, width: "auto", minWidth: "190px" }}
-      >
-        <option value="">All {IN_CHARGE}s</option>
-        {facets.inCharges.map((option) => (
-          <option key={option.id} value={option.id}>{option.name}</option>
-        ))}
-      </select>
-    </div>
+      <div className={`${catalogue.filters} ${styles.filters}`}>
+        {select("programme_id", "Programme", "Filter by programme", "All programmes", facets.programmes)}
+        {select("school_id", "School", "Filter by school", "All schools", facets.schools)}
+        {select("batch_id", "Batch", "Filter by batch", "All batches", facets.batches)}
+        {select("in_charge_id", IN_CHARGE, `Filter by ${IN_CHARGE.toLowerCase()}`, `All ${IN_CHARGE}s`, facets.inCharges)}
+        {text("state", "State", "Filter by state")}
+        {text("district", ZONE, `Filter by ${ZONE.toLowerCase()}`)}
+      </div>
+    </>
   );
 }

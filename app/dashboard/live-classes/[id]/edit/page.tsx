@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { PERM } from "@/lib/permissions";
@@ -98,7 +99,7 @@ export default function EditLiveClassPage() {
       <div style={glassCard}>
         <p style={S.label}>Not Found</p>
         <p style={{ ...S.heading, marginTop: "12px" }}>Live class not found.</p>
-        <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, display: "inline-block", marginTop: "16px", textDecoration: "none" }}>← Back</Link>
+        <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, marginTop: "16px" }}><ArrowLeft size={16} aria-hidden="true" />Back</Link>
       </div>
     );
   }
@@ -160,11 +161,9 @@ export default function EditLiveClassPage() {
     : `students ${parts.join(" AND ")}`;
 
   return (
-    <div style={{ maxWidth: "640px" }}>
-      <Link href="/dashboard/live-classes" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>← Live Classes</Link>
-      <div style={{ marginTop: "14px", marginBottom: "24px" }}>
-        <h1 style={{ ...S.heading, fontSize: "26px", margin: "4px 0 0" }}>Edit Live Class</h1>
-      </div>
+    <div>
+      <Link href="/dashboard/live-classes" style={S.outlineBtn}><ArrowLeft size={16} aria-hidden="true" />Live classes</Link>
+      <div style={{ height: "20px" }} />
 
       <form onSubmit={(e) => void handleSubmit(e)}>
         <div style={{ ...glassCard, display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -176,7 +175,7 @@ export default function EditLiveClassPage() {
             <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} style={{ ...S.input, resize: "vertical" }} placeholder="Optional notes for students…" />
           </Field>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "14px" }}>
             <Field label="Date & Time *">
               <input type="datetime-local" value={datetime} onChange={e => setDatetime(e.target.value)} style={S.input} required />
             </Field>
@@ -192,7 +191,7 @@ export default function EditLiveClassPage() {
           {/* Three independent optional filters that NARROW each other. */}
           <div>
             <p style={fieldLabel}>Target Audience *</p>
-            <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.6)", margin: "0 0 10px" }}>
+            <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "0 0 10px" }}>
               Pick any combination. Each one you add <b>narrows</b> the audience —
               a student must match all of them.
             </p>
@@ -220,9 +219,9 @@ export default function EditLiveClassPage() {
 
           {error && <p role="alert" style={{ fontSize: "13px", color: "#c62828", fontWeight: 600, margin: 0 }}>{error}</p>}
 
-          <div style={{ display: "flex", gap: "10px" }}>
-            <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, display: "inline-flex", alignItems: "center", textDecoration: "none" }}>Cancel</Link>
-            <button type="submit" disabled={submitting} style={{ ...S.primaryBtn, flex: 1, opacity: submitting ? 0.6 : 1 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+            <Link href="/dashboard/live-classes" style={{ ...S.outlineBtn, flex: "1 1 120px" }}>Cancel</Link>
+            <button type="submit" disabled={submitting} style={{ ...S.primaryBtn, flex: "2 1 180px", opacity: submitting ? 0.6 : 1 }}>
               {submitting ? "Saving…" : "Save Changes"}
             </button>
           </div>
@@ -241,18 +240,21 @@ export default function EditLiveClassPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label style={{ display: "block" }}>
-      <span style={{ display: "block", margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#4a6b70" }}>{label}</span>
+      <span style={{ display: "block", margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</span>
       {children}
     </label>
   );
 }
 
-const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#4a6b70" };
-const glassCard: React.CSSProperties = { background: "#ffffff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "24px", padding: "32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" };
+const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" };
+const glassCard: React.CSSProperties = {
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
+};
 const S = {
-  label:      { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading:    { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input:      { width: "100%", minHeight: "44px", padding: "12px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn: { minHeight: "44px", padding: "12px 22px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 220ms ease" } as React.CSSProperties,
-  outlineBtn: { minHeight: "44px", padding: "12px 20px", border: "1.5px solid rgba(3,72,82,0.2)", borderRadius: "10px", background: "transparent", color: "#034852", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer" } as React.CSSProperties,
+  label:      { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading:    { fontWeight: 700, color: "var(--color-text)" } as React.CSSProperties,
+  input:      { width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
+  outlineBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", color: "var(--color-text)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
 };

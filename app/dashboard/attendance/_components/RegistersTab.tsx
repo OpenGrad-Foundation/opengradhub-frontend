@@ -1,4 +1,5 @@
 "use client";
+import styles from "../attendance.module.css";
 import { ZONE_LOWER } from "@/lib/labels";
 
 /**
@@ -21,10 +22,7 @@ import type { UploadDetail } from "@/lib/attendance-api";
 import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { ReviewGrid } from "./ReviewGrid";
 
-/** House primary button — mirrors the gradient CTA used across the dashboard. */
-const PRIMARY_BTN =
-  "rounded-lg px-4 py-1.5 text-sm font-semibold text-white disabled:opacity-50 " +
-  "bg-[linear-gradient(135deg,#0abe62_0%,#006d6c_100%)] shadow-[0_4px_12px_rgba(10,190,98,0.2)]";
+const PRIMARY_BTN = styles.primary;
 
 /** Mirrors MAX_REGISTER_PAGES in the backend's ingest/limits.ts. */
 const MAX_REGISTER_PAGES = 3;
@@ -48,7 +46,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
 
   // Only the manage-only controls below use this list, so don't fetch (and don't
   // surface a permission error) for a view-only user who can't act on it anyway.
-  const { data: schools, isError: schoolsFailed, isLoading: schoolsLoading } = useQuery({
+  const { data: schools, isError: schoolsFailed, isLoading: schoolsLoading, refetch: reloadSchools } = useQuery({
     queryKey: ["og", "schools", "options"],
     queryFn: fetchSchools,
     staleTime: 5 * 60_000,
@@ -114,20 +112,18 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
   }
 
   const needsSchool = !schoolId;
-  const dimmed = needsSchool ? "opacity-50 pointer-events-none select-none" : "";
 
   return (
     <div className="space-y-4">
       {/* The school is the working context for EVERYTHING below — printing and
           uploading both act on it, so it lives above the sections, not inside one. */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <label className="block text-[11px] font-medium uppercase tracking-wide text-slate-400">
+      <div className={styles.panel}>
+        <label className="block text-sm font-semibold text-[var(--color-text)]">
           School
         </label>
         {schoolsFailed ? (
           <p className="mt-2 text-sm text-red-600">
-            Can&apos;t load the school list — your role may not have permission to view schools.
-            Ask an admin.
+            Could not load schools. <button type="button" onClick={() => void reloadSchools()} className="min-h-11 px-2 underline">Retry</button>
           </p>
         ) : (
           <div className="mt-1.5">
@@ -136,70 +132,78 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
               value={schoolId}
               onChange={setSchoolId}
               disabled={schoolsLoading}
+              inputStyle={{ minHeight: 44 }}
               placeholder={schoolsLoading ? "Loading schools…" : `Search school by name, code or ${ZONE_LOWER}…`}
             />
           </div>
         )}
       </div>
 
-      <div className={`rounded-xl border border-slate-200 bg-white p-4 ${dimmed}`} aria-disabled={needsSchool}>
-        <h3
-          className="font-semibold text-[var(--dark-teal)]"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Print register
-        </h3>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="max-w-xl text-xs text-slate-500">
-            Opens the pre-filled sheet in a new tab. The school writes the month and day numbers
-            and marks each student ✓ present / ✗ absent.
-          </p>
-          <Link
-            href={schoolId ? `/print/register?school_id=${encodeURIComponent(schoolId)}` : "#"}
-            target="_blank"
-            rel="noopener"
-            className={PRIMARY_BTN}
+      <div className={styles.registerActions}>
+        <section className={styles.panel}>
+          <h3
+            className="font-semibold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)" }}
           >
-            Print / download ↗
-          </Link>
-        </div>
-      </div>
+            Print register
+          </h3>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="max-w-xl text-xs text-slate-500">
+              Download a sheet with your school’s students, ready to print and mark by hand.
+            </p>
+            <Link
+              href={schoolId ? `/print/register?school_id=${encodeURIComponent(schoolId)}` : "#"}
+              target="_blank"
+              rel="noopener"
+              className={styles.secondary}
+              aria-disabled={needsSchool}
+              tabIndex={needsSchool ? -1 : undefined}
+              onClick={(event) => { if (needsSchool) event.preventDefault(); }}
+            >
+              Print / download ↗
+            </Link>
+          </div>
+        </section>
 
-      <div className={`rounded-xl border border-slate-200 bg-white p-4 ${dimmed}`} aria-disabled={needsSchool}>
-        <h3
-          className="font-semibold text-[var(--dark-teal)]"
-          style={{ fontFamily: "var(--font-heading)" }}
-        >
-          Upload register
-        </h3>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            onChange={(e) => setImages(pickFiles(e.target.files))}
-            className="text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-medium"
-          />
-          <button disabled={upload.isPending} onClick={doUpload} className={PRIMARY_BTN}>
-            {upload.isPending ? "Extracting…" : "Upload & extract"}
-          </button>
-        </div>
-        {images.length > 1 && (
-          <p className="mt-2 text-xs text-slate-500">
-            {images.length} pages selected, in this order:{" "}
-            {images.map((f) => f.name).join(" → ")}
+        <section className={styles.panel}>
+          <h3
+            className="font-semibold text-[var(--dark-teal)]"
+            style={{ fontFamily: "var(--font-heading)" }}
+          >
+            Upload register
+          </h3>
+          <div className="mt-4 flex flex-col items-start gap-3">
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              accept="image/*,application/pdf,.pdf,.csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(e) => setImages(pickFiles(e.target.files))}
+              className={styles.uploadInput}
+              aria-label="Register file"
+              disabled={needsSchool || upload.isPending}
+            />
+            <button disabled={needsSchool || images.length === 0 || upload.isPending} onClick={doUpload} className={PRIMARY_BTN}>
+              {upload.isPending ? "Extracting…" : "Upload & extract"}
+            </button>
+          </div>
+          {images.length > 1 && (
+            <p className="mt-2 text-xs text-slate-500">
+              {images.length} pages selected, in this order:{" "}
+              {images.map((f) => f.name).join(" → ")}
+            </p>
+          )}
+          <p className="mt-3 text-xs leading-relaxed text-[var(--color-text-muted)]">
+            Up to {MAX_REGISTER_PAGES} photos, or one PDF, CSV or Excel file. Maximum 25 MB per file.
+            Review and correct the extracted attendance before saving.
           </p>
-        )}
-        <p className="mt-2 text-xs text-slate-400">
-          Photo (JPEG/PNG/WebP/HEIC), PDF, CSV or Excel, max 25 MB each. A register that runs to
-          several pages can be photographed page by page — select up to {MAX_REGISTER_PAGES} photos
-          at once and they are read as one register. Photos and PDFs of the printed sheet are
-          extracted automatically (ticks, crosses and day numbers); spreadsheets are read directly
-          and need full dates in their headers. Either way you review and correct before anything
-          is saved.
-        </p>
+          <details className="mt-2 text-xs text-[var(--color-text-muted)]">
+            <summary className="min-h-11 cursor-pointer py-3">File requirements</summary>
+            <p className="leading-relaxed">Photos can be JPEG, PNG, WebP or HEIC. Select register pages in order. Photos and PDFs should show the printed sheet clearly; spreadsheets need full dates in column headers.</p>
+          </details>
+        </section>
       </div>
+      {needsSchool && <p className="text-sm text-[var(--color-text-muted)]">Choose a school to print or upload its register.</p>}
 
       {draft ? (
         <ReviewGrid
@@ -207,11 +211,7 @@ export function RegistersTab({ canManage }: { canManage: boolean }) {
           onChange={setDraft}
           onDone={() => setDraft(null)}
         />
-      ) : (
-        <div className="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-400">
-          Upload a register to review it here.
-        </div>
-      )}
+      ) : null}
     </div>
   );
 }

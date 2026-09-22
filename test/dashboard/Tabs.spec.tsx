@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 
 const replaceMock = vi.fn();
 let mockParams = new URLSearchParams('');
@@ -95,5 +95,14 @@ describe('Tabs', () => {
     mockParams = new URLSearchParams('view=overview');
     render(<Tabs tabs={TABS} ariaLabel="Attendance tabs" param="view" />);
     expect(screen.getByText('OVERVIEW-PANEL')).toBeTruthy();
+  });
+
+  it('switches views from the compact picker while preserving filters and scroll', () => {
+    mockParams = new URLSearchParams('school_id=abc&tab=overview');
+    render(<Tabs tabs={TABS} ariaLabel="Dashboard views" compactOnScroll />);
+    const picker = screen.getByRole('combobox', { name: 'Dashboard views' }) as HTMLSelectElement;
+    expect(picker.value).toBe('overview');
+    fireEvent.change(picker, { target: { value: 'registers' } });
+    expect(replaceMock).toHaveBeenCalledWith('/dashboard/attendance?school_id=abc&tab=registers', { scroll: false });
   });
 });

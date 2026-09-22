@@ -99,15 +99,15 @@ export function TrackerBulkUploadPanel({
         role="dialog"
         aria-modal="true"
         aria-label={`Bulk upload for ${template.name}`}
-        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between border-b border-gray-100 px-5 py-3">
+        <header className="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-3">
           <div>
-            <h2 className="text-base font-semibold text-gray-950">Bulk upload</h2>
-            <p className="text-xs text-gray-500">{template.name}</p>
+            <h2 className="text-base font-semibold text-[var(--color-text)]">Bulk upload</h2>
+            <p className="text-xs text-[var(--color-text-muted)]">{template.name}</p>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-gray-500 hover:bg-gray-100">
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[#eef5f3]">
             <X className="h-4 w-4" />
           </button>
         </header>
@@ -119,7 +119,7 @@ export function TrackerBulkUploadPanel({
 
           {(phase.kind === "picking" || phase.kind === "reading") && (
             <div className="space-y-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-[var(--color-text-muted)]">
                 Download this task&apos;s spreadsheet, fill in the blank cells, then upload it here. Cells you
                 leave blank stay as they are — nothing is cleared.
               </p>
@@ -129,10 +129,10 @@ export function TrackerBulkUploadPanel({
                 accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={(e) => void onPick(e.target.files?.[0])}
                 disabled={phase.kind === "reading"}
-                className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-teal-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-teal-700"
+                className="block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--green)] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--green)]"
               />
               {phase.kind === "reading" && (
-                <p className="flex items-center gap-2 text-sm text-gray-600">
+                <p className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
                   <Loader2 className="h-4 w-4 animate-spin" /> Reading the file…
                 </p>
               )}
@@ -148,14 +148,14 @@ export function TrackerBulkUploadPanel({
           )}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-gray-100 px-5 py-3">
+        <footer className="flex items-center justify-between gap-3 border-t border-[var(--color-border)] px-5 py-3">
           <FooterStatus phase={phase} />
           <div className="flex items-center gap-2">
             {phase.kind === "done" && phase.failures.size > 0 && (
               <button
                 type="button"
                 onClick={() => void onDownloadFailed(phase.sheet, phase.failures)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[#eef5f3]"
               >
                 <Download className="h-4 w-4" /> Download rows to fix
               </button>
@@ -163,7 +163,7 @@ export function TrackerBulkUploadPanel({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              className="rounded-lg border border-[var(--color-border-strong)] px-3 py-1.5 text-sm text-[var(--color-text)] hover:bg-[#eef5f3]"
             >
               {phase.kind === "done" ? "Close" : "Cancel"}
             </button>
@@ -172,7 +172,7 @@ export function TrackerBulkUploadPanel({
                 type="button"
                 onClick={() => void onSubmit(phase.fileName, phase.sheet)}
                 disabled={phase.sheet.fatal.length > 0 || submittableEdits(phase.sheet.rows).length === 0}
-                className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-sm font-medium text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <FileUp className="h-4 w-4" />
                 Upload {submittableEdits(phase.sheet.rows).length} row
@@ -180,7 +180,7 @@ export function TrackerBulkUploadPanel({
               </button>
             )}
             {phase.kind === "submitting" && (
-              <button type="button" disabled className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-medium text-white opacity-70">
+              <button type="button" disabled className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-sm font-medium text-[var(--dark-teal)] opacity-70">
                 <Loader2 className="h-4 w-4 animate-spin" /> Uploading…
               </button>
             )}
@@ -197,16 +197,16 @@ function FooterStatus({ phase }: { phase: Phase }) {
     const bad = phase.sheet.rows.filter((r) => r.errors.length > 0).length;
     const skipped = phase.sheet.rows.filter((r) => r.unchanged).length;
     return (
-      <p className="text-xs text-gray-600">
+      <p className="text-xs text-[var(--color-text-muted)]">
         {ready} row{ready === 1 ? "" : "s"} ready
         {bad > 0 && <span className="text-red-600"> · {bad} with problems</span>}
-        {skipped > 0 && <span className="text-gray-500"> · {skipped} unchanged</span>}
+        {skipped > 0 && <span className="text-[var(--color-text-muted)]"> · {skipped} unchanged</span>}
       </p>
     );
   }
   if (phase.kind === "submitting")
     return (
-      <p className="text-xs text-gray-600">
+      <p className="text-xs text-[var(--color-text-muted)]">
         Saving {phase.progress.attempted} of {phase.progress.total}…
       </p>
     );
@@ -224,13 +224,13 @@ function PreviewTable({ sheet, fields }: { sheet: PreparedSheet; fields: Tracker
     );
 
   if (sheet.rows.length === 0)
-    return <p className="text-sm text-gray-600">That file has no rows in it.</p>;
+    return <p className="text-sm text-[var(--color-text-muted)]">That file has no rows in it.</p>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+          <tr className="border-b border-[var(--color-border)] text-left text-xs uppercase tracking-wide text-[var(--color-text-muted)]">
             <th className="px-2 py-2 font-medium">Row</th>
             <th className="px-2 py-2 font-medium">Who</th>
             <th className="px-2 py-2 font-medium">Changes</th>
@@ -251,17 +251,17 @@ function PreviewRow({ row, fields }: { row: PreparedRow; fields: TrackerField[] 
   const labelOf = (key: string) => fields.find((f) => f.field_key === key)?.label ?? key;
   const bad = row.errors.length > 0;
   return (
-    <tr className={"border-b border-gray-100 align-top " + (bad ? "bg-red-50/60" : "")}>
-      <td className="px-2 py-2 text-xs text-gray-500">{row.sheetRow}</td>
-      <td className="px-2 py-2 text-gray-800">{row.label}</td>
-      <td className="px-2 py-2 text-gray-700">
+    <tr className={"border-b border-[var(--color-border)] align-top " + (bad ? "bg-red-50/60" : "")}>
+      <td className="px-2 py-2 text-xs text-[var(--color-text-muted)]">{row.sheetRow}</td>
+      <td className="px-2 py-2 text-[var(--color-text)]">{row.label}</td>
+      <td className="px-2 py-2 text-[var(--color-text)]">
         {Object.keys(row.values).length === 0 ? (
-          <span className="text-xs text-gray-400">—</span>
+          <span className="text-xs text-[var(--color-text-muted)]">—</span>
         ) : (
           <ul className="space-y-0.5 text-xs">
             {Object.keys(row.values).map((k) => (
               <li key={k}>
-                <span className="text-gray-500">{labelOf(k)}:</span>{" "}
+                <span className="text-[var(--color-text-muted)]">{labelOf(k)}:</span>{" "}
                 <span className="font-medium">{formatPreview(row.values[k])}</span>
               </li>
             ))}
@@ -278,9 +278,9 @@ function PreviewRow({ row, fields }: { row: PreparedRow; fields: TrackerField[] 
             ))}
           </ul>
         ) : row.unchanged ? (
-          <span className="text-xs text-gray-400">Nothing new</span>
+          <span className="text-xs text-[var(--color-text-muted)]">Nothing new</span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-xs text-teal-700">
+          <span className="inline-flex items-center gap-1 text-xs text-[var(--teal)]">
             <CheckCircle2 className="h-3 w-3" /> Ready
           </span>
         )}
@@ -298,8 +298,8 @@ function ResultSummary({
   const byRecord = new Map(sheet.rows.map((r) => [r.recordId, r] as const));
   return (
     <div className="space-y-3">
-      <p className="flex items-center gap-2 text-sm text-gray-800">
-        <CheckCircle2 className="h-4 w-4 text-teal-600" />
+      <p className="flex items-center gap-2 text-sm text-[var(--color-text)]">
+        <CheckCircle2 className="h-4 w-4 text-[var(--teal)]" />
         {saved} row{saved === 1 ? "" : "s"} saved.
         {failures.size > 0 && ` ${failures.size} could not be saved.`}
       </p>

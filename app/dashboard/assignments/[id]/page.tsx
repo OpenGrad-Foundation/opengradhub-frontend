@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { sanitize } from "@/lib/purify";
 import { getZipEntries, type ZipEntry } from "@/lib/unzip";
@@ -64,10 +65,9 @@ export default function AssignmentDetailPage() {
   }
 
   return (
-    <div style={{ maxWidth: "760px" }}>
-      {/* Back */}
-      <BackLink fallback="/dashboard/assignments" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 600 }}>
-        ← Back
+    <div>
+      <BackLink fallback="/dashboard/assignments" style={{ ...S.primaryBtn, background: "var(--color-surface)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>
+        <ArrowLeft size={16} aria-hidden="true" />Assignments
       </BackLink>
 
       {/* Header card */}
@@ -77,18 +77,18 @@ export default function AssignmentDetailPage() {
             <div style={{ display: "flex", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
               <StatusBadge status={status} />
               {isPastDue && status !== "GRADED" && (
-                <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(220,38,38,0.1)", color: "#dc2626" }}>
-                  Past Due
+                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, background: "rgba(220,38,38,0.1)", color: "#b83232" }}>
+                  Past due
                 </span>
               )}
               {assignment.course_title && (
-                <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, background: "rgba(32,147,121,0.1)", color: "#209379" }}>
+                <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, border: "1px solid var(--color-border)", color: "var(--color-text-muted)" }}>
                   {assignment.course_title}
                 </span>
               )}
             </div>
-            <h1 style={{ ...S.heading, fontSize: "22px", margin: "0 0 8px" }}>{assignment.title}</h1>
-            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.5)", margin: 0 }}>
+            <h2 style={{ ...S.heading, fontSize: "22px", margin: "0 0 8px" }}>{assignment.title}</h2>
+            <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>
               Due: <strong style={{ color: isPastDue ? "#dc2626" : "#034852" }}>
                 {new Date(assignment.due_at).toLocaleDateString()} at {new Date(assignment.due_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </strong>
@@ -101,7 +101,7 @@ export default function AssignmentDetailPage() {
           <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
             <p style={{ ...S.sectionLabel, marginBottom: "10px" }}>Instructions</p>
             <div
-              style={{ fontSize: "14px", color: "#034852", lineHeight: 1.8 }}
+              style={{ fontSize: "14px", color: "var(--color-text)", lineHeight: 1.8 }}
               dangerouslySetInnerHTML={{ __html: sanitize(assignment.instructions_html) }}
             />
           </div>
@@ -158,12 +158,12 @@ function PriorSubmission({ sub }: { sub: MySubmission }) {
         Your Submission{sub.is_late ? " · Late" : ""}
       </p>
       {sub.response_text && (
-        <p style={{ fontSize: "14px", color: "#034852", lineHeight: 1.7, margin: "0 0 10px", whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
+        <p style={{ fontSize: "14px", color: "var(--color-text)", lineHeight: 1.7, margin: "0 0 10px", whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
       )}
       <SubmissionLink url={sub.link_url} />
       <SubmissionFiles files={sub.file_urls} />
       {sub.submitted_at && (
-        <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: "10px 0 0" }}>
+        <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "10px 0 0" }}>
           Submitted {new Date(sub.submitted_at).toLocaleString()}
         </p>
       )}
@@ -219,8 +219,8 @@ function SubmissionFiles({ files }: { files: string[] }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!files || files.length === 0) return null;
-  if (loadingFiles) return <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>Loading files…</p>;
-  if (loadError) return <p style={{ fontSize: "12px", color: "#e53e3e", margin: 0 }}>{loadError}</p>;
+  if (loadingFiles) return <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>Loading files…</p>;
+  if (loadError) return <p style={{ fontSize: "12px", color: "#b83232", margin: 0 }}>{loadError}</p>;
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -247,7 +247,7 @@ function FileEntryCard({ entry }: { entry: ZipEntry }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(3,72,82,0.04)", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)" }}>
       <span style={{ fontSize: "16px", flexShrink: 0 }}>📄</span>
-      <span style={{ fontSize: "13px", color: "#034852", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
+      <span style={{ fontSize: "13px", color: "var(--color-text)", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
       <button
         onClick={() => void handleOpen()}
         disabled={opening}
@@ -283,7 +283,7 @@ function GradedResult({ sub }: { sub: MySubmission }) {
       {sub.feedback && (
         <>
           <p style={{ ...S.sectionLabel, margin: "0 0 8px" }}>Feedback</p>
-          <p style={{ fontSize: "14px", color: "#034852", lineHeight: 1.7, margin: 0 }}>{sub.feedback}</p>
+          <p style={{ fontSize: "14px", color: "var(--color-text)", lineHeight: 1.7, margin: 0 }}>{sub.feedback}</p>
         </>
       )}
       {/* Each part renders on its own terms — gating the whole block on response_text
@@ -292,7 +292,7 @@ function GradedResult({ sub }: { sub: MySubmission }) {
         <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
           <p style={{ ...S.sectionLabel, margin: "0 0 8px" }}>Your Submission</p>
           {sub.response_text && (
-            <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.7)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
+            <p style={{ fontSize: "13px", color: "var(--color-text-muted)", lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{sub.response_text}</p>
           )}
           <div style={{ marginTop: "8px" }}>
             <SubmissionLink url={sub.link_url} />
@@ -399,7 +399,7 @@ function SubmissionForm({
       <div style={{ ...glassCard, textAlign: "center", padding: "40px" }}>
         <p style={{ fontSize: "32px", marginBottom: "8px" }}>✅</p>
         <p style={{ ...S.heading, fontSize: "18px", margin: "0 0 8px" }}>Submitted successfully</p>
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.55)", margin: 0 }}>
+        <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>
           Your assignment has been received. You&apos;ll be notified when it&apos;s graded.
         </p>
       </div>
@@ -438,7 +438,7 @@ function SubmissionForm({
                 placeholder="https://drive.google.com/file/d/…"
                 style={S.input}
               />
-              <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.55)", margin: "6px 0 0", lineHeight: 1.6 }}>
+              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "6px 0 0", lineHeight: 1.6 }}>
                 ⚠️ Set sharing to <strong>&quot;Anyone with the link&quot;</strong> — otherwise your reviewer can&apos;t open it.
               </p>
             </div>
@@ -455,19 +455,19 @@ function SubmissionForm({
                 display: "inline-flex", alignItems: "center", gap: "6px",
                 padding: "8px 16px", borderRadius: "8px", cursor: "pointer",
                 border: "1.5px dashed rgba(3,72,82,0.25)",
-                fontSize: "13px", color: "#034852", fontWeight: 600,
+                fontSize: "13px", color: "var(--color-text)", fontWeight: 600,
               }}>
                 + Add file
                 <input type="file" multiple hidden accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={handleFileChange} />
               </label>
             )}
-            {fileError && <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: "6px 0 0" }}>{fileError}</p>}
+            {fileError && <p style={{ fontSize: "12px", color: "#b83232", fontWeight: 600, margin: "6px 0 0" }}>{fileError}</p>}
             {files.length > 0 && (
               <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "6px" }}>
                 {files.map((f, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(3,72,82,0.04)", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)" }}>
-                    <span style={{ fontSize: "13px", color: "#034852", flex: 1 }}>📄 {f.name}</span>
-                    <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)" }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                    <span style={{ fontSize: "13px", color: "var(--color-text)", flex: 1 }}>📄 {f.name}</span>
+                    <span style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>{(f.size / 1024 / 1024).toFixed(1)} MB</span>
                     <button type="button" onClick={() => removeFile(i)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "15px", padding: "0 4px" }}>✕</button>
                   </div>
                 ))}
@@ -476,7 +476,7 @@ function SubmissionForm({
           </div>
           )}
 
-          {submitError && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{submitError}</p>}
+          {submitError && <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, margin: 0 }}>{submitError}</p>}
 
           <button
             type="submit"
@@ -495,7 +495,7 @@ function SubmissionForm({
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "rgba(3,72,82,0.5)",  label: "Not Started" },
+    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "var(--color-text-muted)",  label: "Not Started" },
     SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#0abe62",            label: "Submitted" },
     LATE:        { bg: "rgba(255,222,0,0.2)",   color: "#956f00",            label: "Late" },
     GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Under Review" },
@@ -519,16 +519,16 @@ function LoadingState() {
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "28px 32px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
 
 const S = {
-  label:       { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  sectionLabel:{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(3,72,82,0.5)", margin: 0 } as React.CSSProperties,
-  heading:     { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input:       { width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn:  { padding: "12px 24px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 220ms ease" } as React.CSSProperties,
+  label:       { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  sectionLabel:{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: 0 } as React.CSSProperties,
+  heading:     { fontWeight: 700, color: "var(--color-text)" } as React.CSSProperties,
+  input:       { width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn:  { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
 };
 
-const fieldLabel: React.CSSProperties = { margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" };
+const fieldLabel: React.CSSProperties = { margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" };

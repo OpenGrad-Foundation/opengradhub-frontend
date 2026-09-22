@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getSubmissionDownloadUrl, patchSubmission, type Submission } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -7,14 +8,14 @@ import { getZipEntries, type ZipEntry } from "@/lib/unzip";
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
-    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "rgba(3,72,82,0.5)",  label: "Not Started" },
-    SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#0abe62",            label: "Submitted" },
+    NOT_STARTED: { bg: "rgba(3,72,82,0.07)",    color: "var(--color-text-muted)",  label: "Not started" },
+    SUBMITTED:   { bg: "rgba(10,190,98,0.1)",   color: "#08784a",            label: "Submitted" },
     LATE:        { bg: "rgba(255,222,0,0.2)",   color: "#956f00",            label: "Late" },
-    GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Under Review" },
-    GRADED:      { bg: "rgba(10,190,98,0.12)",  color: "#0abe62",            label: "Graded" },
+    GRADING:     { bg: "rgba(100,149,237,0.15)", color: "#4169e1",           label: "Under review" },
+    GRADED:      { bg: "rgba(10,190,98,0.12)",  color: "#08784a",            label: "Graded" },
   };
   const { bg, color, label } = map[status] ?? map.NOT_STARTED;
-  return <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: "100px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", background: bg, color }}>{label}</span>;
+  return <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 600, whiteSpace: "nowrap", background: bg, color }}>{label}</span>;
 }
 
 export function GradePanel({
@@ -75,11 +76,10 @@ export function GradePanel({
     <div style={glassCard}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
         <div>
-          <p style={S.label}>Grading</p>
-          <h3 style={{ ...S.heading, fontSize: "16px", margin: "4px 0 2px" }}>{sub.student_name ?? "Student"}</h3>
-          <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", margin: 0 }}>{sub.student_roll}</p>
+          <h3 style={{ ...S.heading, fontSize: "18px", margin: "0 0 2px" }}>{sub.student_name ?? "Student"}</h3>
+          <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: 0 }}>{sub.student_roll}</p>
         </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "18px", color: "rgba(3,72,82,0.35)", cursor: "pointer" }}>✕</button>
+        <button type="button" onClick={onClose} aria-label="Close" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", border: "none", borderRadius: "12px", background: "none", color: "var(--color-text-muted)", cursor: "pointer" }}><X size={20} aria-hidden="true" /></button>
       </div>
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "14px", flexWrap: "wrap" }}>
@@ -90,7 +90,7 @@ export function GradePanel({
       {sub.response_text && (
         <div style={{ marginBottom: "14px" }}>
           <p style={{ ...sectionLabel, marginBottom: "8px" }}>Response</p>
-          <div style={{ background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: "#034852", lineHeight: 1.7, maxHeight: "180px", overflowY: "auto", wordBreak: "break-word" }}>
+          <div style={{ background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "10px", padding: "12px 14px", fontSize: "13px", color: "var(--color-text)", lineHeight: 1.7, maxHeight: "180px", overflowY: "auto", wordBreak: "break-word" }}>
             {linkify(sub.response_text)}
           </div>
         </div>
@@ -123,7 +123,7 @@ export function GradePanel({
       )}
 
       {!sub.response_text && !sub.link_url && sub.file_urls.length === 0 && (
-        <p style={{ fontSize: "13px", color: "rgba(3,72,82,0.4)", fontStyle: "italic", marginBottom: "14px" }}>No response submitted yet.</p>
+        <p style={{ fontSize: "13px", color: "var(--color-text-muted)", fontStyle: "italic", marginBottom: "14px" }}>No response submitted yet.</p>
       )}
 
       <div style={{ height: "1px", background: "rgba(3,72,82,0.08)", margin: "14px 0" }} />
@@ -138,7 +138,7 @@ export function GradePanel({
           <textarea value={feedback} onChange={e => setFeedback(e.target.value)} rows={4} placeholder="Optional feedback for the student…" style={{ ...S.input, resize: "vertical", lineHeight: 1.6 }} />
         </div>
 
-        {saveErr && <p style={{ fontSize: "12px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{saveErr}</p>}
+        {saveErr && <p style={{ fontSize: "12px", color: "#b83232", fontWeight: 600, margin: 0 }}>{saveErr}</p>}
 
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <button onClick={() => void handleSave()} disabled={saving} style={{ ...S.primaryBtn, flex: 1, opacity: saving ? 0.6 : 1 }}>
@@ -174,8 +174,8 @@ function GradeSubmissionFiles({ fileKeys }: { fileKeys: string[] }) {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loadingFiles) return <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)", margin: 0 }}>Loading files…</p>;
-  if (loadError) return <p style={{ fontSize: "12px", color: "#e53e3e", margin: 0 }}>{loadError}</p>;
+  if (loadingFiles) return <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: 0 }}>Loading files…</p>;
+  if (loadError) return <p style={{ fontSize: "12px", color: "#b83232", margin: 0 }}>{loadError}</p>;
   if (!entries || entries.length === 0) return null;
 
   return (
@@ -202,7 +202,7 @@ function GradeFileCard({ entry }: { entry: ZipEntry }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", background: "rgba(3,72,82,0.04)", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)" }}>
       <span style={{ fontSize: "15px", flexShrink: 0 }}>📄</span>
-      <span style={{ fontSize: "12px", color: "#034852", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
+      <span style={{ fontSize: "12px", color: "var(--color-text)", flex: 1, wordBreak: "break-all" }}>{entry.name}</span>
       <button
         onClick={() => void handleOpen()}
         disabled={opening}
@@ -236,13 +236,13 @@ function linkify(text: string): React.ReactNode[] {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: "24px", padding: "24px 28px", boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)",
 };
 const S = {
-  label:      { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: 0 } as React.CSSProperties,
-  heading:    { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" } as React.CSSProperties,
-  input:      { width: "100%", padding: "10px 14px", background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", color: "#034852", fontFamily: "var(--font-body)", fontSize: "14px", outline: "none", boxSizing: "border-box" } as React.CSSProperties,
-  primaryBtn: { padding: "10px 20px", border: "none", borderRadius: "10px", background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer", boxShadow: "0 6px 14px rgba(10,190,98,0.2)", transition: "all 200ms ease" } as React.CSSProperties,
+  label:      { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 } as React.CSSProperties,
+  heading:    { fontWeight: 700, color: "var(--color-text)" } as React.CSSProperties,
+  input:      { width: "100%", minHeight: "44px", padding: "8px 12px", background: "var(--color-surface)", border: "1px solid var(--color-border-strong)", borderRadius: "8px", color: "var(--color-text)", fontSize: "14px", boxSizing: "border-box" } as React.CSSProperties,
+  primaryBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px", background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600, fontSize: "14px", cursor: "pointer", textDecoration: "none" } as React.CSSProperties,
 };
-const sectionLabel: React.CSSProperties = { fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.18em", color: "rgba(3,72,82,0.5)", margin: 0 };
+const sectionLabel: React.CSSProperties = { fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: 0 };

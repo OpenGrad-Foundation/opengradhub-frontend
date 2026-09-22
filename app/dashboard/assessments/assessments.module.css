@@ -1,0 +1,29 @@
+.page [role="tablist"] { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.list { display: grid; gap: .75rem; }
+.quizRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, .6fr) auto; align-items: center; gap: 1.5rem; padding: 1.25rem; border: 1px solid var(--color-border); border-radius: .75rem; background: var(--color-surface); color: var(--color-text); text-align: left; cursor: pointer; transition: border-color 150ms, background-color 150ms; }
+.quizRow:hover { border-color: var(--teal); background: #f3f8f6; }
+.quizRow:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+.identity { display: grid; gap: .375rem; min-width: 0; }
+.eyebrow, .meta { color: var(--color-text-muted); font-size: .75rem; line-height: 1.5; }
+.title { font-size: 1rem; font-weight: 600; line-height: 1.5; overflow-wrap: anywhere; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 1rem; }
+.metrics > span { display: grid; gap: .375rem; }
+.metrics strong { font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.metrics span span { font-size: .75rem; color: var(--color-text-muted); }
+.open { display: inline-flex; align-items: center; gap: .5rem; color: var(--teal); font-size: .8125rem; font-weight: 600; }
+.skeleton { height: 7.5rem; border: 1px solid var(--color-border); background: var(--color-surface); border-radius: .75rem; }
+.drawer { position: fixed; inset: 0 0 0 auto; margin: 0; width: min(38rem,100%); max-width: 100%; height: 100dvh; max-height: 100dvh; padding: 0; border: 0; background: var(--color-surface); color: var(--color-text); }
+.drawer::backdrop { background: rgb(3 72 82 / 35%); }
+.drawerInner { display: flex; flex-direction: column; height: 100%; }
+.drawerTabs { display: flex; padding: .5rem 1rem; gap: .25rem; border-bottom: 1px solid var(--color-border); }
+.drawerTabs button { flex: 1; }
+@media (max-width: 1100px) { .quizRow { grid-template-columns: minmax(0,1fr) minmax(15rem,.8fr) auto; gap: 1rem; } .open span { display: none; } }
+@media (max-width: 639px) {
+  .quizRow { grid-template-columns: minmax(0,1fr) auto; padding: 1rem; }
+  .identity { grid-column: 1 / -1; }
+  .metrics { gap: .75rem; }
+  .metrics strong { font-size: 1.125rem; }
+  .metrics span span { font-size: .6875rem; }
+  .drawerTabs { padding-inline: .5rem; }
+  .drawerTabs button { padding-inline: .5rem; font-size: .75rem; }
+}
