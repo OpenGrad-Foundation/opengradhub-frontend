@@ -121,8 +121,9 @@ function TrackerTasksCard({ studentId }: { studentId: string }) {
   const { data, error } = useStudentTrackerTasks(studentId);
   // Captured here rather than in each row so every task link carries the same origin.
   const currentUrl = useCurrentUrl();
-  // This card is a tab of its own now, so an empty return would leave a blank panel.
-  if (error) return <p role="alert" style={{ margin: 0, fontSize: "14px", color: "#b83232" }}>Tracker tasks couldn’t be loaded.</p>;
+  // An error means the viewer cannot read the tracker: render nothing. While
+  // loading, say so — this card is a tab of its own now, not a trailing section.
+  if (error) return null;
   if (!data) return <p role="status" style={{ margin: 0, fontSize: "14px", color: "var(--color-text-muted)" }}>Loading tracker tasks…</p>;
 
   return (
