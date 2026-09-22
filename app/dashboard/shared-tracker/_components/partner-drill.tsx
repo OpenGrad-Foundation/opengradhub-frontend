@@ -70,20 +70,20 @@ export function PartnerDrill({ task, filters }: {
 
   if (!geographic) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="rounded-xl border border-[var(--color-border)] bg-white p-4">
         <PartnerRecords task={task} scope={{}} filters={filters} />
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <header className="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-sm">
+    <div className="rounded-xl border border-[var(--color-border)] bg-white">
+      <header className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] px-4 py-2 text-sm">
         {path.length > 0 && (
           <button
             type="button"
             onClick={() => setPath(path.slice(0, -1))}
-            className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-900"
+            className="inline-flex items-center gap-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" /> Back
           </button>
@@ -91,7 +91,7 @@ export function PartnerDrill({ task, filters }: {
         <button
           type="button"
           onClick={() => setPath([])}
-          className="text-gray-500 hover:text-gray-900"
+          className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           All
         </button>
@@ -101,13 +101,13 @@ export function PartnerDrill({ task, filters }: {
             <button
               type="button"
               onClick={() => setPath(path.slice(0, i + 1))}
-              className={`hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-gray-900" : "text-gray-700"}`}
+              className={`hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-[var(--color-text)]" : "text-[var(--color-text)]"}`}
             >
               {c.label}
             </button>
           </span>
         ))}
-        <span className="ml-auto text-xs uppercase tracking-wide text-gray-400">
+        <span className="ml-auto text-xs uppercase tracking-wide text-[var(--color-text-muted)]">
           {showRecords ? "Records" : LEVEL_TITLE[currentLevel]}
         </span>
       </header>
@@ -118,12 +118,12 @@ export function PartnerDrill({ task, filters }: {
         </div>
       ) : isLoading ? (
         <div className="flex min-h-24 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
         </div>
       ) : !rows?.length ? (
-        <p className="p-5 text-sm text-gray-500">Nothing recorded here yet.</p>
+        <p className="p-5 text-sm text-[var(--color-text-muted)]">Nothing recorded here yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-[var(--color-border)]">
           {rows.map((r) => {
             const pct = r.total === 0 ? 0 : Math.round((r.done / r.total) * 100);
             const isNoPlace = r.key === PARTNER_NO_PLACE;
@@ -140,13 +140,13 @@ export function PartnerDrill({ task, filters }: {
                 <button
                   type="button"
                   onClick={go}
-                  className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-gray-50"
+                  className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-[#eef5f3]"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-gray-900">
+                    <div className="truncate text-sm text-[var(--color-text)]">
                       {r.label}
                       {isNoPlace && (
-                        <span className="ml-2 text-xs text-gray-400">no school on record</span>
+                        <span className="ml-2 text-xs text-[var(--color-text-muted)]">no school on record</span>
                       )}
                     </div>
                     {(r.overdue > 0 || r.blocked > 0) && (
@@ -157,10 +157,10 @@ export function PartnerDrill({ task, filters }: {
                     )}
                   </div>
                   <div className="w-32 shrink-0">
-                    <div className="h-2 rounded-full bg-gray-100">
-                      <div className="h-2 rounded-full bg-teal-600" style={{ width: `${pct}%` }} />
+                    <div className="h-2 rounded-full bg-[#eef5f3]">
+                      <div className="h-2 rounded-full bg-[var(--green)]" style={{ width: `${pct}%` }} />
                     </div>
-                    <div className="mt-1 text-right text-xs text-gray-600">{r.done} of {r.total}</div>
+                    <div className="mt-1 text-right text-xs text-[var(--color-text-muted)]">{r.done} of {r.total}</div>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" aria-hidden="true" />
                 </button>

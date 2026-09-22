@@ -135,7 +135,7 @@ describe("a grid mixing doers", () => {
     });
     renderGrid([adminRow]);
     const save = (screen.getAllByRole("button") as HTMLButtonElement[])
-      .find((b) => /^save/i.test(b.textContent ?? "") && b.className.includes("bg-teal-600"));
+      .find((b) => /^save/i.test(b.textContent ?? "") && b.className.includes("bg-[var(--green)]"));
     expect(save).toBeTruthy();
     expect((screen.getAllByRole("checkbox") as HTMLInputElement[]).some((b) => !b.disabled)).toBe(true);
   });

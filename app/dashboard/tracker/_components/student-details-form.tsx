@@ -91,24 +91,24 @@ export function StudentDetailsForm({
         role="dialog"
         aria-label="Student details"
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
           <div className="min-w-0">
-            <h3 className="text-base font-semibold text-gray-950">Student details</h3>
-            {studentName && <p className="truncate text-xs text-gray-500">{studentName}</p>}
+            <h3 className="text-base font-semibold text-[var(--color-text)]">Student details</h3>
+            {studentName && <p className="truncate text-xs text-[var(--color-text-muted)]">{studentName}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-gray-400 hover:text-gray-700">
+          <button type="button" onClick={onClose} aria-label="Close" className="rounded p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
         {isLoading ? (
           <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
           </div>
         ) : error ? (
           <p className="p-4 text-sm text-red-700">{error instanceof Error ? error.message : "Failed to load details."}</p>
         ) : activeDetails.length === 0 ? (
-          <p className="p-4 text-sm text-gray-500">
+          <p className="p-4 text-sm text-[var(--color-text-muted)]">
             No additional detail fields have been set up yet. A Program Manager can add them from the tracker.
           </p>
         ) : (
@@ -126,12 +126,12 @@ export function StudentDetailsForm({
                 ))}
               </fieldset>
             </div>
-            <div className="border-t border-gray-100 p-3">
+            <div className="border-t border-[var(--color-border)] p-3">
               {formError && (
-                <p className="mb-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>
+                <p className="mb-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{formError}</p>
               )}
               {saved && !formError && (
-                <p className="mb-2 inline-flex items-center gap-1.5 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                <p className="mb-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Saved.
                 </p>
               )}
@@ -139,7 +139,7 @@ export function StudentDetailsForm({
                 type="button"
                 onClick={onSubmit}
                 disabled={save.isPending}
-                className="inline-flex items-center gap-2 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-lg bg-[var(--green)] px-4 py-2 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)] disabled:opacity-60"
               >
                 {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
                 Save details
@@ -164,14 +164,14 @@ function FieldInput({
   onChange: (v: unknown) => void;
 }) {
   const inputClass =
-    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+    "h-10 w-full rounded-lg border border-[var(--color-border-strong)] bg-white px-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--teal)] focus:ring-2 focus:ring-teal-100";
   const errorClass = error ? " border-red-300 focus:border-red-500 focus:ring-red-100" : "";
 
   const control = () => {
     switch (field.field_type) {
       case "boolean":
         return (
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+          <label className="inline-flex items-center gap-2 text-sm text-[var(--color-text)]">
             <input type="checkbox" checked={value === true} onChange={(e) => onChange(e.target.checked)} />
             Yes
           </label>
@@ -216,7 +216,7 @@ function FieldInput({
                   key={o}
                   className={
                     "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs " +
-                    (on ? "border-teal-500 bg-teal-50 text-teal-700" : "border-gray-300 text-gray-600")
+                    (on ? "border-[var(--teal)] bg-[var(--color-success-surface)] text-[var(--teal)]" : "border-[var(--color-border-strong)] text-[var(--color-text-muted)]")
                   }
                 >
                   <input
@@ -247,7 +247,7 @@ function FieldInput({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">
+      <label className="text-sm font-medium text-[var(--color-text)]">
         {field.label}
         {field.required && <span className="ml-1 text-red-600" aria-hidden="true">*</span>}
       </label>

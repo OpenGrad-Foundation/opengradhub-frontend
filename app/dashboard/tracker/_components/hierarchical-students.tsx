@@ -73,8 +73,8 @@ function ScopedStudentsPanel() {
 
   if (userLoading) {
     return (
-      <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white">
-        <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+      <div className="flex min-h-40 items-center justify-center rounded-xl border border-[var(--color-border)] bg-white">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
       </div>
     );
   }
@@ -92,31 +92,31 @@ function ScopedStudentsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="flex items-center gap-2 text-sm text-gray-600">Browse
-          <select aria-label="Browse team and students" value={startLevel} onChange={event => { setStartLevel(event.target.value as Level); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">Browse
+          <select aria-label="Browse team and students" value={startLevel} onChange={event => { setStartLevel(event.target.value as Level); setPath([]); }} className="rounded-lg border border-[var(--color-border-strong)] bg-white px-2 py-1">
             {(["student", "pm", "zm", "fellow"] as Level[]).map(level => <option key={level} value={level}>{getHomeLabel(level)}</option>)}
           </select>
         </label>
-        {canFill && <button type="button" onClick={() => setBulkUploadOpen(true)} className="min-h-11 shrink-0 rounded-md bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700">Bulk Upload</button>}
+        {canFill && <button type="button" onClick={() => setBulkUploadOpen(true)} className="min-h-11 shrink-0 rounded-lg bg-[var(--green)] px-4 py-2 text-sm font-semibold text-[var(--dark-teal)] hover:bg-[var(--green)]">Bulk Upload</button>}
       </div>
       {bulkUploadOpen && <StudentDetailsBulkUpload onClose={() => setBulkUploadOpen(false)} />}
       {path.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-600 px-1">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm text-[var(--color-text-muted)] px-1">
           <button
             type="button"
             onClick={() => setPath([])}
-            className="rounded-md px-2 py-1 font-medium hover:bg-gray-100 hover:text-gray-900 transition-colors"
+            className="rounded-lg px-2 py-1 font-medium hover:bg-[#eef5f3] hover:text-[var(--color-text)] transition-colors"
           >
             {getHomeLabel(startLevel)}
           </button>
           {path.map((crumb, i) => (
             <React.Fragment key={crumb.id}>
-              <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+              <ChevronRight className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden="true" />
               <button
                 type="button"
                 onClick={() => setPath(path.slice(0, i + 1))}
                 className={`rounded-md px-2 py-1 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
-                  i === path.length - 1 ? "font-semibold text-gray-900" : "font-medium"
+                  i === path.length - 1 ? "font-semibold text-[var(--color-text)]" : "font-medium"
                 }`}
               >
                 {crumb.name}
@@ -248,7 +248,7 @@ function LevelRenderer({
       name: st.name,
       subtitle: st.programme_type || st.programme || "No programme",
       rightItem: (
-        <span className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition group-hover:border-teal-300 group-hover:bg-teal-50 group-hover:text-teal-700">
+        <span className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--color-text)] transition group-hover:border-teal-300 group-hover:bg-[var(--color-success-surface)] group-hover:text-[var(--teal)]">
           {canFill ? "Edit details" : "View details"} <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
       ),
@@ -257,15 +257,15 @@ function LevelRenderer({
 
   if (isLoading) {
     return (
-      <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white">
-        <Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+      <div className="flex min-h-40 items-center justify-center rounded-xl border border-[var(--color-border)] bg-white">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-40 items-center justify-center rounded-lg border border-red-100 bg-red-50 p-6 text-center">
+      <div className="flex min-h-40 items-center justify-center rounded-xl border border-red-100 bg-red-50 p-6 text-center">
         <p className="text-sm font-medium text-red-800">
           {error instanceof Error ? error.message : "Failed to load data."}
         </p>
@@ -276,25 +276,25 @@ function LevelRenderer({
   const shown = (data ?? []).filter((item) => getProps(item).name.toLowerCase().includes(q.trim().toLowerCase()));
 
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+    <section className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-950">{getListTitle(level, parentName)}</h3>
+          <h3 className="text-base font-semibold text-[var(--color-text)]">{getListTitle(level, parentName)}</h3>
         </div>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden="true" />
           <input
             value={q}
             onChange={(e) => { setQ(e.target.value); setPage(0); }}
             placeholder="Search…"
-            className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+            className="h-9 w-64 rounded-lg border border-[var(--color-border-strong)] bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-[var(--teal)] focus:ring-1 focus:ring-[var(--teal)]"
           />
         </div>
       </div>
       {shown.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-gray-500">No results match “{q}”.</p>
+        <p className="px-5 py-8 text-sm text-[var(--color-text-muted)]">No results match “{q}”.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-[var(--color-border)]">
           {shown.map((item) => {
             const props = getProps(item);
             return (
@@ -302,17 +302,17 @@ function LevelRenderer({
                 <button
                   type="button"
                   onClick={() => onSelect({ level, id: props.id, name: props.name })}
-                  className="group flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-teal-50"
+                  className="group flex w-full cursor-pointer items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors hover:bg-[var(--color-success-surface)]"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-950">{props.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-gray-500">{props.subtitle}</p>
+                    <p className="truncate text-sm font-medium text-[var(--color-text)]">{props.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">{props.subtitle}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     {props.rightItem ? (
                       props.rightItem
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700 transition-colors group-hover:bg-teal-100">
+                      <span className="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-[var(--color-success-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--teal)] transition-colors group-hover:bg-teal-100">
                         View <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                       </span>
                     )}
@@ -323,7 +323,7 @@ function LevelRenderer({
           })}
         </ul>
       )}
-      {rootStudents && <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-sm">
+      {rootStudents && <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3 text-sm">
         <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</button>
         <span>{rosterQuery.data?.total ?? 0} students · Page {page + 1}</span>
         <button type="button" disabled={!rosterQuery.data?.has_more} onClick={() => setPage(page + 1)}>Next</button>

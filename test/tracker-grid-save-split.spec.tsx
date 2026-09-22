@@ -83,7 +83,7 @@ async function startSession(reason = "Both are on leave; visits confirmed by pho
 /** The toolbar's Save, not the per-row blocker's. */
 const saveButton = () => {
   const btn = (screen.getAllByRole("button") as HTMLButtonElement[])
-    .find((b) => /^save/i.test(b.textContent ?? "") && b.className.includes("bg-teal-600"));
+    .find((b) => /^save/i.test(b.textContent ?? "") && b.className.includes("bg-[var(--green)]"));
   if (!btn) throw new Error("no toolbar save button");
   return btn;
 };

@@ -11,8 +11,8 @@ const STATE_LABEL: Record<string, string> = {
   overdue: "Overdue", blocked: "Blocked",
 };
 const STATE_TONE: Record<string, string> = {
-  done: "bg-teal-50 text-teal-800", in_progress: "bg-blue-50 text-blue-800",
-  not_started: "bg-gray-100 text-gray-600", overdue: "bg-amber-50 text-amber-800",
+  done: "bg-[var(--color-success-surface)] text-[var(--teal)]", in_progress: "bg-blue-50 text-blue-800",
+  not_started: "bg-[#eef5f3] text-[var(--color-text-muted)]", overdue: "bg-amber-50 text-amber-800",
   blocked: "bg-red-50 text-red-800",
 };
 
@@ -36,9 +36,9 @@ export function PartnerRecords({ task, scope, filters }: {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-[var(--color-border)] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+          <thead className="bg-[#eef5f3] text-left text-xs uppercase text-[var(--color-text-muted)]">
             <tr>
               <th className="px-4 py-2">School</th>
               {anyStudent && <th className="px-4 py-2">Student</th>}
@@ -51,23 +51,23 @@ export function PartnerRecords({ task, scope, filters }: {
               <th className="px-4 py-2">Evidence</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-100">
+          <tbody className="divide-y divide-[var(--color-border)]">
             {isLoading && (
               <tr><td colSpan={6} className="px-4 py-6 text-center">
-                <Loader2 className="mx-auto h-5 w-5 animate-spin text-teal-600" aria-hidden="true" />
+                <Loader2 className="mx-auto h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" />
               </td></tr>
             )}
             {!isLoading && rows.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-4 text-gray-500">
+              <tr><td colSpan={6} className="px-4 py-4 text-[var(--color-text-muted)]">
                 No records match these filters.
               </td></tr>
             )}
             {rows.map((r) => (
               <tr key={r.id}>
                 <td className="px-4 py-2">
-                  {r.school_name ?? <span className="text-gray-400">—</span>}
+                  {r.school_name ?? <span className="text-[var(--color-text-muted)]">—</span>}
                   {r.school_district && (
-                    <span className="ml-1 text-xs text-gray-500">{r.school_district}</span>
+                    <span className="ml-1 text-xs text-[var(--color-text-muted)]">{r.school_district}</span>
                   )}
                 </td>
                 {anyStudent && <td className="px-4 py-2">{r.student_name ?? "—"}</td>}
@@ -77,14 +77,14 @@ export function PartnerRecords({ task, scope, filters }: {
                   </span>
                 </td>
                 <td className="px-4 py-2">{r.last_updated_by ?? "—"}</td>
-                <td className="px-4 py-2 text-gray-600">{r.period_key ?? "—"}</td>
+                <td className="px-4 py-2 text-[var(--color-text-muted)]">{r.period_key ?? "—"}</td>
                 <td className="px-4 py-2">
                   {r.photo_count + r.geo_count > 0 ? (
-                    <button onClick={() => setOpenProofs(r)} className="text-teal-700 underline hover:text-teal-900">
+                    <button onClick={() => setOpenProofs(r)} className="text-[var(--teal)] underline hover:text-teal-900">
                       {r.photo_count} photo{r.photo_count === 1 ? "" : "s"}
                       {r.geo_count > 0 && ", location"}
                     </button>
-                  ) : <span className="text-gray-400">—</span>}
+                  ) : <span className="text-[var(--color-text-muted)]">—</span>}
                 </td>
               </tr>
             ))}
@@ -94,14 +94,14 @@ export function PartnerRecords({ task, scope, filters }: {
 
       {data && data.total > data.limit && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">
+          <span className="text-[var(--color-text-muted)]">
             {(data.page - 1) * data.limit + 1}–{Math.min(data.page * data.limit, data.total)} of {data.total}
           </span>
           <div className="flex gap-2">
             <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-                    className="rounded-md border border-gray-200 px-3 py-1 disabled:opacity-40">Previous</button>
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 disabled:opacity-40">Previous</button>
             <button disabled={page >= pages} onClick={() => setPage(page + 1)}
-                    className="rounded-md border border-gray-200 px-3 py-1 disabled:opacity-40">Next</button>
+                    className="rounded-lg border border-[var(--color-border)] px-3 py-1 disabled:opacity-40">Next</button>
           </div>
         </div>
       )}
@@ -122,19 +122,19 @@ function ProofPanel({ record, onClose }: { record: PartnerRecord; onClose: () =>
   const { data: proofs, isLoading } = usePartnerProofs(record.id);
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white">
-      <header className="flex items-center justify-between border-b border-gray-100 px-4 py-2">
-        <h3 className="text-sm font-medium text-gray-900">
+    <section className="rounded-xl border border-[var(--color-border)] bg-white">
+      <header className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-2">
+        <h3 className="text-sm font-medium text-[var(--color-text)]">
           Evidence — {record.school_name ?? record.student_name ?? "record"}
         </h3>
-        <button onClick={onClose} className="text-xs text-gray-500 hover:text-gray-900">Close</button>
+        <button onClick={onClose} className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]">Close</button>
       </header>
       {isLoading ? (
-        <p className="p-4 text-sm text-gray-500">Loading…</p>
+        <p className="p-4 text-sm text-[var(--color-text-muted)]">Loading…</p>
       ) : !proofs?.length ? (
-        <p className="p-4 text-sm text-gray-500">No evidence attached.</p>
+        <p className="p-4 text-sm text-[var(--color-text-muted)]">No evidence attached.</p>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-[var(--color-border)]">
           {proofs.map((p) => (
             <li key={p.id} className="flex gap-4 px-4 py-3 text-sm">
               {p.url && (
@@ -147,8 +147,8 @@ function ProofPanel({ record, onClose }: { record: PartnerRecord; onClose: () =>
                 />
               )}
               <div>
-                <div className="font-medium text-gray-900">{p.kind}</div>
-                <div className="text-xs text-gray-600">
+                <div className="font-medium text-[var(--color-text)]">{p.kind}</div>
+                <div className="text-xs text-[var(--color-text-muted)]">
                   {p.captured_at ? new Date(p.captured_at).toLocaleString() : "no capture time"}
                   {p.lat != null && p.lng != null && (
                     <> · {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
@@ -159,7 +159,7 @@ function ProofPanel({ record, onClose }: { record: PartnerRecord; onClose: () =>
                 {/* The location was read from the photo's own metadata, which the
                     person taking it can edit. Saying so where the coordinates are
                     shown is the difference between evidence and a claim of proof. */}
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-[var(--color-text-muted)]">
                   Captured by the {IN_CHARGE_LOWER} on their phone. Location comes from the
                   photo&apos;s metadata — it is evidence, not proof of physical presence.
                 </p>

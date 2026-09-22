@@ -112,23 +112,23 @@ export function RecordProofs({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-gray-200 bg-gray-50/60 p-3">
+    <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-border)] bg-[#eef5f3]/60 p-3">
       {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-gray-500"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading proof…</div>
+        <div className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]"><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Loading proof…</div>
       ) : (
         <>
           {requirePhoto && (
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-gray-700">Photo{editable ? " (required)" : ""}</p>
+              <p className="text-xs font-semibold text-[var(--color-text)]">Photo{editable ? " (required)" : ""}</p>
               <div className="flex flex-wrap gap-2">
                 {photos.map((ph) => (
                   <div key={ph.id} className="relative">
                     { /* eslint-disable-next-line @next/next/no-img-element */ }
-                    <img src={ph.url} alt="Proof" className="h-20 w-20 rounded-md border border-gray-200 object-cover" />
+                    <img src={ph.url} alt="Proof" className="h-20 w-20 rounded-lg border border-[var(--color-border)] object-cover" />
                     {editable && (
                       <button type="button" onClick={() => del.mutate(ph.id)} disabled={del.isPending}
                         aria-label="Remove photo"
-                        className="absolute -right-1.5 -top-1.5 rounded-full bg-white p-0.5 text-gray-500 shadow ring-1 ring-gray-200 hover:text-red-600 disabled:opacity-50">
+                        className="absolute -right-1.5 -top-1.5 rounded-full bg-white p-0.5 text-[var(--color-text-muted)] shadow ring-1 ring-gray-200 hover:text-red-600 disabled:opacity-50">
                         <X className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     )}
@@ -136,12 +136,12 @@ export function RecordProofs({
                 ))}
                 {editable && photos.length < 5 && (
                   <button type="button" onClick={() => fileRef.current?.click()} disabled={upload.isPending}
-                    className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border-2 border-dashed border-gray-300 text-xs font-medium text-gray-500 hover:border-teal-400 hover:text-teal-600 disabled:opacity-50">
+                    className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-[var(--color-border-strong)] text-xs font-medium text-[var(--color-text-muted)] hover:border-teal-400 hover:text-[var(--teal)] disabled:opacity-50">
                     {upload.isPending ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <Camera className="h-5 w-5" aria-hidden="true" />}
                     Take photo
                   </button>
                 )}
-                {!editable && photos.length === 0 && <p className="text-xs text-gray-400">No photo</p>}
+                {!editable && photos.length === 0 && <p className="text-xs text-[var(--color-text-muted)]">No photo</p>}
               </div>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPick} className="hidden" />
             </div>
@@ -149,7 +149,7 @@ export function RecordProofs({
 
           {requireLocation && (
             <div className="flex flex-col gap-2">
-              <p className="text-xs font-semibold text-gray-700">Location{editable ? " (required)" : ""}</p>
+              <p className="text-xs font-semibold text-[var(--color-text)]">Location{editable ? " (required)" : ""}</p>
               {location ? (
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
@@ -157,20 +157,20 @@ export function RecordProofs({
                     {location.accuracy_m != null ? `±${Math.round(location.accuracy_m)}m` : "captured"} · {formatTime(location.captured_at)}
                   </span>
                   <a href={`https://maps.google.com/?q=${location.lat},${location.lng}`} target="_blank" rel="noreferrer"
-                    className="font-medium text-teal-600 underline">View on map</a>
+                    className="font-medium text-[var(--teal)] underline">View on map</a>
                   {editable && (
                     <button type="button" onClick={onCaptureLocation} disabled={locating}
-                      className="text-gray-500 underline hover:text-gray-700 disabled:opacity-50">Recapture</button>
+                      className="text-[var(--color-text-muted)] underline hover:text-[var(--color-text)] disabled:opacity-50">Recapture</button>
                   )}
                 </div>
               ) : editable ? (
                 <button type="button" onClick={onCaptureLocation} disabled={locating}
-                  className="inline-flex w-fit items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                  className="inline-flex w-fit items-center gap-2 rounded-lg border border-[var(--color-border-strong)] bg-white px-3 py-2 text-sm font-medium text-[var(--color-text)] hover:bg-[#eef5f3] disabled:opacity-50">
                   {locating ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <MapPin className="h-4 w-4" aria-hidden="true" />}
                   Capture location
                 </button>
               ) : (
-                <p className="text-xs text-gray-400">No location</p>
+                <p className="text-xs text-[var(--color-text-muted)]">No location</p>
               )}
             </div>
           )}

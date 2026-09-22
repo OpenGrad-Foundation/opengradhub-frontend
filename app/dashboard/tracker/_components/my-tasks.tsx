@@ -68,11 +68,11 @@ export function MyTasksList({
 }) {
   const { data = [], isLoading, error } = useTrackerMyTasks();
   if (isLoading) {
-    return <div className="flex min-h-40 items-center justify-center rounded-lg border border-gray-200 bg-white"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
+    return <div className="flex min-h-40 items-center justify-center rounded-xl border border-[var(--color-border)] bg-white"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>;
   }
   if (error) {
     return (
-      <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-lg border border-red-100 bg-red-50 px-5 text-center">
+      <div className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-5 text-center">
         <AlertCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
         <p className="text-sm font-medium text-red-800">{error instanceof Error ? error.message : "Failed to load your tasks."}</p>
       </div>
@@ -160,9 +160,9 @@ export function TaskListView({
 
   if (tasks.length === 0) {
     return (
-      <div className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-5 text-center">
-        <p className="text-sm font-semibold text-gray-950">{emptyTitle}</p>
-        <p className="text-sm text-gray-500">{emptyDetail}</p>
+      <div className="flex min-h-40 flex-col items-center justify-center gap-1 rounded-xl border border-[var(--color-border)] bg-white px-5 text-center">
+        <p className="text-sm font-semibold text-[var(--color-text)]">{emptyTitle}</p>
+        <p className="text-sm text-[var(--color-text-muted)]">{emptyDetail}</p>
       </div>
     );
   }
@@ -177,7 +177,7 @@ export function TaskListView({
   void groups;
 
   const activeStatus = (f.state.status ?? null) as TaskState | null;
-  const selCls = "h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500";
+  const selCls = "h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-sm outline-none focus:border-[var(--teal)]";
 
   return (
     <div className="flex flex-col gap-3">
@@ -198,9 +198,9 @@ export function TaskListView({
         </select>
       </FilterBar>
       {ordered.length === 0 ? (
-        <p className="rounded-lg border border-gray-200 bg-white px-4 py-8 text-center text-sm text-gray-500">No tasks match these filters.</p>
+        <p className="rounded-xl border border-[var(--color-border)] bg-white px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">No tasks match these filters.</p>
       ) : (
-      <ul className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <ul className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
       {ordered.map((task) => {
         const meta = TASK_STATE_META[task.state];
         return (
@@ -208,15 +208,15 @@ export function TaskListView({
             <button
               type="button"
               onClick={() => onOpen(task.template_id)}
-              className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-teal-50/50"
+              className="flex w-full items-center justify-between gap-3 border-b border-[var(--color-border)] px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-[var(--color-success-surface)]/50"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-gray-950">
+                <p className="truncate text-sm font-medium text-[var(--color-text)]">
                   {task.name}
-                  {task.count === 1 && task.target_name ? <span className="text-gray-500"> — {task.target_name}</span> : null}
-                  {task.count > 1 ? <span className="text-gray-500"> · {task.count} {TARGET_NOUN[task.target_type]}</span> : null}
+                  {task.count === 1 && task.target_name ? <span className="text-[var(--color-text-muted)]"> — {task.target_name}</span> : null}
+                  {task.count > 1 ? <span className="text-[var(--color-text-muted)]"> · {task.count} {TARGET_NOUN[task.target_type]}</span> : null}
                 </p>
-                <p className="mt-0.5 text-xs text-gray-500">
+                <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
                   {task.count > 1 ? `${task.doneCount}/${task.count} done · ` : ""}
                   {task.deadline ? `Due ${formatDate(task.deadline)}` : "No deadline"}
                 </p>
@@ -224,7 +224,7 @@ export function TaskListView({
               <div className="flex shrink-0 items-center gap-2">
                 <PriorityChip priority={task.priority} />
                 <Pill label={meta.label} tone={meta.tone} />
-                <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                <ChevronRight className="h-4 w-4 text-[var(--color-text-muted)]" aria-hidden="true" />
               </div>
             </button>
           </li>
@@ -239,8 +239,8 @@ export function TaskListView({
 function PriorityChip({ priority }: { priority: TrackerMyTask["priority"] }) {
   const map = {
     high: "border-red-200 bg-red-50 text-red-700",
-    medium: "border-gray-200 bg-gray-50 text-gray-600",
-    low: "border-gray-200 bg-white text-gray-400",
+    medium: "border-[var(--color-border)] bg-[#eef5f3] text-[var(--color-text-muted)]",
+    low: "border-[var(--color-border)] bg-white text-[var(--color-text-muted)]",
   } as const;
   return <span className={`inline-flex w-16 justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold capitalize ${map[priority]}`}>{priority}</span>;
 }
@@ -248,7 +248,7 @@ function PriorityChip({ priority }: { priority: TrackerMyTask["priority"] }) {
 function Pill({ label, tone }: { label: string; tone: "green" | "gray" | "red" | "amber" }) {
   const toneClass = {
     green: "bg-emerald-50 text-emerald-700",
-    gray: "bg-gray-100 text-gray-700",
+    gray: "bg-[#eef5f3] text-[var(--color-text)]",
     red: "bg-red-50 text-red-700",
     amber: "bg-amber-50 text-amber-700",
   }[tone];

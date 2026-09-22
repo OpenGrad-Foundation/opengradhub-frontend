@@ -59,7 +59,7 @@ export function TaskBreakdown({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900">
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
         <div className="flex items-center gap-3">
@@ -67,38 +67,38 @@ export function TaskBreakdown({
             <button
               type="button"
               onClick={() => onOpenTask(task.template_id)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-teal-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--green)] px-3 py-1.5 text-sm font-semibold text-[var(--dark-teal)] transition hover:bg-[var(--green)]"
             >
               <Table2 className="h-4 w-4" aria-hidden="true" /> Open task data
             </button>
           )}
           <div className="text-right">
-            <p className="text-sm font-semibold text-gray-950">{task.name}</p>
-            {task.done != null && task.total != null && <p className="text-xs text-gray-500">{task.done}/{task.total} done · {task.total} assigned</p>}
+            <p className="text-sm font-semibold text-[var(--color-text)]">{task.name}</p>
+            {task.done != null && task.total != null && <p className="text-xs text-[var(--color-text-muted)]">{task.done}/{task.total} done · {task.total} assigned</p>}
           </div>
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-600">Group by
-        <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
+      <label className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">Group by
+        <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-lg border border-[var(--color-border-strong)] bg-white px-2 py-1">
           {LEVELS.slice(0, LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
         </select>
       </label>
-      <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-gray-600">
+      <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-[var(--color-text-muted)]">
         <button
           type="button"
           onClick={() => setPath([])}
-          className="rounded-md px-2 py-1 font-medium transition-colors hover:bg-gray-100 hover:text-gray-900"
+          className="rounded-lg px-2 py-1 font-medium transition-colors hover:bg-[#eef5f3] hover:text-[var(--color-text)]"
         >
           {LEVEL_LABEL[start]}
         </button>
         {path.map((crumb, i) => (
           <React.Fragment key={crumb.id}>
-            <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+            <ChevronRight className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" aria-hidden="true" />
             <button
               type="button"
               onClick={() => setPath(path.slice(0, i + 1))}
-              className={`rounded-md px-2 py-1 transition-colors hover:bg-gray-100 hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-gray-900" : "font-medium"}`}
+              className={`rounded-lg px-2 py-1 transition-colors hover:bg-[#eef5f3] hover:text-[var(--color-text)] ${i === path.length - 1 ? "font-semibold text-[var(--color-text)]" : "font-medium"}`}
             >
               {crumb.name}
             </button>
@@ -152,44 +152,44 @@ function LevelList({
   const isDoerLevel = level === "zm" || level === "fellow";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+    <section className="overflow-hidden rounded-xl border border-[var(--color-border)] bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] px-5 py-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
+          <h3 className="text-base font-semibold text-[var(--color-text)]">{LEVEL_LABEL[level]}</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={status}
             aria-label="Status"
             onChange={(e) => { setStatus(e.target.value as TaskState | ""); setPage(1); }}
-            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500"
+            className="h-9 rounded-lg border border-[var(--color-border-strong)] bg-white px-2 text-sm outline-none focus:border-[var(--teal)]"
           >
             <option value="">All statuses</option>
             {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-text-muted)]" aria-hidden="true" />
             <input
               value={q}
               onChange={(e) => { setQ(e.target.value); setPage(1); }}
               placeholder="Search…"
-              className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              className="h-9 w-64 rounded-lg border border-[var(--color-border-strong)] bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-[var(--teal)] focus:ring-1 focus:ring-[var(--teal)]"
             />
           </div>
         </div>
       </div>
 
       {isLoading ? (
-        <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
+        <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-[var(--teal)]" aria-hidden="true" /></div>
       ) : error ? (
         <p className="flex items-center gap-2 px-5 py-6 text-sm text-red-700"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error instanceof Error ? error.message : "Failed to load."}</p>
       ) : rows.length === 0 ? (
         <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-5 text-center">
-          <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
-          <p className="text-sm text-gray-500">Nothing to show here.</p>
+          <CheckCircle2 className="h-6 w-6 text-[var(--color-text-muted)]" aria-hidden="true" />
+          <p className="text-sm text-[var(--color-text-muted)]">Nothing to show here.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-gray-100">
+        <ul className="divide-y divide-[var(--color-border)]">
           {rows.map((row) => {
             const isSelf = row.id === currentUserId;
             const showNudge = canNudge && isDoerLevel && !isSelf && row.rolled_state !== "done";
@@ -201,13 +201,13 @@ function LevelList({
                   onClick={() => { if (drillable) onDrill(row); }}
                   disabled={!drillable}
                   className={
-                    "group flex w-full items-center justify-between gap-3 rounded-md px-4 py-3.5 text-left transition-colors " +
-                    (drillable ? "cursor-pointer hover:bg-teal-50" : "cursor-default")
+                    "group flex w-full items-center justify-between gap-3 rounded-lg px-4 py-3.5 text-left transition-colors " +
+                    (drillable ? "cursor-pointer hover:bg-[var(--color-success-surface)]" : "cursor-default")
                   }
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-950">{row.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                    <p className="truncate text-sm font-medium text-[var(--color-text)]">{row.name}</p>
+                    <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
                       {!isLeafLevel && childNoun && (
                         <>{row.child_count} {childNoun}{row.child_count === 1 ? "" : "s"} · </>
                       )}
@@ -216,7 +216,7 @@ function LevelList({
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <StatePill state={row.rolled_state} />
-                    {drillable && <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+                    {drillable && <ChevronRight className="h-4 w-4 text-[var(--color-text-muted)]" aria-hidden="true" />}
                   </div>
                 </button>
                 {showNudge && <NudgeButton doerId={row.id} templateId={templateId} lastNudgedAt={null} />}
@@ -227,12 +227,12 @@ function LevelList({
       )}
 
       {pages > 1 && (
-        <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-sm text-gray-600">
+        <div className="flex items-center justify-between border-t border-[var(--color-border)] px-5 py-3 text-sm text-[var(--color-text-muted)]">
           <span>{total} {LEVEL_LABEL[level].toLowerCase()}</span>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Prev</button>
+            <button type="button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1 disabled:opacity-40">Prev</button>
             <span>Page {page} / {pages}</span>
-            <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="rounded-md border border-gray-300 px-2.5 py-1 disabled:opacity-40">Next</button>
+            <button type="button" disabled={page >= pages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-[var(--color-border-strong)] px-2.5 py-1 disabled:opacity-40">Next</button>
           </div>
         </div>
       )}
@@ -244,7 +244,7 @@ function StatePill({ state }: { state: TaskState }) {
   const meta = TASK_STATE_META[state];
   const toneClass = {
     green: "bg-emerald-50 text-emerald-700",
-    gray: "bg-gray-100 text-gray-700",
+    gray: "bg-[#eef5f3] text-[var(--color-text)]",
     red: "bg-red-50 text-red-700",
     amber: "bg-amber-50 text-amber-700",
   }[meta.tone];
