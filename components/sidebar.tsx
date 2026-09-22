@@ -226,7 +226,7 @@ export default function Sidebar({
       {/* Logo + collapse toggle + mobile close */}
       <div
         className={
-          "py-5 flex shrink-0 items-center px-5 " +
+          "flex h-[calc(var(--dashboard-header-top,1.75rem)+2.75rem)] shrink-0 items-center gap-2 px-4 pt-2 " +
           (collapsed ? "lg:px-3 lg:justify-center" : "justify-between")
         }
       >
@@ -238,9 +238,9 @@ export default function Sidebar({
           <Image
             src="/logo.png"
             alt="OpenGrad"
-            width={140}
-            height={40}
-            className="h-10 w-auto"
+            width={128}
+            height={32}
+            style={{ height: "1.75rem", width: "auto" }}
             priority
           />
         </Link>
@@ -249,10 +249,10 @@ export default function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapsed}
-            className="hidden lg:flex h-10 w-10 items-center justify-center rounded-xl text-[var(--color-text-muted)] hover:bg-white hover:text-[var(--color-text)]"
+            className="hidden lg:flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-[var(--color-text-muted)] opacity-70 transition hover:border-[var(--color-border)] hover:bg-white hover:text-[var(--color-text)] hover:opacity-100"
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
-            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+            {collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}
           </button>
         )}
         {onClose && (
