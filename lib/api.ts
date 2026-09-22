@@ -1379,7 +1379,11 @@ export async function joinLiveClass(
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
     throw new ApiError(err?.message ?? "Failed to join live class.", r.status);
   }
-  return (await r.json()) as { meeting_url: string; live_class_id: string };
+  const data = (await r.json()) as { meeting_url: string; live_class_id: string };
+  // Links are stored as typed ("meet.google.com/x"). Without a scheme the
+  // browser treats them as a relative path and the new tab stays blank.
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(data.meeting_url)) data.meeting_url = `https://${data.meeting_url}`;
+  return data;
 }
 
 export async function createLiveClass(payload: {

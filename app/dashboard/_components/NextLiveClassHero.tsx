@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { VideoIcon } from "@/components/icons/ClassIcons";
 import { getNextLiveClass, joinLiveClass, type LiveClass } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { openMeetingTab } from "@/lib/meeting-tab";
 
 export default function NextLiveClassHero({ studentId }: { studentId: string }) {
   const [cls,       setCls]       = useState<LiveClass | null | "loading">("loading");
@@ -54,9 +55,14 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
   async function handleJoin() {
     setJoining(true);
     try {
-      const { meeting_url } = await joinLiveClass(liveClass.id, studentId);
+      let url = "";
+      const opened = await openMeetingTab(async () => {
+        url = (await joinLiveClass(liveClass.id, studentId)).meeting_url;
+        return url;
+      });
       setJoined(true);
-      window.open(meeting_url, "_blank", "noopener,noreferrer");
+      // Popup blocked anyway: same-tab navigation needs no gesture.
+      if (!opened) window.location.href = url;
       // For an online class this click IS the attendance mark, so the cached
       // attendance card sitting next to this one is now wrong.
       invalidate("liveClassAttendance");
