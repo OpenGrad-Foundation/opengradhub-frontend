@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Check, ClipboardList, Package, Pause, Plus, Users, X } from "lucide-react";
+import { ArrowLeft, BookOpen, CalendarDays, Check, ClipboardList, GraduationCap, Package, Pause, Pencil, Plus, Radio, School, Users, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 import { withFrom } from "@/lib/nav";
@@ -43,6 +43,9 @@ import { normState } from "@/lib/geo";
 import { useBatch } from "@/lib/queries/batches";
 import { Tabs, type TabDef } from "@/app/dashboard/_components/Tabs";
 import { BatchForm } from "../BatchForm";
+import workspace from "@/components/dashboard/workspace.module.css";
+import catalogue from "@/app/dashboard/_components/catalogue.module.css";
+import local from "../batches.module.css";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -92,6 +95,13 @@ export default function BatchDetailPage() {
   }
 
   if (isLoading) return <Shell><LoadingCard /></Shell>;
+
+  function openSettings() {
+    // Same URL-driven tab switch <Tabs> does, so other params (from=) survive.
+    const next = new URLSearchParams(window.location.search);
+    next.set("tab", "settings");
+    router.replace(`${window.location.pathname}?${next.toString()}`, { scroll: false });
+  }
   if (!has(PERM.batches.view)) {
     return (
       <Shell>
@@ -121,6 +131,7 @@ export default function BatchDetailPage() {
     {
       key: "students",
       label: "Students",
+      count: batch.members.length,
       panel: (
         <Section
           title="Students in this Batch"
@@ -141,6 +152,7 @@ export default function BatchDetailPage() {
     {
       key: "courses",
       label: "Courses",
+      count: batch.courses.length,
       panel: (
         <Section
           title="Courses"
@@ -182,6 +194,7 @@ export default function BatchDetailPage() {
     {
       key: "bundles",
       label: "Bundles",
+      count: batch.bundles.length,
       panel: (
         <Section
           title="Bundles"
@@ -219,6 +232,7 @@ export default function BatchDetailPage() {
     {
       key: "quizzes",
       label: "Quizzes",
+      count: batch.tests.length,
       panel: (
         <Section
           title="Quizzes"
@@ -272,23 +286,30 @@ export default function BatchDetailPage() {
 
   return (
     <Shell>
-      <BackLink fallback="/dashboard/batches" style={{ ...ghostBtnSm, flex: "none", display: "inline-flex", alignItems: "center", gap: "8px", textDecoration: "none" }}>
-        <ArrowLeft size={18} aria-hidden="true" />Back to Batches
-      </BackLink>
-      <div style={{ margin: "16px 0 28px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
-        <div>
-          <h2 style={{ ...headingSt, fontSize: "24px" }}>{batch.name}</h2>
-          <p style={{ fontSize: "14px", color: "var(--color-text-muted)", marginTop: "6px" }}>
-            {batch.school_name ?? "Independent batch"}
-            {batch.programme_type && ` · ${batch.programme_type}`}
-            {(batch.starts_on || batch.ends_on) && ` · ${batch.starts_on ?? "…"} → ${batch.ends_on ?? "…"}`}
-          </p>
-          <div style={{ display: "flex", gap: "10px", marginTop: "10px", flexWrap: "wrap" }}>
-            {archived && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 8px", borderRadius: "6px", background: "#eef5f3", fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)" }}>
-                <Pause size={14} aria-hidden="true" />Archived — changes blocked, student access preserved
-              </span>
-            )}
+      <div className={local.header}>
+        <div className={local.toolbar}>
+          <BackLink fallback="/dashboard/batches" className={catalogue.secondary}>
+            <ArrowLeft size={16} aria-hidden="true" /><span><span className="hidden sm:inline">Back to </span>Batches</span>
+          </BackLink>
+          {canEdit && (
+            <div className={local.headerActions}>
+              <button type="button" onClick={openSettings} className={catalogue.secondary}>
+                <Pencil size={16} aria-hidden="true" />Edit batch
+              </button>
+            </div>
+          )}
+        </div>
+        <div className={local.identity}>
+          <h2>{batch.name}</h2>
+          <div className={local.meta}>
+            <span className={local.status} data-active={batch.status === "ACTIVE"}>
+              {archived && <Pause size={14} aria-hidden="true" />}
+              {archived ? "Archived — changes blocked, student access preserved" : batch.status === "ACTIVE" ? "Active" : batch.status}
+            </span>
+            <span><Radio size={14} aria-hidden="true" />{batch.delivery_mode === "ONLINE" ? "Online attendance" : "School-based attendance"}</span>
+            <span><School size={14} aria-hidden="true" />{batch.school_name ?? "Independent batch"}</span>
+            {batch.programme_type && <span><GraduationCap size={14} aria-hidden="true" />{batch.programme_type}</span>}
+            {(batch.starts_on || batch.ends_on) && <span><CalendarDays size={14} aria-hidden="true" />{batch.starts_on ?? "…"} → {batch.ends_on ?? "…"}</span>}
             <Chip icon={<Users size={14} aria-hidden="true" />} value={batch.members.length} label="student" />
             <Chip icon={<BookOpen size={14} aria-hidden="true" />} value={batch.courses.length} label="course" />
             <Chip icon={<Package size={14} aria-hidden="true" />} value={batch.bundles.length} label="bundle" />
@@ -299,7 +320,9 @@ export default function BatchDetailPage() {
 
       {globalError && <div role="alert" style={{ ...errorBox, marginBottom: "20px" }}>{globalError}</div>}
 
-      <Tabs tabs={tabs} ariaLabel="Batch sections" />
+      <div className={`${workspace.stickyTabs} ${local.tabs}`}>
+        <Tabs tabs={tabs} ariaLabel="Batch sections" />
+      </div>
 
       {/* ── Modals ───────────────────────────────────────────── */}
       {addMembersOpen && (
@@ -1296,7 +1319,7 @@ function EmptyHint({ text }: { text: string }) {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <div style={{ maxWidth: "800px", margin: "0 auto" }}>{children}</div>;
+  return <div className={`${workspace.workspace} ${local.page}`}>{children}</div>;
 }
 
 function Section({ title, action, children }: {
@@ -1339,12 +1362,7 @@ function Modal({ title, onClose, children }: { title: string; onClose?: () => vo
 
 function Chip({ icon, value, label, plural }: { icon: React.ReactNode; value: number; label: string; plural?: string }) {
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: "5px",
-      padding: "4px 8px", borderRadius: "6px",
-      background: "#eef5f3", fontSize: "12px",
-      fontWeight: 600, color: "var(--color-text)",
-    }}>
+    <span>
       {icon} {value} {value === 1 ? label : (plural ?? `${label}s`)}
     </span>
   );
@@ -1352,8 +1370,9 @@ function Chip({ icon, value, label, plural }: { icon: React.ReactNode; value: nu
 
 function LoadingCard() {
   return (
-    <div style={{ ...glassCard, textAlign: "center" }}>
-      <p role="status" style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: 0 }}>Fetching batch…</p>
+    <div role="status" aria-label="Fetching batch" className={local.loading}>
+      <div /><div /><div />
+      <span className="sr-only">Fetching batch…</span>
     </div>
   );
 }
