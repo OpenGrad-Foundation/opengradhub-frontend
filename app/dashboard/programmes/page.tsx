@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, FolderKanban, Plus, RefreshCw, Search, X } from "lucide-react";
+import { FolderKanban, Plus, RefreshCw, Search, X } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permission";
 import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { PERM } from "@/lib/permissions";
@@ -72,9 +72,7 @@ export default function ProgrammesPage() {
       </p>
 
       {isLoading ? (
-        <div aria-label="Loading programmes" className={cat.courseGrid}>
-          {[0, 1, 2].map((i) => <div key={i} className={cat.skeleton} aria-hidden="true"><div /><div /><div /></div>)}
-        </div>
+        <div aria-label="Loading programmes" className={cat.skeleton} style={{ minHeight: "12rem" }}><div /><div /><div /></div>
       ) : error ? (
         <section role="alert" className={cat.empty}>
           <FolderKanban size={28} aria-hidden="true" />
@@ -94,29 +92,31 @@ export default function ProgrammesPage() {
             : canCreate && <button type="button" className={cat.primary} onClick={() => setShowCreate(true)}><Plus size={16} aria-hidden="true" />New programme</button>}
         </section>
       ) : (
-        <div className={cat.courseGrid}>
-          {visible.map((p) => (
-            <Link key={p.id} href={withFrom(`/dashboard/programmes/${p.id}`, currentUrl)} className={cat.courseCard}>
-              <div className={s.cardTop}>
-                <span><FolderKanban size={18} aria-hidden="true" />{p.kind}</span>
-                {p.status === "ARCHIVED"
-                  ? <span className={`${s.pill} ${s.pillMuted}`}>Archived</span>
-                  : <span className={`${s.pill} ${s.pillGreen}`}>Active</span>}
-              </div>
-              <div className={s.cardTitle}>
-                <h2>{p.name}</h2>
-                {p.cohort_label && <span>{p.cohort_label}</span>}
-              </div>
-              <div className={s.facts}>
-                <span className={s.code}>{p.code}</span>
-                <span>{p.state ?? "No state"}</span>
-                {p.is_member
-                  ? <span className={`${s.pill} ${s.pillInfo}`}>Member</span>
-                  : <span>Not a member</span>}
-              </div>
-              <div className={cat.cardFooter}>Open programme<ArrowRight size={16} className="ml-auto" aria-hidden="true" /></div>
-            </Link>
-          ))}
+        <div className={cat.tableWrap}>
+          <table className={cat.table}>
+            <thead>
+              <tr>{["Programme", "Kind", "Code", "State", "Status", "Membership"].map((h) => <th key={h} scope="col">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {visible.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <Link href={withFrom(`/dashboard/programmes/${p.id}`, currentUrl)} className={cat.courseTitle}>{p.name}</Link>
+                    {p.cohort_label && <span className={cat.tableDescription}>{p.cohort_label}</span>}
+                  </td>
+                  <td>{p.kind}</td>
+                  <td><span className={s.code}>{p.code}</span></td>
+                  <td>{p.state ?? <span style={{ color: "var(--color-text-muted)" }}>—</span>}</td>
+                  <td>{p.status === "ARCHIVED"
+                    ? <span className={`${s.pill} ${s.pillMuted}`}>Archived</span>
+                    : <span className={`${s.pill} ${s.pillGreen}`}>Active</span>}</td>
+                  <td>{p.is_member
+                    ? <span className={`${s.pill} ${s.pillInfo}`}>Member</span>
+                    : <span style={{ color: "var(--color-text-muted)" }}>Not a member</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
