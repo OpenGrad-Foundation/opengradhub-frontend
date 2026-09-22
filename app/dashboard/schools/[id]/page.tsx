@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Layers, Search, MapPin, Pencil, Plus, School as SchoolIcon, UserRound, Users } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { IN_CHARGE, ROLE_LABELS } from "@/lib/labels";
 import {
@@ -23,9 +23,10 @@ import { AddStudentsPanel } from "./AddStudentsPanel";
 import { AttachBatchPanel } from "./AttachBatchPanel";
 import { AttendancePanel } from "./AttendancePanel";
 import { SchoolBatchList } from "./SchoolBatchList";
-import {
-  titleStyle, primaryButton, secondaryButton, thStyle, tdStyle, linkBtnStyle, inputStyle, backButton, cardStyle as baseCard,
-} from "../styles";
+import { Tabs } from "../../_components/Tabs";
+import workspace from "@/components/dashboard/workspace.module.css";
+import styles from "../../_components/catalogue.module.css";
+import css from "../schools.module.css";
 
 /** Section tabs. Batches/Students/Attendance used to stack, which buried
  *  attendance below a 400-row roster. */
@@ -35,21 +36,6 @@ const TABS = [
   { key: "attendance", label: "Attendance" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
-
-function tabStyle(active: boolean): React.CSSProperties {
-  return {
-    padding: "10px 18px",
-    border: "none",
-    borderRadius: "10px",
-    minHeight: "44px",
-    background: active ? "var(--color-success-surface)" : "transparent",
-    color: active ? "var(--dark-teal)" : "var(--color-text-muted)",
-    fontWeight: 600,
-    fontSize: "14px",
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  };
-}
 
 export default function SchoolDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -125,20 +111,30 @@ export default function SchoolDetailPage() {
     }
   }
 
-  if (!canViewStudents) return <div>
-    <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
-    <p style={{ color: "var(--color-text-muted)", marginTop: 16 }}>Viewing school details requires permission to view students.</p>
+  const backLink = <BackLink fallback="/dashboard/schools" className={styles.secondary}><ArrowLeft size={16} aria-hidden="true" /><span><span className="hidden sm:inline">Back to </span>Schools</span></BackLink>;
+
+  if (!canViewStudents) return <div className={`${styles.catalogue} ${css.page}`}>
+    <div className={css.header}><div className={css.headerToolbar}>{backLink}</div></div>
+    <section className={styles.empty}>
+      <SchoolIcon size={28} aria-hidden="true" />
+      <p>Viewing school details requires permission to view students.</p>
+    </section>
   </div>;
 
-  if (loading) return <p style={{ color: "var(--color-text-muted)" }}>Loading school…</p>;
+  if (loading) return <div className={`${styles.catalogue} ${css.page}`} role="status" aria-label="Loading school">
+    <div className={css.header}><div className={css.headerToolbar}>{backLink}</div></div>
+    <div className={css.skeletonRows} aria-hidden="true">{[0, 1, 2, 3].map((i) => <div key={i} />)}</div>
+  </div>;
 
   if (error || !detail) {
     return (
-      <div>
-        <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
-        <p style={{ color: "#b83232", fontWeight: 600, marginTop: "16px" }}>
-          {error ?? "School not found."}
-        </p>
+      <div className={`${styles.catalogue} ${css.page}`}>
+        <div className={css.header}><div className={css.headerToolbar}>{backLink}</div></div>
+        <section role="alert" className={styles.empty}>
+          <SchoolIcon size={28} aria-hidden="true" />
+          <h2>School unavailable</h2>
+          <p>{error ?? "School not found."}</p>
+        </section>
       </div>
     );
   }
@@ -163,23 +159,103 @@ export default function SchoolDetailPage() {
     onCancelRemove: () => { setConfirmRemoveId(null); setRosterError(null); },
   };
 
-  return (
-    <div>
-      <BackLink fallback="/dashboard/schools" style={backLinkStyle}>{backLabel}</BackLink>
+  const visibleTabs = TABS.filter((t) => t.key !== "attendance" || canViewAttendance);
 
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between" style={{ margin: "12px 0 24px" }}>
-        <div>
-          <h2 style={{ ...titleStyle, fontSize: "28px", margin: "0 0 8px" }}>{school.name}</h2>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {school.code && <span style={chipStyle}>{school.code}</span>}
-            {school.state && <span style={chipStyle}>{school.state}</span>}
-            {school.district && <span style={chipStyle}>{school.district}</span>}
+  const panel = <>
+    {/* Batches hosted at this school. The roster of each one lives on the
+        batch page, so a row is a link, not a disclosure. */}
+    {tab === "batches" && <>
+      <div className={styles.resultsBar}>
+        <p className={styles.resultsLabel}>{detail.batches.length} batch{detail.batches.length === 1 ? "" : "es"} at this school</p>
+        {canAttachBatch && (
+          <button type="button" onClick={() => setShowAddBatch(true)} className={styles.secondary}><Plus size={18} aria-hidden="true" />Add batch</button>
+        )}
+      </div>
+
+      {showAddBatch && (
+        <AttachBatchPanel
+          schoolId={school.id}
+          schoolName={school.name}
+          onClose={() => setShowAddBatch(false)}
+          onChanged={() => void load()}
+        />
+      )}
+
+      <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} canOpen={has(PERM.batches.view)} showStudentCounts={canViewStudents} />
+    </>}
+
+    {/* Roster identity and contacts have independent data grants. */}
+    {tab === "students" && <>
+      <div className={css.sectionBar}>
+        <p role="status" className={styles.resultsLabel}>
+          {q
+            ? `${visibleStudents.length} match${visibleStudents.length === 1 ? "" : "es"} of ${students.length}`
+            : `${students.length} student${students.length === 1 ? "" : "s"}`}
+        </p>
+        <div className={css.sectionTools}>
+          <label className={styles.search}>
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              value={studentQuery}
+              onChange={(e) => setStudentQuery(e.target.value)}
+              placeholder={canViewStudentContacts ? "Search name, roll number, email…" : "Search name or roll number…"}
+              aria-label="Search students"
+            />
+          </label>
+          {canEditRoster && (
+            <button type="button" onClick={() => setShowAdd(true)} className={styles.primary}><Plus size={18} aria-hidden="true" />Add students</button>
+          )}
+        </div>
+      </div>
+
+      {rosterError && <p role="alert" className={css.error}>{rosterError}</p>}
+
+      <RosterTable
+        rows={visibleStudents}
+        emptyMessage={q ? "No students match this search." : "No students assigned to this school yet."}
+        {...tableProps}
+      />
+    </>}
+
+    {/* Committed register attendance for this school — read-only; uploading
+        still lives in the Attendance tab. */}
+    {tab === "attendance" && (
+      <AttendancePanel schoolId={school.id} canView={canViewAttendance} defaultOpen />
+    )}
+  </>;
+
+  const location = [school.district, school.state].filter(Boolean).join(", ");
+  const programmeMix = stats.programmes.map((p) => `${p.programme ?? "No programme"}: ${p.count}`).join(" · ");
+
+  return (
+    <div className={`${workspace.workspace} ${styles.catalogue} ${css.page}`}>
+      <div className={css.header}>
+        <div className={css.headerToolbar}>
+          {backLink}
+          {canEditSchool && (
+            <div className={css.headerActions}>
+              <button type="button" onClick={() => setShowEdit(true)} className={styles.secondary}><Pencil size={16} aria-hidden="true" />Edit school</button>
+            </div>
+          )}
+        </div>
+        <div className={css.identity}>
+          <h2>{school.name}</h2>
+          <div className={css.meta}>
+            {school.code && <span className={css.code}>{school.code}</span>}
+            {location && <span><MapPin size={14} aria-hidden="true" />{location}</span>}
+            <span>
+              <UserRound size={14} aria-hidden="true" />
+              {IN_CHARGE}: <strong>{school.fellow_name ?? "Unassigned"}</strong>
+              {canViewStaffContacts && school.fellow_name && school.fellow_email && <span className={css.contact}>{school.fellow_email}</span>}
+            </span>
+            <span>
+              <UserRound size={14} aria-hidden="true" />
+              {ROLE_LABELS.ZONAL_MANAGER}: <strong>{school.zm_name ?? "—"}</strong>
+              {canViewStaffContacts && school.zm_name && school.zm_email && <span className={css.contact}>{school.zm_email}</span>}
+            </span>
           </div>
         </div>
-        {canEditSchool && (
-          <button onClick={() => setShowEdit(true)} style={secondaryButton}>Edit School</button>
-        )}
       </div>
 
       {showEdit && (
@@ -191,157 +267,53 @@ export default function SchoolDetailPage() {
         />
       )}
 
-      {/* Fellow + stats cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginBottom: "24px" }}>
-        <div style={cardStyle}>
-          <p style={cardLabelStyle}>Assigned {IN_CHARGE}</p>
-          {school.fellow_name ? (
-            <>
-              <p style={cardValueStyle}>{school.fellow_name}</p>
-              {canViewStaffContacts && school.fellow_email && (
-                <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>{school.fellow_email}</p>
-              )}
-            </>
-          ) : (
-            <p style={{ ...cardValueStyle, color: "var(--color-text-muted)" }}>Unassigned</p>
-          )}
+      <div className={css.metrics}>
+        <div className={css.metric}>
+          <span className={css.metricLabel}><Users size={14} aria-hidden="true" />Students</span>
+          <span className={css.metricValue}>{stats.student_count}</span>
+          {programmeMix && <span className={css.metricFoot}>{programmeMix}</span>}
         </div>
-        <div style={cardStyle}>
-          <p style={cardLabelStyle}>{ROLE_LABELS.ZONAL_MANAGER}</p>
-          {school.zm_name ? (
-            <>
-              <p style={cardValueStyle}>{school.zm_name}</p>
-              {canViewStaffContacts && school.zm_email && (
-                <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>{school.zm_email}</p>
-              )}
-            </>
-          ) : (
-            <p style={{ ...cardValueStyle, color: "var(--color-text-muted)" }}>—</p>
-          )}
-        </div>
-        <div style={cardStyle}>
-          <p style={cardLabelStyle}>Students</p>
-          <p style={cardValueStyle}>{stats.student_count}</p>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {stats.programmes.map((p) => (
-              <span key={p.programme ?? "none"} style={chipStyle}>
-                {p.programme ?? "No programme"}: {p.count}
-              </span>
-            ))}
-          </div>
+        <div className={css.metric}>
+          <span className={css.metricLabel}><Layers size={14} aria-hidden="true" />Batches</span>
+          <span className={css.metricValue}>{detail.batches.length}</span>
         </div>
         {analytics && (
-          <div style={cardStyle}>
-            <p style={cardLabelStyle}>Avg Completion</p>
-            <p style={cardValueStyle}>{analytics.avg_completion}%</p>
-            <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
-              {analytics.at_risk_count} at-risk student{analytics.at_risk_count === 1 ? "" : "s"}
-            </p>
+          <div className={css.metric}>
+            <span className={css.metricLabel}>Avg completion</span>
+            <span className={css.metricValue}>{analytics.avg_completion}%</span>
+            <span className={css.metricFoot}>{analytics.at_risk_count} at-risk student{analytics.at_risk_count === 1 ? "" : "s"}</span>
           </div>
         )}
       </div>
 
-      {/* Analytics: section scores */}
       {analytics && analytics.section_scores.length > 0 && (
-        <div style={{ ...cardStyle, marginBottom: "24px" }}>
-          <p style={cardLabelStyle}>Avg Quiz Score by Section</p>
-          <div style={{ display: "grid", gap: "8px" }}>
-            {analytics.section_scores.slice(0, 8).map((row) => (
-              <div key={row.section} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ flex: "0 0 220px", fontSize: "13px", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {row.section}
-                </span>
-                <div style={{ flex: 1, height: "8px", borderRadius: "4px", background: "rgba(3,72,82,0.08)" }}>
-                  <div style={{ width: `${Math.min(100, Math.max(0, row.avg_score))}%`, height: "100%", borderRadius: "4px", background: "var(--green)" }} />
-                </div>
-                <span style={{ flex: "0 0 48px", fontSize: "13px", fontWeight: 700, color: "var(--color-text)", textAlign: "right" }}>
-                  {row.avg_score}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <section className={css.panel}>
+          <h3>Avg quiz score by section</h3>
+          {analytics.section_scores.slice(0, 8).map((row) => (
+            <div key={row.section} className={css.scoreRow}>
+              <span className={css.scoreName} title={row.section}>{row.section}</span>
+              <div className={css.bar}><div style={{ width: `${Math.min(100, Math.max(0, row.avg_score))}%` }} /></div>
+              <span className={css.scoreValue}>{row.avg_score}%</span>
+            </div>
+          ))}
+        </section>
       )}
 
       {/* Tabs: these three sections are each long, so they page instead of stack. */}
-      <div
-        role="tablist"
-        aria-label="School sections"
-        style={{ display: "flex", gap: 4, flexWrap: "wrap", borderBottom: "1px solid var(--color-border)", paddingBottom: 8, marginBottom: 20 }}
-      >
-        {TABS.filter((t) => t.key !== "attendance" || canViewAttendance).map((t) => (
-          <button
-            key={t.key}
-            role="tab"
-            aria-selected={tab === t.key}
-            style={tabStyle(tab === t.key)}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {t.key === "batches" ? ` (${detail.batches.length})` : t.key === "students" ? ` (${stats.student_count})` : ""}
-          </button>
-        ))}
-      </div>
-
-      {/* Batches hosted at this school. The roster of each one lives on the
-          batch page, so a row is a link, not a disclosure. */}
-      {tab === "batches" && <>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>Batches</h2>
-          {canAttachBatch && (
-            <button onClick={() => setShowAddBatch(true)} style={secondaryButton}><Plus size={18} aria-hidden="true" />Add Batch</button>
-          )}
-        </div>
-
-        {showAddBatch && (
-          <AttachBatchPanel
-            schoolId={school.id}
-            schoolName={school.name}
-            onClose={() => setShowAddBatch(false)}
-            onChanged={() => void load()}
-          />
-        )}
-
-        <SchoolBatchList batches={detail.batches} currentUrl={currentUrl} canOpen={has(PERM.batches.view)} showStudentCounts={canViewStudents} />
-      </>}
-
-      {/* Roster identity and contacts have independent data grants. */}
-      {tab === "students" && <>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
-          <h2 style={{ ...titleStyle, fontSize: "18px", margin: 0 }}>
-            Students{q ? ` · ${visibleStudents.length} match${visibleStudents.length === 1 ? "" : "es"}` : ""}
-          </h2>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: "1 1 240px", justifyContent: "flex-end" }}>
-            <input
-              type="search"
-              value={studentQuery}
-              onChange={(e) => setStudentQuery(e.target.value)}
-              placeholder={canViewStudentContacts ? "Search name, roll number, email…" : "Search name or roll number…"}
-              aria-label="Search students"
-              style={{ ...inputStyle, maxWidth: "320px" }}
-            />
-            {canEditRoster && (
-              <button onClick={() => setShowAdd(true)} style={primaryButton}><Plus size={18} aria-hidden="true" />Add Students</button>
-            )}
-          </div>
-        </div>
-
-        {rosterError && (
-          <p style={{ color: "#b83232", fontWeight: 600, fontSize: "13px" }}>{rosterError}</p>
-        )}
-
-        <RosterTable
-          rows={visibleStudents}
-          emptyMessage={q ? "No students match this search." : "No students assigned to this school yet."}
-          {...tableProps}
+      <div className={`${workspace.stickyTabs} ${css.tabs}`}>
+        <Tabs
+          ariaLabel="School sections"
+          compactOnScroll
+          activeKey={tab}
+          onTabChange={(key) => setTab(key as TabKey)}
+          tabs={visibleTabs.map((t) => ({
+            key: t.key,
+            label: t.label,
+            count: t.key === "batches" ? detail.batches.length : t.key === "students" ? stats.student_count : null,
+            panel,
+          }))}
         />
-      </>}
-
-      {/* Committed register attendance for this school — read-only; uploading
-          still lives in the Attendance tab. */}
-      {tab === "attendance" && (
-        <AttendancePanel schoolId={school.id} canView={canViewAttendance} defaultOpen />
-      )}
+      </div>
 
       {showAdd && (
         <AddStudentsPanel
@@ -384,53 +356,52 @@ function RosterTable({
   onConfirmRemove: (studentId: string) => void;
   onCancelRemove: () => void;
 }) {
+  if (rows.length === 0) {
+    return (
+      <section className={styles.empty}>
+        <Users size={28} aria-hidden="true" />
+        <p>{emptyMessage}</p>
+      </section>
+    );
+  }
   return (
-    <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "14px" }}>
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <caption className="sr-only">Students</caption>
         <thead>
-          <tr style={{ textAlign: "left" }}>
-            <th style={thStyle}>Name</th>
-            <th style={thStyle}>Roll Number</th>
-            {canViewStudentContacts && <th style={thStyle}>Email</th>}
-            <th style={thStyle}>Programme</th>
-            {canEditRoster && <th style={thStyle} />}
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Roll number</th>
+            {canViewStudentContacts && <th scope="col">Email</th>}
+            <th scope="col">Programme</th>
+            {canEditRoster && <th scope="col"><span className="sr-only">Actions</span></th>}
           </tr>
         </thead>
         <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={3 + Number(canEditRoster) + Number(canViewStudentContacts)} style={{ padding: "20px", color: "var(--color-text-muted)" }}>
-                {emptyMessage}
-              </td>
-            </tr>
-          ) : rows.map((st) => (
-            <tr key={st.id} style={{ borderTop: "1px solid var(--color-border)" }}>
-              <td style={tdStyle}><EntityLink href={`/dashboard/students/${st.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{st.name}</EntityLink></td>
-              <td style={tdStyle}>{st.roll_number ?? "—"}</td>
-              {canViewStudentContacts && <td style={tdStyle}>{st.email ?? "—"}</td>}
-              <td style={tdStyle}>{st.programme ?? "—"}</td>
+          {rows.map((st) => (
+            <tr key={st.id}>
+              <td><EntityLink href={`/dashboard/students/${st.id}`} permissions={STUDENT_PROFILE_PERMISSIONS} requiredPermissions={[PERM.students.view]}>{st.name}</EntityLink></td>
+              <td>{st.roll_number ?? <span className={css.muted}>—</span>}</td>
+              {canViewStudentContacts && <td>{st.email ?? <span className={css.muted}>—</span>}</td>}
+              <td>{st.programme ?? <span className={css.muted}>—</span>}</td>
               {canEditRoster && (
-                <td style={{ ...tdStyle, textAlign: "right", whiteSpace: "nowrap" }}>
+                <td className={css.actionCell}>
                   {!schoolStudentIds.has(st.id) ? (
-                    <span style={{ color: "var(--color-text-muted)" }}>—</span>
+                    <span className={css.muted}>—</span>
                   ) : confirmRemoveId === st.id ? (
                     <>
-                      <span style={{ fontSize: "12px", color: "var(--color-text-muted)", marginRight: "8px" }}>
+                      <span className={css.muted} style={{ fontSize: "12px", marginRight: "4px" }}>
                         Remove from school?
                       </span>
-                      <button
-                        onClick={() => onRemove(st.id)}
-                        disabled={removingId === st.id}
-                        style={{ ...linkBtnStyle, color: "#b83232", opacity: removingId === st.id ? 0.5 : 1 }}
-                      >
+                      <button type="button" onClick={() => onRemove(st.id)} disabled={removingId === st.id} className={css.danger}>
                         {removingId === st.id ? "Removing…" : "Yes"}
                       </button>
-                      <button onClick={onCancelRemove} style={{ ...linkBtnStyle, marginLeft: "8px" }}>
+                      <button type="button" onClick={onCancelRemove} className={css.linkBtn}>
                         No
                       </button>
                     </>
                   ) : (
-                    <button onClick={() => onConfirmRemove(st.id)} style={{ ...linkBtnStyle, color: "#b83232" }}>
+                    <button type="button" onClick={() => onConfirmRemove(st.id)} className={css.danger}>
                       Remove
                     </button>
                   )}
@@ -443,10 +414,3 @@ function RosterTable({
     </div>
   );
 }
-
-const backLinkStyle: React.CSSProperties = backButton;
-const backLabel = <><ArrowLeft size={16} aria-hidden="true" />Back</>;
-const chipStyle: React.CSSProperties = { display: "inline-block", padding: "4px 10px", borderRadius: "6px", background: "rgba(3,72,82,0.06)", fontSize: "12px", fontWeight: 600, color: "var(--color-text)" };
-const cardStyle: React.CSSProperties = baseCard;
-const cardLabelStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" };
-const cardValueStyle: React.CSSProperties = { margin: "0 0 6px", fontSize: "24px", fontWeight: 700, color: "var(--color-text)" };
