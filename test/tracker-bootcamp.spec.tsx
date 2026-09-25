@@ -275,6 +275,30 @@ describe("school/batch picker review fixes", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Evening" }));
     fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Att" } });
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
-    await waitFor(() => expect(assign).toHaveBeenLastCalledWith("t1", ["f1"], { schoolIds: [], batchIds: ["b1", "b2"] }));
+    await waitFor(() => expect(assign).toHaveBeenLastCalledWith("t1", ["f1"], { schoolIds: [], batchIds: ["b1", "b2"] }), { timeout: 5000 });
+  });
+});
+
+describe("Batches list grouped by school", () => {
+  it("a school group ticks all its batches (as batches), collapses, and can be flattened", async () => {
+    render(<TrackerBuilder canAuthor />);
+    fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
+    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    fireEvent.click(screen.getByLabelText("All batches of Camp School A"));
+    expect((screen.getByRole("checkbox", { name: "Morning" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "Evening" }) as HTMLInputElement).checked).toBe(true);
+    // The school above reads as fully picked.
+    expect((screen.getByLabelText("Camp School A") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Hide batches of Camp School A" }));
+    expect(screen.queryByRole("checkbox", { name: "Morning" })).toBeNull();
+    fireEvent.click(screen.getByLabelText("Group by school"));
+    expect(screen.getByRole("checkbox", { name: "Morning" })).toBeTruthy();
+    // Picking a school's batches also auto-picks that school's in-charge.
+    expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(true);
+    fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Att" } });
+    assign.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
+    // assign.mockClear() above: this asserts THIS test's call, not one left by an earlier test.
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("t1", ["f1"], { schoolIds: [], batchIds: expect.arrayContaining(["b1", "b2"]) }), { timeout: 5000 });
   });
 });

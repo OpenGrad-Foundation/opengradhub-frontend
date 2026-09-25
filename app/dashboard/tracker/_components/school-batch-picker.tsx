@@ -32,6 +32,9 @@ export function SchoolBatchPicker({
   const [q, setQ] = useState("");
   const [bq, setBq] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  // Batches list: grouped under their school (collapsible) or flat.
+  const [grouped, setGrouped] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const known = useMemo(() => new Set(schools.map((s) => s.id)), [schools]);
   const schoolName = useMemo(() => new Map(schools.map((s) => [s.id, s.name])), [schools]);
   const bySchool = useMemo(() => {
@@ -88,6 +91,28 @@ export function SchoolBatchPicker({
     .filter((b) => isLoose(b) || touched.size === 0 || touched.has(b.schoolId as string))
     .filter((b) => has(`${b.name} ${schoolName.get(b.schoolId ?? "") ?? ""}`, bq.trim().toLowerCase()));
   const allBatchesShownPicked = shownBatches.length > 0 && shownBatches.every(batchChecked);
+  /** Tick or untick a set of batches as batch picks (a whole school they belong to is split). */
+  function setBatches(list: PickerBatch[], on: boolean) {
+    const s = new Set(whole); const b = new Set(picked);
+    for (const x of list) {
+      const sid = isLoose(x) ? null : (x.schoolId as string);
+      if (on) { if (!batchChecked(x)) b.add(x.id); continue; }
+      b.delete(x.id);
+      if (sid && s.has(sid)) { // untick part of a whole school → keep its other batches
+        s.delete(sid);
+        batchesOf(sid).filter((y) => !list.some((z) => z.id === y.id)).forEach((y) => b.add(y.id));
+      }
+    }
+    emit(s, b);
+  }
+  const LOOSE = "__across";
+  const groups = (() => {
+    const m = new Map<string, PickerBatch[]>();
+    for (const b of shownBatches) { const k = isLoose(b) ? LOOSE : (b.schoolId as string); m.set(k, [...(m.get(k) ?? []), b]); }
+    return [...m.entries()].sort(([a], [b]) => (a === LOOSE ? -1 : b === LOOSE ? 1
+      : (schoolName.get(a) ?? "").localeCompare(schoolName.get(b) ?? "")));
+  })();
+  const toggleCollapsed = (k: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   function toggleAllBatches() {
     const s = new Set(whole); const b = new Set(picked);
     for (const x of shownBatches) {
@@ -198,9 +223,53 @@ export function SchoolBatchPicker({
                 {allBatchesShownPicked ? "Deselect" : "Select"} all {shownBatches.length} batches
               </button>
             )}
+            <label className="flex items-center gap-1.5 text-xs text-gray-600">
+              <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} /> Group by school
+            </label>
           </div>
           {shownBatches.length === 0 ? (
             <p className="px-2 py-1 text-xs text-gray-400">{batches.length ? "No batch matches." : "None available."}</p>
+          ) : grouped ? (
+            <div className="flex max-h-72 flex-col gap-1 overflow-auto">
+              {groups.map(([key, list]) => {
+                const label = key === LOOSE ? "Across schools" : schoolName.get(key) ?? "School";
+                const n = list.filter(batchChecked).length;
+                const isCollapsed = collapsed.has(key) && !bq.trim();
+                return (
+                  <div key={key} className="rounded-md border border-gray-100">
+                    <div className="flex items-center gap-1 bg-gray-50/70 px-2 py-1.5 text-sm">
+                      <button type="button" onClick={() => toggleCollapsed(key)} aria-expanded={!isCollapsed}
+                        aria-label={`${isCollapsed ? "Show" : "Hide"} batches of ${label}`}
+                        className="rounded p-0.5 text-gray-500 hover:bg-gray-100">
+                        <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isCollapsed ? "-rotate-90" : "")} aria-hidden="true" />
+                      </button>
+                      <label className="flex min-w-0 flex-1 items-center gap-2">
+                        <input
+                          type="checkbox"
+                          aria-label={`All batches of ${label}`}
+                          checked={n === list.length}
+                          ref={(el) => { if (el) el.indeterminate = n > 0 && n < list.length; }}
+                          onChange={() => setBatches(list, n !== list.length)}
+                        />
+                        <span className="truncate font-medium text-gray-800">{label}</span>
+                        <span className="text-xs text-gray-400">{n ? `${n}/${list.length}` : list.length}</span>
+                      </label>
+                    </div>
+                    {!isCollapsed && (
+                      <div className="grid gap-0.5 px-2 py-1 pl-8 sm:grid-cols-2">
+                        {list.map((b) => (
+                          <label key={b.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
+                            <input type="checkbox" aria-label={b.name} checked={batchChecked(b)} onChange={() => toggleBatch(b)} />
+                            <span className="text-gray-900">{b.name}</span>
+                            <span className="text-xs text-gray-400">{b.memberCount} students</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           ) : (
             <div className="grid max-h-52 gap-1 overflow-auto sm:grid-cols-2">
               {shownBatches.map((b) => (
