@@ -12,7 +12,7 @@ import {
   useTemplateGeoVerifications,
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
-import { fetchTaskExport } from "@/lib/tracker-api";
+import { fetchTaskExport, getTaskPeriods, getTrackerGrid } from "@/lib/tracker-api";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { IN_CHARGE, roleLabel } from "@/lib/labels";
@@ -42,8 +42,8 @@ const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-l
 
 export function TrackerEditableGrid({
   template,
-  grid,
-  canFill,
+  grid: currentGrid,
+  canFill: canFillProp,
   canClear,
   statusFilter = "",
   onStatusFilterChange,
@@ -51,7 +51,7 @@ export function TrackerEditableGrid({
   filterBar,
   canOverrideGeo = false,
   canGrantExtension = false,
-  canOverrideFill = false,
+  canOverrideFill: canOverrideFillProp = false,
   canExport = false,
   owner = null,
 }: {
@@ -84,8 +84,28 @@ export function TrackerEditableGrid({
    *  override mode when the manager switches to someone else. */
   owner?: { id: string; name: string } | null;
 }) {
-  // Unfiltered by default: a grid rendered without a filter set shows all its rows.
-  const visibleRows = visibleRowsProp ?? grid.rows;
+  // A repeating task shows its current period; a past one can be picked to look at (and
+  // export) read-only. "" = current. Fetched here, not through the page's grid query, so
+  // every screen that renders this grid gets the picker without new plumbing.
+  const [periods, setPeriods] = useState<string[] | null>(null);
+  const [viewPeriod, setViewPeriod] = useState("");
+  const [pastGrid, setPastGrid] = useState<TrackerGrid | null>(null);
+  const viewingPast = viewPeriod !== "";
+  const grid: TrackerGrid = viewingPast ? (pastGrid ?? { columns: currentGrid.columns, rows: [] }) : currentGrid;
+  const canFill = canFillProp && !viewingPast;
+  const canOverrideFill = canOverrideFillProp && !viewingPast;
+  function loadPeriods() {
+    if (template.recurrence_frequency && periods === null)
+      getTaskPeriods(template.id).then(setPeriods).catch(() => setPeriods([]));
+  }
+  function pickPeriod(p: string) {
+    setViewPeriod(p);
+    setPastGrid(null);
+    if (p) getTrackerGrid(template.id, owner?.id, p).then(setPastGrid).catch(() => setPastGrid({ columns: currentGrid.columns, rows: [] }));
+  }
+  // Unfiltered by default: a grid rendered without a filter set shows all its rows. The
+  // filters above describe the current period, so a past one shows every row.
+  const visibleRows = viewingPast ? grid.rows : (visibleRowsProp ?? grid.rows);
   const save = useSaveTrackerBatch();
   const saveOnBehalf = useSaveTrackerBatchOnBehalf();
   const raise = useRaiseTrackerBlocker();
@@ -337,7 +357,7 @@ export function TrackerEditableGrid({
     setError(null);
     setExporting(history ? "history" : "records");
     try {
-      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id });
+      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id, period: viewPeriod || undefined });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -592,6 +612,22 @@ export function TrackerEditableGrid({
             <option value="">All statuses</option>
             {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
+          {template.recurrence_frequency && (
+            <select
+              aria-label="Period to view"
+              value={viewPeriod}
+              onFocus={loadPeriods}
+              onMouseDown={loadPeriods}
+              onChange={(e) => pickPeriod(e.target.value)}
+              disabled={dirtyCount > 0 || onBehalfMode}
+              title={dirtyCount > 0 || onBehalfMode ? "Save or discard your changes first" : "View an earlier day (read-only)"}
+              className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500"
+            >
+              <option value="">{template.recurrence_frequency === "daily" ? "Today" : "Current period"}</option>
+              {(periods ?? []).filter((p) => p !== currentPeriodOf(currentGrid)).map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          )}
+          {viewingPast && <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Earlier day — read-only</span>}
           <GeoStatusChip
             template={template}
             // Every school of the task, not just the filtered subset: the count must
@@ -643,7 +679,7 @@ export function TrackerEditableGrid({
                     className={menuItemClass}
                   >
                     <span className="font-medium text-gray-800">Records only (.csv)</span>
-                    <span className="text-[11px] text-gray-500">All {grid.rows.length} rows with status, evidence and last update</span>
+                    <span className="text-[11px] text-gray-500">{viewingPast ? `All ${grid.rows.length} rows for ${viewPeriod}` : `All ${grid.rows.length} rows`} with status, evidence and last update</span>
                   </button>
                   <button
                     type="button"
@@ -1356,4 +1392,9 @@ function FillAllBar({
       {note && <span className="text-gray-500">{note}</span>}
     </div>
   );
+}
+
+/** The period the current grid shows, from its rows (the server stamps each with it). */
+function currentPeriodOf(grid: TrackerGrid): string | undefined {
+  return grid.rows[0]?.period_key;
 }
