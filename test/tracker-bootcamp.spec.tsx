@@ -284,6 +284,11 @@ describe("Batches list grouped by school", () => {
     render(<TrackerBuilder canAuthor />);
     fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
     fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    // A cascade: the section, then the school, open on demand.
+    expect(screen.queryByLabelText("All batches of Camp School A")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Batches \(/ }));
+    expect(screen.queryByRole("checkbox", { name: "Morning" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show batches of Camp School A" }));
     fireEvent.click(screen.getByLabelText("All batches of Camp School A"));
     expect((screen.getByRole("checkbox", { name: "Morning" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "Evening" }) as HTMLInputElement).checked).toBe(true);

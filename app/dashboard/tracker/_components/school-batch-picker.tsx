@@ -32,9 +32,11 @@ export function SchoolBatchPicker({
   const [q, setQ] = useState("");
   const [bq, setBq] = useState("");
   const [open, setOpen] = useState<Set<string>>(new Set());
-  // Batches list: grouped under their school (collapsible) or flat.
+  // Batches list: a cascade — the section opens, then each school group opens. Both start
+  // closed; searching opens the groups that match. "Group by school" off = one flat list.
+  const [batchesOpen, setBatchesOpen] = useState(false);
   const [grouped, setGrouped] = useState(true);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const known = useMemo(() => new Set(schools.map((s) => s.id)), [schools]);
   const schoolName = useMemo(() => new Map(schools.map((s) => [s.id, s.name])), [schools]);
   const bySchool = useMemo(() => {
@@ -112,7 +114,7 @@ export function SchoolBatchPicker({
     return [...m.entries()].sort(([a], [b]) => (a === LOOSE ? -1 : b === LOOSE ? 1
       : (schoolName.get(a) ?? "").localeCompare(schoolName.get(b) ?? "")));
   })();
-  const toggleCollapsed = (k: string) => setCollapsed((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const toggleExpanded = (k: string) => setExpanded((c) => { const n = new Set(c); if (n.has(k)) n.delete(k); else n.add(k); return n; });
   function toggleAllBatches() {
     const s = new Set(whole); const b = new Set(picked);
     for (const x of shownBatches) {
@@ -194,7 +196,7 @@ export function SchoolBatchPicker({
                     <div className="ml-7 flex flex-col gap-0.5 border-l border-gray-100 pl-2">
                       {mine.map((b) => (
                         <label key={b.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
-                          <input type="checkbox" checked={batchChecked(b)} onChange={() => toggleBatch(b)} />
+                          <input type="checkbox" aria-label={b.name} checked={batchChecked(b)} onChange={() => toggleBatch(b)} />
                           <span className="text-gray-800">{b.name}</span>
                           <span className="text-xs text-gray-400">{b.memberCount} students</span>
                         </label>
@@ -210,12 +212,20 @@ export function SchoolBatchPicker({
 
       {showBatches && (
         <fieldset className="flex flex-col gap-1">
-          <legend className="text-sm font-medium text-gray-700">
+          <legend className="sr-only">Batches</legend>
+          <button
+            type="button"
+            onClick={() => setBatchesOpen((o) => !o)}
+            aria-expanded={batchesOpen}
+            className="flex items-center gap-1.5 self-start rounded text-sm font-medium text-gray-700 hover:text-gray-950"
+          >
+            <ChevronDown className={"h-4 w-4 transition-transform " + (batchesOpen ? "" : "-rotate-90")} aria-hidden="true" />
             Batches <span className="font-normal text-gray-500">({value.batchIds.length ? `${value.batchIds.length} selected` : "all"})</span>
-          </legend>
+          </button>
           <p className="text-xs text-gray-500">
             {touched.size ? "Batches of the schools above, plus batches that span schools." : "Every batch you reach. Tick schools above to narrow this list."}
           </p>
+          {batchesOpen && (<>
           <div className="flex flex-wrap items-center gap-2">
             <input value={bq} onChange={(e) => setBq(e.target.value)} placeholder="Search batches" aria-label="Search batches" className={searchCls} />
             {shownBatches.length > 0 && (
@@ -234,11 +244,11 @@ export function SchoolBatchPicker({
               {groups.map(([key, list]) => {
                 const label = key === LOOSE ? "Across schools" : schoolName.get(key) ?? "School";
                 const n = list.filter(batchChecked).length;
-                const isCollapsed = collapsed.has(key) && !bq.trim();
+                const isCollapsed = !expanded.has(key) && !bq.trim();
                 return (
                   <div key={key} className="rounded-md border border-gray-100">
                     <div className="flex items-center gap-1 bg-gray-50/70 px-2 py-1.5 text-sm">
-                      <button type="button" onClick={() => toggleCollapsed(key)} aria-expanded={!isCollapsed}
+                      <button type="button" onClick={() => toggleExpanded(key)} aria-expanded={!isCollapsed}
                         aria-label={`${isCollapsed ? "Show" : "Hide"} batches of ${label}`}
                         className="rounded p-0.5 text-gray-500 hover:bg-gray-100">
                         <ChevronDown className={"h-3.5 w-3.5 transition-transform " + (isCollapsed ? "-rotate-90" : "")} aria-hidden="true" />
@@ -283,6 +293,7 @@ export function SchoolBatchPicker({
               ))}
             </div>
           )}
+          </>)}
         </fieldset>
       )}
     </div>
