@@ -211,6 +211,33 @@ export function TrackerEditableGrid({
   }
 
   /**
+   * "Fill all shown rows": one value into one column (or the status) for every row on
+   * screen the viewer may edit — e.g. mark 600 students Present, then flip the absentees.
+   * Only drafts; nothing is sent until Save. Reaching done in bulk skips rows a gate would
+   * refuse (overdue, missing proof / visit check), so one row cannot sink the whole save.
+   */
+  function fillAll(key: string, value: unknown): number {
+    let n = 0;
+    const next: Record<string, RowDraft> = {};
+    for (const row of visibleRows) {
+      if (!canEditRow(row)) continue;
+      if (key === STATUS_KEY) {
+        const status = String(value);
+        const gated = status === doneStatus && !overridingRow(row)
+          && (row.lifecycle === "overdue" || requiresProof || requiresGeo);
+        if (gated || (drafts[row.record_id]?.status ?? row.status) === status) continue;
+        next[row.record_id] = { ...drafts[row.record_id], values: drafts[row.record_id]?.values ?? {}, status };
+      } else {
+        if (!editableKeys.has(key)) continue;
+        next[row.record_id] = { ...drafts[row.record_id], values: { ...(drafts[row.record_id]?.values ?? {}), [key]: value } };
+      }
+      n += 1;
+    }
+    setDrafts((d) => ({ ...d, ...next }));
+    return n;
+  }
+
+  /**
    * One Save, several requests. A mixed grid holds rows the viewer owns and rows they may
    * only override, and those take different endpoints: the override route refuses a
    * self-override outright and accepts a single doer per request. Groups are sent in turn and
@@ -702,6 +729,14 @@ export function TrackerEditableGrid({
           )}
         </div>
       </div>
+      {(anyOrdinaryFill || onBehalfMode) && visibleRows.some(canEditRow) && (
+        <FillAllBar
+          columns={grid.columns.filter((c) => editableKeys.has(c.field_key) && c.field_type !== "multiselect")}
+          statuses={template.completion_style === "workflow" ? (template.workflow_statuses ?? []) : ["done", "not_started"]}
+          rowCount={visibleRows.filter(canEditRow).length}
+          onApply={fillAll}
+        />
+      )}
       {onBehalfMode && (
         <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2.5">
           <ShieldAlert className="h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
@@ -1265,6 +1300,60 @@ function RecordGeoSummary({ recordId }: { recordId: string }) {
           <p className="text-gray-400">Shared across this school visit.</p>
         </div>
       )}
+    </div>
+  );
+}
+
+const STATUS_KEY = "__status__";
+const STATUS_LABEL: Record<string, string> = { done: "Done", not_started: "Open" };
+
+/** Pick a column (or the status) and a value, apply it to every editable row on screen. */
+function FillAllBar({
+  columns, statuses, rowCount, onApply,
+}: {
+  columns: TrackerGrid["columns"];
+  statuses: string[];
+  rowCount: number;
+  onApply: (key: string, value: unknown) => number;
+}) {
+  const [key, setKey] = useState(columns[0]?.field_key ?? STATUS_KEY);
+  const [raw, setRaw] = useState("");
+  const [note, setNote] = useState<string | null>(null);
+  const col = columns.find((c) => c.field_key === key);
+  const choices: { value: string; label: string }[] | null =
+    key === STATUS_KEY ? statuses.map((s) => ({ value: s, label: STATUS_LABEL[s] ?? s }))
+    : col?.field_type === "select" ? (col.options ?? []).map((o) => ({ value: o, label: o }))
+    : col?.field_type === "boolean" ? [{ value: "true", label: "Yes" }, { value: "false", label: "No" }]
+    : null;
+  const value = raw || (choices?.[0]?.value ?? "");
+  const cls = "h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500";
+  function apply() {
+    if (value === "") return;
+    const typed: unknown = col?.field_type === "boolean" ? value === "true"
+      : col?.field_type === "number" ? Number(value) : value;
+    const n = onApply(key, typed);
+    setNote(n ? `Filled ${n} row${n === 1 ? "" : "s"} — review, then Save.` : "Nothing to change.");
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-xs text-gray-600">
+      <span className="font-medium text-gray-700">Fill all {rowCount} shown rows:</span>
+      <select aria-label="Column to fill" value={key} onChange={(e) => { setKey(e.target.value); setRaw(""); setNote(null); }} className={cls}>
+        {columns.map((c) => <option key={c.field_key} value={c.field_key}>{c.label}</option>)}
+        <option value={STATUS_KEY}>Status</option>
+      </select>
+      {choices ? (
+        <select aria-label="Value" value={value} onChange={(e) => setRaw(e.target.value)} className={cls}>
+          {choices.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
+      ) : (
+        <input aria-label="Value" value={raw} onChange={(e) => setRaw(e.target.value)}
+          type={col?.field_type === "number" ? "number" : col?.field_type === "date" ? "date" : "text"} className={cls} />
+      )}
+      <button type="button" onClick={apply} disabled={value === ""}
+        className="rounded-md border border-teal-300 bg-white px-2.5 py-1 font-medium text-teal-700 hover:bg-teal-50 disabled:opacity-50">
+        Apply
+      </button>
+      {note && <span className="text-gray-500">{note}</span>}
     </div>
   );
 }

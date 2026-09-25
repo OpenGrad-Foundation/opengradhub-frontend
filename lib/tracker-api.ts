@@ -38,6 +38,9 @@ export type TrackerTemplate = {
   done_status: string | null;
   deadline: string | null;
   recurrence_frequency: string | null;
+  /** Repeating tasks: the window it runs in (YYYY-MM-DD), null = open-ended. */
+  starts_on?: string | null;
+  ends_on?: string | null;
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   require_photo: boolean;
@@ -167,6 +170,9 @@ export type CreateTrackerTemplateInput = {
   done_status?: string;
   deadline?: string;
   recurrence_frequency?: TrackerRecurrence;
+  /** Repeating tasks only: first / last day it runs (YYYY-MM-DD). */
+  starts_on?: string | null;
+  ends_on?: string | null;
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
@@ -180,6 +186,8 @@ export type TrackerTemplatePatch = {
   name?: string;
   description?: string | null;
   deadline?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
   status?: "draft" | "active" | "archived";
   recurrence_frequency?: TrackerRecurrence | null;
   priority?: TrackerPriority;
@@ -283,11 +291,17 @@ export function assignTrackerTargets(templateId: string, targetIds: string[], ba
 /** Assign by WHO fills the task in. The picked people are the doers whatever the Task
  *  Target: for a staff task that is their own row; for a school / student task each
  *  person receives one entry per school / student inside their reach, owned by them.
- *  `skipped` counts picked people who ended up with no entry. */
-export function assignTrackerDoers(templateId: string, doerIds: string[], batchId?: string) {
+ *  `skipped` counts picked people who ended up with no entry. `batchIds` / `schoolIds`
+ *  narrow a student / school task to those batches / schools; empty = everything in reach. */
+export function assignTrackerDoers(
+  templateId: string, doerIds: string[], scope: { batchIds?: string[]; schoolIds?: string[] } = {},
+) {
+  const body: Record<string, unknown> = { doerIds };
+  if (scope.batchIds?.length) body.batchIds = scope.batchIds;
+  if (scope.schoolIds?.length) body.schoolIds = scope.schoolIds;
   return trackerJson<{ created: number; skipped: number }>(
     `/tracker/templates/${encodeURIComponent(templateId)}/assign`,
-    jsonInit("POST", batchId ? { doerIds, batchId } : { doerIds }),
+    jsonInit("POST", body),
   );
 }
 

@@ -3,7 +3,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("@/lib/queries/tracker", () => ({
   useProfilePaths: () => ({ data: { paths: [] } }),
-  useTrackerAssignable: () => ({ data: [{ id: "zm1", name: "Ravi", role: "ZONAL_MANAGER", state: null, programmes: [] }], isLoading: false }),
+  useTrackerAssignable: (t: string) => ({
+    data: t === "school" ? [] : [{ id: "zm1", name: "Ravi", role: "ZONAL_MANAGER", state: null, programmes: [] }],
+    isLoading: false,
+  }),
   useTrackerMyProgrammes: () => ({ data: [] }),
 }));
 vi.mock("@/lib/queries/batches", () => ({ useBatches: () => ({ data: [] }) }));
@@ -25,7 +28,7 @@ describe("TrackerBuilder — who fills this in", () => {
     fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Visit" } });
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
     await waitFor(() => expect(screen.getByText(/assigned to 1 staff\. 1 of the 2 people picked could not be assigned/i)).toBeTruthy());
-    expect(assignDoers).toHaveBeenCalledWith("t1", ["zm1", "pm1"], undefined);
+    expect(assignDoers).toHaveBeenCalledWith("t1", ["zm1", "pm1"], { schoolIds: [], batchIds: [] });
   });
 
   it("a school task still picks people, and reports entries rather than people", async () => {
@@ -35,6 +38,6 @@ describe("TrackerBuilder — who fills this in", () => {
     expect(screen.getByLabelText(/ravi/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
     await waitFor(() => expect(screen.getByText(/assigned 4 school entries/i)).toBeTruthy());
-    expect(assignDoers).toHaveBeenLastCalledWith("t1", ["zm1"], undefined);
+    expect(assignDoers).toHaveBeenLastCalledWith("t1", ["zm1"], { schoolIds: [], batchIds: [] });
   });
 });
