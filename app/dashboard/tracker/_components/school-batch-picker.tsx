@@ -11,10 +11,11 @@ export type SchoolBatchPick = { schoolIds: string[]; batchIds: string[] };
  * Schools, each with its batches underneath, for the task builder.
  *
  * The pick is a union the server honours as such: a ticked school covers all of its
- * students, a ticked batch its members. A school shows ✓ when it is taken whole and –
- * when only some of its batches are. Ticking a batch under a whole school turns the school
- * into "these batches"; ticking the last one back turns it whole again. Batches with no
- * school (a camp that gathers students from many schools) are listed on their own.
+ * students, a ticked batch its members. A school shows ✓ when it is taken whole (or every
+ * one of its batches is ticked) and – when only some are. Ticking a batch under a whole
+ * school turns the school into "the other batches"; ticking every batch stays a batch pick —
+ * it never silently widens to the whole school, whose students need not all be in a batch.
+ * Batches with no school (a camp that gathers students from many schools) are listed alone.
  */
 export function SchoolBatchPicker({
   schools, batches, showBatches, value, onChange,
@@ -47,10 +48,12 @@ export function SchoolBatchPicker({
   const emit = (schoolIds: Set<string>, batchIds: Set<string>) =>
     onChange({ schoolIds: [...schoolIds], batchIds: [...batchIds] });
 
+  const allBatchesPicked = (id: string) => { const m = batchesOf(id); return m.length > 0 && m.every((x) => picked.has(x.id)); };
   function toggleSchool(id: string) {
     const s = new Set(whole); const b = new Set(picked);
     const mine = batchesOf(id).map((x) => x.id);
-    if (s.has(id)) s.delete(id); else s.add(id);
+    const on = s.has(id) || allBatchesPicked(id);
+    if (on) s.delete(id); else s.add(id);
     mine.forEach((x) => b.delete(x)); // whole school or nothing: either way no per-batch picks
     emit(s, b);
   }
@@ -63,13 +66,10 @@ export function SchoolBatchPicker({
       s.delete(sid);
       mine.filter((x) => x !== batch.id).forEach((x) => b.add(x));
     } else if (b.has(batch.id)) b.delete(batch.id);
-    else {
-      b.add(batch.id);
-      if (mine.every((x) => b.has(x))) { mine.forEach((x) => b.delete(x)); s.add(sid); } // all ticked → whole
-    }
+    else b.add(batch.id);
     emit(s, b);
   }
-  const allShownPicked = shownSchools.length > 0 && shownSchools.every((s) => whole.has(s.id));
+  const allShownPicked = shownSchools.length > 0 && shownSchools.every((s) => whole.has(s.id) || allBatchesPicked(s.id));
   function toggleAllShown() {
     const s = new Set(whole); const b = new Set(picked);
     for (const sc of shownSchools) {
@@ -125,7 +125,7 @@ export function SchoolBatchPicker({
         {shownSchools.map((s) => {
           const mine = batchesOf(s.id);
           const nPicked = mine.filter((b) => picked.has(b.id)).length;
-          const full = whole.has(s.id);
+          const full = whole.has(s.id) || allBatchesPicked(s.id);
           const partial = !full && nPicked > 0;
           const isOpen = open.has(s.id) || (needle !== "" && !hit(s.name));
           return (
@@ -151,7 +151,7 @@ export function SchoolBatchPicker({
                 <div className="ml-7 flex flex-col gap-0.5 border-l border-gray-100 pl-2">
                   {mine.filter((b) => !needle || hit(s.name) || hit(b.name)).map((b) => (
                     <label key={b.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-gray-50">
-                      <input type="checkbox" checked={full || picked.has(b.id)} onChange={() => toggleBatch(b)} />
+                      <input type="checkbox" checked={whole.has(s.id) || picked.has(b.id)} onChange={() => toggleBatch(b)} />
                       <span className="text-gray-800">{b.name}</span>
                       <span className="text-xs text-gray-400">{b.memberCount} students</span>
                     </label>

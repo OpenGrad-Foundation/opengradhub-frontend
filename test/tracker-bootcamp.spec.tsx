@@ -215,3 +215,66 @@ describe("grid: marking completes the student, and unsaved marks are guarded", (
     expect(dirty.defaultPrevented).toBe(true);
   });
 });
+
+describe("review fixes", () => {
+  const template = ({
+    id: "t1", code: "ATT", name: "Attendance", description: null, target_type: "student",
+    completion_style: "checklist", workflow_statuses: null, done_status: null, deadline: null,
+    priority: "medium", recurrence_frequency: "daily", require_photo: false, require_location: false,
+    require_geo_verification: false, status: "active",
+  }) as TrackerTemplate;
+  const cols: TrackerGrid["columns"] = [{ field_key: "present", label: "Present?", field_type: "select", source: "input", source_path: null, options: ["Present", "Absent"], required: true, visible_if: null, sort_order: 0 }];
+  const row = (id: string, period = "2026-09-28") => ({
+    record_id: id, target_name: `Kid ${id}`, period_key: period, status: "not_started", lifecycle: "not_started",
+    cells: [{ field_key: "present", value: null }], blocked: false, blocker: null,
+    can_fill_self: true, can_fill_override: false, can_evidence: true, can_blocker: true,
+  }) as unknown as TrackerGridRow;
+
+  it("an earlier day offers no write controls at all (no blocker raise, no fill-all, no save)", async () => {
+    pastGrid.mockResolvedValueOnce({ columns: cols, rows: [row("p", "2026-09-27")] });
+    render(<TrackerEditableGrid template={template} grid={{ columns: cols, rows: [row("a")] }} canFill canClear canExport />);
+    expect(screen.getAllByPlaceholderText(/blocker|stuck|problem/i).length).toBeGreaterThan(0);
+    const picker = screen.getByLabelText("Period to view");
+    fireEvent.focus(picker);
+    await waitFor(() => expect(within(picker).getByRole("option", { name: "2026-09-27" })).toBeTruthy());
+    fireEvent.change(picker, { target: { value: "2026-09-27" } });
+    expect(await screen.findAllByText("Kid p")).not.toHaveLength(0);
+    expect(screen.queryAllByPlaceholderText(/blocker|stuck|problem/i)).toHaveLength(0);
+    expect(screen.queryByText(/Fill all/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Save/ })).toBeNull();
+  });
+
+  it("clearing an answer takes back the Done it ticked automatically", () => {
+    render(<TrackerEditableGrid template={template} grid={{ columns: cols, rows: [row("a")] }} canFill canClear={false} />);
+    const bar = screen.getByText(/Fill all 1 shown rows/).parentElement as HTMLElement;
+    fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
+    expect(screen.getAllByRole("checkbox", { checked: true }).length).toBeGreaterThan(0);
+    // The row's own answer cell — not the Fill-all bar's value picker, which also reads "Present".
+    const cell = screen.getAllByRole("combobox").find((el) => (el as HTMLSelectElement).value === "Present" && !el.getAttribute("aria-label")) as HTMLSelectElement;
+    fireEvent.change(cell, { target: { value: "" } });
+    expect(screen.queryAllByRole("checkbox", { checked: true })).toHaveLength(0);
+  });
+});
+
+describe("school/batch picker review fixes", () => {
+  it("ticking every batch of a school stays a batch pick, and a hand-picked in-charge survives unticking", async () => {
+    render(<TrackerBuilder canAuthor />);
+    fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
+    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    // Hand-pick the in-charge first.
+    fireEvent.click(screen.getByLabelText("Fellow Priya"));
+    fireEvent.click(screen.getByRole("button", { name: /0\/2 batches/ }));
+    fireEvent.click(screen.getByLabelText(/Morning/));
+    fireEvent.click(screen.getByLabelText(/Evening/));
+    expect((screen.getByLabelText("Camp School A") as HTMLInputElement).checked).toBe(true);
+    // Untick the school: the batches go, the hand-picked person stays.
+    fireEvent.click(screen.getByLabelText("Camp School A"));
+    expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(true);
+    // The batch list is still open from before.
+    fireEvent.click(screen.getByLabelText(/Morning/));
+    fireEvent.click(screen.getByLabelText(/Evening/));
+    fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Att" } });
+    fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
+    await waitFor(() => expect(assign).toHaveBeenLastCalledWith("t1", ["f1"], { schoolIds: [], batchIds: ["b1", "b2"] }));
+  });
+});

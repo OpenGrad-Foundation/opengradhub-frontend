@@ -188,13 +188,13 @@ export function TrackerBuilder({
     setSchoolIds(next.schoolIds);
     setBatchIds(next.batchIds);
     if (targetType === "fellow") return;
+    // Only people this adds count as automatic; someone already ticked by hand stays theirs.
     const want = inChargesOf(next);
-    setSelectedIds((cur) => {
-      const out = new Set([...cur].filter((id) => !autoPicked.has(id) || want.has(id)));
-      want.forEach((id) => out.add(id));
-      return out;
-    });
-    setAutoPicked(want);
+    const out = new Set([...selectedIds].filter((id) => !autoPicked.has(id) || want.has(id)));
+    const auto = new Set([...autoPicked].filter((id) => want.has(id)));
+    want.forEach((id) => { if (!out.has(id)) { out.add(id); auto.add(id); } });
+    setSelectedIds(out);
+    setAutoPicked(auto);
   }
   const onProgramme = (v: string) => { setProgrammeId(v); onPick({ schoolIds: [], batchIds: [] }); };
   // Every school the pick touches, whole or through one of its batches — narrows the people list.
@@ -648,6 +648,8 @@ export function TrackerBuilder({
           </p>
         )}
         <AudiencePicker
+          // Its own State / Zone / School filters belong to one programme; a new one starts clean.
+          key={effectiveProgrammeId}
           canAuthor={canAuthor}
           selected={selectedIds}
           onChange={setSelectedIds}
