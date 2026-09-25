@@ -759,7 +759,10 @@ function GridPanel({
   if (!template) return <EmptyPanel title="No task selected" detail="Choose a task type to view rows." />;
   if (loading) return <TrackerLoading />;
   if (error) return <ErrorPanel message={error instanceof Error ? error.message : "Failed to load grid."} />;
-  if (!grid || grid.rows.length === 0) return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
+  // A repeating task keeps its list (and the earlier-day picker) even when today has no rows —
+  // e.g. after its end date — so past days stay viewable and exportable.
+  if (!grid || (grid.rows.length === 0 && !template.recurrence_frequency))
+    return <EmptyPanel title="No rows" detail="Assigned rows will appear here." />;
 
   return (
     <GridPanelBody
@@ -825,6 +828,8 @@ function GridPanelBody({
         />
       )}
       <TrackerEditableGrid
+        // One instance per task and person: a picked earlier day never carries over.
+        key={`${template.id}:${owner?.id ?? ""}`}
         template={template}
         visibleRows={visibleRows}
         statusFilter={statusFilter}

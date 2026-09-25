@@ -22,6 +22,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
 import { useBatches } from "@/lib/queries/batches";
 import { AudiencePicker } from "./audience-picker";
+import { SchoolBatchPicker, type SchoolBatchPick } from "./school-batch-picker";
 import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 
 // Fallback mirror of the backend PROFILE_ALLOWLIST (src/tracker/tracker.constants.ts),
@@ -156,8 +157,8 @@ export function TrackerBuilder({
   const schoolOpts = useMemo(
     () => (reachSchools ?? [])
       .filter((s) => !effectiveProgrammeId || s.programmes.some((p) => p.id === effectiveProgrammeId))
-      .map((s) => ({ id: s.id, label: s.name }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
+      .map((s) => ({ id: s.id, name: s.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [reachSchools, effectiveProgrammeId],
   );
   const batchOpts = useMemo(() => {
@@ -165,17 +166,43 @@ export function TrackerBuilder({
     return (allBatches ?? [])
       .filter((b) => !effectiveProgrammeId || b.programme_id === effectiveProgrammeId
         || (!b.programme_id && b.school_id != null && inProgramme.has(b.school_id)))
-      // A batch with no school (e.g. an online cohort) stays offered whatever schools are picked.
-      .filter((b) => !schoolIds.length || !b.school_id || schoolIds.includes(b.school_id))
-      .map((b) => ({ id: b.id, label: b.school_name ? `${b.name} · ${b.school_name}` : b.name, hint: `${b.member_count} students` }));
-  }, [allBatches, effectiveProgrammeId, schoolOpts, schoolIds]);
-  const onProgramme = (v: string) => { setProgrammeId(v); setSchoolIds([]); setBatchIds([]); };
-  const onSchools = (next: string[]) => {
-    setSchoolIds(next);
-    // Drop batches that belong to a school no longer picked.
-    const keep = new Set((allBatches ?? []).filter((b) => !next.length || !b.school_id || next.includes(b.school_id)).map((b) => b.id));
-    setBatchIds((ids) => ids.filter((id) => keep.has(id)));
-  };
+      .map((b) => ({ id: b.id, name: b.name, schoolId: b.school_id, memberCount: b.member_count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allBatches, effectiveProgrammeId, schoolOpts]);
+  // Ticking a school puts its in-charge under "Who fills this in?" — the usual answer —
+  // and unticking takes them back out, unless another ticked school still needs them.
+  // Only people added this way are ever removed; a hand-picked person stays.
+  const staff = useTrackerAssignable("fellow", canAuthor).data;
+  const [autoPicked, setAutoPicked] = useState<Set<string>>(new Set());
+  function inChargesOf(pick: SchoolBatchPick): Set<string> {
+    const covered = new Set(pick.schoolIds);
+    for (const id of pick.batchIds) {
+      const sid = (allBatches ?? []).find((b) => b.id === id)?.school_id;
+      if (sid) covered.add(sid);
+    }
+    return new Set((staff ?? [])
+      .filter((t) => t.role === "FELLOW" && (t.schools ?? []).some((s) => covered.has(s.id)))
+      .map((t) => t.id));
+  }
+  function onPick(next: SchoolBatchPick) {
+    setSchoolIds(next.schoolIds);
+    setBatchIds(next.batchIds);
+    if (targetType === "fellow") return;
+    // Only people this adds count as automatic; someone already ticked by hand stays theirs.
+    const want = inChargesOf(next);
+    const out = new Set([...selectedIds].filter((id) => !autoPicked.has(id) || want.has(id)));
+    const auto = new Set([...autoPicked].filter((id) => want.has(id)));
+    want.forEach((id) => { if (!out.has(id)) { out.add(id); auto.add(id); } });
+    setSelectedIds(out);
+    setAutoPicked(auto);
+  }
+  const onProgramme = (v: string) => { setProgrammeId(v); onPick({ schoolIds: [], batchIds: [] }); };
+  // Every school the pick touches, whole or through one of its batches — narrows the people list.
+  const coveredSchoolIds = useMemo(() => {
+    const out = new Set(schoolIds);
+    for (const id of batchIds) { const sid = batchOpts.find((b) => b.id === id)?.schoolId; if (sid) out.add(sid); }
+    return [...out];
+  }, [schoolIds, batchIds, batchOpts]);
 
   const submittingRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -219,7 +246,7 @@ export function TrackerBuilder({
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
     if (next !== "student") setBatchIds([]);
-    if (next === "fellow") setSchoolIds([]);
+    if (next === "fellow") { setSchoolIds([]); setAutoPicked(new Set()); }
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
     setColumns((cols) =>
@@ -345,7 +372,7 @@ export function TrackerBuilder({
         : ` and assigned ${assigned} ${targetWord.replace(/s$/, "")} ${assigned === 1 ? "entry" : "entries"}.`;
       const message = `Created "${name.trim()}"` + assignedText + notAssigned + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
-      setStartsOn(""); setEndsOn(""); setSchoolIds([]); setBatchIds([]);
+      setStartsOn(""); setEndsOn(""); setSchoolIds([]); setBatchIds([]); setAutoPicked(new Set());
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
       setPartnerVisible(false);
       setProgrammeId("");
@@ -411,21 +438,12 @@ export function TrackerBuilder({
           <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
         </div>
         {targetType !== "fellow" && (
-          <PickList
-            label="Schools"
-            hint="Leave empty for every school you reach."
-            options={schoolOpts}
-            selected={schoolIds}
-            onChange={onSchools}
-          />
-        )}
-        {targetType === "student" && (
-          <PickList
-            label="Batches"
-            hint="Leave empty for every student in the schools above."
-            options={batchOpts}
-            selected={batchIds}
-            onChange={setBatchIds}
+          <SchoolBatchPicker
+            schools={schoolOpts}
+            batches={batchOpts}
+            showBatches={targetType === "student"}
+            value={{ schoolIds, batchIds }}
+            onChange={onPick}
           />
         )}
       </section>
@@ -630,11 +648,13 @@ export function TrackerBuilder({
           </p>
         )}
         <AudiencePicker
+          // Its own State / Zone / School filters belong to one programme; a new one starts clean.
+          key={effectiveProgrammeId}
           canAuthor={canAuthor}
           selected={selectedIds}
           onChange={setSelectedIds}
           programmeId={effectiveProgrammeId || undefined}
-          schoolIds={targetType === "fellow" ? undefined : schoolIds}
+          schoolIds={targetType === "fellow" ? undefined : coveredSchoolIds}
         />
       </section>
 
@@ -652,57 +672,5 @@ export function TrackerBuilder({
         </label>
       </div>
     </form>
-  );
-}
-
-/** Checkbox list with search and select-all, for the Schools / Batches picks. */
-function PickList({
-  label, hint, options, selected, onChange,
-}: {
-  label: string;
-  hint: string;
-  options: { id: string; label: string; hint?: string }[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const [q, setQ] = useState("");
-  const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
-  const picked = new Set(selected);
-  const toggle = (id: string) => onChange(picked.has(id) ? selected.filter((x) => x !== id) : [...selected, id]);
-  return (
-    <fieldset className="flex flex-col gap-1">
-      <legend className="text-sm font-medium text-gray-700">
-        {label} <span className="font-normal text-gray-500">({selected.length ? `${selected.length} selected` : "all"})</span>
-      </legend>
-      <p className="text-xs text-gray-500">{hint}</p>
-      {options.length === 0 ? (
-        <p className="py-1 text-xs text-gray-400">None available.</p>
-      ) : (
-        <>
-          <div className="flex flex-wrap items-center gap-2">
-            {options.length > 8 && (
-              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${label.toLowerCase()}`}
-                className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-teal-500" />
-            )}
-            <button type="button" onClick={() => onChange(Array.from(new Set([...selected, ...shown.map((o) => o.id)])))}
-              className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
-              Select all {shown.length}
-            </button>
-            {selected.length > 0 && (
-              <button type="button" onClick={() => onChange([])} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
-            )}
-          </div>
-          <div className="grid max-h-44 gap-1 overflow-auto sm:grid-cols-2">
-            {shown.map((o) => (
-              <label key={o.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
-                <input type="checkbox" checked={picked.has(o.id)} onChange={() => toggle(o.id)} />
-                <span className="text-gray-900">{o.label}</span>
-                {o.hint && <span className="text-xs text-gray-400">{o.hint}</span>}
-              </label>
-            ))}
-          </div>
-        </>
-      )}
-    </fieldset>
   );
 }

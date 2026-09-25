@@ -537,6 +537,10 @@ function EditTemplate({
 
   async function save() {
     setErr(null);
+    if (recurrence && startsOn && endsOn && endsOn < startsOn) {
+      setErr("The end date must be on or after the start date.");
+      return;
+    }
     try {
       await update.mutateAsync({
         name: name.trim(),

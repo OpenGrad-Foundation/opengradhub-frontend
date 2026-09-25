@@ -44,13 +44,13 @@ export function TrackerEditableGrid({
   template,
   grid: currentGrid,
   canFill: canFillProp,
-  canClear,
+  canClear: canClearProp,
   statusFilter = "",
   onStatusFilterChange,
   visibleRows: visibleRowsProp,
   filterBar,
-  canOverrideGeo = false,
-  canGrantExtension = false,
+  canOverrideGeo: canOverrideGeoProp = false,
+  canGrantExtension: canGrantExtensionProp = false,
   canOverrideFill: canOverrideFillProp = false,
   canExport = false,
   owner = null,
@@ -91,17 +91,30 @@ export function TrackerEditableGrid({
   const [viewPeriod, setViewPeriod] = useState("");
   const [pastGrid, setPastGrid] = useState<TrackerGrid | null>(null);
   const viewingPast = viewPeriod !== "";
-  const grid: TrackerGrid = viewingPast ? (pastGrid ?? { columns: currentGrid.columns, rows: [] }) : currentGrid;
+  const grid: TrackerGrid = useMemo(
+    () => (viewingPast ? (pastGrid ?? { columns: currentGrid.columns, rows: [] }) : currentGrid),
+    [viewingPast, pastGrid, currentGrid],
+  );
+  // An earlier period is read-only everywhere: every control that writes is off, not just
+  // the cells — proofs, blockers, extensions, geo overrides, student details included.
   const canFill = canFillProp && !viewingPast;
   const canOverrideFill = canOverrideFillProp && !viewingPast;
+  const canClear = canClearProp && !viewingPast;
+  const canOverrideGeo = canOverrideGeoProp && !viewingPast;
+  const canGrantExtension = canGrantExtensionProp && !viewingPast;
   function loadPeriods() {
     if (template.recurrence_frequency && periods === null)
       getTaskPeriods(template.id).then(setPeriods).catch(() => setPeriods([]));
   }
+  // Only the latest pick may land: a slow answer for an earlier pick is dropped.
+  const pickSeq = useRef(0);
   function pickPeriod(p: string) {
+    const seq = ++pickSeq.current;
     setViewPeriod(p);
     setPastGrid(null);
-    if (p) getTrackerGrid(template.id, owner?.id, p).then(setPastGrid).catch(() => setPastGrid({ columns: currentGrid.columns, rows: [] }));
+    if (p) getTrackerGrid(template.id, owner?.id, p)
+      .then((g) => { if (seq === pickSeq.current) setPastGrid(g); })
+      .catch(() => { if (seq === pickSeq.current) setPastGrid({ columns: currentGrid.columns, rows: [] }); });
   }
   // Unfiltered by default: a grid rendered without a filter set shows all its rows. The
   // filters above describe the current period, so a past one shows every row.
@@ -139,7 +152,8 @@ export function TrackerEditableGrid({
   // sends it per row because its view scope is deliberately wider than its fill scope: a
   // manager supervises rows they may not fill, and offering the ordinary controls on those
   // rows is what produced the "out of scope" error on save.
-  const authorityOf = (row: TrackerGridRow) => rowAuthority(row);
+  const authorityOf = (row: TrackerGridRow) =>
+    viewingPast ? { ...rowAuthority(row), self: false, override: false, evidence: false, blocker: false } : rowAuthority(row);
   /** A row whose capabilities are missing came from a payload older than this contract. */
   const staleAuthority = grid.rows.some((r) => !authorityOf(r).known);
   /** Per row: an on-behalf session may only touch outstanding rows the viewer may override. */
@@ -222,11 +236,54 @@ export function TrackerEditableGrid({
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
   const nameHeader = template.target_type === "fellow" ? IN_CHARGE : "Student";
   const dirtyCount = Object.values(drafts).filter((d) => Object.keys(d.values).length > 0 || d.status !== undefined).length;
+  // Save already stores whatever is marked so far; the loss to guard against is a refresh
+  // or closed tab before it — hundreds of marks gone. The browser asks first.
+  const hasUnsaved = dirtyCount > 0;
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsaved]);
 
   function setCell(recordId: string, key: string, value: unknown) {
-    setDrafts((d) => ({ ...d, [recordId]: { ...d[recordId], values: { ...(d[recordId]?.values ?? {}), [key]: value } } }));
+    const row = grid.rows.find((r) => r.record_id === recordId);
+    // Decided once, outside the updater: autoStatus keeps bookkeeping, and React may run an
+    // updater twice.
+    const values = { ...(drafts[recordId]?.values ?? {}), [key]: value };
+    const status = autoStatus(row, values, drafts[recordId]?.status);
+    setDrafts((d) => ({
+      ...d,
+      [recordId]: { ...d[recordId], values: { ...(d[recordId]?.values ?? {}), [key]: value }, status },
+    }));
+  }
+
+  // A tick-when-done task whose required fields are all answered is done: marking a
+  // student Present / Absent completes them without a second click on "Done". Only
+  // drafted (the tick shows and can be undone before Save), and never where a gate
+  // would refuse done anyway — the server keeps enforcing every rule regardless.
+  const inputColumns = grid.columns.filter((c) => c.source !== "profile");
+  const requiredKeys = inputColumns.filter((c) => c.required).map((c) => c.field_key);
+  // A required question that only shows under a condition could be pending on a row whose
+  // unconditional answers are all in — so such tasks never auto-complete.
+  const autoDoneOn = template.completion_style === "checklist" && requiredKeys.length > 0
+    && !inputColumns.some((c) => c.required && c.visible_if);
+  // Rows whose Done was drafted automatically, so a cleared answer can take it back without
+  // undoing a Done the user ticked themselves.
+  const autoDoneRows = useRef(new Set<string>());
+  function autoStatus(row: TrackerGridRow | undefined, values: Record<string, unknown>, prev: string | undefined): string | undefined {
+    if (!row || !autoDoneOn || row.status === "done") return prev;
+    const gated = !overridingRow(row) && (row.lifecycle === "overdue" || requiresProof || requiresGeo);
+    const answered = (k: string) => {
+      const v = k in values ? values[k] : row.cells.find((c) => c.field_key === k)?.value;
+      return v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+    };
+    if (!gated && requiredKeys.every(answered)) { autoDoneRows.current.add(row.record_id); return "done"; }
+    if (autoDoneRows.current.delete(row.record_id)) return undefined;
+    return prev;
   }
   function setStatus(recordId: string, status: string) {
+    autoDoneRows.current.delete(recordId); // the user's own choice from here on
     setDrafts((d) => ({ ...d, [recordId]: { ...d[recordId], values: d[recordId]?.values ?? {}, status } }));
   }
 
@@ -249,7 +306,8 @@ export function TrackerEditableGrid({
         next[row.record_id] = { ...drafts[row.record_id], values: drafts[row.record_id]?.values ?? {}, status };
       } else {
         if (!editableKeys.has(key)) continue;
-        next[row.record_id] = { ...drafts[row.record_id], values: { ...(drafts[row.record_id]?.values ?? {}), [key]: value } };
+        const values = { ...(drafts[row.record_id]?.values ?? {}), [key]: value };
+        next[row.record_id] = { ...drafts[row.record_id], values, status: autoStatus(row, values, drafts[row.record_id]?.status) };
       }
       n += 1;
     }
@@ -604,14 +662,18 @@ export function TrackerEditableGrid({
   // The two row containers below round their own bottom corners instead.
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
-      {filterBar ? <div className="border-b border-gray-100 px-4 py-3">{filterBar}</div> : null}
+      {filterBar && !viewingPast ? <div className="border-b border-gray-100 px-4 py-3">{filterBar}</div> : null}
       <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-gray-950">{template.name}</h2>
+          {/* The filters, status and visit check describe the current period; an earlier one
+              shows every row as it was, so they step aside. */}
+          {!viewingPast && (
           <select value={statusFilter} onChange={(e) => onStatusFilterChange?.(e.target.value as TaskState | "")} className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500">
             <option value="">All statuses</option>
             {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
           </select>
+          )}
           {template.recurrence_frequency && (
             <select
               aria-label="Period to view"
@@ -619,8 +681,8 @@ export function TrackerEditableGrid({
               onFocus={loadPeriods}
               onMouseDown={loadPeriods}
               onChange={(e) => pickPeriod(e.target.value)}
-              disabled={dirtyCount > 0 || onBehalfMode}
-              title={dirtyCount > 0 || onBehalfMode ? "Save or discard your changes first" : "View an earlier day (read-only)"}
+              disabled={dirtyCount > 0 || onBehalfMode || reasonPrompt !== null || bulkOpen}
+              title={dirtyCount > 0 || onBehalfMode || reasonPrompt !== null || bulkOpen ? "Save or discard your changes first" : "View an earlier day (read-only)"}
               className="h-8 rounded-md border border-gray-300 bg-white px-2 text-xs outline-none focus:border-teal-500"
             >
               <option value="">{template.recurrence_frequency === "daily" ? "Today" : "Current period"}</option>
@@ -628,13 +690,13 @@ export function TrackerEditableGrid({
             </select>
           )}
           {viewingPast && <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800">Earlier day — read-only</span>}
-          <GeoStatusChip
+          {!viewingPast && <GeoStatusChip
             template={template}
             // Every school of the task, not just the filtered subset: the count must
             // reflect what still blocks the task, not what is on screen.
             rows={grid.rows}
             onOpen={() => setGeoModal({ schoolId: null, blocking: false })}
-          />
+          />}
         </div>
         {/* Offered wherever an overridable row exists — the ROW says so, not the route. */}
         {!onBehalfMode && canOverrideFill && grid.rows.some((r) => rowAuthority(r).override) && (
@@ -767,7 +829,7 @@ export function TrackerEditableGrid({
       </div>
       {(anyOrdinaryFill || onBehalfMode) && visibleRows.some(canEditRow) && (
         <FillAllBar
-          columns={grid.columns.filter((c) => editableKeys.has(c.field_key) && c.field_type !== "multiselect")}
+          columns={grid.columns.filter((c) => editableKeys.has(c.field_key) && c.field_type !== "multiselect" && !c.visible_if)}
           statuses={template.completion_style === "workflow" ? (template.workflow_statuses ?? []) : ["done", "not_started"]}
           rowCount={visibleRows.filter(canEditRow).length}
           onApply={fillAll}
@@ -904,7 +966,7 @@ export function TrackerEditableGrid({
         />
       )}
 
-      {geoModal && (
+      {geoModal && !viewingPast && (
         <GeoVerificationModal
           template={template}
           rows={grid.rows}

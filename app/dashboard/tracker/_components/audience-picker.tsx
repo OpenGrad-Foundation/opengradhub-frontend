@@ -92,6 +92,7 @@ export function AudiencePicker({
     [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
   );
   const hiddenPicks = Array.from(selected).filter((id) => !visible.some((t) => t.id === id)).length;
+  const allVisiblePicked = visible.length > 0 && visible.every((t) => selected.has(t.id));
 
   // Narrowing the programme can strip the downstream selections of their meaning —
   // a state the new programme does not run in would filter everything to nothing
@@ -156,8 +157,13 @@ export function AudiencePicker({
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onChange(new Set([...selected, ...visible.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
-              Select all {visible.length}
+            {/* Toggles: a second click takes the same people back out. */}
+            <button type="button" aria-pressed={allVisiblePicked}
+              onClick={() => onChange(allVisiblePicked
+                ? new Set([...selected].filter((id) => !visible.some((t) => t.id === id)))
+                : new Set([...selected, ...visible.map((t) => t.id)]))}
+              className={"rounded-md border px-2.5 py-1 text-xs font-medium " + (allVisiblePicked ? "border-teal-600 bg-teal-600 text-white" : "border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100")}>
+              {allVisiblePicked ? "Deselect" : "Select"} all {visible.length}
             </button>
             {/* One-click "everyone in this role" — the common case is "all ZMs" or "all
                 in-charges", which the Role filter + Select all needs three clicks for. Adds to
@@ -165,9 +171,11 @@ export function AudiencePicker({
             {roleOpts.length > 1 && roleOpts.map((r) => {
               const ids = all.filter((t) => t.role === r).map((t) => t.id);
               const label = prettyRole(r);
+              const on = ids.length > 0 && ids.every((id) => selected.has(id));
               return (
-                <button key={r} type="button" onClick={() => onChange(new Set([...selected, ...ids]))}
-                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                <button key={r} type="button" aria-pressed={on}
+                  onClick={() => onChange(on ? new Set([...selected].filter((id) => !ids.includes(id))) : new Set([...selected, ...ids]))}
+                  className={"rounded-md border px-2.5 py-1 text-xs font-medium " + (on ? "border-gray-700 bg-gray-700 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
                   All {label.toLowerCase().endsWith("s") ? label : `${label}s`} ({ids.length})
                 </button>
               );
