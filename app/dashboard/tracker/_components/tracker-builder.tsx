@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -17,7 +17,7 @@ import {
   type TrackerPriority,
   profilePathLabel,
 } from "@/lib/tracker-api";
-import { useTrackerMyProgrammes } from "@/lib/queries/tracker";
+import { useTrackerAssignable, useTrackerMyProgrammes } from "@/lib/queries/tracker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
 import { useBatches } from "@/lib/queries/batches";
@@ -118,6 +118,8 @@ export function TrackerBuilder({
   const [statusesText, setStatusesText] = useState("");
   const [doneStatus, setDoneStatus] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [startsOn, setStartsOn] = useState("");
+  const [endsOn, setEndsOn] = useState("");
   const [priority, setPriority] = useState<TrackerPriority>("medium");
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>("");
   const [requirePhoto, setRequirePhoto] = useState(false);
@@ -144,10 +146,36 @@ export function TrackerBuilder({
   const [saveAsDraft, setSaveAsDraft] = useState(false);
   const [columns, setColumns] = useState<DraftColumn[]>([emptyColumn(pathsFor(prefill?.targetType ?? "fellow")[0] ?? "")]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(prefill?.ids ?? []));
-  // Batch audience (student tasks only): each picked person gets the batch members they reach,
-  // stamped with the batch. Empty = every student they reach.
-  const [batchId, setBatchId] = useState<string>("");
-  const batches = useBatches("ACTIVE").data ?? [];
+  // Programme → Schools → Batches cascade. Empty schools = every school in reach; empty
+  // batches = every student in reach (student tasks only). Each picked person gets the
+  // entries inside these that they reach.
+  const [schoolIds, setSchoolIds] = useState<string[]>([]);
+  const [batchIds, setBatchIds] = useState<string[]>([]);
+  const allBatches = useBatches("ACTIVE").data;
+  const reachSchools = useTrackerAssignable("school", canAuthor).data;
+  const schoolOpts = useMemo(
+    () => (reachSchools ?? [])
+      .filter((s) => !effectiveProgrammeId || s.programmes.some((p) => p.id === effectiveProgrammeId))
+      .map((s) => ({ id: s.id, label: s.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    [reachSchools, effectiveProgrammeId],
+  );
+  const batchOpts = useMemo(() => {
+    const inProgramme = new Set(schoolOpts.map((s) => s.id));
+    return (allBatches ?? [])
+      .filter((b) => !effectiveProgrammeId || b.programme_id === effectiveProgrammeId
+        || (!b.programme_id && b.school_id != null && inProgramme.has(b.school_id)))
+      // A batch with no school (e.g. an online cohort) stays offered whatever schools are picked.
+      .filter((b) => !schoolIds.length || !b.school_id || schoolIds.includes(b.school_id))
+      .map((b) => ({ id: b.id, label: b.school_name ? `${b.name} · ${b.school_name}` : b.name, hint: `${b.member_count} students` }));
+  }, [allBatches, effectiveProgrammeId, schoolOpts, schoolIds]);
+  const onProgramme = (v: string) => { setProgrammeId(v); setSchoolIds([]); setBatchIds([]); };
+  const onSchools = (next: string[]) => {
+    setSchoolIds(next);
+    // Drop batches that belong to a school no longer picked.
+    const keep = new Set((allBatches ?? []).filter((b) => !next.length || !b.school_id || next.includes(b.school_id)).map((b) => b.id));
+    setBatchIds((ids) => ids.filter((id) => keep.has(id)));
+  };
 
   const submittingRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -190,7 +218,7 @@ export function TrackerBuilder({
   // same people qualify for every target.
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
-    if (next !== "student") setBatchId("");
+    if (next !== "student") setBatchIds([]);
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
     setColumns((cols) =>
@@ -252,6 +280,8 @@ export function TrackerBuilder({
 
       if (mustPickProgramme)
         throw new Error("Choose which programme this task type is for.");
+      if (recurrence && startsOn && endsOn && endsOn < startsOn)
+        throw new Error("The end date must be on or after the start date.");
 
       // Code is an internal unique key — auto-derived from the name so authors only type a name.
       const autoCode = `${slug(name)}-${Date.now().toString(36)}`.toUpperCase();
@@ -263,7 +293,10 @@ export function TrackerBuilder({
         completion_style: completionStyle,
         workflow_statuses: completionStyle === "workflow" ? statuses : undefined,
         done_status: completionStyle === "workflow" ? doneStatus.trim() : undefined,
-        deadline: deadline || undefined,
+        // A repeating task is due within each period, so it takes a start/end window instead.
+        deadline: !recurrence && deadline ? deadline : undefined,
+        starts_on: recurrence && startsOn ? startsOn : undefined,
+        ends_on: recurrence && endsOn ? endsOn : undefined,
         priority,
         recurrence_frequency: recurrence || undefined,
         require_photo: requirePhoto,
@@ -290,7 +323,10 @@ export function TrackerBuilder({
       let assigned = 0;
       let skipped = 0;
       if (doerIds.length > 0)
-        ({ created: assigned, skipped } = await assignTrackerDoers(id, doerIds, batchId || undefined));
+        ({ created: assigned, skipped } = await assignTrackerDoers(id, doerIds, {
+          schoolIds: targetType === "fellow" ? [] : schoolIds,
+          batchIds: targetType === "student" ? batchIds : [],
+        }));
 
       await invalidate("tracker");
       const visibility = saveAsDraft ? " Saved as a draft — publish it to make it visible." : "";
@@ -308,6 +344,7 @@ export function TrackerBuilder({
         : ` and assigned ${assigned} ${targetWord.replace(/s$/, "")} ${assigned === 1 ? "entry" : "entries"}.`;
       const message = `Created "${name.trim()}"` + assignedText + notAssigned + visibility + shared;
       setName(""); setDescription(""); setStatusesText(""); setDoneStatus(""); setDeadline(""); setPriority("medium"); setRecurrence("");
+      setStartsOn(""); setEndsOn(""); setSchoolIds([]); setBatchIds([]);
       setRequirePhoto(false); setRequireGeo(false); setSaveAsDraft(false);
       setPartnerVisible(false);
       setProgrammeId("");
@@ -335,6 +372,47 @@ export function TrackerBuilder({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
+      {/* Where the task runs, broadest first: Programme → Schools → Batches. The picks
+          narrow which entries each person below receives, and the "Who fills this in?"
+          list to the people covering them. */}
+      <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5">
+        {canAttachProgramme && (
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Programme
+            <select value={effectiveProgrammeId} onChange={(e) => onProgramme(e.target.value)} className={inputClass}>
+              {/* Only offered when there is a real choice to make. With one seat the
+                  value is already applied, and an "unassigned" option would invite
+                  an author to opt out of something they cannot opt back into. */}
+              {programmeOpts.length > 1 && <option value="">Choose a programme…</option>}
+              {programmeOpts.map((pr) => (
+                <option key={pr.id} value={pr.id}>{pr.name}</option>
+              ))}
+            </select>
+            <span className="text-xs font-normal text-gray-500">
+              Decides who can see this task type, and which officials it can be shared with. It cannot be changed later.
+            </span>
+          </label>
+        )}
+        <PickList
+          label="Schools"
+          hint="Leave empty for every school you reach. Not used for staff tasks."
+          options={schoolOpts}
+          selected={schoolIds}
+          onChange={onSchools}
+          disabled={targetType === "fellow"}
+        />
+        <PickList
+          label="Batches"
+          hint={targetType === "student"
+            ? "Leave empty for every student in the schools above."
+            : "Batches narrow student tasks — choose \"A student\" as the Task Target below to use them."}
+          options={batchOpts}
+          selected={batchIds}
+          onChange={setBatchIds}
+          disabled={targetType !== "student"}
+        />
+      </section>
+
       <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
           Task name
@@ -358,19 +436,12 @@ export function TrackerBuilder({
           </label>
           <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
         </div>
-        {targetType === "student" && (
+        {!recurrence && (
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Assign to a batch (optional){/* picks are people, so they survive a batch change too */}
-            <select value={batchId} onChange={(e) => setBatchId(e.target.value)} className={inputClass}>
-              <option value="">All my students</option>
-              {batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
+            Due date
+            <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
           </label>
         )}
-        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-          Due date
-          <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
-        </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           Priority
           <select value={priority} onChange={(e) => setPriority(e.target.value as TrackerPriority)} className={inputClass}>
@@ -388,6 +459,23 @@ export function TrackerBuilder({
             <option value="monthly">Every month</option>
           </select>
         </label>
+        {recurrence && (
+          <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+            <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+              Starts on (optional)
+              <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className={inputClass} />
+            </label>
+            <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+              Ends on (optional)
+              <input type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} className={inputClass} />
+            </label>
+            <p className="-mt-2 text-xs text-gray-500 sm:col-span-2">
+              {startsOn || endsOn
+                ? `Repeats ${recurrence === "daily" ? "every day" : recurrence === "weekly" ? "every week" : "every month"}${startsOn ? ` from ${startsOn}` : ""}${endsOn ? ` until ${endsOn}` : ""}. Nothing new is created after the end date; past entries stay as history.`
+                : "Leave both empty to start today and repeat until you archive the task."}
+            </p>
+          </div>
+        )}
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
           How is it completed?
           <select value={completionStyle} onChange={(e) => setCompletionStyle(e.target.value as TrackerCompletionStyle)} className={inputClass}>
@@ -431,35 +519,6 @@ export function TrackerBuilder({
           )}
         </div>
 
-        {/* Which programme owns this task type.
-            Placed immediately above the sharing block because it is that block's
-            precondition: partners are seated per programme, so a task with no
-            programme can never be shared. Hidden entirely for an author with no
-            seat — there is nothing to choose, and an empty dropdown would read as
-            a missing option rather than a state of the world. */}
-        {canAttachProgramme && (
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
-            Programme
-            <select
-              value={effectiveProgrammeId}
-              onChange={(e) => setProgrammeId(e.target.value)}
-              className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-            >
-              {/* Only offered when there is a real choice to make. With one seat the
-                  value is already applied, and an "unassigned" option would invite
-                  an author to opt out of something they cannot opt back into. */}
-              {programmeOpts.length > 1 && <option value="">Choose a programme…</option>}
-              {programmeOpts.map((pr) => (
-                <option key={pr.id} value={pr.id}>{pr.name}</option>
-              ))}
-            </select>
-            <span className="text-xs font-normal text-gray-500">
-              {programmeOpts.length === 1
-                ? "This task type belongs to your programme. It decides who can see it, and which officials it can be shared with."
-                : "Decides who can see this task type, and which officials it can be shared with. It cannot be changed later."}
-            </span>
-          </label>
-        )}
 
         {/* Sharing outside the organisation.
             Its own block, phrased as a warning rather than a setting, because it
@@ -567,7 +626,13 @@ export function TrackerBuilder({
             Pre-selected <span className="font-semibold text-gray-700">{prefill.label}</span>. Add or remove anyone below.
           </p>
         )}
-        <AudiencePicker canAuthor={canAuthor} selected={selectedIds} onChange={setSelectedIds} />
+        <AudiencePicker
+          canAuthor={canAuthor}
+          selected={selectedIds}
+          onChange={setSelectedIds}
+          programmeId={effectiveProgrammeId || undefined}
+          schoolIds={targetType === "fellow" ? undefined : schoolIds}
+        />
       </section>
 
       {error && <p className="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
@@ -584,5 +649,58 @@ export function TrackerBuilder({
         </label>
       </div>
     </form>
+  );
+}
+
+/** Checkbox list with search and select-all, for the Schools / Batches picks. */
+function PickList({
+  label, hint, options, selected, onChange, disabled = false,
+}: {
+  label: string;
+  hint: string;
+  options: { id: string; label: string; hint?: string }[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
+  const picked = new Set(selected);
+  const toggle = (id: string) => onChange(picked.has(id) ? selected.filter((x) => x !== id) : [...selected, id]);
+  return (
+    <fieldset disabled={disabled} className="flex flex-col gap-1 disabled:opacity-60">
+      <legend className="text-sm font-medium text-gray-700">
+        {label} <span className="font-normal text-gray-500">({selected.length ? `${selected.length} selected` : "all"})</span>
+      </legend>
+      <p className="text-xs text-gray-500">{hint}</p>
+      {options.length === 0 ? (
+        <p className="py-1 text-xs text-gray-400">None available.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            {options.length > 8 && (
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Search ${label.toLowerCase()}`}
+                className="h-8 min-w-0 flex-1 rounded-md border border-gray-300 px-2 text-sm outline-none focus:border-teal-500" />
+            )}
+            <button type="button" onClick={() => onChange(Array.from(new Set([...selected, ...shown.map((o) => o.id)])))}
+              className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
+              Select all {shown.length}
+            </button>
+            {selected.length > 0 && (
+              <button type="button" onClick={() => onChange([])} className="text-xs font-medium text-gray-500 hover:text-gray-800">Clear</button>
+            )}
+          </div>
+          <div className="grid max-h-44 gap-1 overflow-auto sm:grid-cols-2">
+            {shown.map((o) => (
+              <label key={o.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-gray-50">
+                <input type="checkbox" checked={picked.has(o.id)} onChange={() => toggle(o.id)} />
+                <span className="text-gray-900">{o.label}</span>
+                {o.hint && <span className="text-xs text-gray-400">{o.hint}</span>}
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </fieldset>
   );
 }

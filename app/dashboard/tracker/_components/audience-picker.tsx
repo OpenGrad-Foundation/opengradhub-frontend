@@ -29,10 +29,16 @@ export function AudiencePicker({
   canAuthor,
   selected,
   onChange,
+  programmeId,
+  schoolIds,
 }: {
   canAuthor: boolean;
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
+  /** Chosen above the picker (the builder's Programme → Schools cascade): only people in
+   *  that programme / covering one of those schools are listed. */
+  programmeId?: string;
+  schoolIds?: string[];
 }) {
   const assignable = useTrackerAssignable("fellow", canAuthor);
 
@@ -43,7 +49,12 @@ export function AudiencePicker({
   const [schoolFilter, setSchoolFilter] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
-  const all = useMemo(() => assignable.data ?? [], [assignable.data]);
+  const all = useMemo(
+    () => (assignable.data ?? []).filter((t) =>
+      (!programmeId || t.programmes.some((p) => p.id === programmeId)) &&
+      (!schoolIds?.length || (t.schools ?? []).some((s) => schoolIds.includes(s.id)))),
+    [assignable.data, programmeId, schoolIds],
+  );
   // A person can sit in several programmes (staff seats), so this is membership, not equality.
   const byProgramme = (t: TrackerAssignable) =>
     !programmeFilter || t.programmes.some((p) => p.id === programmeFilter);
@@ -72,9 +83,10 @@ export function AudiencePicker({
   // dropdown never offers a school that would match nobody in view.
   const schoolOpts = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) for (const s of t.schools ?? []) m.set(s.id, s.name);
+    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t)))
+      for (const s of t.schools ?? []) if (!schoolIds?.length || schoolIds.includes(s.id)) m.set(s.id, s.name);
     return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [inProgramme, stateFilter, districtFilter]);
+  }, [inProgramme, stateFilter, districtFilter, schoolIds]);
   const visible = useMemo(
     () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t)),
     [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
@@ -98,7 +110,7 @@ export function AudiencePicker({
   return (
     <div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {programmeOpts.length > 0 && (
+        {!programmeId && programmeOpts.length > 0 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Programme
             <select value={programmeFilter} onChange={(e) => onProgramme(e.target.value)} className={filterClass}>
               <option value="">All programmes</option>
