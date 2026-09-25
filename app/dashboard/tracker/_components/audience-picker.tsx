@@ -47,6 +47,7 @@ export function AudiencePicker({
   const [programmeFilter, setProgrammeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
   const all = useMemo(
@@ -64,6 +65,8 @@ export function AudiencePicker({
   // A person "has" a school when a pick of them would cover it — their own schools and
   // their subordinates' (server-computed), so a ZM matches the schools under their in-charges.
   const bySchool = (t: TrackerAssignable) => !schoolFilter || (t.schools ?? []).some((s) => s.id === schoolFilter);
+  const needle = nameQuery.trim().toLowerCase();
+  const byName = (t: TrackerAssignable) => !needle || t.name.toLowerCase().includes(needle);
 
   // Programme's own options are computed over every person, unfiltered: it is the
   // outermost filter, so nothing downstream may remove a programme from its list.
@@ -88,8 +91,8 @@ export function AudiencePicker({
     return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
   }, [inProgramme, stateFilter, districtFilter, schoolIds]);
   const visible = useMemo(
-    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t)),
-    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
+    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t) && byName(t)),
+    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter, needle],
   );
   const hiddenPicks = Array.from(selected).filter((id) => !visible.some((t) => t.id === id)).length;
   const allVisiblePicked = visible.length > 0 && visible.every((t) => selected.has(t.id));
@@ -150,6 +153,13 @@ export function AudiencePicker({
         )}
       </div>
 
+      <input
+        value={nameQuery}
+        onChange={(e) => setNameQuery(e.target.value)}
+        placeholder="Find a person by name"
+        aria-label="Search people by name"
+        className="mb-2 h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+      />
       {assignable.isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
       ) : visible.length === 0 ? (

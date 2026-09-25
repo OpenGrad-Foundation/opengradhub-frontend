@@ -85,8 +85,8 @@ describe("builder: Programme → Target → schools with their batches, start/en
     expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(true);
 
     // Open its batches and drop one: the school turns partial (–), one batch remains.
-    fireEvent.click(screen.getByRole("button", { name: /2\/2 batches/ }));
-    fireEvent.click(screen.getByLabelText(/Evening/));
+    fireEvent.click(screen.getByRole("button", { name: "Batches of Camp School A" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Evening" }));
     expect(schoolA.checked).toBe(false);
     expect(schoolA.indeterminate).toBe(true);
 
@@ -263,16 +263,16 @@ describe("school/batch picker review fixes", () => {
     fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
     // Hand-pick the in-charge first.
     fireEvent.click(screen.getByLabelText("Fellow Priya"));
-    fireEvent.click(screen.getByRole("button", { name: /0\/2 batches/ }));
-    fireEvent.click(screen.getByLabelText(/Morning/));
-    fireEvent.click(screen.getByLabelText(/Evening/));
+    fireEvent.click(screen.getByRole("button", { name: "Batches of Camp School A" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Morning" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Evening" }));
     expect((screen.getByLabelText("Camp School A") as HTMLInputElement).checked).toBe(true);
     // Untick the school: the batches go, the hand-picked person stays.
     fireEvent.click(screen.getByLabelText("Camp School A"));
     expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(true);
     // The batch list is still open from before.
-    fireEvent.click(screen.getByLabelText(/Morning/));
-    fireEvent.click(screen.getByLabelText(/Evening/));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Morning" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Evening" }));
     fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Att" } });
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
     await waitFor(() => expect(assign).toHaveBeenLastCalledWith("t1", ["f1"], { schoolIds: [], batchIds: ["b1", "b2"] }));

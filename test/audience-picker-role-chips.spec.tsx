@@ -36,3 +36,14 @@ describe("AudiencePicker — role chips", () => {
     expect(screen.queryByRole("button", { name: /^all school in-charges/i })).toBeNull();
   });
 });
+
+describe("AudiencePicker — search", () => {
+  it("narrows the list by name, and Select all takes only the matches", () => {
+    const onChange = vi.fn();
+    render(<AudiencePicker canAuthor selected={new Set()} onChange={onChange} />);
+    fireEvent.change(screen.getByLabelText("Search people by name"), { target: { value: "mee" } });
+    expect(screen.queryByText("Ravi")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /select all 1/i }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(["z2"]));
+  });
+});
