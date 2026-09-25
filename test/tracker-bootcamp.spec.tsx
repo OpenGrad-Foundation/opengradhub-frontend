@@ -120,9 +120,10 @@ describe("grid: Fill all shown rows", () => {
     const bar = screen.getByText(/Fill all 2 shown rows/).parentElement as HTMLElement;
     fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
     expect(screen.getAllByRole("button", { name: /Save \(2\)/ }).length).toBeGreaterThan(0);
+    // Answering the required field already ticked Done, so a separate Done pass has nothing left.
     fireEvent.change(within(bar).getByLabelText("Column to fill"), { target: { value: "__status__" } });
     fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
-    expect(within(bar).getByText(/Filled 2 rows/)).toBeTruthy();
+    expect(within(bar).getByText(/Nothing to change/)).toBeTruthy();
   });
 });
 
@@ -155,5 +156,43 @@ describe("grid: view and export a past day of a repeating task", () => {
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
     fireEvent.click(screen.getByRole("menuitem", { name: /Records only/ }));
     await waitFor(() => expect(exportFile).toHaveBeenCalledWith("t1", { history: false, ownerId: undefined, period: "2026-09-27" }));
+  });
+});
+
+describe("grid: marking completes the student, and unsaved marks are guarded", () => {
+  const template = ({
+    id: "t1", code: "ATT", name: "Attendance", description: null, target_type: "student",
+    completion_style: "checklist", workflow_statuses: null, done_status: null, deadline: null,
+    priority: "medium", recurrence_frequency: "daily", require_photo: false, require_location: false,
+    require_geo_verification: false, status: "active",
+  }) as TrackerTemplate;
+  const row = (id: string, lifecycle = "not_started") => ({
+    record_id: id, target_name: `Kid ${id}`, status: "not_started", lifecycle,
+    cells: [{ field_key: "present", value: null }], blocked: false, blocker: null,
+    can_fill_self: true, can_fill_override: false, can_evidence: true, can_blocker: false,
+  }) as TrackerGridRow;
+  const grid: TrackerGrid = {
+    columns: [{ field_key: "present", label: "Present?", field_type: "select", source: "input", source_path: null, options: ["Present", "Absent"], required: true, visible_if: null, sort_order: 0 }],
+    rows: [row("a"), row("b"), row("c", "overdue")],
+  };
+
+  it("fill-all of the required answer ticks Done, except where a gate would refuse it", () => {
+    render(<TrackerEditableGrid template={template} grid={grid} canFill canClear={false} />);
+    const bar = screen.getByText(/Fill all 3 shown rows/).parentElement as HTMLElement;
+    fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
+    // a and b are done; c is overdue, so it keeps its answer but not the tick.
+    expect(screen.getAllByRole("checkbox", { checked: true }).filter((el) => !within(bar).queryByRole("checkbox"))).toHaveLength(2);
+  });
+
+  it("warns before leaving with unsaved marks", () => {
+    render(<TrackerEditableGrid template={template} grid={grid} canFill canClear={false} />);
+    const clean = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(clean);
+    expect(clean.defaultPrevented).toBe(false);
+    const bar = screen.getByText(/Fill all 3 shown rows/).parentElement as HTMLElement;
+    fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
+    const dirty = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(dirty);
+    expect(dirty.defaultPrevented).toBe(true);
   });
 });

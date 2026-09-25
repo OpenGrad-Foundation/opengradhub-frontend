@@ -91,7 +91,10 @@ export function TrackerEditableGrid({
   const [viewPeriod, setViewPeriod] = useState("");
   const [pastGrid, setPastGrid] = useState<TrackerGrid | null>(null);
   const viewingPast = viewPeriod !== "";
-  const grid: TrackerGrid = viewingPast ? (pastGrid ?? { columns: currentGrid.columns, rows: [] }) : currentGrid;
+  const grid: TrackerGrid = useMemo(
+    () => (viewingPast ? (pastGrid ?? { columns: currentGrid.columns, rows: [] }) : currentGrid),
+    [viewingPast, pastGrid, currentGrid],
+  );
   const canFill = canFillProp && !viewingPast;
   const canOverrideFill = canOverrideFillProp && !viewingPast;
   function loadPeriods() {
@@ -222,9 +225,41 @@ export function TrackerEditableGrid({
   const hasName = template.target_type !== "school" && grid.rows.some((r) => r.target_name);
   const nameHeader = template.target_type === "fellow" ? IN_CHARGE : "Student";
   const dirtyCount = Object.values(drafts).filter((d) => Object.keys(d.values).length > 0 || d.status !== undefined).length;
+  // Save already stores whatever is marked so far; the loss to guard against is a refresh
+  // or closed tab before it — hundreds of marks gone. The browser asks first.
+  const hasUnsaved = dirtyCount > 0;
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasUnsaved]);
 
   function setCell(recordId: string, key: string, value: unknown) {
-    setDrafts((d) => ({ ...d, [recordId]: { ...d[recordId], values: { ...(d[recordId]?.values ?? {}), [key]: value } } }));
+    const row = grid.rows.find((r) => r.record_id === recordId);
+    setDrafts((d) => {
+      const values = { ...(d[recordId]?.values ?? {}), [key]: value };
+      return { ...d, [recordId]: { ...d[recordId], values, ...autoDone(row, values) } };
+    });
+  }
+
+  // A tick-when-done task whose required fields are all answered is done: marking a
+  // student Present / Absent completes them without a second click on "Done". Only
+  // drafted (the tick shows and can be undone before Save), and never where a gate
+  // would refuse done anyway — the server keeps enforcing every rule regardless.
+  const requiredKeys = grid.columns
+    .filter((c) => c.required && c.source !== "profile" && !c.visible_if)
+    .map((c) => c.field_key);
+  function autoDone(row: TrackerGridRow | undefined, values: Record<string, unknown>): { status?: string } {
+    if (!row || template.completion_style !== "checklist" || requiredKeys.length === 0) return {};
+    if (row.status === "done") return {};
+    const gated = !overridingRow(row) && (row.lifecycle === "overdue" || requiresProof || requiresGeo);
+    if (gated) return {};
+    const answered = (k: string) => {
+      const v = k in values ? values[k] : row.cells.find((c) => c.field_key === k)?.value;
+      return v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+    };
+    return requiredKeys.every(answered) ? { status: "done" } : {};
   }
   function setStatus(recordId: string, status: string) {
     setDrafts((d) => ({ ...d, [recordId]: { ...d[recordId], values: d[recordId]?.values ?? {}, status } }));
@@ -249,7 +284,8 @@ export function TrackerEditableGrid({
         next[row.record_id] = { ...drafts[row.record_id], values: drafts[row.record_id]?.values ?? {}, status };
       } else {
         if (!editableKeys.has(key)) continue;
-        next[row.record_id] = { ...drafts[row.record_id], values: { ...(drafts[row.record_id]?.values ?? {}), [key]: value } };
+        const values = { ...(drafts[row.record_id]?.values ?? {}), [key]: value };
+        next[row.record_id] = { ...drafts[row.record_id], values, ...autoDone(row, values) };
       }
       n += 1;
     }
