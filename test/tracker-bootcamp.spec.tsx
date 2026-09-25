@@ -284,6 +284,11 @@ describe("Batches list grouped by school", () => {
     render(<TrackerBuilder canAuthor />);
     fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
     fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    // A cascade: the section, then the school, open on demand.
+    expect(screen.queryByLabelText("All batches of Camp School A")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Batches \(/ }));
+    expect(screen.queryByRole("checkbox", { name: "Morning" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show batches of Camp School A" }));
     fireEvent.click(screen.getByLabelText("All batches of Camp School A"));
     expect((screen.getByRole("checkbox", { name: "Morning" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("checkbox", { name: "Evening" }) as HTMLInputElement).checked).toBe(true);
@@ -300,5 +305,19 @@ describe("Batches list grouped by school", () => {
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
     // assign.mockClear() above: this asserts THIS test's call, not one left by an earlier test.
     await waitFor(() => expect(assign).toHaveBeenCalledWith("t1", ["f1"], { schoolIds: [], batchIds: expect.arrayContaining(["b1", "b2"]) }), { timeout: 5000 });
+  });
+});
+
+describe("Batches cascade keeps every school while you pick", () => {
+  it("ticking one school's batches in the Batches list does not hide the other schools", () => {
+    render(<TrackerBuilder canAuthor />);
+    fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
+    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Batches \(/ }));
+    fireEvent.click(screen.getByLabelText("All batches of Camp School A"));
+    expect(screen.getByLabelText("All batches of Camp School B")).toBeTruthy();
+    // Ticking a school whole in the Schools list above does narrow it.
+    fireEvent.click(screen.getByLabelText("Camp School B"));
+    expect(screen.queryByLabelText("All batches of Camp School A")).toBeNull();
   });
 });
