@@ -86,9 +86,10 @@ export function SchoolBatchPicker({
   }
   const toggleOpen = (id: string) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
-  // Batches list: cascaded from the ticked schools (whole or through a batch); school-less
+  // Batches list: narrowed by the schools ticked in the Schools list above — never by batch
+  // picks, or ticking one school's batches here would hide every other school's. School-less
   // batches always stay, since they cut across schools.
-  const touched = new Set([...whole, ...batches.filter((b) => picked.has(b.id) && !isLoose(b)).map((b) => b.schoolId as string)]);
+  const touched = whole;
   const shownBatches = batches
     .filter((b) => isLoose(b) || touched.size === 0 || touched.has(b.schoolId as string))
     .filter((b) => has(`${b.name} ${schoolName.get(b.schoolId ?? "") ?? ""}`, bq.trim().toLowerCase()));
