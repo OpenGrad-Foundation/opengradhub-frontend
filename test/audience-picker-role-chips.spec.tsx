@@ -22,6 +22,14 @@ describe("AudiencePicker — role chips", () => {
     fireEvent.click(screen.getByRole("button", { name: /all zonal managers/i }));
     expect(onChange).toHaveBeenCalledWith(new Set(["z1", "z2"]));
   });
+  it("a second click on a chip or on Select all takes those people back out", () => {
+    const onChange = vi.fn();
+    render(<AudiencePicker canAuthor selected={new Set(["z1", "z2", "f1"])} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /all zonal managers/i }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set(["f1"]));
+    fireEvent.click(screen.getByRole("button", { name: /deselect all 3/i }));
+    expect(onChange).toHaveBeenLastCalledWith(new Set());
+  });
   it("no chips when the list has a single role", () => {
     assignable.mockReturnValue({ data: [row("f1", "Anita", "FELLOW")], isLoading: false });
     render(<AudiencePicker canAuthor selected={new Set()} onChange={vi.fn()} />);

@@ -68,33 +68,52 @@ import { TrackerEditableGrid } from "@/app/dashboard/tracker/_components/tracker
 
 afterEach(cleanup);
 
-describe("builder: Programme → Schools → Batches, with a start/end window", () => {
-  it("cascades the picks and sends several schools and batches with the window", async () => {
+describe("builder: Programme → Target → schools with their batches, start/end window", () => {
+  it("ticks a school whole, narrows it to one batch (partial), auto-picks the in-charge, sends the union", async () => {
     render(<TrackerBuilder canAuthor />);
     fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
-    // Top to bottom: a staff task has no Schools / Batches pickers at all.
-    expect(screen.queryByText("Schools")).toBeNull();
+    // Top to bottom: a staff task has no school picker at all.
+    expect(screen.queryByLabelText("Search schools and batches")).toBeNull();
     fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
     // Programme narrows schools; the other programme's school is gone.
     expect(screen.queryByLabelText("Elsewhere")).toBeNull();
-    fireEvent.click(screen.getByLabelText("Camp School A"));
-    // School narrows batches.
-    expect(screen.queryByLabelText(/Other batch/)).toBeNull();
-    fireEvent.click(screen.getByLabelText(/Morning/));
+
+    const schoolA = screen.getByLabelText("Camp School A") as HTMLInputElement;
+    fireEvent.click(schoolA);
+    expect(schoolA.checked).toBe(true);
+    // Its in-charge is picked under "Who fills this in?".
+    expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(true);
+
+    // Open its batches and drop one: the school turns partial (–), one batch remains.
+    fireEvent.click(screen.getByRole("button", { name: /2\/2 batches/ }));
     fireEvent.click(screen.getByLabelText(/Evening/));
+    expect(schoolA.checked).toBe(false);
+    expect(schoolA.indeterminate).toBe(true);
 
     fireEvent.change(screen.getByPlaceholderText("Monthly Report"), { target: { value: "Attendance" } });
     fireEvent.change(screen.getByDisplayValue("One-time"), { target: { value: "daily" } });
     fireEvent.change(screen.getByLabelText(/Starts on/), { target: { value: "2026-10-01" } });
     fireEvent.change(screen.getByLabelText(/Ends on/), { target: { value: "2026-10-10" } });
-    fireEvent.click(screen.getByLabelText("Fellow Priya"));
     fireEvent.click(screen.getByRole("button", { name: /create & publish/i }));
 
     await waitFor(() => expect(assign).toHaveBeenCalled());
     expect(create.mock.calls[0][0]).toMatchObject({
       programme_id: "p1", recurrence_frequency: "daily", starts_on: "2026-10-01", ends_on: "2026-10-10", deadline: undefined,
     });
-    expect(assign).toHaveBeenCalledWith("t1", ["f1"], { schoolIds: ["s1"], batchIds: ["b1", "b2"] });
+    expect(assign).toHaveBeenCalledWith("t1", ["f1"], { schoolIds: [], batchIds: ["b1"] });
+  });
+
+  it("select-all buttons toggle back off", () => {
+    render(<TrackerBuilder canAuthor />);
+    fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
+    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
+    const all = screen.getByRole("button", { name: /Select all 2 schools/ });
+    fireEvent.click(all);
+    expect((screen.getByLabelText("Camp School B") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Deselect all 2 schools/ }));
+    expect((screen.getByLabelText("Camp School B") as HTMLInputElement).checked).toBe(false);
+    // Unticking the schools takes the auto-picked in-charge back out too.
+    expect((screen.getByLabelText("Fellow Priya") as HTMLInputElement).checked).toBe(false);
   });
 });
 
