@@ -67,10 +67,12 @@ describe("builder: Programme → Schools → Batches, with a start/end window", 
   it("cascades the picks and sends several schools and batches with the window", async () => {
     render(<TrackerBuilder canAuthor />);
     fireEvent.change(screen.getByDisplayValue("Choose a programme…"), { target: { value: "p1" } });
+    // Top to bottom: a staff task has no Schools / Batches pickers at all.
+    expect(screen.queryByText("Schools")).toBeNull();
+    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
     // Programme narrows schools; the other programme's school is gone.
     expect(screen.queryByLabelText("Elsewhere")).toBeNull();
     fireEvent.click(screen.getByLabelText("Camp School A"));
-    fireEvent.change(screen.getByDisplayValue(/Staff/), { target: { value: "student" } });
     // School narrows batches.
     expect(screen.queryByLabelText(/Other batch/)).toBeNull();
     fireEvent.click(screen.getByLabelText(/Morning/));

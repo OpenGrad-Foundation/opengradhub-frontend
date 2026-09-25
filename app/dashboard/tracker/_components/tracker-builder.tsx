@@ -219,6 +219,7 @@ export function TrackerBuilder({
   function onTargetChange(next: TrackerTargetType) {
     setTargetType(next);
     if (next !== "student") setBatchIds([]);
+    if (next === "fellow") setSchoolIds([]);
     const validPaths = pathsFor(next);
     const validSources = sourcesFor(next);
     setColumns((cols) =>
@@ -372,7 +373,7 @@ export function TrackerBuilder({
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
-      {/* Where the task runs, broadest first: Programme → Schools → Batches. The picks
+      {/* Where the task runs, top to bottom: Programme → Task Target → Schools → Batches. The picks
           narrow which entries each person below receives, and the "Who fills this in?"
           list to the people covering them. */}
       <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5">
@@ -393,24 +394,40 @@ export function TrackerBuilder({
             </span>
           </label>
         )}
-        <PickList
-          label="Schools"
-          hint="Leave empty for every school you reach. Not used for staff tasks."
-          options={schoolOpts}
-          selected={schoolIds}
-          onChange={onSchools}
-          disabled={targetType === "fellow"}
-        />
-        <PickList
-          label="Batches"
-          hint={targetType === "student"
-            ? "Leave empty for every student in the schools above."
-            : "Batches narrow student tasks — choose \"A student\" as the Task Target below to use them."}
-          options={batchOpts}
-          selected={batchIds}
-          onChange={setBatchIds}
-          disabled={targetType !== "student"}
-        />
+        {/* Target sits here, above the pickers it controls, so the form reads top to
+            bottom: a staff task has no schools, and only a student task has batches. */}
+        {/* Granularity, not doer. Staff always fill the tracker in — students never do —
+            so the question is what each entry is about, and the helper line says who
+            ends up filling it for that choice. */}
+        <div className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Task Target
+            <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
+              <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
+              <option value="school">A school — one entry per school</option>
+              <option value="student">A student — one entry per student</option>
+            </select>
+          </label>
+          <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
+        </div>
+        {targetType !== "fellow" && (
+          <PickList
+            label="Schools"
+            hint="Leave empty for every school you reach."
+            options={schoolOpts}
+            selected={schoolIds}
+            onChange={onSchools}
+          />
+        )}
+        {targetType === "student" && (
+          <PickList
+            label="Batches"
+            hint="Leave empty for every student in the schools above."
+            options={batchOpts}
+            selected={batchIds}
+            onChange={setBatchIds}
+          />
+        )}
       </section>
 
       <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-2">
@@ -422,20 +439,6 @@ export function TrackerBuilder({
           Description
           <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
         </label>
-        {/* Granularity, not doer. Staff always fill the tracker in — students never do —
-            so the question is what each entry is about, and the helper line says who
-            ends up filling it for that choice. */}
-        <div className="flex flex-col gap-1 sm:col-span-2">
-          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-            Task Target
-            <select value={targetType} onChange={(e) => onTargetChange(e.target.value as TrackerTargetType)} className={inputClass}>
-              <option value="fellow">Staff ({IN_CHARGE_LOWER_PLURAL} or zonal managers) — one entry each</option>
-              <option value="school">A school — one entry per school</option>
-              <option value="student">A student — one entry per student</option>
-            </select>
-          </label>
-          <p className="text-xs text-gray-500">{DOER_HINT[targetType]}</p>
-        </div>
         {!recurrence && (
           <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
             Due date
@@ -654,21 +657,20 @@ export function TrackerBuilder({
 
 /** Checkbox list with search and select-all, for the Schools / Batches picks. */
 function PickList({
-  label, hint, options, selected, onChange, disabled = false,
+  label, hint, options, selected, onChange,
 }: {
   label: string;
   hint: string;
   options: { id: string; label: string; hint?: string }[];
   selected: string[];
   onChange: (next: string[]) => void;
-  disabled?: boolean;
 }) {
   const [q, setQ] = useState("");
   const shown = q ? options.filter((o) => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   const picked = new Set(selected);
   const toggle = (id: string) => onChange(picked.has(id) ? selected.filter((x) => x !== id) : [...selected, id]);
   return (
-    <fieldset disabled={disabled} className="flex flex-col gap-1 disabled:opacity-60">
+    <fieldset className="flex flex-col gap-1">
       <legend className="text-sm font-medium text-gray-700">
         {label} <span className="font-normal text-gray-500">({selected.length ? `${selected.length} selected` : "all"})</span>
       </legend>
