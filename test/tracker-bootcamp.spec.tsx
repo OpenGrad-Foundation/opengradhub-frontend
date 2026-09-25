@@ -51,11 +51,14 @@ vi.mock("@/lib/queries/batches", () => ({
 vi.mock("@/lib/mutations/invalidation", () => ({ useInvalidate: () => vi.fn() }));
 const create = vi.fn().mockResolvedValue({ id: "t1" });
 const assign = vi.fn().mockResolvedValue({ created: 600, skipped: 0 });
+const exportFile = vi.fn().mockResolvedValue({ blob: new Blob(["x"]), filename: "attendance-2026-09-27-records.csv" });
 vi.mock("@/lib/tracker-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/tracker-api")>()),
   createTrackerTemplate: (...a: unknown[]) => create(...a),
   addTrackerFields: vi.fn().mockResolvedValue({}),
   assignTrackerDoers: (...a: unknown[]) => assign(...a),
+  getTaskPeriods: vi.fn().mockResolvedValue(["2026-09-28", "2026-09-27", "2026-09-26"]),
+  fetchTaskExport: (...a: unknown[]) => exportFile(...a),
 }));
 
 import { TrackerBuilder } from "@/app/dashboard/tracker/_components/tracker-builder";
@@ -118,5 +121,25 @@ describe("grid: Fill all shown rows", () => {
     fireEvent.change(within(bar).getByLabelText("Column to fill"), { target: { value: "__status__" } });
     fireEvent.click(within(bar).getByRole("button", { name: "Apply" }));
     expect(within(bar).getByText(/Filled 2 rows/)).toBeTruthy();
+  });
+});
+
+describe("grid: export a past day of a repeating task", () => {
+  it("offers the task's days and exports the one picked", async () => {
+    const template = ({
+      id: "t1", code: "ATT", name: "Attendance", description: null, target_type: "student",
+      completion_style: "checklist", workflow_statuses: null, done_status: null, deadline: null,
+      priority: "medium", recurrence_frequency: "daily", require_photo: false, require_location: false,
+      require_geo_verification: false, status: "active",
+    }) as TrackerTemplate;
+    const grid: TrackerGrid = { columns: [], rows: [{ record_id: "a", target_name: "a", status: "not_started", lifecycle: "not_started", cells: [], blocked: false, blocker: null } as unknown as TrackerGridRow] };
+    URL.createObjectURL = vi.fn(() => "blob:x"); URL.revokeObjectURL = vi.fn();
+    render(<TrackerEditableGrid template={template} grid={grid} canFill={false} canClear={false} canExport />);
+    fireEvent.click(screen.getByRole("button", { name: /export/i }));
+    const picker = await screen.findByLabelText("Period to export");
+    await waitFor(() => expect(within(picker).getByRole("option", { name: "2026-09-27" })).toBeTruthy());
+    fireEvent.change(picker, { target: { value: "2026-09-27" } });
+    fireEvent.click(screen.getByRole("menuitem", { name: /Records only/ }));
+    await waitFor(() => expect(exportFile).toHaveBeenCalledWith("t1", { history: false, ownerId: undefined, period: "2026-09-27" }));
   });
 });

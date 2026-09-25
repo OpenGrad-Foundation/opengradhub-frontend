@@ -12,7 +12,7 @@ import {
   useTemplateGeoVerifications,
   useTrackerRecordHistory,
 } from "@/lib/queries/tracker";
-import { fetchTaskExport } from "@/lib/tracker-api";
+import { fetchTaskExport, getTaskPeriods } from "@/lib/tracker-api";
 import type { TrackerBatchEdit, TrackerEvent, TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker-api";
 import { taskStateFromLifecycle, TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { IN_CHARGE, roleLabel } from "@/lib/labels";
@@ -179,6 +179,10 @@ export function TrackerEditableGrid({
   const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [exporting, setExporting] = useState<"records" | "history" | null>(null);
+  // A repeating task's grid only shows the current period; past ones stay exportable.
+  // Loaded when the Export menu opens, "" = the current period.
+  const [periods, setPeriods] = useState<string[] | null>(null);
+  const [exportPeriod, setExportPeriod] = useState("");
   // One open menu at a time, and one wrapper to detect a click outside either of them.
   const [menu, setMenu] = useState<"export" | "bulk" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -337,7 +341,7 @@ export function TrackerEditableGrid({
     setError(null);
     setExporting(history ? "history" : "records");
     try {
-      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id });
+      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id, period: exportPeriod || undefined });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -622,7 +626,11 @@ export function TrackerEditableGrid({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setMenu((m) => (m === "export" ? null : "export"))}
+                onClick={() => {
+                  setMenu((m) => (m === "export" ? null : "export"));
+                  if (template.recurrence_frequency && periods === null)
+                    getTaskPeriods(template.id).then(setPeriods).catch(() => setPeriods([]));
+                }}
                 disabled={exporting !== null}
                 aria-haspopup="menu"
                 aria-expanded={menu === "export"}
@@ -636,6 +644,20 @@ export function TrackerEditableGrid({
               </button>
               {menu === "export" && (
                 <div role="menu" className={menuClass}>
+                  {template.recurrence_frequency && (
+                    <label className="flex items-center justify-between gap-2 px-3 py-2 text-xs text-gray-600">
+                      {template.recurrence_frequency === "daily" ? "Day" : template.recurrence_frequency === "weekly" ? "Week" : "Month"}
+                      <select
+                        aria-label="Period to export"
+                        value={exportPeriod}
+                        onChange={(e) => setExportPeriod(e.target.value)}
+                        className="h-7 rounded border border-gray-300 bg-white px-1.5 text-xs"
+                      >
+                        <option value="">Current</option>
+                        {(periods ?? []).map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </label>
+                  )}
                   <button
                     type="button"
                     role="menuitem"
@@ -643,7 +665,7 @@ export function TrackerEditableGrid({
                     className={menuItemClass}
                   >
                     <span className="font-medium text-gray-800">Records only (.csv)</span>
-                    <span className="text-[11px] text-gray-500">All {grid.rows.length} rows with status, evidence and last update</span>
+                    <span className="text-[11px] text-gray-500">{exportPeriod ? `Every row for ${exportPeriod}` : `All ${grid.rows.length} rows`} with status, evidence and last update</span>
                   </button>
                   <button
                     type="button"

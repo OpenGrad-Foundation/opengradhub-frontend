@@ -1058,11 +1058,13 @@ export type TaskExportFile = { blob: Blob; filename: string };
 
 export async function fetchTaskExport(
   templateId: string,
-  opts: { history?: boolean; ownerId?: string },
+  opts: { history?: boolean; ownerId?: string; period?: string },
 ): Promise<TaskExportFile> {
   const url = new URL(`${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/export`);
   if (opts.history) url.searchParams.set("history", "1");
   if (opts.ownerId) url.searchParams.set("ownerId", opts.ownerId);
+  // A past day / week / month of a repeating task; omitted = the current one.
+  if (opts.period) url.searchParams.set("period", opts.period);
 
   const r = await apiFetch(url.toString());
   if (!r.ok) {
@@ -1073,6 +1075,11 @@ export async function fetchTaskExport(
   const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
   const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
   return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
+}
+
+/** Periods a task has entries for, newest first (e.g. each day of a daily task). */
+export function getTaskPeriods(templateId: string) {
+  return trackerJson<string[]>(`/tracker/templates/${encodeURIComponent(templateId)}/periods`);
 }
 
 // ── the partner view ─────────────────────────────────────────────────────────
