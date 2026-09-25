@@ -87,6 +87,8 @@ export type TrackerCell = {
 
 export type TrackerGridRow = {
   record_id: string;
+  /** The period this entry belongs to ('once', YYYY-MM-DD, YYYY-Www or YYYY-MM). */
+  period_key?: string;
   status: string;
   cells: TrackerCell[];
   blocked: boolean;
@@ -305,9 +307,13 @@ export function assignTrackerDoers(
   );
 }
 
-export function getTrackerGrid(templateId: string, fellowId?: string) {
-  const q = fellowId ? `?fellowId=${encodeURIComponent(fellowId)}` : "";
-  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${q}`);
+export function getTrackerGrid(templateId: string, fellowId?: string, period?: string) {
+  const q = new URLSearchParams();
+  if (fellowId) q.set("fellowId", fellowId);
+  // A past day / week / month of a repeating task; omitted = the current one.
+  if (period) q.set("period", period);
+  const qs = q.toString();
+  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${qs ? `?${qs}` : ""}`);
 }
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
