@@ -148,6 +148,12 @@ export function TaskDetail({
             <Meta label="Due by" value={template.deadline ? formatDate(template.deadline) : "No deadline"} />
             <Meta label="Priority" value={template.priority.charAt(0).toUpperCase() + template.priority.slice(1)} />
             <Meta label="Repeats" value={template.recurrence_frequency ? `Every ${template.recurrence_frequency.replace(/ly$/, "")}` : "One-time"} />
+            {(template.starts_on || template.ends_on) && (
+              <Meta
+                label="Runs"
+                value={`${template.starts_on ? formatDate(template.starts_on) : "Now"} → ${template.ends_on ? formatDate(template.ends_on) : "until archived"}`}
+              />
+            )}
             {template.completion_style === "workflow" && (
               <Meta label="Steps" value={(template.workflow_statuses ?? []).join("  →  ")} wide />
             )}
@@ -327,7 +333,7 @@ function AssignSection({ template, canAuthor }: { template: TrackerTemplate; can
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5">
       <h3 className="mb-1 text-base font-semibold text-gray-950">Assign to more people</h3>
-      <AudiencePicker canAuthor={canAuthor} selected={selected} onChange={setSelected} />
+      <AudiencePicker canAuthor={canAuthor} selected={selected} onChange={setSelected} programmeId={template.programme_id ?? undefined} />
       {error && <p className="mt-2 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {result && <p className="mt-2 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{result}</p>}
       <div className="mt-3">
@@ -514,6 +520,8 @@ function EditTemplate({
   const [deadline, setDeadline] = useState(template.deadline ? template.deadline.slice(0, 10) : "");
   const [status, setStatus] = useState<TrackerTemplate["status"]>(template.status);
   const [recurrence, setRecurrence] = useState<"" | TrackerRecurrence>((template.recurrence_frequency as TrackerRecurrence) ?? "");
+  const [startsOn, setStartsOn] = useState(template.starts_on ?? "");
+  const [endsOn, setEndsOn] = useState(template.ends_on ?? "");
   const [requirePhoto, setRequirePhoto] = useState(template.require_photo);
   const [requireGeo, setRequireGeo] = useState(template.require_geo_verification);
   const [priority, setPriority] = useState<TrackerPriority>(template.priority ?? "medium");
@@ -529,11 +537,18 @@ function EditTemplate({
 
   async function save() {
     setErr(null);
+    if (recurrence && startsOn && endsOn && endsOn < startsOn) {
+      setErr("The end date must be on or after the start date.");
+      return;
+    }
     try {
       await update.mutateAsync({
         name: name.trim(),
         description: description.trim() || null,
-        deadline: deadline || null,
+        // A repeating task has no due date — its start/end window takes that role.
+        deadline: !recurrence && deadline ? deadline : null,
+        starts_on: recurrence && startsOn ? startsOn : null,
+        ends_on: recurrence && endsOn ? endsOn : null,
         status,
         recurrence_frequency: recurrence || null,
         require_photo: requirePhoto,
@@ -559,10 +574,24 @@ function EditTemplate({
         Description
         <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
       </label>
-      <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
-        Due date
-        <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
-      </label>
+      {!recurrence && (
+        <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+          Due date
+          <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+        </label>
+      )}
+      {recurrence && (
+        <>
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Starts on (optional)
+            <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className={inputClass} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
+            Ends on (optional)
+            <input type="date" value={endsOn} min={startsOn || undefined} onChange={(e) => setEndsOn(e.target.value)} className={inputClass} />
+          </label>
+        </>
+      )}
       <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
         Repeats
         <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as "" | TrackerRecurrence)} className={inputClass}>

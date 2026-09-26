@@ -4600,6 +4600,8 @@ export type Batch = {
   name: string;
   school_id: string | null;
   school_name: string | null;
+  /** Owning programme (null on legacy batches). */
+  programme_id?: string | null;
   programme_type: string | null;
   /** Where this cohort's official individual attendance comes from. */
   delivery_mode: "ONLINE" | "SCHOOL_BASED";

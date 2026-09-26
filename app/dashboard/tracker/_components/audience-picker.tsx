@@ -29,10 +29,16 @@ export function AudiencePicker({
   canAuthor,
   selected,
   onChange,
+  programmeId,
+  schoolIds,
 }: {
   canAuthor: boolean;
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
+  /** Chosen above the picker (the builder's Programme → Schools cascade): only people in
+   *  that programme / covering one of those schools are listed. */
+  programmeId?: string;
+  schoolIds?: string[];
 }) {
   const assignable = useTrackerAssignable("fellow", canAuthor);
 
@@ -41,9 +47,15 @@ export function AudiencePicker({
   const [programmeFilter, setProgrammeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [schoolFilter, setSchoolFilter] = useState("");
+  const [nameQuery, setNameQuery] = useState("");
 
   const uniq = (vals: (string | null | undefined)[]) => Array.from(new Set(vals.filter(Boolean) as string[])).sort();
-  const all = useMemo(() => assignable.data ?? [], [assignable.data]);
+  const all = useMemo(
+    () => (assignable.data ?? []).filter((t) =>
+      (!programmeId || t.programmes.some((p) => p.id === programmeId)) &&
+      (!schoolIds?.length || (t.schools ?? []).some((s) => schoolIds.includes(s.id)))),
+    [assignable.data, programmeId, schoolIds],
+  );
   // A person can sit in several programmes (staff seats), so this is membership, not equality.
   const byProgramme = (t: TrackerAssignable) =>
     !programmeFilter || t.programmes.some((p) => p.id === programmeFilter);
@@ -53,6 +65,8 @@ export function AudiencePicker({
   // A person "has" a school when a pick of them would cover it — their own schools and
   // their subordinates' (server-computed), so a ZM matches the schools under their in-charges.
   const bySchool = (t: TrackerAssignable) => !schoolFilter || (t.schools ?? []).some((s) => s.id === schoolFilter);
+  const needle = nameQuery.trim().toLowerCase();
+  const byName = (t: TrackerAssignable) => !needle || t.name.toLowerCase().includes(needle);
 
   // Programme's own options are computed over every person, unfiltered: it is the
   // outermost filter, so nothing downstream may remove a programme from its list.
@@ -72,14 +86,16 @@ export function AudiencePicker({
   // dropdown never offers a school that would match nobody in view.
   const schoolOpts = useMemo(() => {
     const m = new Map<string, string>();
-    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t))) for (const s of t.schools ?? []) m.set(s.id, s.name);
+    for (const t of inProgramme.filter((t) => byState(t) && byDistrict(t)))
+      for (const s of t.schools ?? []) if (!schoolIds?.length || schoolIds.includes(s.id)) m.set(s.id, s.name);
     return Array.from(m, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [inProgramme, stateFilter, districtFilter]);
+  }, [inProgramme, stateFilter, districtFilter, schoolIds]);
   const visible = useMemo(
-    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t)),
-    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter],
+    () => inProgramme.filter((t) => byState(t) && byDistrict(t) && byRole(t) && bySchool(t) && byName(t)),
+    [inProgramme, stateFilter, districtFilter, roleFilter, schoolFilter, needle],
   );
   const hiddenPicks = Array.from(selected).filter((id) => !visible.some((t) => t.id === id)).length;
+  const allVisiblePicked = visible.length > 0 && visible.every((t) => selected.has(t.id));
 
   // Narrowing the programme can strip the downstream selections of their meaning —
   // a state the new programme does not run in would filter everything to nothing
@@ -98,7 +114,7 @@ export function AudiencePicker({
   return (
     <div>
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {programmeOpts.length > 0 && (
+        {!programmeId && programmeOpts.length > 0 && (
           <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">Programme
             <select value={programmeFilter} onChange={(e) => onProgramme(e.target.value)} className={filterClass}>
               <option value="">All programmes</option>
@@ -137,6 +153,13 @@ export function AudiencePicker({
         )}
       </div>
 
+      <input
+        value={nameQuery}
+        onChange={(e) => setNameQuery(e.target.value)}
+        placeholder="Find a person by name"
+        aria-label="Search people by name"
+        className="mb-2 h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
+      />
       {assignable.isLoading ? (
         <div className="flex min-h-24 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
       ) : visible.length === 0 ? (
@@ -144,8 +167,13 @@ export function AudiencePicker({
       ) : (
         <>
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => onChange(new Set([...selected, ...visible.map((t) => t.id)]))} className="rounded-md border border-teal-300 bg-teal-50 px-2.5 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100">
-              Select all {visible.length}
+            {/* Toggles: a second click takes the same people back out. */}
+            <button type="button" aria-pressed={allVisiblePicked}
+              onClick={() => onChange(allVisiblePicked
+                ? new Set([...selected].filter((id) => !visible.some((t) => t.id === id)))
+                : new Set([...selected, ...visible.map((t) => t.id)]))}
+              className={"rounded-md border px-2.5 py-1 text-xs font-medium " + (allVisiblePicked ? "border-teal-600 bg-teal-600 text-white" : "border-teal-300 bg-teal-50 text-teal-700 hover:bg-teal-100")}>
+              {allVisiblePicked ? "Deselect" : "Select"} all {visible.length}
             </button>
             {/* One-click "everyone in this role" — the common case is "all ZMs" or "all
                 in-charges", which the Role filter + Select all needs three clicks for. Adds to
@@ -153,9 +181,11 @@ export function AudiencePicker({
             {roleOpts.length > 1 && roleOpts.map((r) => {
               const ids = all.filter((t) => t.role === r).map((t) => t.id);
               const label = prettyRole(r);
+              const on = ids.length > 0 && ids.every((id) => selected.has(id));
               return (
-                <button key={r} type="button" onClick={() => onChange(new Set([...selected, ...ids]))}
-                  className="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+                <button key={r} type="button" aria-pressed={on}
+                  onClick={() => onChange(on ? new Set([...selected].filter((id) => !ids.includes(id))) : new Set([...selected, ...ids]))}
+                  className={"rounded-md border px-2.5 py-1 text-xs font-medium " + (on ? "border-gray-700 bg-gray-700 text-white" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")}>
                   All {label.toLowerCase().endsWith("s") ? label : `${label}s`} ({ids.length})
                 </button>
               );

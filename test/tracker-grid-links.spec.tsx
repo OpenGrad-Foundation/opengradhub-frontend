@@ -56,7 +56,8 @@ describe('task grid links', () => {
   });
   it('offers a link immediately after typing and keeps the field editable', () => {
     mount('', true);
-    const input = screen.getAllByRole('textbox')[0];
+    // Skip the toolbar's "Fill all" value box — the first cell input is the one under test.
+    const input = screen.getAllByRole('textbox').filter((el) => el.getAttribute('aria-label') !== 'Value')[0];
     fireEvent.change(input, { target: { value: 'https://example.com/first' } });
     expect(screen.getAllByRole('link', { name: 'Open Drive link' })[0].getAttribute('href')).toBe('https://example.com/first');
     fireEvent.change(input, { target: { value: 'https://example.com/second' } });

@@ -38,6 +38,9 @@ export type TrackerTemplate = {
   done_status: string | null;
   deadline: string | null;
   recurrence_frequency: string | null;
+  /** Repeating tasks: the window it runs in (YYYY-MM-DD), null = open-ended. */
+  starts_on?: string | null;
+  ends_on?: string | null;
   priority: TrackerPriority;
   status: "draft" | "active" | "archived";
   require_photo: boolean;
@@ -84,6 +87,8 @@ export type TrackerCell = {
 
 export type TrackerGridRow = {
   record_id: string;
+  /** The period this entry belongs to ('once', YYYY-MM-DD, YYYY-Www or YYYY-MM). */
+  period_key?: string;
   status: string;
   cells: TrackerCell[];
   blocked: boolean;
@@ -167,6 +172,9 @@ export type CreateTrackerTemplateInput = {
   done_status?: string;
   deadline?: string;
   recurrence_frequency?: TrackerRecurrence;
+  /** Repeating tasks only: first / last day it runs (YYYY-MM-DD). */
+  starts_on?: string | null;
+  ends_on?: string | null;
   priority?: TrackerPriority;
   require_photo?: boolean;
   require_location?: boolean;
@@ -180,6 +188,8 @@ export type TrackerTemplatePatch = {
   name?: string;
   description?: string | null;
   deadline?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
   status?: "draft" | "active" | "archived";
   recurrence_frequency?: TrackerRecurrence | null;
   priority?: TrackerPriority;
@@ -283,17 +293,27 @@ export function assignTrackerTargets(templateId: string, targetIds: string[], ba
 /** Assign by WHO fills the task in. The picked people are the doers whatever the Task
  *  Target: for a staff task that is their own row; for a school / student task each
  *  person receives one entry per school / student inside their reach, owned by them.
- *  `skipped` counts picked people who ended up with no entry. */
-export function assignTrackerDoers(templateId: string, doerIds: string[], batchId?: string) {
+ *  `skipped` counts picked people who ended up with no entry. `batchIds` / `schoolIds`
+ *  narrow a student / school task to those batches / schools; empty = everything in reach. */
+export function assignTrackerDoers(
+  templateId: string, doerIds: string[], scope: { batchIds?: string[]; schoolIds?: string[] } = {},
+) {
+  const body: Record<string, unknown> = { doerIds };
+  if (scope.batchIds?.length) body.batchIds = scope.batchIds;
+  if (scope.schoolIds?.length) body.schoolIds = scope.schoolIds;
   return trackerJson<{ created: number; skipped: number }>(
     `/tracker/templates/${encodeURIComponent(templateId)}/assign`,
-    jsonInit("POST", batchId ? { doerIds, batchId } : { doerIds }),
+    jsonInit("POST", body),
   );
 }
 
-export function getTrackerGrid(templateId: string, fellowId?: string) {
-  const q = fellowId ? `?fellowId=${encodeURIComponent(fellowId)}` : "";
-  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${q}`);
+export function getTrackerGrid(templateId: string, fellowId?: string, period?: string) {
+  const q = new URLSearchParams();
+  if (fellowId) q.set("fellowId", fellowId);
+  // A past day / week / month of a repeating task; omitted = the current one.
+  if (period) q.set("period", period);
+  const qs = q.toString();
+  return trackerJson<TrackerGrid>(`/tracker/templates/${encodeURIComponent(templateId)}/grid${qs ? `?${qs}` : ""}`);
 }
 
 export function saveTrackerBatch(edits: TrackerBatchEdit[]) {
@@ -1044,11 +1064,13 @@ export type TaskExportFile = { blob: Blob; filename: string };
 
 export async function fetchTaskExport(
   templateId: string,
-  opts: { history?: boolean; ownerId?: string },
+  opts: { history?: boolean; ownerId?: string; period?: string },
 ): Promise<TaskExportFile> {
   const url = new URL(`${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/export`);
   if (opts.history) url.searchParams.set("history", "1");
   if (opts.ownerId) url.searchParams.set("ownerId", opts.ownerId);
+  // A past day / week / month of a repeating task; omitted = the current one.
+  if (opts.period) url.searchParams.set("period", opts.period);
 
   const r = await apiFetch(url.toString());
   if (!r.ok) {
@@ -1059,6 +1081,11 @@ export async function fetchTaskExport(
   const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
   const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
   return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
+}
+
+/** Periods a task has entries for, newest first (e.g. each day of a daily task). */
+export function getTaskPeriods(templateId: string) {
+  return trackerJson<string[]>(`/tracker/templates/${encodeURIComponent(templateId)}/periods`);
 }
 
 // ── the partner view ─────────────────────────────────────────────────────────
