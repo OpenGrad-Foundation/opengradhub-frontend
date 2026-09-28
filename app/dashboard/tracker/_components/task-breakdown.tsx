@@ -5,7 +5,7 @@ import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search, Ta
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
 import type { TrackerBreakdownRow, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
-import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 
 type PeopleLevel = "zm" | "fellow";
@@ -165,6 +165,9 @@ function PeopleList({
           const opens = !!onOpen && (level === "fellow" || !!row.direct);
           const expands = level === "zm" && !row.direct;
           const isOpen = expanded.has(row.id);
+          const isOwnRow = row.id === parentId; // the ZM's own entries, sorted first by the backend
+          const own = row.own_total ?? 0;
+          const mixed = expands && own > 0;
           return (
             <li key={row.id}>
               <div className="flex items-center gap-2 px-1">
@@ -181,12 +184,16 @@ function PeopleList({
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     {expands && <ChevronRight className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true" />}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-950">{row.name}</p>
+                      <p className="truncate text-sm font-medium text-gray-950">{isOwnRow ? `Own entries · ${row.name}` : row.name}</p>
                       <p className="mt-0.5 truncate text-xs text-gray-500">
-                        {row.direct ? <>Fills this themself · </> : expands && (
-                          <>{row.child_count} {IN_CHARGE_LOWER}{row.child_count === 1 ? "" : "s"} · </>
+                        {mixed ? (
+                          <>Own: {row.own_done ?? 0}/{own} · {inCharges(row.child_count)}: {row.done - (row.own_done ?? 0)}/{row.total - own}</>
+                        ) : (
+                          <>
+                            {row.direct ? <>Fills this themself · </> : expands && <>{inCharges(row.child_count)} · </>}
+                            {row.done}/{row.total} done
+                          </>
                         )}
-                        {row.done}/{row.total} done
                       </p>
                     </div>
                   </div>
@@ -227,6 +234,10 @@ function PeopleList({
       )}
     </>
   );
+}
+
+function inCharges(n: number) {
+  return `${n} ${n === 1 ? IN_CHARGE_LOWER : IN_CHARGE_LOWER_PLURAL}`;
 }
 
 function StatePill({ state }: { state: TaskState }) {
