@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
+import { AlertCircle, ArchiveRestore, ArrowLeft, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
 import { useAddTrackerFields, useDeleteTrackerField, useDeleteTrackerTemplate, useTrackerSummary, useTrackerTemplate, useUpdateTrackerField, useUpdateTrackerTemplate } from "@/lib/queries/tracker";
 import { assignTrackerDoers, profilePathLabel, type TrackerField, type TrackerFieldSource, type TrackerFieldType, type TrackerPriority, type TrackerRecurrence, type TrackerTargetType, type TrackerTemplate } from "@/lib/tracker-api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
+import { EndTaskButton, TEMPLATE_STATUS_LABEL } from "./end-task";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
 
 const TARGET_LABEL: Record<string, string> = {
@@ -55,7 +56,6 @@ export function TaskDetail({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const del = useDeleteTrackerTemplate();
   const archive = useUpdateTrackerTemplate(template.id);
-  const [confirmArchive, setConfirmArchive] = useState(false);
   const isArchived = template.status === "archived";
 
   async function onDelete() {
@@ -81,9 +81,7 @@ export function TaskDetail({
                   {archive.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ArchiveRestore className="h-4 w-4" aria-hidden="true" />} Restore
                 </button>
               ) : (
-                <button type="button" onClick={() => setConfirmArchive(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                  <Archive className="h-4 w-4" aria-hidden="true" /> Mark done &amp; archive
-                </button>
+                <EndTaskButton templateId={template.id} name={template.name} onEnded={onBack} />
               )}
               <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
                 <Pencil className="h-4 w-4" aria-hidden="true" /> Edit
@@ -117,29 +115,13 @@ export function TaskDetail({
         </div>
       )}
 
-      {confirmArchive && (
-        <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div>
-            <p className="text-sm font-semibold text-amber-900">Archive “{template.name}”?</p>
-            <p className="mt-1 text-sm text-amber-800">It leaves the active task list and stops generating new recurring rows. All existing data and history are kept, and you can restore it anytime.</p>
-          </div>
-          {archive.isError && <p className="text-sm text-red-700">{archive.error instanceof Error ? archive.error.message : "Could not archive."}</p>}
-          <div className="flex items-center gap-2">
-            <button type="button" disabled={archive.isPending} onClick={async () => { try { await archive.mutateAsync({ status: "archived" }); setConfirmArchive(false); onBack(); } catch { /* surfaced above */ } }} className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-60">
-              {archive.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />} Archive
-            </button>
-            <button type="button" onClick={() => setConfirmArchive(false)} disabled={archive.isPending} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60">Cancel</button>
-          </div>
-        </div>
-      )}
-
       {editing ? (
         <EditTemplate template={template} canShareExternally={canShareExternally} onDone={() => setEditing(false)} />
       ) : (
         <div className="rounded-lg border border-gray-200 bg-white p-5">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-xl font-semibold text-gray-950">{template.name}</h2>
-            <StatusPill label={template.status === "active" ? "Active" : template.status} tone={template.status === "active" ? "green" : "gray"} />
+            <StatusPill label={TEMPLATE_STATUS_LABEL[template.status]} tone={template.status === "active" ? "green" : "gray"} />
           </div>
           {template.description && <p className="mt-2 text-sm text-gray-600">{template.description}</p>}
           <dl className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -151,7 +133,7 @@ export function TaskDetail({
             {(template.starts_on || template.ends_on) && (
               <Meta
                 label="Runs"
-                value={`${template.starts_on ? formatDate(template.starts_on) : "Now"} → ${template.ends_on ? formatDate(template.ends_on) : "until archived"}`}
+                value={`${template.starts_on ? formatDate(template.starts_on) : "Now"} → ${template.ends_on ? formatDate(template.ends_on) : "until ended"}`}
               />
             )}
             {template.completion_style === "workflow" && (
@@ -606,7 +588,7 @@ function EditTemplate({
         <select value={status} onChange={(e) => setStatus(e.target.value as TrackerTemplate["status"])} className={inputClass}>
           <option value="draft">Draft</option>
           <option value="active">Active</option>
-          <option value="archived">Archived</option>
+          <option value="archived">Ended</option>
         </select>
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium text-gray-700">
