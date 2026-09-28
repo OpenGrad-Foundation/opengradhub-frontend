@@ -32,19 +32,23 @@ it('does not mount the roster without students.view', () => {
   render(<HierarchicalStudentsPanel />);
   expect(screen.getByText(/permission to view students/)).toBeTruthy();
 });
-it('starts a task at its zonal managers and still offers scoped grouping', () => {
+it('lists a task by zonal manager, with no group-by switch', () => {
   render(<TaskBreakdown task={{ template_id: 't1', target_type: 'student', name: 'One task', done: 1, total: 1 } as never} currentUserId="caller" role="PROGRAM_MANAGER" canNudge={false} onBack={() => {}} />);
   expect(screen.getByRole('heading', { name: 'Zonal Managers' })).toBeTruthy();
-  fireEvent.change(screen.getByRole('combobox', { name: 'Group task records by' }), { target: { value: 'student' } });
-  expect(screen.getByText('Student task record')).toBeTruthy();
+  expect(screen.queryByRole('combobox', { name: 'Group task records by' })).toBeNull();
 });
-it('drills ZM → in-charge, then opens that in-charge’s task grid; a self-filling ZM opens directly', () => {
+it('expands a ZM in place to its in-charges, which open their task grid; a self-filling ZM opens directly', () => {
   const onOpenTask = vi.fn();
   render(<TaskBreakdown task={{ template_id: 't1', target_type: 'student', name: 'One task' } as never} currentUserId="caller" role="PROGRAM_MANAGER" canNudge={false} onBack={() => {}} onOpenTask={onOpenTask} />);
-  fireEvent.click(screen.getByRole('button', { name: /Scoped group/ }));
+  const zm = screen.getByRole('button', { name: /Scoped group/ });
+  expect(screen.queryByText('In-charge row')).toBeNull();
+  fireEvent.click(zm);
+  expect(zm.getAttribute('aria-expanded')).toBe('true');
   expect(onOpenTask).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: /In-charge row/ }));
   expect(onOpenTask).toHaveBeenCalledWith('t1', 'f1', 'In-charge row');
+  fireEvent.click(zm);
+  expect(screen.queryByText('In-charge row')).toBeNull();
   cleanup(); onOpenTask.mockClear(); state.directZm = true;
   render(<TaskBreakdown task={{ template_id: 't1', target_type: 'fellow', name: 'ZM task' } as never} currentUserId="caller" role="PROGRAM_MANAGER" canNudge={false} onBack={() => {}} onOpenTask={onOpenTask} />);
   fireEvent.click(screen.getByRole('button', { name: /Scoped group/ }));
