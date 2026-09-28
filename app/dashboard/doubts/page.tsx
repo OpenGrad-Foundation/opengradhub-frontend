@@ -1,9 +1,7 @@
 "use client";
 
-import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Plus, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -83,19 +81,23 @@ function DoubtsPageContent() {
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-      <BackLink fallback="/dashboard" style={backLinkStyle}><ArrowLeft size={18} aria-hidden="true" />Back</BackLink>
+      <BackLink fallback="/dashboard" />
       {/* ── Header ─────────────────────────────────────────── */}
-      {canSubmit && (
-        <HeaderActions>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "32px" }}>
+        <div>
+          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
+        </div>
+        {canSubmit && (
           <button
-            type="button"
             style={primaryButton}
             onClick={() => setShowModal(true)}
+            onMouseEnter={hoverIn}
+            onMouseLeave={hoverOut}
           >
-            <Plus size={18} aria-hidden="true" />Ask a Question
+            + Ask a Question
           </button>
-        </HeaderActions>
-      )}
+        )}
+      </div>
 
       {/* ── Submit Modal ────────────────────────────────────── */}
       {showModal && userId && (
@@ -110,10 +112,10 @@ function DoubtsPageContent() {
       {loading ? (
         <LoadingState />
       ) : error ? (
-        <div style={glassCard}><p role="alert" style={{ ...titleStyle, color: "#b83232", margin: 0 }}>{error}</p></div>
+        <div style={glassCard}><p style={{ ...titleStyle, color: "#e53e3e" }}>{error}</p></div>
       ) : doubts.length === 0 ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
-          <p style={{ ...titleStyle, margin: 0 }}>No Doubts Yet</p>
+          <p style={{ ...titleStyle, marginTop: "8px" }}>No Doubts Yet</p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
             Click &ldquo;Ask a Question&rdquo; to get started.
           </p>
@@ -163,7 +165,7 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     el.style.transition = "box-shadow 300ms ease";
     el.style.boxShadow = "0 0 0 3px rgba(10,190,98,0.55)";
-    const t = setTimeout(() => { el.style.boxShadow = "none"; }, 2200);
+    const t = setTimeout(() => { el.style.boxShadow = "0 4px 16px rgba(0,0,0,0.05)"; }, 2200);
     return () => clearTimeout(t);
   }, [focusId, loading, doubts]);
 
@@ -191,34 +193,37 @@ function StaffDoubtsView({ doubts, loading, error, onReload, canRespond, canDele
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-      <BackLink fallback="/dashboard" style={backLinkStyle}><ArrowLeft size={18} aria-hidden="true" />Back</BackLink>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "16px 0" }}>
+      <BackLink fallback="/dashboard" />
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>Doubts</h1>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         {(["ALL", "OPEN", "ANSWERED"] as StaffFilter[]).map((f) => (
           <button
             key={f}
-            aria-pressed={filter === f}
             onClick={() => setFilter(f)}
             style={{
-              minHeight: 44, padding: "8px 14px", borderRadius: 12,
-              border: filter === f ? "1px solid var(--color-border-strong)" : "1px solid var(--color-border)",
-              background: filter === f ? "var(--color-success-surface)" : "var(--color-surface)",
-              color: filter === f ? "var(--dark-teal)" : "var(--color-text-muted)",
-              fontWeight: 600, fontSize: 14, cursor: "pointer",
+              padding: "8px 14px", borderRadius: 8,
+              border: filter === f ? "1px solid #0abe62" : "1px solid rgba(3,72,82,0.15)",
+              background: filter === f ? "rgba(10,190,98,0.1)" : "#fff",
+              color: filter === f ? "#0abe62" : "#034852",
+              fontWeight: 700, fontSize: 13, cursor: "pointer",
             }}
           >{f.charAt(0) + f.slice(1).toLowerCase()}</button>
         ))}
       </div>
 
       {error && (
-        <div role="alert" style={{ background: "rgba(184,50,50,0.06)", border: "1px solid rgba(184,50,50,0.2)", padding: 16, borderRadius: 12, marginBottom: 16 }}>
-          <p style={{ color: "#b83232", fontSize: 14, margin: 0 }}>{error}</p>
+        <div style={{ background: "rgba(229,62,62,0.07)", padding: 16, borderRadius: 12, marginBottom: 16 }}>
+          <p style={{ color: "#c53030", fontSize: 14, margin: 0 }}>{error}</p>
         </div>
       )}
 
       {loading ? (
-        <p style={{ color: "var(--color-text-muted)" }}>Loading&hellip;</p>
+        <p style={{ color: "rgba(3,72,82,0.5)" }}>Loading&hellip;</p>
       ) : filtered.length === 0 ? (
-        <p style={{ color: "var(--color-text-muted)" }}>No doubts match this filter.</p>
+        <p style={{ color: "rgba(3,72,82,0.5)" }}>No doubts match this filter.</p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {filtered.map((d) => (
@@ -260,40 +265,44 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
   // from the moment it is asked, so the colour reads off the age instead. The
   // old thresholds are kept: 3 days was when it used to reach a ZM, 6 a PM.
   const tier =
-    doubt.status === "ANSWERED" ? { label: "Answered",             color: "#08784a",           bg: "var(--color-success-surface)" } :
-    daysOpen >= 6               ? { label: `Open · ${daysOpen}d`,  color: "#b83232",           bg: "rgba(184,50,50,0.08)" } :
-    daysOpen >= 3               ? { label: `Open · ${daysOpen}d`,  color: "#9a5a00",           bg: "rgba(217,119,6,0.1)" } :
-                                  { label: `Open · ${daysOpen}d`,  color: "var(--color-text-muted)", bg: "#eef5f3" };
+    doubt.status === "ANSWERED" ? { label: "Answered",             color: "#0abe62",           bg: "rgba(10,190,98,0.1)" } :
+    daysOpen >= 6               ? { label: `Open · ${daysOpen}d`,  color: "#c53030",           bg: "rgba(229,62,62,0.1)" } :
+    daysOpen >= 3               ? { label: `Open · ${daysOpen}d`,  color: "#d97706",           bg: "rgba(217,119,6,0.1)" } :
+                                  { label: `Open · ${daysOpen}d`,  color: "rgba(3,72,82,0.6)", bg: "rgba(3,72,82,0.06)" };
 
   return (
     <div id={`doubt-${doubt.id}`} style={{
-      background: "var(--color-surface)",
-      border: "1px solid var(--color-border)",
-      borderRadius: 12, padding: "clamp(16px,4vw,24px)",
+      background: "rgba(255,255,255,0.75)",
+      border: "1px solid rgba(255,255,255,0.2)",
+      borderRadius: 14, padding: "16px 20px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "var(--color-text-muted)" }}>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>
             {doubt.student_name ?? "—"}{doubt.school_name ? ` · ${doubt.school_name}` : " · no school"}
           </p>
-          <h3 style={{ margin: "4px 0 6px", fontSize: 16, fontWeight: 600, color: "var(--color-text)" }}>
+          <h3 style={{ margin: "3px 0 6px", fontFamily: "var(--font-heading)", fontSize: 16, fontWeight: 700, color: "#034852" }}>
             {doubt.subject}
           </h3>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.5, color: "var(--color-text-muted)" }}>{doubt.body}</p>
+          <p style={{ margin: 0, fontSize: 13, color: "rgba(3,72,82,0.7)" }}>{doubt.body}</p>
           {doubt.answer && (
-            <p style={{ margin: "8px 0 0", fontSize: 14, lineHeight: 1.5, color: "var(--color-text)", borderLeft: "3px solid var(--green)", paddingLeft: 8 }}>
+            <p style={{ margin: "8px 0 0", fontSize: 13, color: "#0abe62", borderLeft: "3px solid #0abe62", paddingLeft: 8 }}>
               {doubt.answer}
             </p>
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-          <span style={{ padding: "3px 8px", borderRadius: 6, fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", background: tier.bg, color: tier.color }}>
+          <span style={{ padding: "3px 10px", borderRadius: 100, fontSize: 11, fontWeight: 700, background: tier.bg, color: tier.color }}>
             {tier.label}
           </span>
           {doubt.status === "OPEN" && onAnswer && (
             <button
               onClick={onAnswer}
-              style={primaryButton}
+              style={{
+                padding: "6px 14px", border: "none", borderRadius: 8,
+                background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+                color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer",
+              }}
             >Answer</button>
           )}
           {onDelete && (
@@ -301,7 +310,9 @@ function StaffDoubtCard({ doubt, onAnswer, onDelete, deleting }: {
               onClick={onDelete}
               disabled={deleting}
               style={{
-                ...secondaryButton, color: "#b83232",
+                padding: "6px 14px", border: "1px solid rgba(229,62,62,0.3)", borderRadius: 8,
+                background: "#fff", color: "#c53030",
+                fontWeight: 700, fontSize: 12,
                 cursor: deleting ? "default" : "pointer",
                 opacity: deleting ? 0.6 : 1,
               }}
@@ -339,23 +350,24 @@ function AnswerModal({ doubt, onClose, onAnswered }: {
     <>
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgb(3 20 30 / 35%)", zIndex: 50 }}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.4)", backdropFilter: "blur(4px)", zIndex: 50 }}
       />
       <div style={{
         position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        width: "min(560px, 92vw)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "clamp(16px,4vw,24px)", zIndex: 51,
+        width: "min(560px, 92vw)", background: "#fff", borderRadius: 14, padding: 24, zIndex: 51,
+        boxShadow: "0 16px 48px rgba(0,0,0,0.15)",
       }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 600, color: "var(--color-text)" }}>Answer doubt</h2>
-        <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>{doubt.subject}</p>
+        <h2 style={{ margin: "0 0 4px", fontSize: 18, color: "#034852" }}>Answer doubt</h2>
+        <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "#034852" }}>{doubt.subject}</p>
         {doubt.student_name && (
-          <p style={{ margin: "0 0 10px", fontSize: 13, color: "var(--color-text-muted)" }}>
+          <p style={{ margin: "0 0 10px", fontSize: 11, color: "rgba(3,72,82,0.5)" }}>
             from {doubt.student_name}{doubt.school_name ? ` · ${doubt.school_name}` : ""}
           </p>
         )}
         <div style={{
           margin: "0 0 14px", padding: 12, borderRadius: 8,
-          background: "#eef5f3", borderLeft: "3px solid var(--color-border-strong)",
-          fontSize: 14, color: "var(--color-text)", whiteSpace: "pre-wrap",
+          background: "rgba(3,72,82,0.04)", borderLeft: "3px solid rgba(3,72,82,0.2)",
+          fontSize: 13, color: "#034852", whiteSpace: "pre-wrap",
         }}>
           {doubt.body}
         </div>
@@ -364,19 +376,19 @@ function AnswerModal({ doubt, onClose, onAnswered }: {
           onChange={(e) => setText(e.target.value)}
           rows={6}
           placeholder="Your answer…"
-          style={{ ...inputStyle, fontFamily: "inherit", resize: "vertical" }}
+          style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid rgba(3,72,82,0.15)", fontSize: 13, fontFamily: "inherit", boxSizing: "border-box" }}
         />
-        {err && <p role="alert" style={{ color: "#b83232", fontSize: 14, marginTop: 8 }}>{err}</p>}
+        {err && <p style={{ color: "#c53030", fontSize: 13, marginTop: 8 }}>{err}</p>}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 14 }}>
           <button
             onClick={onClose}
             disabled={busy}
-            style={{ ...secondaryButton, cursor: busy ? "default" : "pointer" }}
+            style={{ padding: "8px 14px", border: "1px solid rgba(3,72,82,0.15)", borderRadius: 8, background: "#fff", cursor: busy ? "default" : "pointer" }}
           >Cancel</button>
           <button
             onClick={() => void submit()}
             disabled={busy}
-            style={{ ...primaryButton, cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}
+            style={{ padding: "8px 14px", border: "none", borderRadius: 8, background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff", fontWeight: 700, cursor: busy ? "default" : "pointer" }}
           >{busy ? "Sending…" : "Send answer"}</button>
         </div>
       </div>
@@ -388,28 +400,28 @@ function AnswerModal({ doubt, onClose, onAnswered }: {
 
 function StudentDoubtsList({ doubts }: { doubts: Doubt[] }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {doubts.map((d) => (
-        <div key={d.id} style={{ ...glassCard, position: "relative", overflow: "hidden" }}>
+        <div key={d.id} style={{ ...glassCard, padding: "28px", position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "4px", background: statusColor(d.status) }} />
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", marginBottom: "12px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text)", margin: 0, lineHeight: 1.4 }}>
+            <h3 style={{ fontFamily: "var(--font-heading)", fontSize: "18px", fontWeight: 700, color: "#034852", margin: 0, lineHeight: 1.3 }}>
               {d.subject}
             </h3>
             <StatusBadge status={d.status} />
           </div>
-          <p style={{ fontSize: "14px", color: "var(--color-text-muted)", lineHeight: 1.6, margin: 0 }}>
+          <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.75)", lineHeight: 1.6, margin: 0 }}>
             {d.body}
           </p>
           {d.status === "ANSWERED" && d.answer && (
-            <div style={{ marginTop: "16px", padding: "12px 16px", background: "var(--color-success-surface)", borderRadius: "8px", borderLeft: "3px solid var(--green)" }}>
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "#08784a", margin: "0 0 6px" }}>Answer</p>
-              <p style={{ fontSize: "14px", color: "var(--color-text)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
+            <div style={{ marginTop: "20px", padding: "16px 20px", background: "rgba(10,190,98,0.06)", borderRadius: "12px", borderLeft: "3px solid #0abe62" }}>
+              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#0abe62", marginBottom: "6px" }}>Answer</p>
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.85)", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>
                 {d.answer}
               </p>
             </div>
           )}
-          <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "12px 0 0" }}>
+          <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.4)", marginTop: "12px" }}>
             {new Date(d.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
           </p>
         </div>
@@ -457,12 +469,12 @@ function SubmitDoubtModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-      <div style={{ position: "absolute", inset: 0, background: "rgb(3 20 30 / 35%)" }} onClick={onClose} />
+      <div style={{ position: "absolute", inset: 0, background: "rgba(3,72,82,0.4)", backdropFilter: "blur(4px)" }} onClick={onClose} />
 
       <div style={{ ...glassCard, position: "relative", width: "100%", maxWidth: "560px", textAlign: "left", animation: "floatIn 0.3s ease-out forwards" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <h2 style={{ ...titleStyle, margin: 0 }}>Ask a Question</h2>
-          <button onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={20} aria-hidden="true" /></button>
+          <p style={labelStyle}>Ask a Question</p>
+          <button onClick={onClose} style={closeBtnStyle}>✕</button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: "16px" }}>
@@ -490,14 +502,14 @@ function SubmitDoubtModal({
           </div>
 
           {error && (
-            <p role="alert" style={{ fontSize: "14px", color: "#b83232", fontWeight: 600, margin: 0 }}>{error}</p>
+            <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>{error}</p>
           )}
 
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "8px" }}>
             <button
               type="button"
               onClick={onClose}
-              style={secondaryButton}
+              style={{ padding: "10px 20px", background: "none", border: "1px solid rgba(3,72,82,0.2)", borderRadius: "10px", color: "#034852", fontWeight: 600, fontSize: "13px", cursor: "pointer" }}
             >
               Cancel
             </button>
@@ -521,15 +533,17 @@ function StatusBadge({ status }: { status: string }) {
   const isAnswered = status === "ANSWERED";
   return (
     <span style={{
-      padding: "3px 8px",
-      borderRadius: "6px",
-      fontSize: "12px",
-      fontWeight: 600,
+      padding: "4px 12px",
+      borderRadius: "100px",
+      fontSize: "10px",
+      fontWeight: 700,
+      letterSpacing: "0.06em",
       whiteSpace: "nowrap",
-      background: isAnswered ? "var(--color-success-surface)" : "rgba(255,222,0,0.18)",
-      color: isAnswered ? "#08784a" : "#7a5a00",
+      background: isAnswered ? "rgba(10,190,98,0.12)" : "rgba(255,222,0,0.18)",
+      color: isAnswered ? "#0a944e" : "#7a6600",
+      border: isAnswered ? "1px solid rgba(10,190,98,0.25)" : "1px solid rgba(255,222,0,0.4)",
     }}>
-      {isAnswered ? "Answered" : status === "OPEN" ? "Open" : status}
+      {status}
     </span>
   );
 }
@@ -542,95 +556,98 @@ function LoadingState() {
   return (
     <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ ...glassCard, textAlign: "center" }}>
-        <p role="status" style={{ margin: 0, fontSize: "18px", fontWeight: 600, color: "var(--color-text)" }}>Fetching doubts</p>
+        <p style={labelStyle}>Loading</p>
+        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>Fetching doubts</p>
         <p style={{ ...subtitleStyle, marginTop: "8px" }}>Please wait&hellip;</p>
       </div>
     </div>
   );
 }
 
+// ── Interaction ────────────────────────────────────────────────
+
+function hoverIn(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.transform = "translateY(-2px)";
+  e.currentTarget.style.boxShadow = "0 12px 20px rgba(10,190,98,0.3)";
+}
+
+function hoverOut(e: React.MouseEvent<HTMLButtonElement>) {
+  e.currentTarget.style.transform = "translateY(0)";
+  e.currentTarget.style.boxShadow = "0 8px 16px rgba(10,190,98,0.2)";
+}
+
 // ── Styles ─────────────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px,4vw,24px)",
+  background: "#ffffff",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "24px",
+  padding: "32px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.28em",
+  color: "#209379",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: "18px",
-  fontWeight: 600,
-  color: "var(--color-text)",
+  fontFamily: "var(--font-heading)",
+  fontSize: "22px",
+  fontWeight: 700,
+  color: "#034852",
 };
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: "14px",
-  color: "var(--color-text-muted)",
-};
-
-const btnBase: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  minHeight: "44px",
-  padding: "8px 16px",
-  borderRadius: "12px",
-  fontWeight: 600,
-  fontSize: "14px",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
+  color: "rgba(3,72,82,0.6)",
 };
 
 const primaryButton: React.CSSProperties = {
-  ...btnBase,
-  border: "1px solid var(--green)",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-};
-
-const secondaryButton: React.CSSProperties = {
-  ...btnBase,
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-};
-
-const backLinkStyle: React.CSSProperties = {
-  ...secondaryButton,
-  textDecoration: "none",
+  padding: "10px 20px",
+  border: "none",
+  borderRadius: "10px",
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#ffffff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
+  fontSize: "13px",
+  cursor: "pointer",
+  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
+  transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
 };
 
 const closeBtnStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: "44px",
-  minHeight: "44px",
   background: "none",
   border: "none",
-  color: "var(--color-text-muted)",
+  fontSize: "18px",
+  color: "rgba(3,72,82,0.5)",
   cursor: "pointer",
+  padding: "4px 8px",
   borderRadius: "8px",
 };
 
 const formLabelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "11px",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "rgba(3,72,82,0.7)",
   marginBottom: "6px",
 };
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: "44px",
-  padding: "8px 12px",
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border-strong)",
-  borderRadius: "8px",
-  color: "var(--color-text)",
+  padding: "12px 16px",
+  background: "rgba(0,0,0,0.04)",
+  border: "1px solid rgba(0,0,0,0.12)",
+  borderRadius: "12px",
+  color: "#034852",
+  fontFamily: "var(--font-body)",
   fontSize: "14px",
-  boxSizing: "border-box",
+  outline: "none",
 };

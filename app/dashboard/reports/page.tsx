@@ -17,7 +17,6 @@ import {
 } from "@/lib/api";
 import { useReportHistory } from "@/lib/queries/reports";
 import { PerformanceHistoryTable } from "@/components/performance-history-table";
-import { Download } from "lucide-react";
 
 // ── PDF helper ────────────────────────────────────────────────────────────────
 // The report endpoints are bearer-token protected, so `window.open` cannot fetch
@@ -150,7 +149,7 @@ export default function ReportsPage() {
   if (userLoading || perms.isLoading) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading…</p>
+        <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>Loading…</p>
       </div>
     );
   }
@@ -162,7 +161,7 @@ export default function ReportsPage() {
   if (!canUseStudentReports) {
     return (
       <div style={{ minHeight: "60vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>
+        <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px" }}>
           You don&apos;t have access to reports.
         </p>
       </div>
@@ -176,15 +175,25 @@ export default function ReportsPage() {
 
   return (
     <div>
+      {/* Page header */}
+      <div style={{ ...glassCard, marginBottom: "28px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", marginBottom: "8px" }}>
+          Reports
+        </p>
+        <h1 style={{ fontFamily: "var(--font-heading)", fontSize: "28px", fontWeight: 700, color: "#034852", margin: 0 }}>
+          Reports
+        </h1>
+      </div>
+
       {error && (
-        <div style={{ ...card, marginBottom: "20px", padding: "16px 20px", background: "rgba(184,50,50,0.06)", border: "1px solid rgba(184,50,50,0.25)" }}>
-          <p style={{ color: "#b83232", fontSize: "14px", margin: 0 }}>{error}</p>
+        <div style={{ ...glassCard, marginBottom: "20px", padding: "16px 20px", background: "rgba(229,62,62,0.07)", border: "1px solid rgba(229,62,62,0.2)" }}>
+          <p style={{ color: "#c53030", fontSize: "14px", margin: 0 }}>{error}</p>
         </div>
       )}
 
       {/* Generate a report */}
-      <div style={card}>
-        <p style={sectionTitle}>
+      <div style={{ ...glassCard, padding: "28px 32px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
           Generate a report
         </p>
 
@@ -264,7 +273,6 @@ export default function ReportsPage() {
               cursor: downloadDisabled ? "not-allowed" : "pointer",
             }}
           >
-            <Download size={16} aria-hidden="true" />
             {downloading ? "Preparing…" : "Download report (PDF)"}
           </button>
         </div>
@@ -279,19 +287,19 @@ export default function ReportsPage() {
       </div>
 
       {/* Performance History */}
-      <div style={{ ...card, marginTop: "24px" }}>
-        <p style={sectionTitle}>
-          Performance history
+      <div style={{ ...glassCard, marginTop: "28px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" }}>
+          Performance History
         </p>
 
         {historyLoading ? (
-          <p style={{ color: "var(--color-text-muted)", fontSize: "14px", margin: "12px 0 0" }}>Loading…</p>
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px", margin: "12px 0 0" }}>Loading…</p>
         ) : historyError ? (
-          <p style={{ color: "#b83232", background: "rgba(184,50,50,0.06)", padding: "8px 12px", borderRadius: "8px", fontSize: "14px", margin: "12px 0 0" }}>
+          <p style={{ color: "#b91c1c", background: "#fef2f2", padding: "8px 12px", borderRadius: "8px", fontSize: "14px", margin: "12px 0 0" }}>
             {historyError}
           </p>
         ) : historyRows.length === 0 ? (
-          <p style={{ color: "var(--color-text-muted)", fontSize: "14px", margin: "12px 0 0" }}>No completed attempts yet.</p>
+          <p style={{ color: "rgba(3,72,82,0.5)", fontSize: "14px", margin: "12px 0 0" }}>No completed attempts yet.</p>
         ) : (
           <PerformanceHistoryTable rows={historyRows} />
         )}
@@ -302,57 +310,55 @@ export default function ReportsPage() {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const card: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px,4vw,24px)",
-};
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 600,
-  color: "var(--color-text)",
-  margin: "0 0 16px",
+const glassCard: React.CSSProperties = {
+  background: "rgba(255,255,255,0.75)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: "20px",
+  padding: "28px 32px",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
 };
 
 const primaryBtn: React.CSSProperties = {
-  padding: "0 18px",
-  border: "1px solid var(--green)",
-  borderRadius: "12px",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-  fontWeight: 600,
-  fontSize: "14px",
+  padding: "11px 22px",
+  border: "none",
+  borderRadius: "10px",
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#fff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
+  fontSize: "13px",
   cursor: "pointer",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
+  boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
 };
 
 const fieldLabel: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "6px",
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "rgba(3,72,82,0.6)",
 };
 
 const selectStyle: React.CSSProperties = {
   minWidth: "220px",
   minHeight: "44px",
-  padding: "0 12px",
-  borderRadius: "8px",
-  border: "1px solid var(--color-border-strong)",
-  background: "var(--color-surface)",
+  padding: "10px 14px",
+  borderRadius: "10px",
+  border: "1.5px solid rgba(3,72,82,0.15)",
+  background: "#fff",
   fontSize: "14px",
-  color: "var(--color-text)",
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
+  color: "#034852",
   cursor: "pointer",
+  outline: "none",
 };
 
 const hintText: React.CSSProperties = {
   margin: "14px 0 0",
   fontSize: "13px",
-  color: "var(--color-text-muted)",
+  color: "rgba(3,72,82,0.5)",
 };

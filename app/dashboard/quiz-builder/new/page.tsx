@@ -122,6 +122,7 @@ export default function NewQuizPage() {
           <ArrowLeft size={16} aria-hidden="true" />Back
         </a>
         <p style={{ ...label, marginTop: "16px" }}>{quizType === "MODULE_TEST" ? "Module quiz" : "Global quiz"}</p>
+        <h1 style={{ ...heading, fontSize: "24px", margin: "4px 0 0" }}>New quiz</h1>
 
         {/* The other way in: skip the form and let a markdown/PDF file define
             the whole quiz, questions included. Points at bulkImportHref — same

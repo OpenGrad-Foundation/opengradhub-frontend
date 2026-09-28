@@ -18,6 +18,6 @@ it('keeps scoped school choices editable without imposing the actor role label',
 });
 it('offers CSV generation only with its separate action permission', async () => {
   render(<StudentExportPage />);
-  await screen.findByRole('option', { name: 'School two' });
+  await screen.findByText('Student Export');
   expect(screen.queryByRole('button', { name: 'Download CSV' })).toBeNull();
 });

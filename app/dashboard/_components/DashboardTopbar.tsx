@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useClerk } from "@clerk/nextjs";
-import { ChevronUp, LogOut, UserRound } from "lucide-react";
+import { LogOut, Menu, UserRound } from "lucide-react";
 import { clearUserCache, useCurrentUser } from "@/hooks/use-current-user";
 import { clearStoredAuthToken, isClerkMode } from "@/lib/auth-session";
 import { roleLabel } from "@/lib/labels";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { registerServiceWorker } from "@/lib/push/register-sw";
+import NotificationBell from "@/components/NotificationBell";
 import ReportBugButton from "./ReportBugButton";
 
 function initials(name: string): string {
@@ -23,7 +24,11 @@ function initials(name: string): string {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function DashboardAccountControls({ collapsed = false, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
+export default function DashboardTopbar({
+  onMenuClick,
+}: {
+  onMenuClick?: () => void;
+}) {
   const { data } = useCurrentUser();
   const router = useRouter();
   const clerk = useClerk();
@@ -75,40 +80,42 @@ export default function DashboardAccountControls({ collapsed = false, onNavigate
   }
 
   return (
-    <div className="w-full">
+    <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 sm:px-8 sticky top-0 z-20 shadow-sm">
+      {/* Left — hamburger on mobile */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        className="lg:hidden -ml-1 rounded-md p-2 text-gray-500 hover:bg-gray-100"
+        aria-label="Open sidebar"
+      >
+        <Menu size={20} />
+      </button>
+      <div className="hidden lg:block" />
+
+      {/* Right — bug report + notification bell + avatar */}
+      <div className="flex items-center gap-3">
+        <ReportBugButton />
+
+        {userId && <NotificationBell />}
 
         {userName && (
-          <div ref={menuRef} className="relative w-full" onKeyDown={(event) => {
-            if (event.key === "Escape" && menuOpen) {
-              event.stopPropagation();
-              setMenuOpen(false);
-              document.getElementById("topbar-profile-btn")?.focus();
-            }
-          }}>
+          <div ref={menuRef} className="relative">
             <button
               id="topbar-profile-btn"
               type="button"
               onClick={() => setMenuOpen((open) => !open)}
               title={userName}
-              aria-label="Account menu"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              className={`flex min-h-11 w-full items-center gap-3 rounded-xl text-left text-[var(--dark-teal)] hover:bg-[var(--color-success-surface)] transition-colors cursor-pointer ${collapsed ? "justify-center" : "p-2"}`}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--teal)] text-xs font-bold text-white select-none hover:bg-[var(--dark-teal)] transition-colors cursor-pointer"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--teal)] text-xs font-bold text-white">{initials(userName)}</span>
-              {!collapsed && <>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{userName}</span>
-                  <span className="mt-0.5 block truncate text-xs text-[var(--color-text-muted)]">{roleName}</span>
-                </span>
-                <ChevronUp size={16} aria-hidden="true" className={`shrink-0 ${menuOpen ? "rotate-180" : ""}`} />
-              </>}
+              {initials(userName)}
             </button>
 
             {menuOpen && (
               <div
                 role="menu"
-                className={`absolute ${collapsed ? "left-0" : "right-0"} bottom-full mb-3 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-50`}
+                className="absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-30"
               >
                 <div className="border-b border-gray-100 px-4 py-2.5">
                   <p className="truncate text-sm font-semibold text-gray-800">
@@ -122,7 +129,7 @@ export default function DashboardAccountControls({ collapsed = false, onNavigate
                   <Link
                     href="/dashboard/user-management/me"
                     role="menuitem"
-                    onClick={() => { setMenuOpen(false); onNavigate?.(); }}
+                    onClick={() => setMenuOpen(false)}
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
                   >
                     <UserRound size={16} aria-hidden="true" />
@@ -139,11 +146,11 @@ export default function DashboardAccountControls({ collapsed = false, onNavigate
                   <LogOut size={16} aria-hidden="true" />
                   Sign Out
                 </button>
-                <ReportBugButton />
               </div>
             )}
           </div>
         )}
-    </div>
+      </div>
+    </header>
   );
 }

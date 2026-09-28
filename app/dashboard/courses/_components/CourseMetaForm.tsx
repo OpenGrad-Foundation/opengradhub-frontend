@@ -16,12 +16,11 @@ type FormFields = {
 
 type Props = {
   initial?: Course;
-  embedded?: boolean;
   onSave: (fields: FormFields) => Promise<void>;
   submitLabel: string;
 };
 
-export default function CourseMetaForm({ initial, onSave, submitLabel, embedded = false }: Props) {
+export default function CourseMetaForm({ initial, onSave, submitLabel }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [programmeType, setProgrammeType] = useState(initial?.programme_type ?? "UG");
@@ -60,6 +59,8 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
       <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 640px) {
           .course-mgmt-form-card {
+            padding: 20px 20px !important;
+            border-radius: 16px !important;
             gap: 18px !important;
           }
           .course-mgmt-form-flex-row {
@@ -73,12 +74,12 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
           }
         }
       ` }} />
-      <div className="course-mgmt-form-card" style={embedded ? { ...card, background: "transparent", border: 0, padding: 0, boxShadow: "none" } : card}>
+      <div className="course-mgmt-form-card" style={card}>
 
         {/* ── Title ─────────────────────────────────────────── */}
         <Section label="Title *">
           <input
-            id="course-title" aria-label="Title"
+            id="course-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Introduction to Data Science"
@@ -90,7 +91,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         {/* ── Description ───────────────────────────────────── */}
         <Section label="Description">
           <textarea
-            id="course-description" aria-label="Description"
+            id="course-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What will students learn in this course?"
@@ -107,9 +108,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
               flexWrap: "wrap",
               gap: "8px",
               padding: "8px",
-              border: "1px solid var(--color-border-strong)",
-              borderRadius: "8px",
-              background: "var(--color-surface)",
+              border: "1px solid rgba(0,0,0,0.12)",
+              borderRadius: "12px",
+              background: "#fff",
               minHeight: "44px",
               alignItems: "center"
             }}
@@ -122,9 +123,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                   alignItems: "center",
                   gap: "4px",
                   background: "rgba(10,190,98,0.1)",
-                  color: "var(--color-text)",
-                  padding: "4px 8px",
-                  borderRadius: "6px",
+                  color: "var(--dark-teal)",
+                  padding: "4px 10px",
+                  borderRadius: "100px",
                   fontSize: "12px",
                   fontWeight: 600,
                 }}
@@ -132,7 +133,6 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                 {tag}
                 <button
                   type="button"
-                  aria-label={`Remove tag ${tag}`}
                   onClick={() => setTags(tags.filter((t) => t !== tag))}
                   style={{
                     background: "none",
@@ -146,12 +146,12 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                     justifyContent: "center",
                   }}
                 >
-                  <X size={12} strokeWidth={3} aria-hidden="true" />
+                  <X size={12} strokeWidth={3} />
                 </button>
               </span>
             ))}
             <input
-              id="course-tags" aria-label="Tags"
+              id="course-tags"
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
@@ -174,7 +174,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                 outline: "none",
                 background: "transparent",
                 fontSize: "14px",
-                color: "var(--color-text)",
+                color: "var(--dark-teal)",
                 fontFamily: "inherit",
               }}
             />
@@ -182,7 +182,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Programme Type ────────────────────────────────── */}
-        <Section label="Programme type">
+        <Section label="Programme Type">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             {(["UG", "PG"] as const).map((p) => (
               <ToggleChip
@@ -196,9 +196,9 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Cover Image URL ───────────────────────────────── */}
-        <Section label="Cover image URL">
+        <Section label="Cover Image URL">
           <input
-            id="course-cover-url" aria-label="Cover image URL"
+            id="course-cover-url"
             value={coverImageUrl}
             onChange={(e) => setCoverImageUrl(e.target.value)}
             placeholder="https://… (leave blank for default cover)"
@@ -211,14 +211,14 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
                 height: "120px",
                 borderRadius: "12px",
                 background: `url(${coverImageUrl}) center/cover no-repeat`,
-                border: "1px solid var(--color-border)",
+                border: "1px solid rgba(0,0,0,0.08)",
               }}
             />
           )}
         </Section>
 
         {/* ── Locking Mode ──────────────────────────────────── */}
-        <Section label="Locking mode">
+        <Section label="Locking Mode">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <ToggleChip
               label="Open"
@@ -236,7 +236,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {/* ── Access Type ───────────────────────────────────── */}
-        <Section label="Access type">
+        <Section label="Access Type">
           <div className="course-mgmt-form-flex-row" style={{ display: "flex", gap: "12px" }}>
             <RadioCard
               id="access-free"
@@ -256,7 +256,7 @@ export default function CourseMetaForm({ initial, onSave, submitLabel, embedded 
         </Section>
 
         {error && (
-          <p style={{ fontSize: "13px", color: "#b83232", fontWeight: 600, marginTop: "4px" }}>
+          <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, marginTop: "4px" }}>
             {error}
           </p>
         )}
@@ -307,14 +307,12 @@ function ToggleChip({
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
       style={{
         flex: 1,
-        minHeight: "44px",
-        padding: sublabel ? "12px 16px" : "8px 16px",
-        border: active ? "1px solid var(--green)" : "1px solid var(--color-border)",
+        padding: sublabel ? "14px 18px" : "10px 20px",
+        border: active ? "2px solid #0abe62" : "2px solid rgba(3,72,82,0.12)",
         borderRadius: "12px",
-        background: active ? "rgba(10,190,98,0.08)" : "var(--color-surface)",
+        background: active ? "rgba(10,190,98,0.08)" : "rgba(255,255,255,0.6)",
         cursor: "pointer",
         textAlign: "left",
         transition: "all 180ms ease",
@@ -322,14 +320,15 @@ function ToggleChip({
     >
       <span style={{
         display: "block",
-        fontWeight: 600,
+        fontFamily: "var(--font-heading)",
+        fontWeight: 700,
         fontSize: "14px",
-        color: active ? "var(--color-text)" : "var(--color-text-muted)",
+        color: active ? "#034852" : "rgba(3,72,82,0.6)",
       }}>
         {label}
       </span>
       {sublabel && (
-        <span style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
+        <span style={{ display: "block", fontSize: "11px", color: "rgba(3,72,82,0.5)", marginTop: "3px" }}>
           {sublabel}
         </span>
       )}
@@ -359,9 +358,9 @@ function RadioCard({
         alignItems: "flex-start",
         gap: "12px",
         padding: "14px 18px",
-        border: checked ? "1px solid var(--green)" : "1px solid var(--color-border)",
+        border: checked ? "2px solid #0abe62" : "2px solid rgba(3,72,82,0.12)",
         borderRadius: "12px",
-        background: checked ? "rgba(10,190,98,0.08)" : "var(--color-surface)",
+        background: checked ? "rgba(10,190,98,0.08)" : "rgba(255,255,255,0.6)",
         cursor: "pointer",
         transition: "all 180ms ease",
       }}
@@ -371,18 +370,19 @@ function RadioCard({
         type="radio"
         checked={checked}
         onChange={onChange}
-        style={{ marginTop: "3px", accentColor: "#08784a" }}
+        style={{ marginTop: "3px", accentColor: "#0abe62" }}
       />
       <span>
         <span style={{
           display: "block",
-          fontWeight: 600,
+          fontFamily: "var(--font-heading)",
+          fontWeight: 700,
           fontSize: "14px",
-          color: "var(--color-text)",
+          color: "#034852",
         }}>
           {label}
         </span>
-        <span style={{ display: "block", fontSize: "12px", color: "var(--color-text-muted)", marginTop: "3px" }}>
+        <span style={{ display: "block", fontSize: "11px", color: "rgba(3,72,82,0.5)", marginTop: "3px" }}>
           {sublabel}
         </span>
       </span>
@@ -393,10 +393,11 @@ function RadioCard({
 // ── Styles ─────────────────────────────────────────────────────
 
 const card: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px, 4vw, 24px)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
+  borderRadius: "24px",
+  padding: "36px 40px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
   display: "flex",
   flexDirection: "column",
   gap: "24px",
@@ -404,33 +405,35 @@ const card: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: "44px",
-  padding: "8px 12px",
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border-strong)",
-  borderRadius: "8px",
-  color: "var(--color-text)",
+  padding: "12px 16px",
+  background: "rgba(3,72,82,0.03)",
+  border: "1px solid rgba(3,72,82,0.12)",
+  borderRadius: "12px",
+  color: "#034852",
+  fontFamily: "var(--font-body)",
   fontSize: "14px",
+  outline: "none",
   boxSizing: "border-box",
 };
 
 const fieldLabel: React.CSSProperties = {
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "rgba(3,72,82,0.7)",
 };
 
 const primaryButton: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minHeight: "44px",
-  padding: "8px 20px",
-  border: "1px solid var(--green)",
+  padding: "13px 28px",
+  border: "none",
   borderRadius: "12px",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-  fontWeight: 600,
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#ffffff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
   fontSize: "14px",
   cursor: "pointer",
+  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
+  transition: "all 240ms cubic-bezier(0.16,1,0.3,1)",
 };

@@ -11,7 +11,6 @@ import {
   type AnalyticsStudent,
 } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
-import { Download } from "lucide-react";
 
 // Record filters narrow the backend-authorized roster.
 
@@ -132,11 +131,11 @@ function StudentExportContent() {
     setActiveFilters({ ...filters });
   }
 
-  const tableRows = students.map((student) => (
+  const tableRows = students.map((student, index) => (
     <tr
       key={student.id}
       style={{
-        background: "var(--color-surface)",
+        background: index % 2 === 0 ? "#ffffff" : "rgba(3,72,82,0.04)",
       }}
     >
       <td style={cellStyle}>{student.name}</td>
@@ -152,6 +151,12 @@ function StudentExportContent() {
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+      <div style={{ marginBottom: "32px" }}>
+        <h1 style={{ ...titleStyle, fontSize: "28px", margin: "4px 0 0" }}>
+          Student Export
+        </h1>
+      </div>
+
       <div style={filterCard}>
         <div style={filterGrid}>
           {(
@@ -251,7 +256,7 @@ function StudentExportContent() {
             onClick={handleApplyFilters}
             style={applyButton}
           >
-            Apply filters
+            Apply Filters
           </button>
         </div>
       </div>
@@ -259,7 +264,7 @@ function StudentExportContent() {
       <div style={tableCard}>
         <div style={tableHeader}>
           <div>
-            <p style={sectionTitle}>Preview</p>
+            <p style={labelStyle}>Preview</p>
             <p style={{ ...subtitleStyle, marginTop: "6px" }}>
               {studentsLoading
                 ? "Loading students..."
@@ -276,7 +281,6 @@ function StudentExportContent() {
               cursor: downloading ? "not-allowed" : "pointer",
             }}
           >
-            <Download size={16} aria-hidden="true" />
             {downloading ? "Preparing..." : "Download CSV"}
           </button>}
         </div>
@@ -344,8 +348,9 @@ function LoadingState() {
   return (
     <div style={{ minHeight: "40vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ ...glassCard, textAlign: "center" }}>
-        <p style={{ fontSize: "16px", fontWeight: 600, color: "var(--color-text)" }}>
-          Loading student export
+        <p style={labelStyle}>Loading</p>
+        <p style={{ marginTop: "12px", fontSize: "22px", fontWeight: 700, color: "#034852" }}>
+          Student Export
         </p>
         <p style={{ ...subtitleStyle, marginTop: "8px" }}>Please wait...</p>
       </div>
@@ -361,25 +366,39 @@ function formatDate(value: string) {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px,4vw,24px)",
+  background: "#ffffff",
+  border: "1px solid rgba(255,255,255,0.3)",
+  borderRadius: "24px",
+  padding: "36px",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
-const sectionTitle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 600,
-  color: "var(--color-text)",
+const labelStyle: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.28em",
+  color: "#209379",
+};
+
+const titleStyle: React.CSSProperties = {
+  fontFamily: "var(--font-heading)",
+  fontSize: "22px",
+  fontWeight: 700,
+  color: "#034852",
 };
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: "14px",
-  color: "var(--color-text-muted)",
+  color: "rgba(3,72,82,0.6)",
 };
 
 const filterCard: React.CSSProperties = {
-  ...glassCard,
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
+  borderRadius: "20px",
+  padding: "24px",
+  boxShadow: "0 16px 32px rgba(3,72,82,0.08)",
   marginBottom: "24px",
 };
 
@@ -392,30 +411,31 @@ const filterGrid: React.CSSProperties = {
 const fieldStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "6px",
-  fontSize: "14px",
-  color: "var(--color-text)",
+  gap: "8px",
+  fontSize: "13px",
+  color: "#034852",
 };
 
 const fieldLabel: React.CSSProperties = {
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "12px",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "rgba(3,72,82,0.7)",
 };
 
 const inputStyle: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "0 12px",
-  borderRadius: "8px",
-  border: "1px solid var(--color-border-strong)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
+  padding: "10px 12px",
+  borderRadius: "10px",
+  border: "1px solid rgba(3,72,82,0.18)",
   fontSize: "14px",
+  fontFamily: "var(--font-body)",
+  outline: "none",
 };
 
 const helperText: React.CSSProperties = {
   fontSize: "12px",
-  color: "var(--color-text-muted)",
+  color: "rgba(3,72,82,0.5)",
   marginTop: "6px",
 };
 
@@ -426,18 +446,24 @@ const filterActions: React.CSSProperties = {
 };
 
 const applyButton: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "0 18px",
+  padding: "12px 20px",
   borderRadius: "12px",
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-  fontWeight: 600,
+  border: "none",
+  background: "#034852",
+  color: "#ffffff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
   fontSize: "14px",
   cursor: "pointer",
 };
 
-const tableCard: React.CSSProperties = glassCard;
+const tableCard: React.CSSProperties = {
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
+  borderRadius: "20px",
+  padding: "24px",
+  boxShadow: "0 16px 32px rgba(3,72,82,0.08)",
+};
 
 const tableHeader: React.CSSProperties = {
   display: "flex",
@@ -449,23 +475,21 @@ const tableHeader: React.CSSProperties = {
 };
 
 const downloadButton: React.CSSProperties = {
-  minHeight: "44px",
-  padding: "0 18px",
+  padding: "12px 20px",
   borderRadius: "12px",
-  border: "1px solid var(--green)",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-  fontWeight: 600,
+  border: "none",
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#ffffff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
   fontSize: "14px",
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "6px",
+  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
 };
 
 const tableWrapper: React.CSSProperties = {
   overflowX: "auto",
-  borderRadius: "8px",
-  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  border: "1px solid rgba(3,72,82,0.08)",
 };
 
 const tableStyle: React.CSSProperties = {
@@ -475,31 +499,32 @@ const tableStyle: React.CSSProperties = {
 };
 
 const tableHeaderRow: React.CSSProperties = {
-  background: "#eef5f3",
+  background: "rgba(3,72,82,0.06)",
   textAlign: "left",
 };
 
 const headerCellStyle: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "12px",
   fontSize: "12px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
+  color: "rgba(3,72,82,0.7)",
 };
 
 const cellStyle: React.CSSProperties = {
   padding: "12px",
   fontSize: "13px",
-  color: "var(--color-text)",
-  borderTop: "1px solid var(--color-border)",
+  color: "#034852",
+  borderTop: "1px solid rgba(3,72,82,0.06)",
 };
 
 const errorBanner: React.CSSProperties = {
   marginBottom: "12px",
   padding: "10px 12px",
-  borderRadius: "8px",
-  background: "rgba(184,50,50,0.06)",
-  border: "1px solid rgba(184,50,50,0.25)",
-  color: "#b83232",
+  borderRadius: "10px",
+  background: "rgba(229,62,62,0.08)",
+  border: "1px solid rgba(229,62,62,0.2)",
+  color: "#c53030",
   fontSize: "13px",
   fontWeight: 600,
 };
@@ -510,8 +535,9 @@ const toastStyle: React.CSSProperties = {
   bottom: "24px",
   padding: "12px 16px",
   borderRadius: "12px",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
+  background: "#0abe62",
+  color: "#ffffff",
   fontWeight: 600,
+  boxShadow: "0 12px 24px rgba(10,190,98,0.25)",
   zIndex: 50,
 };

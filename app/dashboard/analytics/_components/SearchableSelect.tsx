@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown } from "lucide-react";
 
 type Option = { value: string; label: string };
 
@@ -70,15 +69,13 @@ export function SearchableSelect({
         }}
         style={{
           width: "100%",
-          padding: "0 12px",
-          minHeight: "44px",
-          borderRadius: "8px",
-          border: open ? "1px solid #209379" : "1px solid var(--color-border-strong)",
+          padding: "8px 14px",
+          borderRadius: "12px",
+          border: open ? "1px solid #209379" : "1px solid rgba(3,72,82,0.2)",
           boxShadow: open ? "0 0 0 1px #209379" : "none",
-          background: "var(--color-surface)",
-          opacity: disabled ? 0.6 : 1,
-          color: "var(--color-text)",
-          fontSize: "14px",
+          background: disabled ? "rgba(3,72,82,0.05)" : "#fff",
+          color: disabled ? "rgba(3,72,82,0.4)" : "#034852",
+          fontSize: "13px",
           fontWeight: 600,
           textAlign: "left",
           cursor: disabled ? "not-allowed" : "pointer",
@@ -92,16 +89,17 @@ export function SearchableSelect({
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {selectedLabel || placeholder}
         </span>
-        <ChevronDown
-          size={16}
-          aria-hidden="true"
+        <span
           style={{
-            flexShrink: 0,
-            color: "var(--color-text-muted)",
+            fontSize: "10px",
+            color: "rgba(3,72,82,0.4)",
+            display: "inline-block",
             transition: "transform 0.15s ease",
             transform: open ? "rotate(180deg)" : "rotate(0deg)",
           }}
-        />
+        >
+          ▾
+        </span>
       </button>
 
       {open && (
@@ -116,8 +114,8 @@ export function SearchableSelect({
             width: "max-content",
             maxHeight: "280px",
             overflow: "hidden",
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
+            background: "#fff",
+            border: "1px solid rgba(3,72,82,0.15)",
             borderRadius: "12px",
             boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
             zIndex: 50,
@@ -136,12 +134,12 @@ export function SearchableSelect({
               width: "100%",
               padding: "10px 14px",
               border: "none",
-              borderBottom: "1px solid var(--color-border)",
-              fontSize: "14px",
-              color: "var(--color-text)",
+              borderBottom: "1px solid rgba(3,72,82,0.08)",
+              fontSize: "13px",
+              color: "#034852",
               outline: "none",
               boxSizing: "border-box",
-              background: "var(--color-surface)",
+              background: "#fff",
             }}
           />
           <div
@@ -163,7 +161,7 @@ export function SearchableSelect({
                 border: "none",
                 textAlign: "left",
                 fontSize: "13px",
-                color: value === "" ? "var(--color-text)" : "var(--color-text-muted)",
+                color: value === "" ? "#034852" : "rgba(3,72,82,0.6)",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -191,7 +189,7 @@ export function SearchableSelect({
                     border: "none",
                     textAlign: "left",
                     fontSize: "13px",
-                    color: "var(--color-text)",
+                    color: "#034852",
                     cursor: "pointer",
                     fontWeight: isSelected ? 600 : 400,
                     whiteSpace: "nowrap",

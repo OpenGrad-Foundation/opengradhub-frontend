@@ -13,7 +13,7 @@ const FIVE_MIN = 5 * 60_000;
  * Both report management and student visibility are required, including when
  * a caller passes enabled=true or a previous result remains cached.
  */
-export function useOpenReportedCount(enabled: boolean) {
+export function useOpenReportedCount(enabled: boolean): { count: number; isLoading: boolean } {
   const { hasAll } = usePermissions();
   const canRead = enabled && hasAll(PERM.test_bank.manage_questions, PERM.students.view);
   const query = useQuery<number, Error>({
@@ -23,6 +23,5 @@ export function useOpenReportedCount(enabled: boolean) {
     refetchOnWindowFocus: false,
     queryFn: getOpenReportedCount,
   });
-  return { count: canRead ? query.data ?? 0 : 0, isLoading: canRead && query.isLoading,
-    error: canRead ? query.error : null, refetch: query.refetch };
+  return { count: canRead ? query.data ?? 0 : 0, isLoading: canRead && query.isLoading };
 }

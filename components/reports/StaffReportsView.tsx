@@ -717,8 +717,10 @@ function StudentReportsMenu({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const labelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  fontWeight: 600,
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.28em",
   color: BRAND.mid,
 };
 
@@ -746,7 +748,7 @@ const inputStyle: React.CSSProperties = {
 const tableCard: React.CSSProperties = {
   background: "#ffffff",
   border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "12px",
+  borderRadius: "20px",
   boxShadow: "0 16px 32px rgba(3,72,82,0.08)",
   overflow: "hidden",
 };
@@ -764,6 +766,8 @@ const tableHeaderRow: React.CSSProperties = {
 const headerCellStyle: React.CSSProperties = {
   padding: "12px 16px",
   fontSize: "12px",
+  textTransform: "uppercase",
+  letterSpacing: "0.12em",
   color: "rgba(3,72,82,0.7)",
 };
 
@@ -799,8 +803,10 @@ const menuPanelStyle: React.CSSProperties = {
 };
 
 const menuSectionLabel: React.CSSProperties = {
-  fontSize: "12px",
-  fontWeight: 600,
+  fontSize: "10px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.16em",
   color: "rgba(3,72,82,0.5)",
   padding: "4px 8px",
   margin: 0,
