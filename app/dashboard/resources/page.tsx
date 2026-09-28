@@ -1,10 +1,8 @@
 "use client";
 
-import { HeaderActions } from "@/components/dashboard/HeaderActions";
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, FileText, Link2, Paperclip, Pencil, PlayCircle, Plus, Trash2, X } from "lucide-react";
 import { BackLink } from "@/components/back-link";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermission } from "@/hooks/use-permission";
@@ -21,11 +19,11 @@ import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 // ── Type → colour mapping ──────────────────────────────────────
 
-const TYPE_STYLES: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
-  PDF:   { bg: "rgba(184,50,50,0.08)", color: "#b83232", icon: <FileText size={14} aria-hidden="true" /> },
-  VIDEO: { bg: "var(--color-success-surface)", color: "#08784a", icon: <PlayCircle size={14} aria-hidden="true" /> },
-  LINK:  { bg: "rgba(0,109,108,0.10)", color: "#006d6c", icon: <Link2 size={14} aria-hidden="true" /> },
-  DOC:   { bg: "rgba(59,130,246,0.10)", color: "#2563eb", icon: <FileText size={14} aria-hidden="true" /> },
+const TYPE_STYLES: Record<string, { bg: string; color: string; icon: string }> = {
+  PDF:   { bg: "rgba(220,38,38,0.10)", color: "#dc2626", icon: "📄" },
+  VIDEO: { bg: "rgba(10,190,98,0.10)", color: "#0abe62", icon: "▶️" },
+  LINK:  { bg: "rgba(0,109,108,0.10)", color: "#006d6c", icon: "🔗" },
+  DOC:   { bg: "rgba(59,130,246,0.10)", color: "#3b82f6", icon: "📝" },
 };
 
 // ── Page ───────────────────────────────────────────────────────
@@ -57,25 +55,46 @@ function ResourcesPageContent() {
 
   return (
     <div>
-      <BackLink fallback="/dashboard" style={backLinkStyle}><ArrowLeft size={18} aria-hidden="true" />Back</BackLink>
-      {focus && <p style={{ marginBlock: 12, fontSize: 14, color: "var(--color-text-muted)" }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
+      <BackLink fallback="/dashboard" />
+      {focus && <p style={{ marginBlock: 12 }}>Selected resource · <Link href="/dashboard/resources">Show all resources</Link></p>}
       {/* ── Header ──────────────────────────────────────────── */}
-      {canCreate && (
-        <HeaderActions>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: "28px",
+        }}
+      >
+        <div>
+          <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>
+            Resources
+          </h1>
+        </div>
+
+        {canCreate && (
           <button
             id="add-resource-btn"
             onClick={() => {
               setShowForm((prev) => !prev);
               setEditing(null);
             }}
-            style={showForm ? secondaryButton : primaryButton}
+            style={primaryButton}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translateY(-2px)";
+              e.currentTarget.style.boxShadow =
+                "0 12px 20px rgba(10,190,98,0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "translateY(0)";
+              e.currentTarget.style.boxShadow =
+                "0 8px 16px rgba(10,190,98,0.2)";
+            }}
           >
-            {showForm
-              ? <><X size={18} aria-hidden="true" />Cancel</>
-              : <><Plus size={18} aria-hidden="true" />Add Resource</>}
+            {showForm ? "✕ Cancel" : "+ Add Resource"}
           </button>
-        </HeaderActions>
-      )}
+        )}
+      </div>
 
       {/* ── Create form ─────────────────────────────────────── */}
       {showForm && data && (
@@ -103,11 +122,13 @@ function ResourcesPageContent() {
         <LoadingState />
       ) : error ? (
         <div style={glassCard}>
-          <p role="alert" style={{ ...titleStyle, color: "#b83232", margin: 0 }}>{error}</p>
+          <p style={labelStyle}>Error</p>
+          <p style={{ ...titleStyle, marginTop: "8px" }}>{error}</p>
         </div>
       ) : resources.length === 0 ? (
         <div style={glassCard}>
-          <p style={{ ...titleStyle, margin: 0 }}>
+          <p style={labelStyle}>No Resources</p>
+          <p style={{ ...titleStyle, marginTop: "8px" }}>
             No study materials available yet.
           </p>
           <p style={{ ...subtitleStyle, marginTop: "8px" }}>
@@ -120,8 +141,8 @@ function ResourcesPageContent() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
-            gap: "16px",
+            gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
+            gap: "24px",
           }}
         >
           {resources.map((r) => (
@@ -149,6 +170,7 @@ function ResourceCard({
   resource: Resource;
   onEdit: (resource: Resource) => void;
 }) {
+  const [hovered, setHovered] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Two independent gates, ANDed — the same split the server applies. The
   // permission answers "may this role edit resources at all"; the per-row flag
@@ -159,23 +181,33 @@ function ResourceCard({
   const canDelete = usePermission(PERM.resources.delete) && resource.can_delete;
   const { mutate: doDelete, isPending: deleting } = useDeleteResource();
   const typeInfo = TYPE_STYLES[resource.type ?? ""] ?? {
-    bg: "#eef5f3",
-    color: "var(--color-text)",
-    icon: <Paperclip size={14} aria-hidden="true" />,
+    bg: "rgba(3,72,82,0.08)",
+    color: "#034852",
+    icon: "📎",
   };
 
   return (
     <div
       id={`resource-card-${resource.id}`}
       style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "12px",
-        padding: "clamp(16px,4vw,24px)",
+        background: "#ffffff",
+        border: hovered
+          ? "1px solid rgba(10,190,98,0.4)"
+          : "1px solid rgba(255,255,255,0.4)",
+        borderRadius: "24px",
+        padding: "28px",
+        boxShadow: hovered
+          ? "0 16px 48px rgba(10,190,98,0.12)"
+          : "0 2px 8px rgba(0,0,0,0.05)",
+        cursor: "default",
+        transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
+        transform: hovered ? "translateY(-4px)" : "translateY(0)",
         display: "flex",
         flexDirection: "column" as const,
-        gap: "12px",
+        gap: "14px",
       }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
       {/* Badges row */}
       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" as const }}>
@@ -185,15 +217,16 @@ function ResourceCard({
             display: "inline-flex",
             alignItems: "center",
             gap: "4px",
-            padding: "3px 8px",
-            borderRadius: "6px",
-            fontSize: "12px",
-            fontWeight: 600,
+            padding: "4px 12px",
+            borderRadius: "100px",
+            fontSize: "11px",
+            fontWeight: 700,
+            letterSpacing: "0.06em",
             background: typeInfo.bg,
             color: typeInfo.color,
           }}
         >
-          {typeInfo.icon}
+          <span>{typeInfo.icon}</span>
           {resource.type ?? "FILE"}
         </span>
 
@@ -202,12 +235,13 @@ function ResourceCard({
           <span
             style={{
               display: "inline-block",
-              padding: "3px 8px",
-              borderRadius: "6px",
-              fontSize: "12px",
-              fontWeight: 600,
-              background: "#eef5f3",
-              color: "var(--color-text-muted)",
+              padding: "4px 12px",
+              borderRadius: "100px",
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              background: "rgba(32,147,121,0.12)",
+              color: "#209379",
             }}
           >
             {resource.programme_type}
@@ -218,11 +252,12 @@ function ResourceCard({
       {/* Title */}
       <h3
         style={{
-          fontSize: "16px",
-          fontWeight: 600,
-          color: "var(--color-text)",
+          fontFamily: "var(--font-heading)",
+          fontSize: "17px",
+          fontWeight: 700,
+          color: "#034852",
           margin: 0,
-          lineHeight: 1.4,
+          lineHeight: 1.35,
         }}
       >
         {resource.title}
@@ -233,7 +268,7 @@ function ResourceCard({
         <p
           style={{
             fontSize: "13px",
-            color: "var(--color-text-muted)",
+            color: "rgba(3,72,82,0.6)",
             lineHeight: 1.6,
             margin: 0,
             display: "-webkit-box",
@@ -252,7 +287,6 @@ function ResourceCard({
           marginTop: "auto",
           paddingTop: "4px",
           display: "flex",
-          flexWrap: "wrap",
           gap: "8px",
           alignItems: "center",
         }}
@@ -262,19 +296,61 @@ function ResourceCard({
           target="_blank"
           rel="noopener noreferrer"
           id={`open-resource-${resource.id}`}
-          style={{ ...primaryButton, textDecoration: "none" }}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            padding: "8px 20px",
+            borderRadius: "10px",
+            background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+            color: "#fff",
+            fontFamily: "var(--font-heading)",
+            fontWeight: 700,
+            fontSize: "12px",
+            letterSpacing: "0.03em",
+            textDecoration: "none",
+            boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
+            transition: "all 200ms ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-1px)";
+            e.currentTarget.style.boxShadow =
+              "0 6px 16px rgba(10,190,98,0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow =
+              "0 4px 12px rgba(10,190,98,0.2)";
+          }}
         >
           Open
-          <ExternalLink size={16} aria-hidden="true" />
+          <span style={{ fontSize: "14px" }}>↗</span>
         </a>
 
         {canEdit && (
           <button
             id={`edit-resource-${resource.id}`}
             onClick={() => onEdit(resource)}
-            style={secondaryButton}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "8px 16px",
+              borderRadius: "10px",
+              background: "rgba(3,72,82,0.06)",
+              border: "1px solid rgba(3,72,82,0.14)",
+              color: "#034852",
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              fontSize: "12px",
+              letterSpacing: "0.03em",
+              cursor: "pointer",
+              transition: "all 200ms ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(3,72,82,0.12)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(3,72,82,0.06)"; }}
           >
-            <Pencil size={16} aria-hidden="true" />Edit
+            ✏️ Edit
           </button>
         )}
 
@@ -282,15 +358,32 @@ function ResourceCard({
           <button
             id={`delete-resource-${resource.id}`}
             onClick={() => setConfirmDelete(true)}
-            style={{ ...secondaryButton, color: "#b83232" }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "8px 16px",
+              borderRadius: "10px",
+              background: "rgba(220,38,38,0.06)",
+              border: "1px solid rgba(220,38,38,0.14)",
+              color: "#dc2626",
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              fontSize: "12px",
+              letterSpacing: "0.03em",
+              cursor: "pointer",
+              transition: "all 200ms ease",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.12)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(220,38,38,0.06)"; }}
           >
-            <Trash2 size={16} aria-hidden="true" />Delete
+            🗑 Delete
           </button>
         )}
 
         {canDelete && confirmDelete && (
           <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <span style={{ fontSize: "13px", color: "#b83232", fontWeight: 600 }}>
+            <span style={{ fontSize: "11px", color: "#dc2626", fontWeight: 600 }}>
               Delete?
             </span>
             <button
@@ -298,10 +391,14 @@ function ResourceCard({
               onClick={() => doDelete(resource.id, { onSettled: () => setConfirmDelete(false) })}
               disabled={deleting}
               style={{
-                ...primaryButton,
-                border: "1px solid #b83232",
-                background: "#b83232",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#dc2626",
                 color: "#fff",
+                fontFamily: "var(--font-heading)",
+                fontWeight: 700,
+                fontSize: "11px",
                 cursor: deleting ? "not-allowed" : "pointer",
                 opacity: deleting ? 0.6 : 1,
               }}
@@ -310,7 +407,17 @@ function ResourceCard({
             </button>
             <button
               onClick={() => setConfirmDelete(false)}
-              style={secondaryButton}
+              style={{
+                padding: "5px 12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(3,72,82,0.2)",
+                background: "transparent",
+                color: "#034852",
+                fontFamily: "var(--font-heading)",
+                fontWeight: 700,
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
             >
               No
             </button>
@@ -377,10 +484,13 @@ function CreateResourceForm({
       style={{
         ...glassCard,
         textAlign: "left",
-        marginBottom: "24px",
+        marginBottom: "28px",
+        animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards",
+        opacity: 0,
+        transform: "translateY(12px)",
       }}
     >
-      <h2 style={{ ...titleStyle, margin: 0 }}>Add New Resource</h2>
+      <p style={labelStyle}>Add New Resource</p>
 
       <form onSubmit={handleSubmit} style={{ marginTop: "16px" }}>
         <ResourceFormFields
@@ -394,7 +504,7 @@ function CreateResourceForm({
         />
 
         {error && (
-          <p role="alert" style={{ marginTop: "12px", fontSize: "14px", color: "#b83232", fontWeight: 600 }}>
+          <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -466,28 +576,27 @@ function EditResourceForm({
       style={{
         ...glassCard,
         textAlign: "left",
-        marginBottom: "24px",
+        marginBottom: "28px",
+        animation: "floatIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards",
+        opacity: 0,
+        transform: "translateY(12px)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <h2 style={{ ...titleStyle, margin: 0 }}>Edit Resource</h2>
+        <p style={labelStyle}>Edit Resource</p>
         <button
           onClick={onCancel}
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: "44px",
-            minHeight: "44px",
             background: "none",
             border: "none",
-            borderRadius: "8px",
             cursor: "pointer",
-            color: "var(--color-text-muted)",
+            fontSize: "18px",
+            color: "rgba(3,72,82,0.5)",
+            lineHeight: 1,
           }}
           aria-label="Cancel edit"
         >
-          <X size={20} aria-hidden="true" />
+          ✕
         </button>
       </div>
 
@@ -503,7 +612,7 @@ function EditResourceForm({
         />
 
         {error && (
-          <p role="alert" style={{ marginTop: "12px", fontSize: "14px", color: "#b83232", fontWeight: 600 }}>
+          <p style={{ marginTop: "12px", fontSize: "13px", color: "#e53e3e", fontWeight: 600 }}>
             {error}
           </p>
         )}
@@ -524,7 +633,17 @@ function EditResourceForm({
           <button
             type="button"
             onClick={onCancel}
-            style={secondaryButton}
+            style={{
+              padding: "12px 24px",
+              border: "1px solid rgba(3,72,82,0.2)",
+              borderRadius: "12px",
+              background: "transparent",
+              color: "#034852",
+              fontFamily: "var(--font-heading)",
+              fontWeight: 700,
+              fontSize: "14px",
+              cursor: "pointer",
+            }}
           >
             Cancel
           </button>
@@ -654,7 +773,7 @@ function ResourceFormFields({
           // neither of which is the permission that got the caller onto this
           // form. A role can legitimately hold one and not the other, so say so
           // rather than render an empty box that reads as broken.
-          <p style={{ margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
+          <p style={{ margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>
             Your role cannot browse the school list — target batches instead.
           </p>
         ) : (
@@ -667,7 +786,7 @@ function ResourceFormFields({
           />
         )}
         {schoolIds.length > 0 && (
-          <p style={{ margin: "6px 0 0", fontSize: "13px", lineHeight: 1.5, color: "var(--color-text-muted)" }}>
+          <p style={{ margin: "6px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>
             A school-targeted resource cannot be handed to a programme to manage — a school
             hosts programmes rather than belonging to one, so no programme can be said to
             bound who this reaches. Target batches instead if you need that.
@@ -690,14 +809,14 @@ function LoadingState() {
         justifyContent: "center",
       }}
     >
-      <div style={{ ...glassCard, textAlign: "center" }}>
+      <div style={glassCard}>
+        <p style={labelStyle}>Loading</p>
         <p
-          role="status"
           style={{
-            margin: 0,
-            fontSize: "18px",
-            fontWeight: 600,
-            color: "var(--color-text)",
+            marginTop: "12px",
+            fontSize: "22px",
+            fontWeight: 700,
+            color: "#034852",
           }}
         >
           Fetching resources
@@ -713,72 +832,68 @@ function LoadingState() {
 // ── Style constants ────────────────────────────────────────────
 
 const glassCard: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px,4vw,24px)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
+  borderRadius: "24px",
+  padding: "40px 48px",
+  textAlign: "center",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.28em",
+  color: "#209379",
 };
 
 const titleStyle: React.CSSProperties = {
-  fontSize: "18px",
-  fontWeight: 600,
-  color: "var(--color-text)",
+  fontFamily: "var(--font-heading)",
+  fontSize: "22px",
+  fontWeight: 700,
+  color: "#034852",
 };
 
 const subtitleStyle: React.CSSProperties = {
   fontSize: "14px",
-  color: "var(--color-text-muted)",
-};
-
-const btnBase: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  minHeight: "44px",
-  padding: "8px 16px",
-  borderRadius: "12px",
-  fontWeight: 600,
-  fontSize: "14px",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
+  color: "rgba(3,72,82,0.6)",
 };
 
 const primaryButton: React.CSSProperties = {
-  ...btnBase,
-  border: "1px solid var(--green)",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-};
-
-const secondaryButton: React.CSSProperties = {
-  ...btnBase,
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-};
-
-const backLinkStyle: React.CSSProperties = {
-  ...secondaryButton,
-  textDecoration: "none",
+  padding: "12px 24px",
+  border: "none",
+  borderRadius: "12px",
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#ffffff",
+  fontFamily: "var(--font-heading)",
+  fontWeight: 700,
+  fontSize: "14px",
+  cursor: "pointer",
+  boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
+  transition: "all 280ms cubic-bezier(0.16,1,0.3,1)",
+  whiteSpace: "nowrap",
 };
 
 const formLabelStyle: React.CSSProperties = {
   display: "block",
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "11px",
+  fontWeight: 600,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "rgba(3,72,82,0.7)",
   marginBottom: "6px",
 };
 
 const formInputStyle: React.CSSProperties = {
   width: "100%",
-  minHeight: "44px",
-  padding: "8px 12px",
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border-strong)",
-  borderRadius: "8px",
-  color: "var(--color-text)",
+  padding: "12px 16px",
+  background: "rgba(0,0,0,0.04)",
+  border: "1px solid rgba(0,0,0,0.12)",
+  borderRadius: "12px",
+  color: "#034852",
+  fontFamily: "var(--font-body)",
   fontSize: "14px",
-  boxSizing: "border-box",
+  outline: "none",
+  transition: "border-color 200ms, box-shadow 200ms",
 };

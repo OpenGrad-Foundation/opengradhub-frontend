@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
 import {
   createSchool,
   updateSchool,
@@ -90,7 +89,7 @@ export function SchoolFormModal({
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", zIndex: 40 }}
+        style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.18)", backdropFilter: "blur(3px)", zIndex: 40 }}
       />
       {/* Slide-over panel */}
       <div
@@ -99,7 +98,7 @@ export function SchoolFormModal({
         aria-label={mode === "create" ? "Add School" : "Edit School"}
         style={{
           position: "fixed", top: 0, right: 0, bottom: 0, width: "min(520px, 100vw)",
-          background: "var(--color-surface)", borderLeft: "1px solid var(--color-border)",
+          background: "#ffffff", borderLeft: "1px solid rgba(3,72,82,0.1)",
           boxShadow: "-24px 0 64px rgba(3,72,82,0.12)", zIndex: 41,
           display: "flex", flexDirection: "column", overflow: "hidden",
           animation: "schoolPanelIn 240ms cubic-bezier(0.16,1,0.3,1)",
@@ -108,16 +107,14 @@ export function SchoolFormModal({
         <style>{`@keyframes schoolPanelIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`}</style>
 
         {/* Header */}
-        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid var(--color-border)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+        <div style={{ padding: "24px 28px 16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
           <div style={{ minWidth: 0 }}>
-            {mode === "create"
-              ? <h2 style={{ ...titleStyle, fontSize: "20px", margin: 0 }}>Add School</h2>
-              : <p style={{ ...labelStyle, margin: 0 }}>Edit School</p>}
+            <p style={labelStyle}>{mode === "create" ? "Add School" : "Edit School"}</p>
             {mode === "edit" && school && (
               <h2 style={{ ...titleStyle, fontSize: "20px", margin: "4px 0 2px" }}>{school.name}</h2>
             )}
           </div>
-          <button onClick={onClose} style={closeBtnStyle} aria-label="Close panel"><X size={18} aria-hidden="true" /></button>
+          <button onClick={onClose} style={closeBtnStyle} aria-label="Close panel">✕</button>
         </div>
 
         {/* Body */}
@@ -143,7 +140,7 @@ export function SchoolFormModal({
             </div>
             <div>
               <label style={formLabelStyle}>Visit verification location (optional)</label>
-              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "0 0 8px" }}>
+              <p style={{ fontSize: "12px", color: "#5b7280", margin: "0 0 8px" }}>
                 Used to check school-visit photos. Leave blank if you don&apos;t have the
                 coordinates — visits simply can&apos;t be geo-verified until they&apos;re set.
               </p>
@@ -170,7 +167,7 @@ export function SchoolFormModal({
                 id="school-radius" value={radius} onChange={(e) => setRadius(e.target.value)}
                 style={inputStyle} inputMode="numeric" placeholder="200"
               />
-              <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "6px 0 0" }}>
+              <p style={{ fontSize: "12px", color: "#5b7280", margin: "6px 0 0" }}>
                 Leave blank to use the default of 200 m. Allowed range 25–5000 m.
               </p>
             </div>
@@ -183,12 +180,12 @@ export function SchoolFormModal({
                 fallbackName={school?.fellow_name ?? null}
               />
             </div>
-            {err && <p style={{ color: "#b83232", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
+            {err && <p style={{ color: "#c53030", fontWeight: 600, fontSize: "13px", margin: 0 }}>{err}</p>}
           </div>
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "16px 28px 24px", borderTop: "1px solid var(--color-border)", flexShrink: 0, display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+        <div style={{ padding: "16px 28px 24px", borderTop: "1px solid rgba(3,72,82,0.08)", flexShrink: 0, display: "flex", gap: "10px", justifyContent: "flex-end" }}>
           <button onClick={onClose} style={secondaryButton}>Cancel</button>
           <button onClick={() => void save()} disabled={saving} style={{ ...primaryButton, opacity: saving ? 0.5 : 1 }}>
             {saving ? "Saving…" : "Save"}
@@ -243,7 +240,7 @@ function FellowPicker({
     <div ref={wrapRef} style={{ position: "relative" }}>
       <div
         onClick={() => setOpen(true)}
-        style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: open ? "0" : "8px 12px" }}
+        style={{ ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: open ? "0" : "12px 16px" }}
       >
         {open ? (
           <input
@@ -258,10 +255,10 @@ function FellowPicker({
                   ? `Search… (current: ${fallbackName})`
                   : `Search ${IN_CHARGE_LOWER_PLURAL}…`
             }
-            style={{ flex: 1, padding: "8px 12px", border: "none", background: "transparent", outline: "none", fontFamily: "var(--font-body)", fontSize: "14px", color: "var(--color-text)" }}
+            style={{ flex: 1, padding: "12px 16px", border: "none", background: "transparent", outline: "none", fontFamily: "var(--font-body)", fontSize: "14px", color: "#034852" }}
           />
         ) : (
-          <span style={{ flex: 1, color: hasAssignment ? "var(--color-text)" : "var(--color-text-muted)" }}>
+          <span style={{ flex: 1, color: hasAssignment ? "#034852" : "rgba(3,72,82,0.5)" }}>
             {selected
               ? `${selected.name}${selected.email ? ` (${selected.email})` : ""}`
               : (value && fallbackName)
@@ -274,9 +271,9 @@ function FellowPicker({
             type="button"
             onClick={(e) => { e.stopPropagation(); pick(""); }}
             aria-label={`Clear assigned ${IN_CHARGE_LOWER}`}
-            style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", padding: "0 8px", display: "inline-flex" }}
+            style={{ background: "none", border: "none", color: "rgba(3,72,82,0.5)", cursor: "pointer", padding: "0 8px", fontSize: "14px" }}
           >
-            <X size={16} aria-hidden="true" />
+            ✕
           </button>
         )}
       </div>
@@ -286,19 +283,19 @@ function FellowPicker({
           role="listbox"
           style={{
             position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, maxHeight: "240px", overflowY: "auto",
-            background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px",
+            background: "#fff", border: "1px solid rgba(3,72,82,0.12)", borderRadius: "12px",
             boxShadow: "0 12px 32px rgba(3,72,82,0.12)", zIndex: 42,
           }}
         >
           <button
             type="button"
             onClick={() => pick("")}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: value === "" ? "rgba(10,190,98,0.06)" : "transparent", border: "none", fontSize: "13px", color: "var(--color-text-muted)", cursor: "pointer", fontStyle: "italic" }}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: value === "" ? "rgba(10,190,98,0.06)" : "transparent", border: "none", fontSize: "13px", color: "rgba(3,72,82,0.7)", cursor: "pointer", fontStyle: "italic" }}
           >
             — Unassigned —
           </button>
           {filtered.length === 0 ? (
-            <p style={{ padding: "12px 14px", margin: 0, fontSize: "13px", color: "var(--color-text-muted)" }}>
+            <p style={{ padding: "12px 14px", margin: 0, fontSize: "13px", color: "rgba(3,72,82,0.5)" }}>
               No fellows match &ldquo;{query}&rdquo;.
             </p>
           ) : filtered.map((f) => {
@@ -308,10 +305,10 @@ function FellowPicker({
                 key={f.id}
                 type="button"
                 onClick={() => pick(f.id)}
-                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: active ? "rgba(10,190,98,0.08)" : "transparent", border: "none", borderTop: "1px solid var(--color-border)", fontSize: "13px", color: "var(--color-text)", cursor: "pointer" }}
+                style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: active ? "rgba(10,190,98,0.08)" : "transparent", border: "none", borderTop: "1px solid rgba(3,72,82,0.06)", fontSize: "13px", color: "#034852", cursor: "pointer" }}
               >
                 <div style={{ fontWeight: 600 }}>{f.name}</div>
-                {f.email && <div style={{ fontSize: "11px", color: "var(--color-text-muted)" }}>{f.email}</div>}
+                {f.email && <div style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)" }}>{f.email}</div>}
               </button>
             );
           })}

@@ -2,10 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Eye } from "lucide-react";
-import { Tabs } from "../../_components/Tabs";
-import workspace from "@/components/dashboard/workspace.module.css";
-import styles from "../management.module.css";
 import { BackLink } from "@/components/back-link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
@@ -44,6 +40,7 @@ export default function CourseManagementPage() {
   const { data: userData, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
   const invalidate = useInvalidate();
+  const currentUrl = useCurrentUrl();
 
   const courseId = params.id;
   const roleCode = (userData?.role?.code ?? "") as RoleCode;
@@ -170,7 +167,7 @@ export default function CourseManagementPage() {
     if (!callerId || !canAccess) return;
     // Both of these are management-payload reads a content-only caller is
     // refused; requesting them would only re-raise the 403 already handled.
-    if (loading || contentOnly) return;
+    if (contentOnly) return;
     if (activeTab === "students") {
       void loadStudents();
     }
@@ -181,7 +178,7 @@ export default function CourseManagementPage() {
           setError(curriculumError instanceof Error ? curriculumError.message : "Failed to load curriculum summary.");
         });
     }
-  }, [activeTab, callerId, canAccess, contentOnly, courseId, curriculumSummary, loadStudents, loading]);
+  }, [activeTab, callerId, canAccess, contentOnly, courseId, curriculumSummary, loadStudents]);
 
   useEffect(() => {
     if (!selectedStudentId) {
@@ -200,7 +197,7 @@ export default function CourseManagementPage() {
   const updateTab = (tab: TabKey) => {
     const paramsCopy = new URLSearchParams(searchParams.toString());
     paramsCopy.set("tab", tab);
-    router.replace(`/dashboard/course-management/${courseId}?${paramsCopy.toString()}`, { scroll: false });
+    router.replace(`/dashboard/course-management/${courseId}?${paramsCopy.toString()}`);
   };
 
   const currentCourse = summary?.course ?? courseMeta;
@@ -240,8 +237,15 @@ export default function CourseManagementPage() {
     }
   }
 
-  if (userLoading || (canAccess && loading)) {
-    return <div role="status" aria-label="Loading course workspace" className={styles.loading}><div /><div /><div /><span className="sr-only">Loading course workspace…</span></div>;
+  if (userLoading || loading) {
+    return (
+      <div style={{ maxWidth: "1180px", margin: "0 auto" }}>
+        <div style={{ ...card, textAlign: "center" }}>
+          <p style={eyebrow}>Course Management</p>
+          <p style={{ ...title, marginTop: "12px" }}>Opening course workspace…</p>
+        </div>
+      </div>
+    );
   }
 
   if (!canAccess) {
@@ -249,7 +253,7 @@ export default function CourseManagementPage() {
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
         <div style={{ ...card, textAlign: "center" }}>
           <p style={eyebrow}>Access denied</p>
-          <p style={{ ...title, marginTop: "12px" }}>You don’t have permission to edit this course.</p>
+          <p style={{ ...title, marginTop: "12px" }}>This workspace is available to Super Admins and Program Managers only.</p>
           <BackLink fallback="/dashboard/courses" style={{ ...primaryBtn, textDecoration: "none", marginTop: "16px", display: "inline-flex" }}>
             Back to Courses
           </BackLink>
@@ -272,36 +276,199 @@ export default function CourseManagementPage() {
     );
   }
 
-  const courseHeader = <>
-      <div className={styles.courseHeader}>
-        <div className={styles.courseToolbar}>
-          <BackLink fallback="/dashboard/courses" className={styles.secondary}><ArrowLeft size={16} aria-hidden="true" /><span><span className="hidden sm:inline">Back to </span>Courses</span></BackLink>
-        {currentCourse && <div className={styles.headerActions}>
-          <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} className={styles.secondary}><Eye size={16} aria-hidden="true" />Preview</Link>
-          {canCreate && <button onClick={handleDuplicate} className={styles.secondary}><Copy size={16} aria-hidden="true" />Duplicate</button>}
-          <button onClick={() => void handleStatusToggle()} disabled={actionLoading} className={currentCourse.status === "ACTIVE" ? styles.secondary : styles.primary}>
-            {actionLoading ? "Updating…" : currentCourse.status === "ACTIVE" ? "Archive course" : "Publish course"}
-          </button>
-        </div>}
-        </div>
-        <div className={styles.courseIdentity}>
-          <h2>{currentCourse?.title}</h2>
-          {currentCourse && <div className={styles.courseMeta}>
-            <Pill tone={currentCourse.status === "ACTIVE" ? "green" : currentCourse.status === "ARCHIVED" ? "default" : "amber"}>{currentCourse.status === "ACTIVE" ? "Published" : humanizeStatus(currentCourse.status)}</Pill>
-            <span>{currentCourse.programme_type}</span>
-            <span>{currentCourse.lesson_count} lessons</span>
-            <span>{currentCourse.access_type === "FREE" ? "Free" : "Paid"}</span>
-            <span>{currentCourse.locking_mode === "OPEN" ? "Open lesson order" : "Sequential lessons"}</span>
-          </div>}
+  return (
+    <div className="course-mgmt-container" style={{ maxWidth: "1180px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "20px", padding: "0 16px" }}>
+      <style dangerouslySetInnerHTML={{ __html: `
+        /* General page layout adjustments */
+        @media (max-width: 768px) {
+          .course-mgmt-container {
+            padding: 0 12px !important;
+            gap: 16px !important;
+          }
+          .course-mgmt-header-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 16px !important;
+          }
+          .course-mgmt-header-buttons {
+            width: 100% !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
+          }
+          .course-mgmt-header-buttons a,
+          .course-mgmt-header-buttons button {
+            width: 100% !important;
+            justify-content: center !important;
+            text-align: center !important;
+          }
+          .course-mgmt-title {
+            font-size: 24px !important;
+          }
+          .course-mgmt-card {
+            padding: 16px 16px !important;
+            border-radius: 16px !important;
+          }
+          .course-mgmt-hero-card {
+            padding: 16px 16px !important;
+            border-radius: 16px !important;
+          }
+          .course-mgmt-hero-flex {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 16px !important;
+          }
+          .course-mgmt-cover-img {
+            width: 100% !important;
+            height: 160px !important;
+          }
+          .course-mgmt-meta-col {
+            width: 100% !important;
+            border-top: 1px solid rgba(3,72,82,0.08);
+            padding-top: 12px !important;
+            margin-top: 4px !important;
+          }
+          .course-mgmt-tabs-strip {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            border-radius: 14px !important;
+            padding: 6px !important;
+          }
+          .course-mgmt-tabs-strip::-webkit-scrollbar {
+            display: none;
+          }
+          .course-mgmt-tab-btn {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+            padding: 8px 12px !important;
+            font-size: 12px !important;
+          }
+          .course-mgmt-filters-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 16px !important;
+          }
+          .course-mgmt-filters-box {
+            width: 100% !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 10px !important;
+          }
+          .course-mgmt-filter-input {
+            width: 100% !important;
+          }
+          .course-mgmt-filter-select {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .course-mgmt-grid-2col {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .course-mgmt-slideover-metrics {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 8px !important;
+          }
+          .course-mgmt-slideover-metric-card {
+            padding: 12px 14px !important;
+          }
+          .course-mgmt-slideover-metric-card p {
+            font-size: 18px !important;
+          }
+        }
+      ` }} />
+
+      <div className="course-mgmt-header-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap" }}>
+        <div>
+          <BackLink fallback="/dashboard/courses" style={{ fontSize: "13px", color: "#209379", textDecoration: "none", fontWeight: 700 }}>
+            ← Courses
+          </BackLink>
+          <p style={{ ...eyebrow, marginTop: "14px" }}>Course Management</p>
+          <h1 className="course-mgmt-title" style={{ ...title, fontSize: "30px", marginTop: "6px" }}>{currentCourse?.title}</h1>
         </div>
 
+        <div className="course-mgmt-header-buttons" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          {currentCourse && (
+            <>
+              <Link href={`/dashboard/courses/${currentCourse.id}?from=management`} style={ghostLinkBtn}>
+                Preview as student
+              </Link>
+              {canCreate && (
+                <button onClick={handleDuplicate} style={ghostLinkBtn}>
+                  Duplicate
+                </button>
+              )}
+              <button onClick={() => void handleStatusToggle()} disabled={actionLoading} style={{ ...primaryBtn, opacity: actionLoading ? 0.7 : 1 }}>
+                {actionLoading ? "Updating…" : currentCourse.status === "ACTIVE" ? "Archive course" : "Publish course"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
-    </>;
 
-  const panels = <>
-      {error && (summary || contentOnly) && <div role="alert" style={errorBox}>{error}</div>}
+      {currentCourse && (
+        <div className="course-mgmt-hero-card" style={heroCard}>
+          <div className="course-mgmt-hero-flex" style={{ display: "flex", gap: "18px", alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div
+              className="course-mgmt-cover-img"
+              style={{
+                width: "148px",
+                height: "102px",
+                borderRadius: "18px",
+                background: currentCourse.cover_image_url
+                  ? `url(${currentCourse.cover_image_url}) center/cover`
+                  : "linear-gradient(135deg, #034852 0%, #209379 100%)",
+                flexShrink: 0,
+              }}
+            />
+            <div style={{ flex: 1, minWidth: "260px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                <Pill>{currentCourse.programme_type}</Pill>
+                <Pill>{currentCourse.access_type}</Pill>
+                <Pill>{currentCourse.locking_mode}</Pill>
+                <Pill tone={currentCourse.status === "ACTIVE" ? "green" : currentCourse.status === "ARCHIVED" ? "red" : "amber"}>
+                  {currentCourse.status}
+                </Pill>
+              </div>
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.66)", marginTop: "14px", lineHeight: 1.65 }}>
+                {currentCourse.description ?? "No description added yet."}
+              </p>
+            </div>
+            <div className="course-mgmt-meta-col" style={{ minWidth: "180px", display: "grid", gap: "8px" }}>
+              <MetaLine label="Lessons" value={String(currentCourse.lesson_count)} />
+              <MetaLine label="Created" value={formatDate(currentCourse.created_at)} />
+              <MetaLine label="Status" value={currentCourse.status} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && summary && <div style={errorBox}>{error}</div>}
+
+      <div className="course-mgmt-tabs-strip" style={tabStrip}>
+        {visibleTabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => updateTab(tab)}
+            className="course-mgmt-tab-btn"
+            style={{
+              ...tabBtn,
+              background: activeTab === tab ? "linear-gradient(135deg, rgba(10,190,98,0.18), rgba(32,147,121,0.18))" : "transparent",
+              borderColor: activeTab === tab ? "rgba(32,147,121,0.28)" : "transparent",
+              color: activeTab === tab ? "#034852" : "rgba(3,72,82,0.55)",
+            }}
+          >
+            {tabLabel(tab)}
+          </button>
+        ))}
+      </div>
+
       {activeTab === "overview" && summary && (
-        <><p className={styles.description}>{currentCourse?.description || "No description added yet."}</p><OverviewTab summary={summary} /></>
+        <OverviewTab summary={summary} />
       )}
 
       {activeTab === "students" && (
@@ -318,13 +485,11 @@ export default function CourseManagementPage() {
                     setSearch(event.target.value);
                     setPage(1);
                   }}
-                  aria-label="Search students"
                   placeholder="Search student name or email…"
                   className="course-mgmt-filter-input"
                   style={{ ...inputStyle, width: "260px" }}
                 />
                 <select
-                  aria-label="Assignment status"
                   value={assignmentStatus}
                   onChange={(event) => {
                     setAssignmentStatus(event.target.value);
@@ -341,7 +506,6 @@ export default function CourseManagementPage() {
                   <option value="GRADED">Graded</option>
                 </select>
                 <select
-                  aria-label="Student progress"
                   value={progressBucket}
                   onChange={(event) => {
                     setProgressBucket(event.target.value);
@@ -355,7 +519,7 @@ export default function CourseManagementPage() {
                   <option value="ON_TRACK">On track</option>
                   <option value="COMPLETE">Complete</option>
                 </select>
-                <select aria-label="Sort students" value={sort} onChange={(event) => setSort(event.target.value)} className="course-mgmt-filter-select" style={selectStyle}>
+                <select value={sort} onChange={(event) => setSort(event.target.value)} className="course-mgmt-filter-select" style={selectStyle}>
                   <option value="name">Sort: name</option>
                   <option value="progress">Sort: progress</option>
                   <option value="quiz">Sort: quiz marks</option>
@@ -382,7 +546,7 @@ export default function CourseManagementPage() {
                     <tr key={student.id} style={tableRow} onClick={() => setSelectedStudentId(student.id)}>
                       <td style={tableCell}>
                         <div>
-                          <button type="button" className={styles.studentName} onClick={() => setSelectedStudentId(student.id)}>{student.name}</button>
+                          <p style={{ margin: 0, fontWeight: 700, color: "#034852" }}>{student.name}</p>
                           <p style={{ margin: "3px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.5)" }}>{student.email ?? "No email"}</p>
                         </div>
                       </td>
@@ -445,13 +609,13 @@ export default function CourseManagementPage() {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {/* Completion percentages are aggregated student progress, so the
               snapshot goes with the rest of the management payload. */}
-          {!contentOnly && !has(PERM.courses.manage_curriculum) && (
+          {!contentOnly && (
           <div className="course-mgmt-card" style={card}>
             <p style={eyebrow}>Curriculum Snapshot</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginTop: "14px" }}>
               {curriculumPreview.map((module) => (
                 <div key={module.id} style={miniCard}>
-                  <p style={{ margin: 0, fontSize: "11px",  letterSpacing: "0.14em", color: "#209379", fontWeight: 600 }}>
+                  <p style={{ margin: 0, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.14em", color: "#209379", fontWeight: 800 }}>
                     Module {module.order_index + 1}
                   </p>
                   <p style={{ margin: "8px 0 0", fontWeight: 700, color: "#034852" }}>{module.title}</p>
@@ -472,7 +636,9 @@ export default function CourseManagementPage() {
             </div>
           )}
           {has(PERM.courses.manage_curriculum) ? (
-            <CourseCurriculumEditor courseId={courseId} />
+            <div className="course-mgmt-card" style={card}>
+              <CourseCurriculumEditor courseId={courseId} />
+            </div>
           ) : (
             <div className="course-mgmt-card" style={card}>
               <p style={subtitle}>
@@ -489,14 +655,13 @@ export default function CourseManagementPage() {
       )}
 
       {activeTab === "settings" && currentCourse && (
-        <div className={styles.settings}>
+        <div className="course-mgmt-card" style={card}>
           <div style={{ marginBottom: "18px" }}>
-            <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Course settings</h3>
+            <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Course details and publishing</h3>
           </div>
           <CourseMetaForm
             key={`${currentCourse.id}-${currentCourse.title}-${currentCourse.status}-${currentCourse.access_type}-${currentCourse.locking_mode}-${currentCourse.tags?.join(",") ?? ""}-${currentCourse.cover_image_url ?? ""}`}
             initial={currentCourse}
-            embedded
             submitLabel="Save settings"
             onSave={async (fields) => {
               await updateCourse(courseId, {
@@ -514,14 +679,8 @@ export default function CourseManagementPage() {
       {selectedStudentId && (
         <StudentDetailSlideOver detail={detail} loading={detailLoading} onClose={() => setSelectedStudentId(null)} />
       )}
-    </>;
-
-  return <div className={`${workspace.workspace} ${styles.page}`}>
-    {courseHeader}
-    <div className={`${workspace.stickyTabs} ${styles.courseTabs}`}>
-    <Tabs ariaLabel="Course management" compactOnScroll activeKey={activeTab} onTabChange={key => updateTab(key as TabKey)} tabs={visibleTabs.map(tab => ({ key: tab, label: tabLabel(tab), panel: panels }))} />
     </div>
-  </div>;
+  );
 }
 
 function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
@@ -539,7 +698,7 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
 
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Recent activity</h3>
+          <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>What happened lately</h3>
           <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
             {summary.recent_activity.length === 0 && (
               <p style={{ margin: 0, color: "rgba(3,72,82,0.55)" }}>No course activity yet.</p>
@@ -572,7 +731,7 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
                       {module.lesson_count} lessons
                     </p>
                   </div>
-                  <span style={{ fontWeight: 600, color: "#209379" }}>{module.avg_completion_percent}%</span>
+                  <span style={{ fontWeight: 800, color: "#209379" }}>{module.avg_completion_percent}%</span>
                 </div>
                 <div style={{ ...progressTrack, marginTop: "10px" }}>
                   <div style={{ ...progressFill, width: `${module.avg_completion_percent}%` }} />
@@ -587,12 +746,11 @@ function OverviewTab({ summary }: { summary: CourseManagementSummary }) {
 }
 
 function AnalyticsTab({ analytics }: { analytics: CourseManagementAnalytics }) {
-  const maxEnrolments = Math.max(1, ...analytics.enrollment_trend.map(point => point.enrolled_students));
   return (
     <div style={{ display: "grid", gap: "16px" }}>
       <div className="course-mgmt-grid-2col" style={{ display: "grid", gridTemplateColumns: "1.1fr 1fr", gap: "16px" }}>
         <div className="course-mgmt-card" style={card}>
-          <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Enrolments over time</h3>
+          <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>Enrollment over time</h3>
           <div style={{ display: "grid", gap: "10px", marginTop: "18px" }}>
             {analytics.enrollment_trend.length === 0 && (
               <p style={{ margin: 0, color: "rgba(3,72,82,0.55)" }}>No enrollment data yet.</p>
@@ -604,7 +762,7 @@ function AnalyticsTab({ analytics }: { analytics: CourseManagementAnalytics }) {
                   <div
                     style={{
                       ...progressFill,
-                      width: `${(point.enrolled_students / maxEnrolments) * 100}%`,
+                      width: `${Math.max(8, point.enrolled_students * 12)}px`,
                       maxWidth: "100%",
                     }}
                   />
@@ -634,6 +792,7 @@ function DistributionCard({
 
   return (
     <div className="course-mgmt-card" style={card}>
+      <p style={eyebrow}>Distribution</p>
       <h3 style={{ ...title, fontSize: "22px", marginTop: "4px" }}>{cardTitle}</h3>
       <div style={{ display: "grid", gap: "12px", marginTop: "18px" }}>
         {items.map((item) => (
@@ -763,10 +922,19 @@ function SectionCard({ title: sectionTitle, children }: { title: string; childre
 function MetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className="course-mgmt-slideover-metric-card" style={{ ...miniCard, padding: compact ? "16px 18px" : "20px 22px" }}>
-      <p style={{ margin: 0, fontSize: "11px",   color: "#209379", fontWeight: 600 }}>
+      <p style={{ margin: 0, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.18em", color: "#209379", fontWeight: 800 }}>
         {label}
       </p>
-      <p style={{ margin: "10px 0 0", fontSize: compact ? "22px" : "26px", fontWeight: 600, color: "#034852" }}>{value}</p>
+      <p style={{ margin: "10px 0 0", fontSize: compact ? "22px" : "26px", fontWeight: 800, color: "#034852" }}>{value}</p>
+    </div>
+  );
+}
+
+function MetaLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", fontSize: "13px" }}>
+      <span style={{ color: "rgba(3,72,82,0.55)" }}>{label}</span>
+      <span style={{ color: "#034852", fontWeight: 700 }}>{value}</span>
     </div>
   );
 }
@@ -847,33 +1015,38 @@ function statusBadge(status: string): React.CSSProperties {
 }
 
 const card: React.CSSProperties = {
-  background: "var(--color-surface)",
+  background: "#ffffff",
   border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "12px",
-  padding: "20px",
+  borderRadius: "24px",
+  padding: "24px 28px",
+  boxShadow: "0 12px 30px rgba(3,72,82,0.06)",
+};
 
+const heroCard: React.CSSProperties = {
+  ...card,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(244,250,248,0.98))",
 };
 
 const miniCard: React.CSSProperties = {
   background: "rgba(244,250,248,0.9)",
   border: "1px solid rgba(3,72,82,0.08)",
-  borderRadius: "12px",
+  borderRadius: "18px",
   padding: "18px 20px",
 };
 
 const eyebrow: React.CSSProperties = {
   margin: 0,
   fontSize: "11px",
-  fontWeight: 600,
-
-
+  fontWeight: 800,
+  textTransform: "uppercase",
+  letterSpacing: "0.24em",
   color: "#209379",
 };
 
 const title: React.CSSProperties = {
   margin: 0,
   fontFamily: "var(--font-heading)",
-  fontWeight: 600,
+  fontWeight: 800,
   color: "#034852",
 };
 
@@ -889,27 +1062,48 @@ const pill: React.CSSProperties = {
   padding: "4px 10px",
   borderRadius: "999px",
   fontSize: "10px",
-  fontWeight: 600,
+  fontWeight: 800,
   letterSpacing: "0.08em",
+};
+
+const tabStrip: React.CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "8px",
+  padding: "8px",
+  borderRadius: "20px",
+  background: "rgba(255,255,255,0.8)",
+  border: "1px solid rgba(3,72,82,0.08)",
+  boxShadow: "0 8px 22px rgba(3,72,82,0.05)",
+};
+
+const tabBtn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: "14px",
+  border: "1px solid transparent",
+  background: "transparent",
+  fontSize: "13px",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const primaryBtn: React.CSSProperties = {
   padding: "12px 18px",
   border: "none",
-  borderRadius: "12px",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
+  borderRadius: "14px",
+  background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+  color: "#fff",
   fontFamily: "var(--font-heading)",
-  fontWeight: 600,
+  fontWeight: 800,
   fontSize: "13px",
   cursor: "pointer",
-
+  boxShadow: "0 10px 22px rgba(10,190,98,0.18)",
 };
 
 const ghostBtn: React.CSSProperties = {
   padding: "12px 16px",
   border: "1px solid rgba(3,72,82,0.14)",
-  borderRadius: "12px",
+  borderRadius: "14px",
   background: "#fff",
   color: "#034852",
   fontWeight: 700,
@@ -929,6 +1123,13 @@ const removeBtn: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const ghostLinkBtn: React.CSSProperties = {
+  ...ghostBtn,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
+};
+
 const errorBox: React.CSSProperties = {
   padding: "12px 16px",
   borderRadius: "16px",
@@ -940,12 +1141,12 @@ const errorBox: React.CSSProperties = {
 
 const inputStyle: React.CSSProperties = {
   padding: "12px 14px",
-  borderRadius: "12px",
+  borderRadius: "14px",
   border: "1px solid rgba(3,72,82,0.12)",
   background: "rgba(244,250,248,0.95)",
   color: "#034852",
   fontSize: "14px",
-
+  outline: "none",
 };
 
 const selectStyle: React.CSSProperties = {
@@ -956,9 +1157,9 @@ const selectStyle: React.CSSProperties = {
 const tableHead: React.CSSProperties = {
   padding: "14px 12px",
   fontSize: "11px",
-  fontWeight: 600,
-
-
+  fontWeight: 800,
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
   color: "rgba(3,72,82,0.48)",
   textAlign: "left",
   borderBottom: "1px solid rgba(3,72,82,0.08)",
@@ -985,7 +1186,7 @@ const progressTrack: React.CSSProperties = {
 const progressFill: React.CSSProperties = {
   height: "100%",
   borderRadius: "999px",
-  background: "var(--green)",
+  background: "linear-gradient(90deg, #0abe62, #209379)",
 };
 
 const badgeBase: React.CSSProperties = {
@@ -995,7 +1196,7 @@ const badgeBase: React.CSSProperties = {
   padding: "5px 10px",
   borderRadius: "999px",
   fontSize: "11px",
-  fontWeight: 600,
+  fontWeight: 800,
 };
 
 const timelineRow: React.CSSProperties = {

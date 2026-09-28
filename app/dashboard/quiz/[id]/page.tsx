@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, ArrowRight, Calculator as CalculatorIcon, ChevronLeft, ChevronRight, Clock, Flag, Lock } from "lucide-react";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { BackLink } from "@/components/back-link";
@@ -61,8 +60,9 @@ function openPdf({ blob, filename }: StudentReportPdf) {
 
 const pageOuter: React.CSSProperties = {
   minHeight: "100vh",
-  background: "var(--color-background)",
-  color: "var(--color-text)",
+  background: "#f0f2f5",
+  fontFamily: "'Inter', sans-serif",
+  color: "#034852",
 };
 
 const pageInner: React.CSSProperties = {
@@ -75,63 +75,61 @@ const pageCentered: React.CSSProperties = {
   maxWidth: "760px",
   margin: "0 auto",
   padding: "32px 16px",
-  color: "var(--color-text)",
+  fontFamily: "'Inter', sans-serif",
+  color: "#034852",
 };
 
 const card: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px, 4vw, 24px)",
+  background: "rgba(255,255,255,0.95)",
+  borderRadius: "16px",
+  padding: "32px",
+  boxShadow: "0 2px 24px rgba(3,72,82,0.08)",
   marginBottom: "20px",
 };
 
 const heading: React.CSSProperties = {
   fontSize: "22px",
-  fontWeight: 700,
-  color: "var(--color-text)",
+  fontWeight: 800,
+  color: "#034852",
   margin: "0 0 8px",
 };
 
 const subtext: React.CSSProperties = {
   fontSize: "14px",
-  color: "var(--color-text-muted)",
+  color: "rgba(3,72,82,0.6)",
 };
 
 const pill: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "4px",
+  display: "inline-block",
   background: "rgba(10,190,98,0.1)",
-  color: "#08784a",
-  borderRadius: "6px",
-  padding: "3px 8px",
+  color: "#0abe62",
+  borderRadius: "9999px",
+  padding: "3px 12px",
   fontSize: "12px",
-  fontWeight: 600,
+  fontWeight: 700,
   marginRight: "8px",
 };
 
 const primaryBtn: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "8px",
-  minHeight: "44px",
-  background: "var(--green)",
-  color: "var(--dark-teal)",
-  border: "1px solid var(--green)",
+  background: "linear-gradient(135deg,#0abe62,#209379)",
+  color: "#fff",
+  border: "none",
   borderRadius: "12px",
-  padding: "8px 20px",
-  fontSize: "14px",
-  fontWeight: 600,
+  padding: "12px 28px",
+  fontSize: "15px",
+  fontWeight: 700,
   cursor: "pointer",
 };
 
 const secondaryBtn: React.CSSProperties = {
-  ...primaryBtn,
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-  border: "1px solid var(--color-border)",
+  background: "rgba(3,72,82,0.08)",
+  color: "#034852",
+  border: "none",
+  borderRadius: "12px",
+  padding: "12px 28px",
+  fontSize: "15px",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -186,21 +184,21 @@ function TimingBreakdown({ questions, timings }: { questions: QuizAttemptQuestio
   const max   = Math.max(1, ...rows.map((r) => r.seconds));
 
   return (
-    <div style={{ marginTop: "24px", padding: "20px 24px", background: "var(--color-surface-sunken)", borderRadius: "12px" }}>
+    <div style={{ marginTop: "24px", padding: "20px 24px", background: "rgba(3,72,82,0.03)", borderRadius: "12px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "14px" }}>
-        <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 }}>
+        <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(3,72,82,0.5)", margin: 0 }}>
           Time per question
         </p>
-        <span style={{ fontSize: "13px", fontWeight: 700, color: "#08784a" }}>Total {fmtTime(total)}</span>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: "#209379" }}>Total {fmtTime(total)}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {rows.map((r) => (
           <div key={r.label} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--color-text)", width: "72px", flexShrink: 0 }}>{r.label}</span>
-            <div style={{ flex: 1, height: "8px", borderRadius: "100px", background: "var(--color-border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${(r.seconds / max) * 100}%`, borderRadius: "100px", background: "var(--green)" }} />
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#034852", width: "72px", flexShrink: 0 }}>{r.label}</span>
+            <div style={{ flex: 1, height: "8px", borderRadius: "100px", background: "rgba(3,72,82,0.08)", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${(r.seconds / max) * 100}%`, borderRadius: "100px", background: "linear-gradient(135deg,#0abe62,#209379)" }} />
             </div>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-muted)", width: "64px", textAlign: "right", flexShrink: 0 }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.6)", width: "64px", textAlign: "right", flexShrink: 0 }}>
               {fmtTime(r.seconds)}
             </span>
           </div>
@@ -845,7 +843,7 @@ export default function QuizTakingPage() {
     return (
       <div style={pageCentered}>
         <div style={card}>
-          <p style={{ ...heading, color: "#b83232" }}>Error</p>
+          <p style={{ ...heading, color: "#e53e3e" }}>Error</p>
           <p style={subtext}>{error}</p>
           {retrySubmitRef.current && (
             <button
@@ -873,8 +871,8 @@ export default function QuizTakingPage() {
       && Date.now() - new Date(incompleteAttempt.started_at).getTime() > quiz.duration_minutes * 60_000;
     return (
       <div style={pageCentered}>
-        <BackLink fallback="/dashboard/assessments" style={{ ...secondaryBtn, textDecoration: "none", marginBottom: "20px" }}>
-          <ArrowLeft size={16} aria-hidden="true" />Back to Quizzes
+        <BackLink fallback="/dashboard/assessments" style={{ fontSize: "13px", color: "#209379", fontWeight: 600, textDecoration: "none", display: "block", marginBottom: "20px" }}>
+          ← Back to Quizzes
         </BackLink>
         <div style={card}>
           <p style={{ ...subtext, marginBottom: "6px" }}>
@@ -882,7 +880,7 @@ export default function QuizTakingPage() {
           </p>
           <h1 style={heading}>{quiz.title}</h1>
           <div style={{ marginTop: "16px", display: "flex", flexWrap: "wrap", gap: "8px" }}>
-            {quiz.duration_minutes && <span style={pill}><Clock size={12} aria-hidden="true" />{quiz.duration_minutes} min</span>}
+            {quiz.duration_minutes && <span style={pill}>⏱ {quiz.duration_minutes} min</span>}
             {quiz.max_attempts != null && quiz.max_attempts > 0 && (
               <span style={pill}>
                 {attemptsUsed}/{quiz.max_attempts} attempt{quiz.max_attempts !== 1 ? "s" : ""} used
@@ -898,20 +896,20 @@ export default function QuizTakingPage() {
             <div style={{
               marginTop: "20px",
               padding: "16px 20px",
-              background: "var(--color-surface-sunken)",
-              border: "1px solid var(--color-border)",
-              borderLeft: "3px solid var(--green)",
+              background: "rgba(3,72,82,0.04)",
+              border: "1px solid rgba(3,72,82,0.1)",
+              borderLeft: "3px solid #209379",
               borderRadius: "8px",
             }}>
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: "0 0 8px" }}>
-                Test instructions
+              <p style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 8px" }}>
+                Test Instructions
               </p>
-              <MathContent html={quiz.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "var(--color-text)" }} />
+              <MathContent html={quiz.description} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
             </div>
           )}
 
           {canAttempt && !!quiz.duration_minutes && (
-            <p style={{ ...subtext, marginTop: "20px", fontWeight: 600, color: attemptTimeIsUp ? "#b83232" : undefined }}>
+            <p style={{ ...subtext, marginTop: "20px", fontWeight: 600, color: attemptTimeIsUp ? "#e53e3e" : undefined }}>
               {attemptTimeIsUp
                 ? "Time ran out on the attempt you started earlier. Your saved answers will be submitted now; if nothing was answered, the attempt is discarded and you can start again."
                 : "The timer starts when you press Start and keeps running even if you close this page or lock your phone. When it ends, your answers are submitted automatically."}
@@ -924,13 +922,13 @@ export default function QuizTakingPage() {
             const fsBlockMobile = fsRequired && !fsSupported;
             if (fsBlockMobile) {
               return (
-                <p style={{ ...subtext, marginTop: "20px", color: "#b83232", fontWeight: 600 }}>
+                <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e", fontWeight: 600 }}>
                   This quiz requires fullscreen mode, which isn&apos;t supported on this device. Please use a desktop browser (Chrome / Edge / Firefox) to take this quiz.
                 </p>
               );
             }
             return exhausted && !incompleteAttempt ? (
-              <p style={{ ...subtext, marginTop: "20px", color: "#b83232" }}>
+              <p style={{ ...subtext, marginTop: "20px", color: "#e53e3e" }}>
                 You have used all available attempts for this quiz.
               </p>
             ) : (
@@ -939,50 +937,50 @@ export default function QuizTakingPage() {
                   ? attemptTimeIsUp ? "Submit My Answers" : "Resume Attempt"
                   : attemptsUsed > 0
                     ? "Retake Quiz"
-                    : "Start Quiz"} <ArrowRight size={16} aria-hidden="true" />
+                    : "Start Quiz"} →
               </button>
             );
           })()}
 
           {pastAttempts.length > 0 && (
-            <div style={{ marginTop: "28px", borderTop: "1px solid var(--color-border)", paddingTop: "20px" }}>
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", marginBottom: "12px" }}>
-                Past attempts
+            <div style={{ marginTop: "28px", borderTop: "1px solid rgba(3,72,82,0.08)", paddingTop: "20px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "rgba(3,72,82,0.5)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+                Past Attempts
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 {pastAttempts.map((a) => {
                   const pct = a.score != null && a.max_score ? Math.round((a.score / a.max_score) * 100) : null;
                   const date = a.submitted_at ? new Date(a.submitted_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
                   return (
-                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-lg" style={{ background: "var(--color-surface-sunken)" }}>
+                    <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-[rgba(3,72,82,0.03)] rounded-xl">
                       <div className="flex-1">
-                        <p className="m-0 text-[14px] font-semibold" style={{ color: "var(--color-text)" }}>
+                        <p className="m-0 text-[14px] font-bold text-[#034852]">
                           Attempt {a.attempt_number} — {a.score ?? "?"}/{a.max_score ?? "?"}{pct !== null ? ` (${pct}%)` : ""}
                         </p>
-                        <p className="mt-1 mb-0 text-[12px]" style={{ color: "var(--color-text-muted)" }}>{date}</p>
+                        <p className="mt-1 mb-0 text-[12px] text-[rgba(3,72,82,0.45)]">{date}</p>
                       </div>
                       <div className="flex items-center flex-wrap gap-2 mt-2 sm:mt-0">
                         {a.passed !== null && (
-                          <span style={{ fontSize: "12px", fontWeight: 600, padding: "3px 8px", borderRadius: "6px", background: a.passed ? "rgba(10,190,98,0.1)" : "rgba(184,50,50,0.1)", color: a.passed ? "#08784a" : "#b83232" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 700, padding: "3px 10px", borderRadius: "100px", background: a.passed ? "rgba(10,190,98,0.1)" : "rgba(229,62,62,0.1)", color: a.passed ? "#0abe62" : "#e53e3e" }}>
                             {a.passed ? "Passed" : "Failed"}
                           </span>
                         )}
                         <span style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          background: a.counts_toward_grade ? "rgba(10,190,98,0.1)" : "var(--color-surface)",
-                          color:      a.counts_toward_grade ? "#08784a" : "var(--color-text-muted)",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: "100px",
+                          background: a.counts_toward_grade ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.08)",
+                          color:      a.counts_toward_grade ? "#0abe62" : "rgba(3,72,82,0.6)",
                         }}>
                           {a.counts_toward_grade ? "Counted" : "Practice"}
                         </span>
                         {quiz?.show_answers_after && (
                           <button
                             onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${a.id}`, currentUrl))}
-                            style={{ ...secondaryBtn, minHeight: "36px", padding: "4px 12px", fontSize: "13px" }}
+                            style={{ ...secondaryBtn, padding: "6px 14px", fontSize: "13px" }}
                           >
-                            Review <ArrowRight size={14} aria-hidden="true" />
+                            Review →
                           </button>
                         )}
                       </div>
@@ -1006,7 +1004,7 @@ export default function QuizTakingPage() {
               <div style={{
                 width: "56px", height: "56px",
                 border: "4px solid rgba(10,190,98,0.18)",
-                borderTopColor: "var(--green)",
+                borderTopColor: "#0abe62",
                 borderRadius: "50%",
                 animation: "spin 1s linear infinite",
               }} />
@@ -1101,11 +1099,11 @@ export default function QuizTakingPage() {
         {fullscreenExited && phase === "taking" && (
           <div style={{
             position: "fixed", inset: 0, zIndex: 99999,
-            background: "rgba(184,50,50,0.96)",
+            background: "rgba(229,62,62,0.95)",
             display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column",
             color: "#fff", padding: "40px", textAlign: "center",
           }}>
-            <h2 style={{ fontSize: "28px", fontWeight: 700, margin: 0, marginBottom: "16px" }}>Fullscreen Exited</h2>
+            <h2 style={{ fontSize: "32px", margin: 0, marginBottom: "16px" }}>Fullscreen Exited</h2>
             <p style={{ fontSize: "16px", margin: 0, marginBottom: "24px", maxWidth: "500px", lineHeight: 1.6 }}>
               This quiz requires fullscreen mode. The exit has been logged. Return to fullscreen to continue.
             </p>
@@ -1114,9 +1112,9 @@ export default function QuizTakingPage() {
                 try { await document.documentElement.requestFullscreen(); } catch { /* user gesture failed */ }
               }}
               style={{
-                minHeight: "44px", padding: "8px 24px", borderRadius: "12px",
-                background: "#fff", color: "#b83232",
-                fontSize: "15px", fontWeight: 600, border: "1px solid #fff", cursor: "pointer",
+                padding: "12px 28px", borderRadius: "12px",
+                background: "#fff", color: "#e53e3e",
+                fontSize: "16px", fontWeight: 700, border: "none", cursor: "pointer",
               }}
             >
               Return to Fullscreen
@@ -1129,9 +1127,9 @@ export default function QuizTakingPage() {
             background: "rgba(0,0,0,0.45)",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <div style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)", maxWidth: "420px", width: "90%" }}>
-              <p style={{ fontSize: "18px", fontWeight: 700, color: "var(--color-text)", margin: "0 0 12px" }}>Reload this page?</p>
-              <p style={{ fontSize: "14px", color: "var(--color-text-muted)", margin: "0 0 24px", lineHeight: 1.6 }}>
+            <div style={{ background: "#fff", borderRadius: "16px", padding: "32px", maxWidth: "420px", width: "90%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 12px" }}>Reload this page?</p>
+              <p style={{ fontSize: "14px", color: "rgba(3,72,82,0.65)", margin: "0 0 24px", lineHeight: 1.6 }}>
                 Your answers are <strong>saved automatically</strong>. You can safely reload — your progress will be restored.
               </p>
               <div style={{ display: "flex", gap: "12px" }}>
@@ -1162,14 +1160,15 @@ export default function QuizTakingPage() {
             padding: "20px",
           }}>
             <div style={{
-              background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px",
-              padding: "clamp(16px, 4vw, 24px)", maxWidth: "480px", width: "100%",
+              background: "#fff", borderRadius: "16px",
+              padding: "28px", maxWidth: "480px", width: "100%",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
             }}>
-              <p style={{ fontSize: "18px", fontWeight: 700, color: "var(--color-text)", margin: "0 0 12px" }}>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "#034852", margin: "0 0 12px" }}>
                 {confirmModal.title}
               </p>
               <p style={{
-                fontSize: "14px", color: "var(--color-text-muted)",
+                fontSize: "14px", color: "rgba(3,72,82,0.75)",
                 margin: "0 0 24px", lineHeight: 1.6,
                 whiteSpace: "pre-wrap",
               }}>
@@ -1178,7 +1177,7 @@ export default function QuizTakingPage() {
               <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
                 <button
                   onClick={() => setConfirmModal(null)}
-                  style={secondaryBtn}
+                  style={{ ...secondaryBtn, padding: "10px 20px", fontSize: "14px" }}
                 >
                   Cancel
                 </button>
@@ -1188,7 +1187,7 @@ export default function QuizTakingPage() {
                     setConfirmModal(null);
                     fn();
                   }}
-                  style={primaryBtn}
+                  style={{ ...primaryBtn, padding: "10px 20px", fontSize: "14px" }}
                 >
                   {confirmModal.confirmLabel}
                 </button>
@@ -1199,8 +1198,8 @@ export default function QuizTakingPage() {
         <div style={pageInner}>
           {/* Header */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <p style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>{quiz?.title}</p>
-            <span style={{ ...pill, background: "var(--color-surface-sunken)", color: "var(--color-text)", margin: 0 }}>
+            <p style={{ fontSize: "15px", fontWeight: 700, color: "#034852", margin: 0 }}>{quiz?.title}</p>
+            <span style={{ ...pill, background: "rgba(3,72,82,0.08)", color: "#034852", margin: 0 }}>
               Attempt #{attempt.attempt_number}
             </span>
           </div>
@@ -1211,7 +1210,7 @@ export default function QuizTakingPage() {
               display: "flex",
               gap: "4px",
               marginBottom: "16px",
-              borderBottom: "2px solid var(--color-border)",
+              borderBottom: "2px solid rgba(3,72,82,0.08)",
               flexWrap: "wrap",
             }}>
               {sections.map((s, i) => {
@@ -1231,10 +1230,10 @@ export default function QuizTakingPage() {
                     style={{
                       padding: "10px 18px",
                       fontSize: "14px",
-                      fontWeight: 600,
-                      background: isActive ? "var(--color-surface)" : "transparent",
-                      color: isActive ? "#08784a" : (isLocked || isPending) ? "var(--color-text-muted)" : "var(--color-text)",
-                      borderBottom: `3px solid ${isActive ? "var(--green)" : "transparent"}`,
+                      fontWeight: 700,
+                      background: isActive ? "#fff" : "transparent",
+                      color: isActive ? "#0abe62" : (isLocked || isPending) ? "rgba(3,72,82,0.35)" : "#034852",
+                      borderBottom: `3px solid ${isActive ? "#0abe62" : "transparent"}`,
                       marginBottom: "-2px",
                       cursor: clickable ? "pointer" : (isLocked || isPending) ? "not-allowed" : "default",
                       opacity: (isLocked || isPending) ? 0.6 : 1,
@@ -1247,10 +1246,10 @@ export default function QuizTakingPage() {
                     {stats && (
                       <span style={{ fontSize: "11px", fontWeight: 600, opacity: 0.75 }}>
                         {stats.answered}/{stats.total}
-                        {stats.flagged > 0 && <> <Flag size={11} aria-hidden="true" style={{ verticalAlign: "-1px" }} />{stats.flagged}</>}
+                        {stats.flagged > 0 ? ` ⚑${stats.flagged}` : ""}
                       </span>
                     )}
-                    {isLocked && <Lock size={12} aria-hidden="true" />}
+                    {isLocked && <span style={{ fontSize: "11px" }}>🔒</span>}
                   </div>
                 );
               })}
@@ -1264,7 +1263,7 @@ export default function QuizTakingPage() {
               <div style={card}>
                 {/* Question header */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
-                  <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--color-text)" }}>
+                  <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#034852" }}>
                     Question {currentIdx + 1} of {total}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -1279,21 +1278,20 @@ export default function QuizTakingPage() {
                     <button
                       onClick={() => toggleFlag(q.snapshot_id)}
                       style={{
-                        background: isFlagged ? "rgba(184,50,50,0.1)" : "var(--color-surface)",
-                        color: isFlagged ? "#b83232" : "var(--color-text-muted)",
-                        border: `1px solid ${isFlagged ? "rgba(184,50,50,0.3)" : "var(--color-border)"}`,
+                        background: isFlagged ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.06)",
+                        color: isFlagged ? "#e53e3e" : "rgba(3,72,82,0.5)",
+                        border: "none",
                         borderRadius: "8px",
-                        minHeight: "36px",
-                        padding: "6px 12px",
+                        padding: "6px 14px",
                         fontSize: "13px",
-                        fontWeight: 600,
+                        fontWeight: 700,
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         gap: "6px",
                       }}
                     >
-                      <Flag size={14} aria-hidden="true" />{isFlagged ? "Marked for Review" : "Mark for Review"}
+                      ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
                     </button>
                   </div>
                 </div>
@@ -1319,7 +1317,7 @@ export default function QuizTakingPage() {
                   alignItems: "center",
                   marginTop: "32px",
                   paddingTop: "20px",
-                  borderTop: "1px solid var(--color-border)",
+                  borderTop: "1px solid rgba(3,72,82,0.08)",
                 }}>
                   <button
                     onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
@@ -1333,7 +1331,7 @@ export default function QuizTakingPage() {
                       gap: "6px",
                     }}
                   >
-                    <ChevronLeft size={16} aria-hidden="true" />Previous
+                    ‹ Previous
                   </button>
                   {isLast ? (
                     quiz?.sequential_sections ? (
@@ -1346,7 +1344,7 @@ export default function QuizTakingPage() {
                           ? "Submitting…"
                           : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
                             ? "Submit Final Section"
-                            : <>Submit Section <ArrowRight size={16} aria-hidden="true" /></>}
+                            : "Submit Section →"}
                       </button>
                     ) : (
                       <button
@@ -1377,8 +1375,8 @@ export default function QuizTakingPage() {
                       style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: "6px" }}
                     >
                       {!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0
-                        ? <>Next Section <ArrowRight size={16} aria-hidden="true" /></>
-                        : <>Next <ChevronRight size={16} aria-hidden="true" /></>}
+                        ? "Next Section →"
+                        : "Next ›"}
                     </button>
                   )}
                 </div>
@@ -1395,19 +1393,19 @@ export default function QuizTakingPage() {
                   gap: "8px",
                   marginBottom: "20px",
                   paddingBottom: "16px",
-                  borderBottom: "1px solid var(--color-border)",
+                  borderBottom: "1px solid rgba(3,72,82,0.08)",
                 }}>
                   {quiz?.sequential_sections && sectionRemaining != null ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, color: sectionRemaining < 60 ? "#b83232" : "var(--color-text)" }}>
-                      <Clock size={16} aria-hidden="true" />Section: {Math.floor(sectionRemaining / 60)}:{(sectionRemaining % 60).toString().padStart(2, "0")}
+                    <span style={{ fontWeight: 700, color: sectionRemaining < 60 ? "#e53e3e" : "#034852" }}>
+                      ⏱ Section: {Math.floor(sectionRemaining / 60)}:{(sectionRemaining % 60).toString().padStart(2, "0")}
                     </span>
                   ) : (
                     <>
-                      <Clock size={18} aria-hidden="true" style={{ color: timerIsLow ? "#b83232" : "var(--color-text)" }} />
+                      <span style={{ fontSize: "18px", color: timerIsLow ? "#e53e3e" : "#034852" }}>⏱</span>
                       <span style={{
                         fontSize: "22px",
-                        fontWeight: 700,
-                        color: timerIsLow ? "#b83232" : "var(--color-text)",
+                        fontWeight: 800,
+                        color: timerIsLow ? "#e53e3e" : "#034852",
                         fontVariantNumeric: "tabular-nums",
                       }}>
                         {timerStr}
@@ -1428,15 +1426,17 @@ export default function QuizTakingPage() {
                   return (
                     <div style={{
                       padding: "12px",
-                      background: "var(--color-surface-sunken)",
+                      background: "rgba(3,72,82,0.04)",
                       borderRadius: "8px",
                       marginBottom: "16px",
                     }}>
                       <p style={{
                         margin: 0,
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: "var(--color-text-muted)",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "rgba(3,72,82,0.6)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
                       }}>{title}</p>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
                         {([
@@ -1446,8 +1446,8 @@ export default function QuizTakingPage() {
                           ["Marked + Answered", showStats.flaggedAndAnswered],
                         ] as const).map(([label, value]) => (
                           <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: 700, lineHeight: 1, color: "var(--color-text)" }}>{value}</span>
-                            <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</span>
+                            <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>
+                            <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(3,72,82,0.55)" }}>{label}</span>
                           </div>
                         ))}
                       </div>
@@ -1456,7 +1456,7 @@ export default function QuizTakingPage() {
                 })()}
 
                 {/* Question navigator grid */}
-                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: "0 0 12px" }}>Questions</p>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
                 <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-4 gap-2">
                   {questions.map((qi, i) => {
                     const isCurrent = i === currentIdx;
@@ -1476,22 +1476,22 @@ export default function QuizTakingPage() {
                           cursor: "pointer",
                           position: "relative",
                           background: isCurrent
-                            ? "var(--dark-teal)"
+                            ? "#034852"
                             : status === "answered"
                               ? "rgba(10,190,98,0.15)"
-                              : "var(--color-surface-sunken)",
+                              : "rgba(3,72,82,0.06)",
                           color: isCurrent
                             ? "#fff"
                             : status === "answered"
-                              ? "#08784a"
-                              : "var(--color-text-muted)",
-                          outline: isQFlagged ? "2px solid #b83232" : "none",
+                              ? "#0abe62"
+                              : "rgba(3,72,82,0.45)",
+                          outline: isQFlagged ? "2px solid #e53e3e" : "none",
                           outlineOffset: "2px",
                         }}
                       >
                         {i + 1}
                         {isQFlagged && (
-                          <Flag size={9} aria-hidden="true" style={{ position: "absolute", top: "3px", right: "3px", color: "#b83232" }} />
+                          <span style={{ position: "absolute", top: "2px", right: "3px", fontSize: "8px", color: "#e53e3e", lineHeight: 1 }}>⚑</span>
                         )}
                       </button>
                     );
@@ -1507,7 +1507,8 @@ export default function QuizTakingPage() {
                       ...primaryBtn,
                       width: "100%",
                       marginTop: "20px",
-                      padding: "8px 16px",
+                      padding: "10px 16px",
+                      fontSize: "14px",
                       boxSizing: "border-box",
                       opacity: advancingSection ? 0.6 : 1,
                     }}
@@ -1516,7 +1517,7 @@ export default function QuizTakingPage() {
                       ? "Submitting…"
                       : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
                         ? "Submit Final Section"
-                        : <>Submit Section <ArrowRight size={16} aria-hidden="true" /></>}
+                        : "Submit Section →"}
                   </button>
                 ) : (
                   <button
@@ -1533,7 +1534,8 @@ export default function QuizTakingPage() {
                       ...primaryBtn,
                       width: "100%",
                       marginTop: "20px",
-                      padding: "8px 16px",
+                      padding: "10px 16px",
+                      fontSize: "14px",
                       opacity: submitting ? 0.6 : 1,
                       boxSizing: "border-box",
                     }}
@@ -1553,21 +1555,20 @@ export default function QuizTakingPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
-                    minHeight: "44px",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    border: `1px solid ${calcOpen ? "var(--dark-teal)" : "var(--color-border)"}`,
-                    background: calcOpen ? "var(--dark-teal)" : "var(--color-surface)",
-                    color: calcOpen ? "#fff" : "var(--color-text)",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: calcOpen ? "#034852" : "rgba(3,72,82,0.06)",
+                    color: calcOpen ? "#fff" : "#034852",
                     fontSize: "14px",
-                    fontWeight: 600,
+                    fontWeight: 700,
                     cursor: "pointer",
                     boxSizing: "border-box",
                   }}
                   aria-expanded={calcOpen}
                   aria-label="Toggle calculator"
                 >
-                  <CalculatorIcon size={16} aria-hidden="true" />Calculator
+                  🧮 Calculator
                 </button>
               </div>
             </div>
@@ -1583,22 +1584,22 @@ export default function QuizTakingPage() {
     return (
       <div style={pageCentered}>
         <div style={card}>
-          <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", marginBottom: "12px" }}>
-            Quiz complete
+          <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3em", color: "#0abe62", marginBottom: "12px" }}>
+            Quiz Complete
           </p>
-          <h1 style={{ ...heading, fontSize: "24px" }}>{quiz?.title}</h1>
+          <h1 style={{ ...heading, fontSize: "28px" }}>{quiz?.title}</h1>
 
-          <div style={{ marginTop: "28px", padding: "24px", background: "var(--color-surface-sunken)", borderRadius: "12px", textAlign: "center" }}>
-            <p style={{ fontSize: "48px", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>
+          <div style={{ marginTop: "28px", padding: "24px", background: "rgba(3,72,82,0.04)", borderRadius: "12px", textAlign: "center" }}>
+            <p style={{ fontSize: "48px", fontWeight: 900, color: "#034852", margin: 0 }}>
               {result.score}/{result.max_score}
             </p>
             {pct !== null && (
-              <p style={{ fontSize: "20px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>{pct}%</p>
+              <p style={{ fontSize: "20px", color: "rgba(3,72,82,0.6)", margin: "4px 0 0" }}>{pct}%</p>
             )}
             {result.passed !== null && (
               <p style={{
-                fontSize: "18px", fontWeight: 700, marginTop: "12px",
-                color: result.passed ? "#08784a" : "#b83232",
+                fontSize: "18px", fontWeight: 800, marginTop: "12px",
+                color: result.passed ? "#0abe62" : "#e53e3e",
               }}>
                 {result.passed ? "Passed" : "Not Passed"}
               </p>
@@ -1609,7 +1610,7 @@ export default function QuizTakingPage() {
 
           {explanations.length > 0 && (
             <div style={{ marginTop: "28px" }}>
-              <p style={{ fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: "0 0 16px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(3,72,82,0.5)", margin: "0 0 16px" }}>
                 Explanation Videos ({explanations.length} wrong answer{explanations.length !== 1 ? "s" : ""})
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -1617,11 +1618,11 @@ export default function QuizTakingPage() {
                   const embedUrl = getYouTubeEmbedUrl(ex.explanation_video_url);
                   if (!embedUrl) return null;
                   return (
-                    <div key={ex.snapshot_id} style={{ padding: "16px", background: "var(--color-danger-surface)", borderRadius: "12px", border: "1px solid rgba(184,50,50,0.15)" }}>
-                      <p style={{ margin: "0 0 10px", fontSize: "13px", fontWeight: 600, color: "#b83232" }}>
+                    <div key={ex.snapshot_id} style={{ padding: "16px", background: "rgba(229,62,62,0.04)", borderRadius: "12px", border: "1px solid rgba(229,62,62,0.12)" }}>
+                      <p style={{ margin: "0 0 10px", fontSize: "12px", fontWeight: 700, color: "#e53e3e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                         Wrong answer #{i + 1}
                       </p>
-                      <MathContent html={ex.content_html} style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-text)", marginBottom: "12px", lineHeight: 1.5 }} />
+                      <MathContent html={ex.content_html} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", marginBottom: "12px", lineHeight: 1.5 }} />
                       <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: "8px", overflow: "hidden" }}>
                         <iframe
                           src={embedUrl}
@@ -1646,7 +1647,7 @@ export default function QuizTakingPage() {
                 onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/review/${result.attempt_id}`, currentUrl))}
                 style={secondaryBtn}
               >
-                Review Answers <ArrowRight size={16} aria-hidden="true" />
+                Review Answers →
               </button>
             )}
             <button
@@ -1682,7 +1683,7 @@ export default function QuizTakingPage() {
             ) : null}
           </div>
           {reportError && (
-            <p style={{ color: "#b83232", fontSize: "13px", margin: "12px 0 0" }}>{reportError}</p>
+            <p style={{ color: "#e53e3e", fontSize: "13px", margin: "12px 0 0" }}>{reportError}</p>
           )}
         </div>
       </div>

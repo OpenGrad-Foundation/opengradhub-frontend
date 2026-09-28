@@ -1,19 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { FolderKanban, Plus, RefreshCw, Search, X } from "lucide-react";
 import { usePermissions } from "@/hooks/use-permission";
-import { HeaderActions } from "@/components/dashboard/HeaderActions";
+import { EntityLink } from "./_components/entity-link";
+import { useRowNavigation } from "./_components/use-row-navigation";
 import { PERM } from "@/lib/permissions";
 import { useProgrammes } from "@/lib/queries/programmes";
 import { useCreateProgramme } from "@/lib/mutations/programmes";
 import { ApiError } from "@/lib/api";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
-import { withFrom } from "@/lib/nav";
-import { useCurrentUrl } from "@/lib/useCurrentUrl";
-import cat from "../_components/catalogue.module.css";
-import s from "./programmes.module.css";
+import {
+  cardStyle, errorStyle, formLabelStyle, inputStyle, labelStyle, memberBadge,
+  primaryButton, secondaryButton, tdStyle, thStyle, titleStyle,
+} from "./styles";
 
 /** Slug a display name into the A-Z0-9_ shape the API requires. */
 function suggestCode(name: string, state: string): string {
@@ -28,35 +27,23 @@ function suggestCode(name: string, state: string): string {
 export default function ProgrammesPage() {
   const { has } = usePermissions();
   const canCreate = has(PERM.programmes.create);
-  const currentUrl = useCurrentUrl();
+  const rowNav = useRowNavigation();
+  const [hovered, setHovered] = useState<string | null>(null);
 
   const [includeArchived, setIncludeArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [search, setSearch] = useState("");
 
-  const { data: programmes = [], isLoading, error, refetch, isFetching } = useProgrammes(includeArchived);
-  const term = search.trim().toLocaleLowerCase();
-  const visible = term
-    ? programmes.filter((p) => [p.name, p.code, p.kind, p.state, p.cohort_label].filter(Boolean).join(" ").toLocaleLowerCase().includes(term))
-    : programmes;
+  const { data: programmes = [], isLoading, error } = useProgrammes(includeArchived);
 
   return (
-    <div className={`${cat.catalogue} ${s.page}`}>
-      {canCreate && (
-        <HeaderActions>
-          <button type="button" className={cat.primary} onClick={() => setShowCreate(true)}>
-            <Plus size={18} aria-hidden="true" />New programme
-          </button>
-        </HeaderActions>
-      )}
-
-      <div className={cat.toolbar}>
-        <label className={cat.search}>
-          <Search size={18} aria-hidden="true" />
-          <input type="search" aria-label="Search programmes" placeholder="Search by name, code or state…" value={search} onChange={(e) => setSearch(e.target.value)} />
-        </label>
-        <div className={s.toolbarEnd}>
-          <label className={s.check}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: "16px", flexWrap: "wrap" }}>
+        <div>
+          <div style={labelStyle}>Organisation</div>
+          <h1 style={titleStyle}>Programmes</h1>
+        </div>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "rgba(3,72,82,0.75)" }}>
             <input
               type="checkbox"
               checked={includeArchived}
@@ -64,61 +51,84 @@ export default function ProgrammesPage() {
             />
             Show archived
           </label>
+          {canCreate && (
+            <button style={primaryButton} onClick={() => setShowCreate(true)}>
+              New programme
+            </button>
+          )}
         </div>
       </div>
 
-      <p role="status" className={cat.resultsLabel}>
-        {isLoading ? "Loading programmes…" : error ? "Programmes unavailable" : `${visible.length} ${visible.length === 1 ? "programme" : "programmes"}${term ? " match" : ""}`}
-      </p>
-
-      {isLoading ? (
-        <div aria-label="Loading programmes" className={cat.skeleton} style={{ minHeight: "12rem" }}><div /><div /><div /></div>
-      ) : error ? (
-        <section role="alert" className={cat.empty}>
-          <FolderKanban size={28} aria-hidden="true" />
-          <h2>Programmes couldn’t be loaded</h2>
-          <p>{error instanceof ApiError ? error.message : "Failed to load programmes."}</p>
-          <button type="button" className={cat.secondary} disabled={isFetching} onClick={() => void refetch()}>
-            <RefreshCw size={16} aria-hidden="true" />{isFetching ? "Retrying…" : "Try again"}
-          </button>
-        </section>
-      ) : visible.length === 0 ? (
-        <section className={cat.empty}>
-          <FolderKanban size={28} aria-hidden="true" />
-          <h2>{term ? "No matching programmes" : "No programmes yet."}</h2>
-          <p>{term ? "Try another name or clear your search." : canCreate ? "Create one to get started." : "Programmes you can see will appear here."}</p>
-          {term
-            ? <button type="button" className={cat.secondary} onClick={() => setSearch("")}>Clear search</button>
-            : canCreate && <button type="button" className={cat.primary} onClick={() => setShowCreate(true)}><Plus size={16} aria-hidden="true" />New programme</button>}
-        </section>
-      ) : (
-        <div className={cat.tableWrap}>
-          <table className={cat.table}>
-            <thead>
-              <tr>{["Programme", "Kind", "Code", "State", "Status", "Membership"].map((h) => <th key={h} scope="col">{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {visible.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <Link href={withFrom(`/dashboard/programmes/${p.id}`, currentUrl)} className={cat.courseTitle}>{p.name}</Link>
-                    {p.cohort_label && <span className={cat.tableDescription}>{p.cohort_label}</span>}
-                  </td>
-                  <td>{p.kind}</td>
-                  <td><span className={s.code}>{p.code}</span></td>
-                  <td>{p.state ?? <span style={{ color: "var(--color-text-muted)" }}>—</span>}</td>
-                  <td>{p.status === "ARCHIVED"
-                    ? <span className={`${s.pill} ${s.pillMuted}`}>Archived</span>
-                    : <span className={`${s.pill} ${s.pillGreen}`}>Active</span>}</td>
-                  <td>{p.is_member
-                    ? <span className={`${s.pill} ${s.pillInfo}`}>Member</span>
-                    : <span style={{ color: "var(--color-text-muted)" }}>Not a member</span>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {error && (
+        <div style={errorStyle}>
+          {error instanceof ApiError ? error.message : "Failed to load programmes."}
         </div>
       )}
+
+      <div style={cardStyle}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead style={{ background: "rgba(3,72,82,0.03)" }}>
+            <tr>
+              <th style={thStyle}>Name</th>
+              <th style={thStyle}>Code</th>
+              <th style={thStyle}>Kind</th>
+              <th style={thStyle}>State</th>
+              <th style={thStyle}>You</th>
+              <th style={thStyle}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && (
+              <tr><td style={tdStyle} colSpan={6}>Loading…</td></tr>
+            )}
+            {!isLoading && programmes.length === 0 && (
+              <tr>
+                <td style={{ ...tdStyle, color: "rgba(3,72,82,0.55)" }} colSpan={6}>
+                  No programmes yet.{canCreate ? " Create one to get started." : ""}
+                </td>
+              </tr>
+            )}
+            {programmes.map((p) => (
+              <tr
+                key={p.id}
+                {...rowNav(`/dashboard/programmes/${p.id}`)}
+                onMouseEnter={() => setHovered(p.id)}
+                onMouseLeave={() => setHovered((h) => (h === p.id ? null : h))}
+                style={{
+                  borderTop: "1px solid rgba(3,72,82,0.06)",
+                  cursor: "pointer",
+                  background: hovered === p.id ? "rgba(10,190,98,0.05)" : undefined,
+                  transition: "background 120ms",
+                }}
+              >
+                <td style={tdStyle}>
+                  <EntityLink permissions={[PERM.programmes.view]} href={`/dashboard/programmes/${p.id}`} style={{ color: "#0abe62", fontWeight: 700, textDecoration: "none" }}>
+                    {p.name}
+                  </EntityLink>
+                  {p.cohort_label && (
+                    <span style={{ marginLeft: 8, fontSize: 12, color: "rgba(3,72,82,0.5)" }}>
+                      {p.cohort_label}
+                    </span>
+                  )}
+                </td>
+                <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12 }}>{p.code}</td>
+                <td style={tdStyle}>{p.kind}</td>
+                <td style={tdStyle}>{p.state ?? "—"}</td>
+                <td style={tdStyle}>
+                  {p.is_member
+                    ? <span style={memberBadge()}>Member</span>
+                    : <span style={{ color: "rgba(3,72,82,0.4)" }}>not a member</span>}
+                </td>
+                <td style={tdStyle}>
+                  {p.status === "ARCHIVED"
+                    ? <span style={{ color: "rgba(3,72,82,0.45)" }}>Archived</span>
+                    : <span style={{ color: "#067a45", fontWeight: 600 }}>Active</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {showCreate && <CreateProgrammeModal onClose={() => setShowCreate(false)} />}
     </div>
@@ -155,75 +165,69 @@ function CreateProgrammeModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className={s.overlay} onClick={onClose}>
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(3,72,82,0.35)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 50 }}
+      onClick={onClose}
+    >
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="new-programme-title"
-        className={s.dialog}
+        style={{ background: "#fff", borderRadius: 20, padding: 28, width: "min(520px, 100%)", display: "flex", flexDirection: "column", gap: 16 }}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
       >
-        <div className={s.dialogHead}>
-          <h2 id="new-programme-title">New programme</h2>
-          <button type="button" className={s.iconButton} aria-label="Close" onClick={onClose}><X size={18} aria-hidden="true" /></button>
-        </div>
-        <p className={s.help} style={{ fontSize: "0.8125rem" }}>
+        <h2 style={titleStyle}>New programme</h2>
+        <p style={{ fontSize: 13, color: "rgba(3,72,82,0.65)", margin: 0, lineHeight: 1.6 }}>
           A programme is a track in a place — “UG Kerala”, “CAT Kerala”. You become its
-          first owner.
+          first OWNER.
         </p>
 
         <div>
-          <label className={s.label} htmlFor="programme-name">Name</label>
-          <input id="programme-name" className={cat.control} value={name} onChange={(e) => setName(e.target.value)} placeholder="UG Kerala" />
+          <label style={formLabelStyle}>Name</label>
+          <input style={inputStyle} value={name} onChange={(e) => setName(e.target.value)} placeholder="UG Kerala" />
         </div>
 
-        <div className={s.twoCol}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <div>
-            <label className={s.label} htmlFor="programme-kind">Kind</label>
+            <label style={formLabelStyle}>Kind</label>
             {/* A dropdown, not free text: kind is immutable after create, and
                 every other form in the app validates against this same list.
                 Typing "NEET" here used to create a programme that no course,
                 batch or user could then be given. */}
-            <select id="programme-kind" className={cat.control} value={kind} onChange={(e) => setKind(e.target.value)}>
+            <select style={inputStyle} value={kind} onChange={(e) => setKind(e.target.value)}>
               {PROGRAMME_KINDS.map((k) => (
                 <option key={k.value} value={k.value}>{k.label}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className={s.label} htmlFor="programme-state">State</label>
-            <input id="programme-state" className={cat.control} value={state} onChange={(e) => setState(e.target.value)} placeholder="KERALA" />
+            <label style={formLabelStyle}>State</label>
+            <input style={inputStyle} value={state} onChange={(e) => setState(e.target.value)} placeholder="KERALA" />
           </div>
         </div>
 
         <div>
-          <label className={s.label} htmlFor="programme-code">Code</label>
+          <label style={formLabelStyle}>Code</label>
           <input
-            id="programme-code"
-            className={`${cat.control} ${s.code}`}
+            style={{ ...inputStyle, fontFamily: "monospace" }}
             value={code}
             onChange={(e) => setCode(e.target.value.toUpperCase())}
             placeholder={effectiveCode || "UG_KERALA"}
           />
-          <div className={s.help} style={{ marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: "rgba(3,72,82,0.5)", marginTop: 6 }}>
             Letters, digits and underscores. Permanent once set — leave blank to use{" "}
             <code>{effectiveCode || "…"}</code>.
           </div>
         </div>
 
         <div>
-          <label className={s.label} htmlFor="programme-cohort">Cohort label (optional)</label>
-          <input id="programme-cohort" className={cat.control} value={cohort} onChange={(e) => setCohort(e.target.value)} placeholder="AY 2026" />
+          <label style={formLabelStyle}>Cohort label (optional)</label>
+          <input style={inputStyle} value={cohort} onChange={(e) => setCohort(e.target.value)} placeholder="AY 2026" />
         </div>
 
-        {err && <div role="alert" className={s.error}>{err}</div>}
+        {err && <div style={errorStyle}>{err}</div>}
 
-        <div className={s.actionsRow}>
-          <button type="button" className={cat.secondary} onClick={onClose}>Cancel</button>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <button style={secondaryButton} onClick={onClose}>Cancel</button>
           <button
-            type="button"
-            className={cat.primary}
+            style={{ ...primaryButton, opacity: create.isPending || !name.trim() || !effectiveCode ? 0.6 : 1 }}
             disabled={create.isPending || !name.trim() || !effectiveCode}
             onClick={submit}
           >

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Copy } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
@@ -24,7 +23,7 @@ export default function NewCoursePage() {
     return (
       <PageShell>
         <div style={glassCard}>
-          <p style={label}>Access denied</p>
+          <p style={label}>Access Denied</p>
           <p style={title}>You do not have permission to create courses.</p>
         </div>
       </PageShell>
@@ -50,14 +49,15 @@ export default function NewCoursePage() {
   return (
     <PageShell>
       <div style={{ marginBottom: "28px" }}>
+        <h1 style={{ ...title, fontSize: "28px", margin: 0 }}>New Course</h1>
         {/* The other way in: start from a course another programme already
             built. Browse is read-only; the copy lands in your programme. */}
         <div style={callout}>
-          <p style={{ margin: 0, fontWeight: 600, fontSize: "14px", color: "var(--color-text)" }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#034852" }}>
             Already exists in another programme?
           </p>
           <Link href="/dashboard/courses/duplicate" style={calloutBtn}>
-            <Copy size={16} aria-hidden="true" />Duplicate a course
+            Duplicate a course →
           </Link>
         </div>
       </div>
@@ -80,34 +80,37 @@ function LoadingCard() {
 }
 
 const glassCard: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px, 4vw, 24px)",
+  background: "#ffffff",
+  border: "1px solid rgba(3,72,82,0.08)",
+  borderRadius: "24px",
+  padding: "40px 48px",
+  boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
 };
 
 const label: React.CSSProperties = {
-  fontSize: "13px",
-  fontWeight: 500,
-  color: "var(--color-text-muted)",
+  fontSize: "11px",
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.28em",
+  color: "#209379",
   margin: 0,
 };
 
 const title: React.CSSProperties = {
+  fontFamily: "var(--font-heading)",
   fontSize: "22px",
   fontWeight: 700,
-  color: "var(--color-text)",
+  color: "#034852",
   margin: 0,
 };
 
 const callout: React.CSSProperties = {
   display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap",
-  marginTop: "18px", padding: "14px 18px", borderRadius: "12px",
-  background: "var(--color-surface)", border: "1px solid var(--color-border)",
+  marginTop: "18px", padding: "14px 18px", borderRadius: "14px",
+  background: "rgba(147,32,121,0.05)", border: "1px solid rgba(147,32,121,0.16)",
 };
 const calloutBtn: React.CSSProperties = {
-  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
-  minHeight: "44px", padding: "8px 16px", borderRadius: "12px", whiteSpace: "nowrap",
-  border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)",
-  fontSize: "14px", fontWeight: 600, textDecoration: "none",
+  padding: "10px 18px", borderRadius: "10px", whiteSpace: "nowrap",
+  border: "1px solid rgba(147,32,121,0.3)", background: "#ffffff", color: "#932079",
+  fontSize: "13px", fontWeight: 700, textDecoration: "none",
 };

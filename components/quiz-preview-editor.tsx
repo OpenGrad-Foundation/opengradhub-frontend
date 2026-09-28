@@ -79,14 +79,15 @@ const S = {
 
   primaryBtn: {
     padding: "11px 24px",
-    border: "1px solid var(--green)",
+    border: "none",
     borderRadius: "12px",
-    background: "var(--green)",
-    color: "var(--dark-teal)",
+    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
+    color: "#fff",
     fontFamily: "var(--font-heading)",
     fontWeight: 700,
     fontSize: "14px",
     cursor: "pointer",
+    boxShadow: "0 4px 12px rgba(10,190,98,0.2)",
   } as React.CSSProperties,
 
   secondaryBtn: {
@@ -137,9 +138,11 @@ const S = {
   } as React.CSSProperties,
 
   fieldLabel: {
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: 600,
     color: "rgba(3,72,82,0.5)",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.06em",
     marginBottom: "5px",
     display: "block",
   } as React.CSSProperties,
@@ -935,9 +938,9 @@ function BulkFillBar({
         onClick={() => { fillMissing(field, value); setValue(""); }}
         disabled={!value.trim() || missing === 0}
         style={{
-          padding: "6px 14px", borderRadius: "8px", border: "1px solid var(--green)",
-          background: value.trim() && missing > 0 ? "var(--green)" : "rgba(3,72,82,0.15)",
-          color: "var(--dark-teal)", fontWeight: 700, fontSize: "12px",
+          padding: "6px 14px", borderRadius: "8px", border: "none",
+          background: value.trim() && missing > 0 ? "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" : "rgba(3,72,82,0.15)",
+          color: "#fff", fontWeight: 700, fontSize: "12px",
           cursor: value.trim() && missing > 0 ? "pointer" : "default",
         }}
       >

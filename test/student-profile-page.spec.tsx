@@ -10,7 +10,6 @@ vi.mock('@/hooks/use-permission', () => ({
 const searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "stu-1" }),
-  useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => searchParams,
   usePathname: () => "/dashboard/students/stu-1",
 }));

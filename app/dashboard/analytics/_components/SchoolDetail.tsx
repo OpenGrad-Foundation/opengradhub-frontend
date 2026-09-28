@@ -16,7 +16,6 @@ import {
   downloadAnalyticsStudentsCsv,
   type SchoolDetail as SchoolDetailType,
 } from "@/lib/api";
-import { ArrowLeft, Download } from "lucide-react";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend);
 
@@ -30,17 +29,11 @@ const BRAND = {
 };
 
 const card: React.CSSProperties = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "12px",
-  padding: "clamp(16px,4vw,24px)",
-};
-
-const cardTitle: React.CSSProperties = {
-  fontSize: "16px",
-  fontWeight: 600,
-  color: "var(--color-text)",
-  marginBottom: "12px",
+  background: "#ffffff",
+  border: "1px solid rgba(255,255,255,0.4)",
+  borderRadius: "20px",
+  boxShadow: "0 4px 24px rgba(0,0,0,0.06)",
+  padding: "24px 28px",
 };
 
 type Props = {
@@ -88,47 +81,45 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
       <button
         onClick={onBack}
         style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-          borderRadius: "12px",
-          padding: "0 16px",
-          minHeight: "44px",
+          background: "none",
+          border: "1px solid rgba(3,72,82,0.2)",
+          borderRadius: "10px",
+          padding: "6px 14px",
           cursor: "pointer",
-          fontSize: "14px",
-          fontWeight: 500,
-          color: "var(--color-text)",
+          fontSize: "13px",
+          color: BRAND.dark,
           marginBottom: "20px",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "6px",
         }}
       >
-        <ArrowLeft size={16} aria-hidden="true" /> Back to schools
+        ← Back to schools
       </button>
 
       {loading || !detail ? (
         <Spinner />
       ) : error ? (
-        <div style={{ padding: "24px", color: "#b83232", fontSize: "14px" }}>Error: {error}</div>
+        <div style={{ padding: "24px", color: "#c0392b", fontSize: "14px" }}>Error: {error}</div>
       ) : (
         <>
           {/* Header */}
           <div style={{ marginBottom: "24px" }}>
             <p
               style={{
-                fontSize: "13px",
-                fontWeight: 500,
-                color: "var(--color-text-muted)",
+                fontSize: "11px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.28em",
+                color: BRAND.mid,
                 marginBottom: "4px",
               }}
             >
-              School analytics
+              School Analytics
             </p>
             <h2
               style={{
+                fontFamily: "var(--font-heading)",
                 fontSize: "24px",
                 fontWeight: 700,
-                color: "var(--color-text)",
+                color: BRAND.dark,
                 margin: "0 0 16px",
               }}
             >
@@ -144,14 +135,14 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
                 marginBottom: "24px",
               }}
             >
-              <MiniCard label="Enrolled students" value={detail.enrolled_students} accent={BRAND.green} />
+              <MiniCard label="Enrolled Students" value={detail.enrolled_students} accent={BRAND.green} />
               <MiniCard
-                label="Avg completion"
+                label="Avg Completion"
                 value={`${detail.avg_completion}%`}
                 accent={BRAND.teal}
               />
               <MiniCard
-                label="At-risk students"
+                label="At-Risk Students"
                 value={detail.at_risk_count}
                 accent={detail.at_risk_count > 0 ? BRAND.yellow : BRAND.mid}
               />
@@ -164,17 +155,17 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
                   style={{
-                    padding: "0 12px",
-                    minHeight: "44px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--color-border-strong)",
-                    background: "var(--color-surface)",
-                    color: "var(--color-text)",
-                    fontSize: "14px",
+                    padding: "8px 12px",
+                    borderRadius: "10px",
+                    border: "1px solid rgba(3,72,82,0.2)",
+                    background: "rgba(255,255,255,0.8)",
+                    color: BRAND.dark,
+                    fontSize: "13px",
                     cursor: "pointer",
+                    outline: "none",
                   }}
                 >
-                  <option value="">All courses</option>
+                  <option value="">All Courses</option>
                   {detail.courses.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.title}
@@ -187,22 +178,16 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
                 onClick={handleExportStudents}
                 disabled={exporting}
                 style={{
-                  padding: "0 16px",
-                  minHeight: "44px",
-                  borderRadius: "12px",
-                  border: "1px solid var(--green)",
-                  background: "var(--green)",
-                  color: "var(--dark-teal)",
-                  fontSize: "14px",
+                  padding: "8px 16px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: exporting ? "rgba(3,72,82,0.15)" : BRAND.green,
+                  color: "#fff",
+                  fontSize: "13px",
                   fontWeight: 600,
                   cursor: exporting ? "not-allowed" : "pointer",
-                  opacity: exporting ? 0.6 : 1,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
                 }}
               >
-                <Download size={16} aria-hidden="true" />
                 {exporting ? "Exporting…" : "Student CSV"}
               </button>
             </div>
@@ -212,8 +197,17 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: "20px" }}>
             {/* Bar: avg test score by section */}
             <div style={card}>
-              <p style={cardTitle}>
-                Avg score by section
+              <p
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.26em",
+                  color: BRAND.mid,
+                  marginBottom: "4px",
+                }}
+              >
+                Avg Score by Section
               </p>
               {detail.section_scores.length === 0 ? (
                 <EmptyChart />
@@ -257,8 +251,17 @@ export default function SchoolDetail({ schoolId, onBack }: Props) {
 
             {/* Doughnut: score distribution */}
             <div style={{ ...card, display: "flex", flexDirection: "column" }}>
-              <p style={cardTitle}>
-                Score distribution
+              <p
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.26em",
+                  color: BRAND.mid,
+                  marginBottom: "12px",
+                }}
+              >
+                Score Distribution
               </p>
               {detail.score_distribution.every((d) => d.count === 0) ? (
                 <EmptyChart />
@@ -316,18 +319,21 @@ function MiniCard({
   return (
     <div
       style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-border)",
-        borderRadius: "12px",
+        background: "#ffffff",
+        border: "1px solid rgba(255,255,255,0.4)",
+        borderRadius: "18px",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
         padding: "16px 20px",
         borderTop: `3px solid ${accent}`,
       }}
     >
       <p
         style={{
-          fontSize: "13px",
-          fontWeight: 500,
-          color: "var(--color-text-muted)",
+          fontSize: "10px",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.22em",
+          color: "rgba(3,72,82,0.5)",
           marginBottom: "6px",
         }}
       >
@@ -337,7 +343,8 @@ function MiniCard({
         style={{
           fontSize: "26px",
           fontWeight: 700,
-          color: "var(--color-text)",
+          color: "#034852",
+          fontFamily: "var(--font-heading)",
           margin: 0,
         }}
       >
@@ -353,7 +360,7 @@ function EmptyChart() {
       style={{
         padding: "32px 0",
         textAlign: "center",
-        color: "var(--color-text-muted)",
+        color: "rgba(3,72,82,0.4)",
         fontSize: "13px",
       }}
     >
@@ -372,7 +379,7 @@ function Spinner() {
         justifyContent: "center",
       }}
     >
-      <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>Loading…</p>
+      <p style={{ color: "rgba(3,72,82,0.45)", fontSize: "14px" }}>Loading…</p>
     </div>
   );
 }
