@@ -91,13 +91,16 @@ describe("grid toolbar — bulk fill menu", () => {
     expect(screen.queryByRole("menuitem", { name: /CSV/i })).toBeNull();
   });
 
-  it("offers records and history as separate files, each as CSV or Excel", () => {
+  it("offers records and history as separate files in one picked format", () => {
     renderGrid({ canExport: true });
     expect(screen.queryByRole("menuitem", { name: /history/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
-    for (const name of [/^Records \(\.csv\)/, /^Records \(Excel\)/, /^History \(\.csv\)/, /^History \(Excel\)/])
-      expect(screen.getByRole("menuitem", { name })).toBeTruthy();
-    expect(screen.queryByRole("menuitem", { name: /\.zip/i })).toBeNull();
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual([
+      expect.stringMatching(/^Records/), expect.stringMatching(/^History/),
+    ]);
+    const format = screen.getByRole("combobox", { name: /format/i }) as HTMLSelectElement;
+    expect(format.value).toBe("csv");
+    expect([...format.options].map((o) => o.value)).toEqual(["csv", "xlsx"]);
   });
 
   it("keeps the export and bulk fill menus independent", () => {

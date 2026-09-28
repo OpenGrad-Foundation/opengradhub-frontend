@@ -40,12 +40,10 @@ function sameDraft(draft: RowDraft, sent: TrackerBatchEdit): boolean {
 const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg";
 const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
 
-/** Records and the event log are separate downloads, each in either format. */
+/** Records and the event log are separate downloads; one format picker serves both. */
 const EXPORT_ITEMS = [
-  { part: "records", format: "csv", label: "Records (.csv)" },
-  { part: "records", format: "xlsx", label: "Records (Excel)" },
-  { part: "history", format: "csv", label: "History (.csv)" },
-  { part: "history", format: "xlsx", label: "History (Excel)" },
+  { part: "records", label: "Records" },
+  { part: "history", label: "History" },
 ] as const;
 
 export function TrackerEditableGrid({
@@ -187,6 +185,7 @@ export function TrackerEditableGrid({
   const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [exporting, setExporting] = useState<"records" | "history" | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
   // One open menu at a time, and one wrapper to detect a click outside either of them.
   const [menu, setMenu] = useState<"export" | "bulk" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -617,12 +616,23 @@ export function TrackerEditableGrid({
               </button>
               {menu === "export" && (
                 <div role="menu" className={menuClass}>
-                  {EXPORT_ITEMS.map(({ part, format, label }) => (
+                  <label className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 pb-2 pt-1 text-xs text-gray-600">
+                    Format
+                    <select
+                      value={exportFormat}
+                      onChange={(e) => setExportFormat(e.target.value as "csv" | "xlsx")}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-800"
+                    >
+                      <option value="csv">CSV (.csv)</option>
+                      <option value="xlsx">Excel (.xlsx)</option>
+                    </select>
+                  </label>
+                  {EXPORT_ITEMS.map(({ part, label }) => (
                     <button
-                      key={`${part}-${format}`}
+                      key={part}
                       type="button"
                       role="menuitem"
-                      onClick={() => { setMenu(null); void onExport(part, format); }}
+                      onClick={() => { setMenu(null); void onExport(part, exportFormat); }}
                       className={menuItemClass}
                     >
                       <span className="font-medium text-gray-800">{label}</span>
