@@ -198,7 +198,7 @@ function PeopleList({
                 {showNudge && <NudgeButton doerId={row.id} templateId={templateId} lastNudgedAt={null} />}
               </div>
               {expands && isOpen && (
-                <div className="mb-2 ml-8 mr-3 border-l-2 border-teal-100 bg-gray-50/60">
+                <div className="mb-2 ml-8 mr-3">
                   <PeopleList
                     templateId={templateId}
                     level="fellow"
