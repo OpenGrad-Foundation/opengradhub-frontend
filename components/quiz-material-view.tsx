@@ -157,7 +157,7 @@ function QuestionBlock({ question, index, isLast, nested = false }: {
       borderLeft: nested ? "2px solid rgba(3,72,82,0.12)" : undefined,
       marginLeft: nested ? "8px" : undefined,
     }}>
-      <p style={{ ...muted, fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>
+      <p style={{ ...muted, fontSize: "12px", fontWeight: 600, margin: 0 }}>
         {nested ? `Part ${index + 1}` : `Q${index + 1}`} · {question.question_type}{marks}
       </p>
 
@@ -229,7 +229,7 @@ function QuestionBlock({ question, index, isLast, nested = false }: {
 function Setting({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ background: "rgba(248,250,251,0.95)", borderRadius: "12px", padding: "10px 12px" }}>
-      <dt style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(3,72,82,0.5)" }}>{k}</dt>
+      <dt style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.5)" }}>{k}</dt>
       <dd style={{ margin: "4px 0 0", fontSize: "14px", fontWeight: 600, color: "#034852" }}>{v}</dd>
     </div>
   );
@@ -246,7 +246,7 @@ function Tag({ children }: { children: React.ReactNode }) {
 function isHttpUrl(value: string): boolean { return /^https?:\/\//i.test(value); }
 
 const card: React.CSSProperties = {
-  background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "20px",
+  background: "#fff", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px",
   padding: "24px 28px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
 };
 const settingsGrid: React.CSSProperties = {
@@ -254,10 +254,9 @@ const settingsGrid: React.CSSProperties = {
   gap: "10px", margin: "18px 0 0",
 };
 const label: React.CSSProperties = {
-  fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-  letterSpacing: "0.28em", color: "#209379", margin: 0,
+  fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", margin: 0,
 };
-const heading: React.CSSProperties = { fontFamily: "var(--font-heading)", fontWeight: 700, color: "#034852" };
+const heading: React.CSSProperties = { fontWeight: 700, color: "#034852" };
 const muted: React.CSSProperties = { color: "rgba(3,72,82,0.55)" };
 const outlineBtn: React.CSSProperties = {
   padding: "10px 16px", borderRadius: "12px", border: "1px solid rgba(3,72,82,0.18)",

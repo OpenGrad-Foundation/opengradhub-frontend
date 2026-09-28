@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import {
   createQuestion,
   updateQuestion,
@@ -104,7 +105,7 @@ export function Tag({ children, variant }: { children: React.ReactNode; variant?
 export function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <p style={{ margin: "0 0 6px", fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "rgba(3,72,82,0.6)" }}>{label}</p>
+      <p style={{ margin: "0 0 8px", fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</p>
       {children}
     </div>
   );
@@ -440,19 +441,20 @@ export function QuestionSlideOver({
       }}>
         <div style={{
           width: "100%", maxWidth: "800px", background: "#fff",
-          borderRadius: "16px", padding: "32px", boxShadow: "0 12px 48px rgba(3,72,82,0.15)",
+          borderRadius: "12px", padding: "24px", border: "1px solid var(--color-border)", boxShadow: "0 8px 32px rgba(3,72,82,0.12)",
           pointerEvents: "auto", maxHeight: "100%", overflowY: "auto"
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0abe62", margin: 0 }}>Live Preview</p>
+            <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text-muted)", margin: 0 }}>Live preview</p>
             
-            <div style={{ display: "flex", background: "rgba(3,72,82,0.06)", borderRadius: "100px", padding: "4px" }}>
+            <div role="group" aria-label="Preview mode" style={{ display: "flex", gap: "4px", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "4px" }}>
               <button
                 type="button"
                 onClick={() => setPreviewMode("TAKING")}
+                aria-pressed={previewMode === "TAKING"}
                 style={{
-                  ...S.ghost, padding: "6px 14px", borderRadius: "100px", color: previewMode === "TAKING" ? "#fff" : "rgba(3,72,82,0.6)",
-                  background: previewMode === "TAKING" ? "#034852" : "transparent", transition: "all 0.2s"
+                  ...S.ghost, minHeight: "36px", padding: "6px 14px", borderRadius: "8px", color: previewMode === "TAKING" ? "var(--dark-teal)" : "var(--color-text-muted)",
+                  background: previewMode === "TAKING" ? "var(--color-success-surface)" : "transparent"
                 }}
               >
                 Taking
@@ -460,9 +462,10 @@ export function QuestionSlideOver({
               <button
                 type="button"
                 onClick={() => setPreviewMode("REVIEW")}
+                aria-pressed={previewMode === "REVIEW"}
                 style={{
-                  ...S.ghost, padding: "6px 14px", borderRadius: "100px", color: previewMode === "REVIEW" ? "#fff" : "rgba(3,72,82,0.6)",
-                  background: previewMode === "REVIEW" ? "#0abe62" : "transparent", transition: "all 0.2s"
+                  ...S.ghost, minHeight: "36px", padding: "6px 14px", borderRadius: "8px", color: previewMode === "REVIEW" ? "var(--dark-teal)" : "var(--color-text-muted)",
+                  background: previewMode === "REVIEW" ? "var(--color-success-surface)" : "transparent"
                 }}
               >
                 Review
@@ -553,19 +556,19 @@ export function QuestionSlideOver({
       <div style={{
         position: "fixed", top: 0, right: 0, bottom: 0, width: "min(600px, 100vw)",
         background: "#ffffff",
-        borderLeft: "1px solid rgba(3,72,82,0.1)",
-        boxShadow: "-24px 0 64px rgba(3,72,82,0.12)",
+        borderLeft: "1px solid var(--color-border)",
+        boxShadow: "-8px 0 24px rgba(3,72,82,0.10)",
         zIndex: 41, overflowY: "auto", display: "flex", flexDirection: "column",
       }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "24px 28px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "20px 24px", borderBottom: "1px solid var(--color-border)" }}>
           <div>
             <p style={S.label}>{isEdit ? "Edit" : "New"} Question</p>
             <h2 style={{ ...S.heading, fontSize: "20px", margin: "4px 0 0" }}>{panelTitle}</h2>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", color: "rgba(3,72,82,0.4)", cursor: "pointer" }}>✕</button>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", flexShrink: 0, border: "none", borderRadius: "12px", background: "none", color: "var(--color-text-muted)", cursor: "pointer" }}><X size={20} aria-hidden="true" /></button>
         </div>
 
-        <form onSubmit={(e) => void handleSubmit(e)} style={{ flex: 1, padding: "24px 28px 32px", display: "flex", flexDirection: "column", gap: "18px" }}>
+        <form onSubmit={(e) => void handleSubmit(e)} style={{ flex: 1, padding: "20px 24px 0", display: "flex", flexDirection: "column", gap: "18px" }}>
 
           {/* Type selector */}
           <FieldGroup label="Question Type *">
@@ -728,7 +731,7 @@ export function QuestionSlideOver({
                 {children.map((child, ci) => (
                   <div key={child._key} style={{ background: "rgba(3,72,82,0.03)", border: "1px solid rgba(3,72,82,0.08)", borderRadius: "12px", padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#209379", textTransform: "uppercase", letterSpacing: "0.06em" }}>Sub-question {ci + 1}</span>
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)" }}>Sub-question {ci + 1}</span>
                       <button type="button" onClick={() => removeChild(child._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "14px" }}>Remove</button>
                     </div>
                     <div style={{ display: "grid", gap: "10px" }}>
@@ -786,8 +789,8 @@ export function QuestionSlideOver({
 
           {formError && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: 0 }}>{formError}</p>}
 
-          <div style={{ display: "flex", gap: "10px", marginTop: "auto", paddingTop: "8px" }}>
-            <button type="button" onClick={onClose} style={{ ...S.primary, flex: 1, background: "rgba(3,72,82,0.07)", color: "#034852", boxShadow: "none" }}>Cancel</button>
+          <div style={{ position: "sticky", bottom: 0, display: "flex", gap: "10px", margin: "auto -24px 0", padding: "16px 24px", borderTop: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
+            <button type="button" onClick={onClose} style={{ ...S.primary, flex: 1, background: "var(--color-surface)", borderColor: "var(--color-border)", color: "var(--color-text)" }}>Cancel</button>
             <button type="submit" disabled={submitting} style={{ ...S.primary, flex: 2, opacity: submitting ? 0.6 : 1 }}>
               {submitting ? "Saving…" : isEdit ? "Save Changes" : inQuiz ? "Add to Quiz" : "Add to Bank"}
             </button>
@@ -802,34 +805,29 @@ export function QuestionSlideOver({
 
 const S = {
   label: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.28em", color: "#209379", margin: 0,
+    fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0,
   } as React.CSSProperties,
   heading: {
-    fontFamily: "var(--font-heading)", fontSize: "22px", fontWeight: 700, color: "#034852",
+    fontSize: "22px", fontWeight: 700, color: "var(--color-text)",
   } as React.CSSProperties,
   sectionLabel: {
-    fontSize: "11px", fontWeight: 700, textTransform: "uppercase",
-    letterSpacing: "0.06em", color: "rgba(3,72,82,0.55)", margin: "0 0 10px",
+    fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: "0 0 10px",
   } as React.CSSProperties,
   primary: {
-    padding: "11px 22px", border: "none", borderRadius: "12px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",
-    color: "#ffffff", fontFamily: "var(--font-heading)", fontWeight: 700,
-    fontSize: "14px", cursor: "pointer",
-    boxShadow: "0 8px 16px rgba(10,190,98,0.2)",
-    transition: "all 240ms ease", whiteSpace: "nowrap",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px",
+    minHeight: "44px", padding: "8px 16px", border: "1px solid var(--green)", borderRadius: "12px",
+    background: "var(--green)", color: "var(--dark-teal)", fontWeight: 600,
+    fontSize: "14px", cursor: "pointer", whiteSpace: "nowrap",
   } as React.CSSProperties,
   ghost: {
     background: "none", border: "none", padding: "6px 10px",
-    fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600,
-    color: "#0abe62", cursor: "pointer",
+    fontSize: "13px", fontWeight: 600,
+    color: "var(--teal)", cursor: "pointer",
   } as React.CSSProperties,
   input: {
-    width: "100%", padding: "10px 14px",
-    background: "rgba(0,0,0,0.04)", border: "1px solid rgba(0,0,0,0.12)",
-    borderRadius: "10px", color: "#034852",
-    fontFamily: "var(--font-body)", fontSize: "14px",
-    outline: "none", boxSizing: "border-box",
+    width: "100%", minHeight: "44px", padding: "8px 12px",
+    background: "var(--color-surface)", border: "1px solid var(--color-border-strong)",
+    borderRadius: "8px", color: "var(--color-text)",
+    fontSize: "14px", boxSizing: "border-box",
   } as React.CSSProperties,
 };
