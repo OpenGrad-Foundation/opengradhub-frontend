@@ -493,7 +493,7 @@ export function TrackerBuilder({
             <p className="-mt-2 text-xs text-gray-500 sm:col-span-2">
               {startsOn || endsOn
                 ? `Repeats ${recurrence === "daily" ? "every day" : recurrence === "weekly" ? "every week" : "every month"}${startsOn ? ` from ${startsOn}` : ""}${endsOn ? ` until ${endsOn}` : ""}. Nothing new is created after the end date; past entries stay as history.`
-                : "Leave both empty to start today and repeat until you archive the task."}
+                : "Leave both empty to start today and repeat until you end the task."}
             </p>
           </div>
         )}
