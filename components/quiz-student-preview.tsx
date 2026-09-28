@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, Flag } from "lucide-react";
 import type { Quiz, Question, QuizAttemptQuestion } from "@/lib/api";
 import type { AttemptReviewQuestion } from "@/lib/api";
 import { QuestionView, type AnswerMap } from "@/components/question-view";
@@ -76,43 +77,46 @@ function buildSections(quiz: Quiz): PreviewSection[] {
 // ── Shared styles (mirrored from the real quiz page) ──────────────────────────
 
 const card: React.CSSProperties = {
-  background: "rgba(255,255,255,0.95)",
-  borderRadius: "16px",
-  padding: "32px",
-  boxShadow: "0 2px 24px rgba(3,72,82,0.08)",
+  background: "var(--color-surface)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "12px",
+  padding: "clamp(16px, 4vw, 24px)",
   marginBottom: "20px",
 };
 
 const primaryBtn: React.CSSProperties = {
-  background: "rgba(3,72,82,0.08)",
-  color: "#034852",
-  border: "none",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  minHeight: "44px",
+  background: "var(--green)",
+  color: "var(--dark-teal)",
+  border: "1px solid var(--green)",
   borderRadius: "12px",
-  padding: "12px 28px",
-  fontSize: "15px",
-  fontWeight: 700,
+  padding: "8px 20px",
+  fontSize: "14px",
+  fontWeight: 600,
   cursor: "pointer",
 };
 
 const secondaryBtn: React.CSSProperties = {
-  background: "rgba(3,72,82,0.08)",
-  color: "#034852",
-  border: "none",
-  borderRadius: "12px",
-  padding: "12px 28px",
-  fontSize: "15px",
-  fontWeight: 700,
-  cursor: "pointer",
+  ...primaryBtn,
+  background: "var(--color-surface)",
+  color: "var(--color-text)",
+  border: "1px solid var(--color-border)",
 };
 
 const pill: React.CSSProperties = {
-  display: "inline-block",
-  background: "rgba(10,190,98,0.1)",
-  color: "#0abe62",
-  borderRadius: "9999px",
-  padding: "3px 12px",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+  background: "var(--color-surface-sunken)",
+  color: "var(--color-text)",
+  borderRadius: "6px",
+  padding: "3px 8px",
   fontSize: "12px",
-  fontWeight: 700,
+  fontWeight: 600,
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -192,8 +196,8 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
     const seenParents = new Set<string>();
     
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "#f0f2f5", fontFamily: "'Inter', sans-serif", color: "#034852", overflowY: "auto" }}>
-        <div style={{ background: "#034852", padding: "0 24px", height: "40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 300, background: "var(--color-background)", color: "var(--color-text)", overflowY: "auto" }}>
+        <div style={{ background: "var(--dark-teal)", padding: "0 24px", height: "40px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "3px 10px", borderRadius: "100px", background: "rgba(255,222,0,0.18)", border: "1px solid rgba(255,222,0,0.4)", color: "#ffe566", fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em" }}>
             PREVIEW MODE — Review Page
           </span>
@@ -208,17 +212,17 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
         </div>
 
         <div style={{ maxWidth: "960px", margin: "0 auto", padding: "32px 16px" }}>
-          <div style={{ background: "rgba(255,255,255,0.85)", borderRadius: "16px", padding: "28px 32px", boxShadow: "0 2px 24px rgba(3,72,82,0.08)", marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "24px", fontWeight: 800, margin: "0 0 16px" }}>Quiz Results (Mock)</h2>
+          <div style={card}>
+            <h2 style={{ fontSize: "22px", fontWeight: 700, margin: "0 0 16px" }}>Quiz results (mock)</h2>
             <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
               <div>
-                <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.5)" }}>Score</p>
-                <p style={{ margin: 0, fontSize: "24px", fontWeight: 800, color: "#0abe62" }}>{correct} / {totalMarks}</p>
+                <p style={{ margin: "0 0 4px", fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)" }}>Score</p>
+                <p style={{ margin: 0, fontSize: "24px", fontWeight: 700, color: "#08784a" }}>{correct} / {totalMarks}</p>
               </div>
             </div>
           </div>
           
-          <h3 style={{ fontSize: "18px", fontWeight: 800, margin: "32px 0 16px", color: "#034852" }}>Detailed Review</h3>
+          <h3 style={{ fontSize: "18px", fontWeight: 700, margin: "32px 0 16px", color: "var(--color-text)" }}>Detailed review</h3>
           {reviewQs.map((rq, idx) => {
             const hasParent = rq.parent_snapshot_id != null;
             const isFirstOfParent = hasParent && !seenParents.has(rq.parent_snapshot_id!);
@@ -241,14 +245,13 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
   return (
     <div style={{
       position: "fixed", inset: 0, zIndex: 300,
-      background: "#f0f2f5",
-      fontFamily: "'Inter', sans-serif",
-      color: "#034852",
+      background: "var(--color-background)",
+      color: "var(--color-text)",
       overflowY: "auto",
     }}>
       {/* ── Preview banner (not part of real quiz) ──────── */}
       <div style={{
-        background: "#034852", padding: "0 24px", height: "40px",
+        background: "var(--dark-teal)", padding: "0 24px", height: "40px",
         display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0,
       }}>
         <span style={{
@@ -274,16 +277,16 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
       {/* ── Main content (matches real quiz layout) ─────── */}
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "32px 20px" }}>
         {/* Header — matches real quiz */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <p style={{ fontSize: "15px", fontWeight: 700, color: "#034852", margin: 0 }}>{quiz.title}</p>
-          <span style={{ ...pill, background: "rgba(3,72,82,0.08)", color: "#034852" }}>Preview</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <p style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>{quiz.title}</p>
+          <span style={pill}>Preview</span>
         </div>
 
         {/* Section tabs — identical style to real quiz */}
         {isSectioned && sections.length > 0 && (
           <div className="hide-scrollbar" style={{
             display: "flex", gap: "4px", marginBottom: "16px",
-            borderBottom: "2px solid rgba(3,72,82,0.08)", overflowX: "auto", whiteSpace: "nowrap", paddingBottom: "4px",
+            borderBottom: "2px solid var(--color-border)", overflowX: "auto", whiteSpace: "nowrap", paddingBottom: "4px",
           }}>
             {sections.map((s) => {
               const isActive = currentSectionId === s.id || (currentSectionId == null && sections[0].id === s.id);
@@ -296,10 +299,10 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                     if (firstIdx >= 0) setCurrentIdx(firstIdx);
                   }}
                   style={{
-                    padding: "10px 18px", fontSize: "14px", fontWeight: 700,
-                    background: isActive ? "#fff" : "transparent",
-                    color: isActive ? "#0abe62" : "#034852",
-                    borderBottom: `3px solid ${isActive ? "#0abe62" : "transparent"}`,
+                    padding: "10px 18px", fontSize: "14px", fontWeight: 600,
+                    background: isActive ? "var(--color-surface)" : "transparent",
+                    color: isActive ? "#08784a" : "var(--color-text)",
+                    borderBottom: `3px solid ${isActive ? "var(--green)" : "transparent"}`,
                     marginBottom: "-2px", cursor: "pointer",
                     display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0,
                   }}
@@ -315,26 +318,27 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
         )}
 
         {/* Two-column layout — identical to real quiz */}
-        <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div className="flex flex-col-reverse lg:flex-row gap-5 items-start">
           {/* Main question card */}
-          <div style={{ flex: "1 1 400px", minWidth: 0, maxWidth: "100%" }}>
+          <div className="flex-1 min-w-0 w-full">
             <div style={card}>
               {/* Question header — identical to real quiz */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
-                <p style={{ margin: 0, fontSize: "16px", fontWeight: 800, color: "#034852" }}>
+                <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--color-text)" }}>
                   Question {safeIdx + 1} of {total}
                 </p>
                 <button
                   onClick={() => toggleFlag(q.snapshot_id)}
                   style={{
-                    background: isFlagged ? "rgba(229,62,62,0.1)" : "rgba(3,72,82,0.06)",
-                    color: isFlagged ? "#e53e3e" : "rgba(3,72,82,0.5)",
-                    border: "none", borderRadius: "8px",
-                    padding: "6px 14px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                    background: isFlagged ? "rgba(184,50,50,0.1)" : "var(--color-surface)",
+                    color: isFlagged ? "#b83232" : "var(--color-text-muted)",
+                    border: `1px solid ${isFlagged ? "rgba(184,50,50,0.3)" : "var(--color-border)"}`,
+                    borderRadius: "8px", minHeight: "36px",
+                    padding: "6px 12px", fontSize: "13px", fontWeight: 600, cursor: "pointer",
                     display: "flex", alignItems: "center", gap: "6px",
                   }}
                 >
-                  ⚑ {isFlagged ? "Marked for Review" : "Mark for Review"}
+                  <Flag size={14} aria-hidden="true" />{isFlagged ? "Marked for Review" : "Mark for Review"}
                 </button>
               </div>
 
@@ -344,29 +348,29 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
               {/* Navigation — identical layout to real quiz, Submit replaced with non-functional label */}
               <div style={{
                 display: "flex", justifyContent: "space-between", alignItems: "center",
-                marginTop: "32px", paddingTop: "20px", borderTop: "1px solid rgba(3,72,82,0.08)",
+                marginTop: "32px", paddingTop: "20px", borderTop: "1px solid var(--color-border)",
               }}>
                 <button
                   onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
                   disabled={isFirst}
                   style={{ ...secondaryBtn, opacity: isFirst ? 0.3 : 1, cursor: isFirst ? "default" : "pointer", display: "flex", alignItems: "center", gap: "6px" }}
                 >
-                  ‹ Previous
+                  <ChevronLeft size={16} aria-hidden="true" />Previous
                 </button>
 
                 {isLast ? (
                   <button
                     onClick={() => setMode("REVIEW")}
-                    style={{ ...primaryBtn, background: "rgba(3,72,82,0.9)", color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}
+                    style={primaryBtn}
                   >
                     Submit Quiz
                   </button>
                 ) : (
                   <button
                     onClick={() => setCurrentIdx((i) => Math.min(total - 1, i + 1))}
-                    style={{ ...primaryBtn, background: "var(--green)", color: "var(--dark-teal)", display: "flex", alignItems: "center", gap: "6px" }}
+                    style={primaryBtn}
                   >
-                    Next ›
+                    Next <ChevronRight size={16} aria-hidden="true" />
                   </button>
                 )}
               </div>
@@ -374,67 +378,54 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
           </div>
 
           {/* Sidebar — identical to real quiz */}
-          <div style={{ flex: "1 1 220px", maxWidth: "100%" }}>
+          <div className="w-full lg:w-[220px] shrink-0">
             <div style={{ ...card, padding: "20px", marginBottom: "12px" }}>
               {/* Stats */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid rgba(3,72,82,0.08)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "20px", paddingBottom: "16px", borderBottom: "1px solid var(--color-border)" }}>
                 {([
                   ["Answered", answered],
                   ["Unanswered", total - answered],
                   ["Marked for Review", flaggedCount],
                 ] as const).map(([label, value]) => (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                    <span style={{ fontSize: "20px", fontWeight: 800, lineHeight: 1, color: "#034852" }}>{value}</span>
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(3,72,82,0.55)" }}>{label}</span>
+                    <span style={{ fontSize: "20px", fontWeight: 700, lineHeight: 1, color: "var(--color-text)" }}>{value}</span>
+                    <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</span>
                   </div>
                 ))}
               </div>
 
               {/* Question grid — identical 4-column grid with same colour logic */}
-              <p style={{ fontSize: "13px", fontWeight: 700, color: "#034852", margin: "0 0 12px" }}>Questions</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: "0 0 12px" }}>Questions</p>
+              <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-4 gap-2">
                 {allQuestions.map((qi, i) => {
                   const status = getQuestionStatus(i);
                   const isCurrent = i === safeIdx;
-                  const bg =
-                    isCurrent        ? "#0abe62"                  :
-                    status === "flagged-answered" ? "#ffd700"     :
-                    status === "flagged"          ? "rgba(229,62,62,0.12)" :
-                    status === "answered"         ? "rgba(10,190,98,0.12)" :
-                    "transparent";
-                  const color =
-                    isCurrent        ? "#fff"                     :
-                    status === "flagged-answered" ? "#6b5200"     :
-                    status === "flagged"          ? "#e53e3e"      :
-                    status === "answered"         ? "#0a8c4a"      :
-                    "rgba(3,72,82,0.7)";
-                  const border =
-                    isCurrent        ? "2px solid #0abe62"        :
-                    status === "flagged-answered" ? "2px solid #ffd700"   :
-                    status === "flagged"          ? "1.5px solid rgba(229,62,62,0.4)" :
-                    status === "answered"         ? "2px solid rgba(10,190,98,0.4)"  :
-                    "1.5px solid rgba(3,72,82,0.15)";
+                  const isQFlagged = status === "flagged" || status === "flagged-answered";
+                  const isAnswered = status === "answered" || status === "flagged-answered";
                   return (
                     <button
                       key={qi.snapshot_id}
                       onClick={() => setCurrentIdx(i)}
                       style={{
+                        width: "100%",
                         height: "40px",
-                        border,
                         borderRadius: "8px",
-                        background: bg,
-                        color,
+                        border: "none",
                         fontSize: "13px",
                         fontWeight: 700,
                         cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        transition: "all 120ms ease",
+                        position: "relative",
                         padding: 0,
+                        background: isCurrent ? "var(--dark-teal)" : isAnswered ? "rgba(10,190,98,0.15)" : "var(--color-surface-sunken)",
+                        color: isCurrent ? "#fff" : isAnswered ? "#08784a" : "var(--color-text-muted)",
+                        outline: isQFlagged ? "2px solid #b83232" : "none",
+                        outlineOffset: "2px",
                       }}
                     >
                       {i + 1}
+                      {isQFlagged && (
+                        <Flag size={9} aria-hidden="true" style={{ position: "absolute", top: "3px", right: "3px", color: "#b83232" }} />
+                      )}
                     </button>
                   );
                 })}
