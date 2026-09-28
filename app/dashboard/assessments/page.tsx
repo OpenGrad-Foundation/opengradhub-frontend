@@ -8,8 +8,10 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { usePermissions } from "@/hooks/use-permission";
 import { hasEffectiveSelfScope, PERM } from "@/lib/permissions";
 import { getAvailableQuizzes, getModuleQuizzes, getMyQuizAttempts, getTopicStrength, getBatchComparison, getStudentEnrolments, type Quiz, type AvailableQuiz, type ModuleQuiz, type QuizAttempt, type TopicStrengthRow, type BatchComparison, type Course } from "@/lib/api";
+import { QuizStudentPreview } from "@/components/quiz-student-preview";
 import {
   type AssessmentsOverviewItem,
+  getQuizById,
   getQuizLeaderboard,
   type QuizLeaderboard,
 } from "@/lib/api";
@@ -853,12 +855,29 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
   const { has } = usePermissions();
   const router = useRouter();
   const currentUrl = useCurrentUrl();
+  // Read-only student view for everyone who can open the drawer; editing stays behind test_bank.edit.
+  const [previewQuiz, setPreviewQuiz] = useState<Quiz | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  async function openPreview() {
+    setPreviewLoading(true);
+    setPreviewError(null);
+    try {
+      setPreviewQuiz(await getQuizById(quizId));
+    } catch (e) {
+      setPreviewError(e instanceof Error ? e.message : 'Could not load the quiz.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   useEffect(() => {
-    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    // The preview handles its own Escape; don't close the drawer underneath it.
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape' && !previewQuiz) onClose(); }
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
-  }, [onClose]);
+  }, [onClose, previewQuiz]);
 
   return (
     <>
@@ -874,6 +893,18 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(3,72,82,0.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontFamily: 'var(--font-heading)', fontSize: '18px', fontWeight: 700, color: '#034852' }}>Quiz Details</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button
+              onClick={() => void openPreview()}
+              disabled={previewLoading}
+              style={{
+                padding: '6px 14px', border: '1.5px solid rgba(32,147,121,0.3)', borderRadius: '8px',
+                background: 'rgba(32,147,121,0.06)', color: '#209379',
+                fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '12px',
+                cursor: previewLoading ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              {previewLoading ? 'Loading…' : 'Preview'}
+            </button>
             {has(PERM.test_bank.edit) && (
               <button
                 onClick={() => router.push(withFrom(`/dashboard/quiz-builder/${quizId}`, currentUrl))}
@@ -890,6 +921,9 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
             <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#034852' }}>×</button>
           </div>
         </div>
+        {previewError && (
+          <p role="alert" style={{ margin: 0, padding: '8px 24px', fontSize: '12px', color: '#b83232', background: '#fdf2f2' }}>{previewError}</p>
+        )}
 
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(3,72,82,0.08)' }}>
           <DrawerTab label="Leaderboard"    active={tab === 'leaderboard'} onClick={() => setTab('leaderboard')} />
@@ -903,6 +937,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
           {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
         </div>
       </div>
+      {previewQuiz && <QuizStudentPreview quiz={previewQuiz} onClose={() => setPreviewQuiz(null)} />}
     </>
   );
 }
