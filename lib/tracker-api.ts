@@ -591,6 +591,8 @@ export type TrackerBreakdownRow = {
   id: string; name: string; child_count: number;
   total: number; done: number; blocked: number; overdue: number; pending: number;
   rolled_state: TrackerTaskState; record_id: string | null;
+  /** ZM level only: the ZM fills every entry themself. Absent on older backends. */
+  direct?: boolean;
 };
 
 export type TrackerBreakdownPage = {

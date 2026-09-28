@@ -31,24 +31,29 @@ type Crumb = { level: TrackerDrillLevel; id: string; name: string };
 
 /** Task-scoped org drill. Reuses the breadcrumb + level-list pattern of the Team & Students
  *  browser, but every row shows this task's completion (done/total) and a child count, and the
- *  drill stops at the task's target level. */
+ *  drill stops at the task's target level. Grouped by people, it runs ZM → in-charge → that
+ *  person's task grid; a ZM who fills the task themself opens their grid straight away. */
 export function TaskBreakdown({
   task,
   currentUserId,
+  role,
   canNudge,
   onBack,
   onOpenTask,
 }: {
   task: Pick<TrackerTaskSummaryRow, "template_id" | "name" | "target_type"> & Partial<Pick<TrackerTaskSummaryRow, "done" | "total">>;
   currentUserId: string;
+  role: string;
   canNudge: boolean;
   onBack: () => void;
-  onOpenTask?: (templateId: string) => void;
+  onOpenTask?: (templateId: string, owner?: string, ownerName?: string) => void;
 }) {
   const canViewStudents = usePermissions().has(PERM.students.view);
   const targetLeaf = leafFor(task.target_type);
   const leaf = targetLeaf === "student" && !canViewStudents ? "school" : targetLeaf;
-  const [group, setGroup] = useState<TrackerDrillLevel>(leaf);
+  // A ZM's own view has no ZM list above them — the backend starts them at their in-charges.
+  const top: TrackerDrillLevel = role === "ZONAL_MANAGER" ? "fellow" : "zm";
+  const [group, setGroup] = useState<TrackerDrillLevel>(top);
   const start = LEVELS.indexOf(group) <= LEVELS.indexOf(leaf) ? group : leaf;
   const [path, setPath] = useState<Crumb[]>([]);
 
@@ -81,7 +86,7 @@ export function TaskBreakdown({
 
       <label className="flex items-center gap-2 text-sm text-gray-600">Group by
         <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
-          {LEVELS.slice(0, LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
+          {LEVELS.slice(LEVELS.indexOf(top), LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
         </select>
       </label>
       <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-gray-600">
@@ -115,6 +120,9 @@ export function TaskBreakdown({
         canNudge={canNudge}
         currentUserId={currentUserId}
         onDrill={(row) => setPath([...path, { level: currentLevel, id: row.id, name: row.name }])}
+        onOpen={onOpenTask && ((row) => row.id === currentUserId
+          ? onOpenTask(task.template_id)
+          : onOpenTask(task.template_id, row.id, row.name))}
       />
     </div>
   );
@@ -128,6 +136,7 @@ function LevelList({
   canNudge,
   currentUserId,
   onDrill,
+  onOpen,
 }: {
   templateId: string;
   level: TrackerDrillLevel;
@@ -136,6 +145,8 @@ function LevelList({
   canNudge: boolean;
   currentUserId: string;
   onDrill: (row: TrackerBreakdownRow) => void;
+  /** Open one doer's task grid; in-charge rows and self-filling ZM rows go here, not deeper. */
+  onOpen?: (row: TrackerBreakdownRow) => void;
 }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<TaskState | "">("");
@@ -193,22 +204,23 @@ function LevelList({
           {rows.map((row) => {
             const isSelf = row.id === currentUserId;
             const showNudge = canNudge && isDoerLevel && !isSelf && row.rolled_state !== "done";
-            const drillable = !isLeafLevel;
+            const opens = !!onOpen && (level === "fellow" || (level === "zm" && !!row.direct));
+            const drillable = !opens && !isLeafLevel;
             return (
               <li key={row.id} className="flex items-center gap-2 px-1">
                 <button
                   type="button"
-                  onClick={() => { if (drillable) onDrill(row); }}
-                  disabled={!drillable}
+                  onClick={() => { if (opens) onOpen!(row); else if (drillable) onDrill(row); }}
+                  disabled={!opens && !drillable}
                   className={
                     "group flex w-full items-center justify-between gap-3 rounded-md px-4 py-3.5 text-left transition-colors " +
-                    (drillable ? "cursor-pointer hover:bg-teal-50" : "cursor-default")
+                    (opens || drillable ? "cursor-pointer hover:bg-teal-50" : "cursor-default")
                   }
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-gray-950">{row.name}</p>
                     <p className="mt-0.5 truncate text-xs text-gray-500">
-                      {!isLeafLevel && childNoun && (
+                      {row.direct ? <>Fills this themself · </> : !isLeafLevel && childNoun && (
                         <>{row.child_count} {childNoun}{row.child_count === 1 ? "" : "s"} · </>
                       )}
                       {row.done}/{row.total} done
@@ -216,7 +228,8 @@ function LevelList({
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <StatePill state={row.rolled_state} />
-                    {drillable && <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+                    {opens ? <Table2 className="h-4 w-4 text-gray-400" aria-hidden="true" />
+                      : drillable && <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />}
                   </div>
                 </button>
                 {showNudge && <NudgeButton doerId={row.id} templateId={templateId} lastNudgedAt={null} />}
