@@ -4,7 +4,7 @@ import { MathContent } from "@/app/dashboard/_components/MathContent";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 export const card: React.CSSProperties = { background: "rgba(255,255,255,0.85)", borderRadius: "16px", padding: "28px 32px", boxShadow: "0 2px 24px rgba(3,72,82,0.08)", marginBottom: "20px" };
-export const label: React.CSSProperties = { fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.28em", color: "#209379", margin: "0 0 4px" };
+export const label: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", margin: "0 0 4px" };
 
 export function getYouTubeEmbedUrl(url: string): string | null {
   try {
@@ -42,11 +42,11 @@ export function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
         border: "1.5px solid rgba(3,72,82,0.09)",
       }}
     >
-      <p style={{ margin: 0, fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.22em", color: "#209379" }}>Analytics</p>
+      <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)" }}>Analytics</p>
 
       {/* My time */}
       <div>
-        <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>My Time</p>
+        <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>My Time</p>
         <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
           {q.time_taken_seconds != null ? formatSeconds(q.time_taken_seconds) : "—"}
         </p>
@@ -57,7 +57,7 @@ export function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
 
       {/* Avg time */}
       <div>
-        <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Avg Time (Batch)</p>
+        <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Avg Time (Batch)</p>
         <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
           {q.avg_time_seconds != null ? formatSeconds(q.avg_time_seconds) : "—"}
         </p>
@@ -69,12 +69,12 @@ export function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
       {/* Batch correct — hidden for FILL (manual grading, is_correct never set) */}
       {isManualGrading ? (
         <div>
-          <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Correct in Batch</p>
+          <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Correct in Batch</p>
           <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.35)", fontStyle: "italic" }}>Manual grading</p>
         </div>
       ) : (
         <div>
-          <p style={{ margin: "0 0 2px", fontSize: "10px", fontWeight: 600, color: "rgba(3,72,82,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Correct in Batch</p>
+          <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Correct in Batch</p>
           <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0abe62" }}>
             {q.batch_total_count > 0 ? `${q.batch_correct_count}/${q.batch_total_count}` : "—"}
           </p>
