@@ -91,19 +91,20 @@ describe("grid toolbar — bulk fill menu", () => {
     expect(screen.queryByRole("menuitem", { name: /CSV/i })).toBeNull();
   });
 
-  it("keeps the two export files inside their own menu", () => {
+  it("offers records and history as separate files, each as CSV or Excel", () => {
     renderGrid({ canExport: true });
     expect(screen.queryByRole("menuitem", { name: /history/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
-    expect(screen.getByRole("menuitem", { name: /records only/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /records \+ history/i })).toBeTruthy();
+    for (const name of [/^Records \(\.csv\)/, /^Records \(Excel\)/, /^History \(\.csv\)/, /^History \(Excel\)/])
+      expect(screen.getByRole("menuitem", { name })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: /\.zip/i })).toBeNull();
   });
 
   it("keeps the export and bulk fill menus independent", () => {
     renderGrid({ canExport: true });
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
     fireEvent.click(screen.getByRole("button", { name: /bulk fill/i }));
-    expect(screen.queryByRole("menuitem", { name: /records only/i })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /^Records/ })).toBeNull();
     expect(screen.getByRole("menuitem", { name: /CSV/i })).toBeTruthy();
   });
 

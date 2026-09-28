@@ -28,11 +28,18 @@ describe("fetchTaskExport", () => {
     expect(out.filename).toBe("visit-records.csv");
   });
 
-  it("asks for history and the owner drill when given them", async () => {
-    apiFetch.mockResolvedValue(fileResponse('attachment; filename="visit-export.zip"'));
-    await fetchTaskExport("tpl1", { history: true, ownerId: "f9" });
-    expect(urlOf().searchParams.get("history")).toBe("1");
+  it("asks for the history file, the format and the owner drill when given them", async () => {
+    apiFetch.mockResolvedValue(fileResponse('attachment; filename="visit-history.xlsx"'));
+    await fetchTaskExport("tpl1", { part: "history", format: "xlsx", ownerId: "f9" });
+    expect(urlOf().searchParams.get("history")).toBe("only");
+    expect(urlOf().searchParams.get("format")).toBe("xlsx");
     expect(urlOf().searchParams.get("ownerId")).toBe("f9");
+  });
+
+  it("names the fallback after the part and format asked for", async () => {
+    apiFetch.mockResolvedValue(fileResponse(null));
+    const out = await fetchTaskExport("tpl1", { part: "history", format: "xlsx" });
+    expect(out.filename).toBe("tracker-task-history.xlsx");
   });
 
   it("falls back to a task-named file when the server sends no disposition", async () => {
