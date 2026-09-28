@@ -1,0 +1,85 @@
+.question, .passageCard { background: #fff; color: #263c3b; font-family: Arial, Helvetica, sans-serif; font-size: 14px; border: 1px solid #d5dfdb; border-radius: 3px; margin-bottom: 20px; overflow: hidden; }
+.question *, .passageCard * { box-sizing: border-box; }
+.header { padding: 13px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid #dfe6e2; background: #f8faf9; }
+.header h3 { margin: 0; font-size: 14px; font-weight: 600; color: #034852; }
+.statusTools { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.correct { color: #24694f; }
+.wrong { color: #a04735; }
+.skipped, .pending { color: #67736e; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.body { padding: 22px; }
+.split .answerPane { padding: 22px; }
+.answerPane { min-width: 0; overflow-wrap: anywhere; }
+.passage { min-width: 0; padding: 22px; border-right: 1px solid #dfe6e2; overflow-x: auto; }
+.prose { font-size: 14px; line-height: 1.75; color: #334641; max-width: 68ch; }
+.prose p { margin: 0 0 14px; }
+.prose p:last-child { margin-bottom: 0; }
+.prompt { font-size: 15px; font-weight: 600; line-height: 1.6; margin-bottom: 16px; color: #203432; }
+.prompt p { margin: 0; }
+.options { list-style: none; padding: 0; margin: 0; }
+.option { display: flex; align-items: baseline; gap: 10px; padding: 11px 12px; border-left: 2px solid transparent; line-height: 1.55; }
+.option + .option { border-top: 1px solid #edf0ee; }
+.optionLetter { flex-shrink: 0; color: #697973; font-size: 13px; }
+.optionContent { min-width: 0; }
+.optionContent p { margin: 0; }
+.option[data-result="correct"] { border-left-color: #3d8063; background: #f0f6f2; }
+.option[data-result="wrong"] { border-left-color: #b16c57; background: #faf3ef; }
+.option[data-result="selected"] { border-left-color: #627b73; background: #f5f7f6; }
+.optionNote { display: block; font-size: 11px; color: #536b61; margin-top: 3px; }
+.option[data-result="wrong"] .optionNote { color: #8c4d3e; }
+.analytics { margin: 0; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 28px; background: #fafbf9; border-top: 1px solid #dfe6e2; font-size: 12px; }
+.analytics > div { display: flex; gap: 8px; align-items: baseline; }
+.analytics dt, .writtenAnswer dt { color: #62716b; }
+.analytics dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.writtenAnswer { margin: 0; display: grid; gap: 16px; font-size: 14px; }
+.writtenAnswer dt { font-size: 12px; margin-bottom: 5px; }
+.writtenAnswer dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.solution { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e6e2; }
+.solution h4 { font-size: 13px; margin: 0 0 10px; font-weight: 600; color: #034852; }
+.video { width: 100%; aspect-ratio: 16/9; border: 0; }
+.image { max-width: 100%; height: auto; display: block; margin: 14px 0; }
+.passageCard { padding: 20px 22px; }
+.passageCard h3 { font-size: 13px; font-weight: 600; margin: 0 0 14px; color: #034852; }
+.preview { position: fixed; inset: 0; z-index: 300; overflow-y: auto; background: #f2f5f3; color: #263c3b; font-family: Arial, Helvetica, sans-serif; }
+.topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding: 13px 24px; color: #fff; background: #034852; font-size: 14px; }
+.previewLabel { color: #c8dcd5; font-size: 12px; margin-left: 12px; }
+.topbar > div { display: flex; gap: 8px; }
+.topbar button { font: inherit; font-size: 12px; border: 1px solid #7b9b96; border-radius: 3px; background: transparent; color: white; padding: 7px 12px; cursor: pointer; }
+.topbar button:hover { background: #ffffff15; }
+.topbar button:focus-visible { outline: 2px solid #ffde59; outline-offset: 3px; }
+.reviewPage { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.summary { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 12px; padding: 0 0 20px; }
+.summary h1 { font-size: 22px; margin: 5px 0 0; color: #034852; font-weight: 600; }
+.summary p { margin: 0; font-size: 12px; color: #61736c; }
+.summary strong { font-size: 18px; color: #263c3b; font-weight: 600; }
+@media (max-width: 760px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .passage { border-right: 0; border-bottom: 1px solid #dfe6e2; }
+  .body, .passage, .split .answerPane, .passageCard { padding: 16px; }
+  .header { padding: 12px 16px; }
+  .analytics { padding: 12px 16px; gap: 10px 18px; }
+  .reviewPage { padding: 20px 12px; }
+  .topbar { padding: 12px; }
+}
+.option { width: 100%; border-top: 0; border-right: 0; border-bottom: 0; background: transparent; color: inherit; font: inherit; text-align: left; }
+.optionItem + .optionItem { border-top: 1px solid #edf0ee; }
+.option[role="radio"] { cursor: pointer; }
+.option[role="radio"]:hover { background: #f4f7f5; }
+.answerToggle { font: inherit; font-size: 13px; min-height: 44px; padding: 10px 14px; border: 1px solid #aebfb7; border-radius: 3px; color: #034852; background: white; cursor: pointer; white-space: nowrap; }
+.answerToggle:hover { background: #edf4f0; }
+.answerToggle:focus-visible, .option:focus-visible, .retryField input:focus-visible, .retryField textarea:focus-visible { outline: 2px solid #209379; outline-offset: 2px; }
+.retryField { display: grid; gap: 8px; color: #526761; font-size: 12px; }
+.retryField input, .retryField textarea { width: 100%; min-height: 44px; padding: 10px; font: inherit; font-size: 16px; color: #263c3b; border: 1px solid #bfcfc6; border-radius: 3px; background: white; }
+.retryField textarea { resize: vertical; }
+.retryActions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.retryNote { font-size: 11px; line-height: 1.5; color: #61736c; margin: 0; max-width: 34ch; }
+.question table, .passageCard table { display: block; max-width: 100%; overflow-x: auto; }
+.question img, .passageCard img { max-width: 100%; height: auto; }
+@media (max-width: 760px) {
+  .option { min-height: 48px; padding: 13px 10px; }
+  .topbar button { min-height: 44px; }
+  .header button { min-height: 44px; }
+  .reviewPage { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+  .prose { font-size: 15px; }
+}
+@media (max-width: 480px) { .header { align-items: flex-start; } .statusTools { flex-wrap: wrap; justify-content: flex-end; gap: 6px; } }

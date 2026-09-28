@@ -1,0 +1,17 @@
+.window > div:first-child { flex-shrink: 0; }
+.window > div:first-child button { min-width: 44px; min-height: 44px; }
+@media (max-width: 999px) {
+  .window {
+    left: 12px !important;
+    top: auto !important;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: calc(100vw - 24px) !important;
+    max-width: 360px;
+    max-height: calc(100dvh - 24px);
+    display: flex;
+    flex-direction: column;
+  }
+  .window > div:first-child { cursor: default !important; }
+  .window > div:last-child { min-height: 0; overflow-y: auto; }
+  .window button { min-height: 44px; }
+}

@@ -2,6 +2,7 @@
 
 import { MathContent } from "@/app/dashboard/_components/MathContent";
 import { type QuizAttemptQuestion } from "@/lib/api";
+import examStyles from "./quiz-exam.module.css";
 
 export type AnswerMap = Record<string, string | null>; // snapshot_id → student_answer
 
@@ -22,6 +23,7 @@ export function QuestionView({
   answers,
   setAnswer,
   renderReportButton,
+  exam = false,
 }: {
   q: QuizAttemptQuestion;
   answers: AnswerMap;
@@ -32,8 +34,34 @@ export function QuestionView({
    * Surfaces without a real attempt behind them (e.g. the staff preview) omit this.
    */
   renderReportButton?: (snapshotId: string) => React.ReactNode;
+  exam?: boolean;
 }) {
   const current = answers[q.snapshot_id] ?? null;
+
+  if (exam && (q.question_type === "GROUP" || q.instruction_html?.trim())) {
+    return (
+      <div className={examStyles.splitQuestion}>
+        <section className={examStyles.passage} aria-label="Passage and instructions">
+          <h3>{q.question_type === "GROUP" ? "Passage / question set" : "Passage / instructions"}</h3>
+          {q.instruction_html?.trim() && <MathContent html={q.instruction_html} />}
+          {q.question_type === "GROUP" && <>
+            <MathContent html={q.content_html} />
+            {q.image_url && <img src={q.image_url} alt="Passage image" style={{ maxWidth: "100%" }} />}
+          </>}
+        </section>
+        <div className={examStyles.answerPane}>
+          {q.question_type === "GROUP" ? q.children.map((child, i) => (
+            <section key={child.snapshot_id} style={{ marginBottom: 28 }} aria-label={`Part ${i + 1}`}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                <strong>Part {i + 1}</strong>{renderReportButton?.(child.snapshot_id)}
+              </div>
+              <QuestionView q={{ ...child, children: [] }} answers={answers} setAnswer={setAnswer} exam />
+            </section>
+          )) : <QuestionView q={{ ...q, instruction_html: null }} answers={answers} setAnswer={setAnswer} exam />}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -73,9 +101,25 @@ export function QuestionView({
       )}
 
       {q.question_type === "MCQ" && q.options.length > 0 && (
-        <div>
-          {q.options.map((opt) => {
+        <div role={exam ? "radiogroup" : undefined} aria-label={exam ? "Answer options" : undefined}>
+          {q.options.map((opt, index) => {
             const selected = current === opt.id;
+            if (exam) return (
+              <button type="button" key={opt.id} role="radio" aria-checked={selected}
+                tabIndex={selected || (current == null && index === 0) ? 0 : -1}
+                className={examStyles.option} onClick={() => setAnswer(q.snapshot_id, opt.id)}
+                onKeyDown={event => {
+                  if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) return;
+                  event.preventDefault();
+                  const next = (index + (event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1) + q.options.length) % q.options.length;
+                  setAnswer(q.snapshot_id, q.options[next].id);
+                  const buttons = event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+                  buttons?.[next]?.focus();
+                }}>
+                <span className={examStyles.radio} aria-hidden="true" />
+                <MathContent inline html={opt.option_text} style={{ fontSize: "15px" }} />
+              </button>
+            );
             return (
               <div
                 key={opt.id}
@@ -105,6 +149,7 @@ export function QuestionView({
       {(q.question_type === "NUMERICAL" || q.question_type === "FILL") && (
         <input
           type={q.question_type === "NUMERICAL" ? "number" : "text"}
+          aria-label="Your answer"
           placeholder={q.question_type === "NUMERICAL" ? "Enter a number…" : "Type your answer…"}
           value={current ?? ""}
           onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
@@ -113,9 +158,9 @@ export function QuestionView({
             padding: "12px 16px",
             borderRadius: "10px",
             border: "1.5px solid rgba(3,72,82,0.2)",
-            fontSize: "15px",
+            fontSize: exam ? "16px" : "15px",
             color: "#034852",
-            outline: "none",
+            outline: exam ? undefined : "none",
             boxSizing: "border-box",
           }}
         />
@@ -123,6 +168,7 @@ export function QuestionView({
 
       {q.question_type === "ESSAY" && (
         <textarea
+          aria-label="Your essay answer"
           placeholder="Type your essay answer here…"
           value={current ?? ""}
           onChange={(e) => setAnswer(q.snapshot_id, e.target.value || null)}
@@ -132,9 +178,9 @@ export function QuestionView({
             padding: "12px 16px",
             borderRadius: "10px",
             border: "1.5px solid rgba(3,72,82,0.2)",
-            fontSize: "15px",
+            fontSize: exam ? "16px" : "15px",
             color: "#034852",
-            outline: "none",
+            outline: exam ? undefined : "none",
             boxSizing: "border-box",
             resize: "vertical",
           }}

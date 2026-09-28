@@ -14,7 +14,7 @@ import { ReportQuestionButton } from "@/components/report-question-modal";
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const page: React.CSSProperties = { maxWidth: "960px", margin: "0 auto", padding: "32px 16px", color: "var(--color-text)" };
-const card: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)", marginBottom: "20px" };
+const card: React.CSSProperties = { background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px", padding: "clamp(16px, 4vw, 24px)", marginBottom: "20px", minWidth: 0, overflowWrap: "anywhere" };
 const label: React.CSSProperties = { fontSize: "13px", fontWeight: 500, color: "var(--color-text-muted)", margin: 0 };
 const secondaryBtn: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px", minHeight: "44px", padding: "8px 16px", border: "1px solid var(--color-border)", borderRadius: "12px", background: "var(--color-surface)", color: "var(--color-text)", fontWeight: 600, fontSize: "14px", cursor: "pointer" };
 const primaryBtn: React.CSSProperties = { ...secondaryBtn, border: "1px solid var(--green)", background: "var(--green)", color: "var(--dark-teal)" };
@@ -27,6 +27,8 @@ function SectionHeader({ section }: { section: AttemptReviewSection }) {
   return (
     <div style={{
       display: "flex",
+      flexWrap: "wrap",
+      gap: "10px",
       alignItems: "center",
       justifyContent: "space-between",
       padding: "12px 16px",
@@ -77,9 +79,6 @@ export default function AttemptReviewPage() {
   const [review, setReview] = useState<AttemptReview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // Correct answers hidden until the student reveals them — lets them re-think
-  // each question (no time limit) before checking.
-  const [revealed, setRevealed] = useState(false);
   const [reportedSnapshots, setReportedSnapshots] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -171,7 +170,7 @@ export default function AttemptReviewPage() {
             key={q.snapshot_id}
             q={q}
             idx={questionNumber - 1}
-            revealed={revealed}
+            allowRetry
             questionLabel={`Part ${partNum}`}
             reportButton={reportButtonFor(q.snapshot_id)}
           />
@@ -183,7 +182,7 @@ export default function AttemptReviewPage() {
             key={q.snapshot_id}
             q={q}
             idx={questionNumber - 1}
-            revealed={revealed}
+            allowRetry
             reportButton={reportButtonFor(q.snapshot_id)}
           />
         );
@@ -230,16 +229,9 @@ export default function AttemptReviewPage() {
         </div>
       )}
 
-      {/* Reveal-all toggle */}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
-        <button
-          type="button"
-          onClick={() => setRevealed((v) => !v)}
-          style={revealed ? secondaryBtn : primaryBtn}
-        >
-          {revealed ? "Hide Answers" : "Reveal Answers"}
-        </button>
-      </div>
+      <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "0 0 16px" }}>
+        Try each question again, then select View answer to check it. Practice does not change your submitted score.
+      </p>
 
       {/* Question-by-question */}
       {groupedBySection ? (
@@ -255,7 +247,7 @@ export default function AttemptReviewPage() {
         buildRenderItems(review.questions)
       )}
 
-      <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginTop: "8px" }}>
         {userData?.user?.programme === "PG" && (
           <button
             onClick={() => router.push(withFrom(`/dashboard/quiz/${quizId}/leaderboard`, currentUrl))}
