@@ -296,7 +296,8 @@ export default function TrackerPage() {
       {templatesError ? (
         <ErrorPanel message={templatesError instanceof Error ? templatesError.message : "Failed to load tracker."} />
       ) : safeActiveTab === "allTasks" ? (
-        fillTemplateId ? (
+        <>
+        {fillTemplateId && (
           <div className="flex flex-col gap-3">
             <BackFromTask
               from={deepLinkFrom}
@@ -309,15 +310,20 @@ export default function TrackerPage() {
             />
             <GridPanel template={templates.find((t) => t.id === fillTemplateId) ?? null} grid={grid.data} loading={grid.isLoading} error={grid.error} canFill={canFill} canClear={canClear} canOverrideFill={canOverrideFill} owner={fillFellowId ? { id: fillFellowId, name: fillFellowName ?? "this team member" } : null} />
           </div>
-        ) : currentDrill ? (
-          <TaskBreakdown
-            task={currentDrill}
-            currentUserId={currentUser?.user.id ?? ""}
-            canNudge={canAuthor}
-            onBack={() => openDrill(null)}
-            onOpenTask={openTask}
-          />
-        ) : deepLinkDrill ? (
+        )}
+        {currentDrill ? (
+          /* Stays mounted under an open grid so "Back" lands on the same ZM / in-charge list. */
+          <div hidden={!!fillTemplateId}>
+            <TaskBreakdown
+              task={currentDrill}
+              currentUserId={currentUser?.user.id ?? ""}
+              role={roleCode}
+              canNudge={canAuthor}
+              onBack={() => openDrill(null)}
+              onOpenTask={openTask}
+            />
+          </div>
+        ) : fillTemplateId ? null : deepLinkDrill ? (
           <div className="flex flex-col gap-3">
             <button type="button" onClick={() => openDrill(null)} className="self-start text-sm text-teal-700">Back to all tasks</button>
             {drillTemplate.isLoading ? <TrackerLoading /> : <ErrorPanel message="Could not load this task." />}
@@ -329,7 +335,8 @@ export default function TrackerPage() {
             role={roleCode}
             filters={allTasksFilters}
           />
-        )
+        )}
+        </>
       ) : safeActiveTab === "myTasks" ? (
         fillTemplateId ? (
           <div className="flex flex-col gap-3">
