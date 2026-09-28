@@ -364,7 +364,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
                 ) : (
                   <button
                     onClick={() => setCurrentIdx((i) => Math.min(total - 1, i + 1))}
-                    style={{ ...primaryBtn, background: "linear-gradient(135deg,#0abe62,#209379)", color: "#fff", display: "flex", alignItems: "center", gap: "6px" }}
+                    style={{ ...primaryBtn, background: "var(--green)", color: "var(--dark-teal)", display: "flex", alignItems: "center", gap: "6px" }}
                   >
                     Next ›
                   </button>

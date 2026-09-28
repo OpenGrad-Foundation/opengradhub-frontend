@@ -34,7 +34,7 @@ const S = {
   } as React.CSSProperties,
   cardHead: {
     padding: "10px 14px", borderBottom: "1px solid rgba(3,72,82,0.08)",
-    fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const,
+    fontSize: "12px", fontWeight: 600,
     color: "rgba(3,72,82,0.6)", display: "flex", alignItems: "center", gap: "10px", flexShrink: 0,
   } as React.CSSProperties,
   btn: {
@@ -43,9 +43,9 @@ const S = {
     fontWeight: 700, fontSize: "13px", cursor: "pointer", whiteSpace: "nowrap" as const,
   } as React.CSSProperties,
   primaryBtn: {
-    padding: "8px 20px", border: "none", borderRadius: "10px",
-    background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)", color: "#fff",
-    fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "13px", cursor: "pointer",
+    padding: "8px 20px", border: "1px solid var(--green)", borderRadius: "10px",
+    background: "var(--green)", color: "var(--dark-teal)",
+    fontWeight: 700, fontSize: "13px", cursor: "pointer",
     whiteSpace: "nowrap" as const,
   } as React.CSSProperties,
   smallInput: {
@@ -199,7 +199,7 @@ export function QuizSourceEditor({
           padding: "12px 18px", background: "#fff", borderBottom: "1px solid rgba(3,72,82,0.10)", flexShrink: 0,
         }}
       >
-        <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "18px" }}>Fix the source</div>
+        <div style={{ fontWeight: 800, fontSize: "18px" }}>Fix the source</div>
         <div
           style={{
             fontSize: "12px", fontWeight: 700, padding: "4px 10px", borderRadius: "100px",
@@ -494,7 +494,7 @@ function QuizOutline({
   return (
     <div>
       <div style={{ marginBottom: "12px" }}>
-        <div style={{ fontFamily: "var(--font-heading)", fontWeight: 800, fontSize: "15px", color: quiz.title ? "#034852" : "#c53030" }}>
+        <div style={{ fontWeight: 800, fontSize: "15px", color: quiz.title ? "#034852" : "#c53030" }}>
           {quiz.title || "(no title — add [TEST TITLE])"}
         </div>
         <div style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", marginTop: "2px" }}>
@@ -507,7 +507,7 @@ function QuizOutline({
           <div
             onClick={() => sec.line && onJump(sec.line)}
             style={{
-              fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+              fontSize: "12px", fontWeight: 600,
               color: "rgba(3,72,82,0.55)", marginBottom: "6px", cursor: sec.line ? "pointer" : "default",
               display: "flex", justifyContent: "space-between",
             }}
