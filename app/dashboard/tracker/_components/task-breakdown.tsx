@@ -1,60 +1,38 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { AlertCircle, ArrowLeft, CheckCircle2, ChevronRight, Loader2, Search, Table2 } from "lucide-react";
 import { useTrackerTaskBreakdown } from "@/lib/queries/tracker";
-import type { TrackerBreakdownRow, TrackerDrillLevel, TrackerTargetType, TrackerTaskSummaryRow } from "@/lib/tracker-api";
+import type { TrackerBreakdownRow, TrackerTaskSummaryRow } from "@/lib/tracker-api";
 import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
-import { IN_CHARGE_LOWER, IN_CHARGE_PLURAL } from "@/lib/labels";
-import { usePermissions } from "@/hooks/use-permission";
-import { PERM } from "@/lib/permissions";
+import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
 
-const LEVELS: TrackerDrillLevel[] = ["zm", "fellow", "school", "student"];
+type PeopleLevel = "zm" | "fellow";
+const LEVEL_LABEL: Record<PeopleLevel, string> = { zm: "Zonal Managers", fellow: IN_CHARGE_PLURAL };
 
-function leafFor(target: TrackerTargetType): TrackerDrillLevel {
-  return target === "student" ? "student" : target === "school" ? "school" : "fellow";
-}
-function nextLevel(level: TrackerDrillLevel): TrackerDrillLevel | null {
-  const i = LEVELS.indexOf(level);
-  return i >= 0 && i < LEVELS.length - 1 ? LEVELS[i + 1] : null;
-}
-
-const LEVEL_LABEL: Record<TrackerDrillLevel, string> = {
-  zm: "Zonal Managers", fellow: IN_CHARGE_PLURAL, school: "Schools", student: "Students",
-};
-const CHILD_NOUN: Record<TrackerDrillLevel, string> = {
-  zm: IN_CHARGE_LOWER, fellow: "school", school: "student", student: "",
-};
-
-type Crumb = { level: TrackerDrillLevel; id: string; name: string };
-
-/** Task-scoped org drill. Reuses the breadcrumb + level-list pattern of the Team & Students
- *  browser, but every row shows this task's completion (done/total) and a child count, and the
- *  drill stops at the task's target level. */
+/** Task-scoped people cascade: zonal managers expand in place to their in-charges, and an
+ *  in-charge opens their own task grid. A ZM who fills the task themself opens their grid
+ *  straight away. Every row shows this task's completion (done/total). */
 export function TaskBreakdown({
   task,
   currentUserId,
+  role,
   canNudge,
   onBack,
   onOpenTask,
 }: {
   task: Pick<TrackerTaskSummaryRow, "template_id" | "name" | "target_type"> & Partial<Pick<TrackerTaskSummaryRow, "done" | "total">>;
   currentUserId: string;
+  role: string;
   canNudge: boolean;
   onBack: () => void;
-  onOpenTask?: (templateId: string) => void;
+  onOpenTask?: (templateId: string, owner?: string, ownerName?: string) => void;
 }) {
-  const canViewStudents = usePermissions().has(PERM.students.view);
-  const targetLeaf = leafFor(task.target_type);
-  const leaf = targetLeaf === "student" && !canViewStudents ? "school" : targetLeaf;
-  const [group, setGroup] = useState<TrackerDrillLevel>(leaf);
-  const start = LEVELS.indexOf(group) <= LEVELS.indexOf(leaf) ? group : leaf;
-  const [path, setPath] = useState<Crumb[]>([]);
-
-  const currentLevel = path.length > 0 ? nextLevel(path[path.length - 1].level)! : start;
-  const currentParentId = path.length > 0 ? path[path.length - 1].id : undefined;
-  const isLeafLevel = currentLevel === leaf;
+  // A ZM's own view has no ZM list above them — the backend starts them at their in-charges.
+  const top: PeopleLevel = role === "ZONAL_MANAGER" ? "fellow" : "zm";
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState<TaskState | "">("");
 
   return (
     <div className="flex flex-col gap-4">
@@ -79,152 +57,170 @@ export function TaskBreakdown({
         </div>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-gray-600">Group by
-        <select aria-label="Group task records by" value={start} onChange={event => { setGroup(event.target.value as TrackerDrillLevel); setPath([]); }} className="rounded-md border border-gray-300 bg-white px-2 py-1">
-          {LEVELS.slice(0, LEVELS.indexOf(leaf) + 1).map(level => <option key={level} value={level}>{LEVEL_LABEL[level]}</option>)}
-        </select>
-      </label>
-      <div className="flex flex-wrap items-center gap-1.5 px-1 text-sm text-gray-600">
-        <button
-          type="button"
-          onClick={() => setPath([])}
-          className="rounded-md px-2 py-1 font-medium transition-colors hover:bg-gray-100 hover:text-gray-900"
-        >
-          {LEVEL_LABEL[start]}
-        </button>
-        {path.map((crumb, i) => (
-          <React.Fragment key={crumb.id}>
-            <ChevronRight className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
-            <button
-              type="button"
-              onClick={() => setPath(path.slice(0, i + 1))}
-              className={`rounded-md px-2 py-1 transition-colors hover:bg-gray-100 hover:text-gray-900 ${i === path.length - 1 ? "font-semibold text-gray-900" : "font-medium"}`}
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
+          <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[top]}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={status}
+              aria-label="Status"
+              onChange={(e) => setStatus(e.target.value as TaskState | "")}
+              className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500"
             >
-              {crumb.name}
-            </button>
-          </React.Fragment>
-        ))}
-      </div>
+              <option value="">All statuses</option>
+              {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
+            </select>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search…"
+                className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+        </div>
 
-      <LevelList
-        key={`${currentLevel}:${currentParentId ?? "root"}`}
-        templateId={task.template_id}
-        level={currentLevel}
-        parentId={currentParentId}
-        isLeafLevel={isLeafLevel}
-        canNudge={canNudge}
-        currentUserId={currentUserId}
-        onDrill={(row) => setPath([...path, { level: currentLevel, id: row.id, name: row.name }])}
-      />
+        <PeopleList
+          key={`${q}:${status}`}
+          templateId={task.template_id}
+          level={top}
+          q={q}
+          status={status}
+          canNudge={canNudge}
+          currentUserId={currentUserId}
+          onOpen={onOpenTask && ((row) => row.id === currentUserId
+            ? onOpenTask(task.template_id)
+            : onOpenTask(task.template_id, row.id, row.name))}
+        />
+      </section>
     </div>
   );
 }
 
-function LevelList({
+/** One level of the cascade. ZM rows toggle their in-charge list open beneath them; in-charge
+ *  rows (and ZMs who fill the task themself) open that person's task grid. */
+function PeopleList({
   templateId,
   level,
   parentId,
-  isLeafLevel,
+  q = "",
+  status,
   canNudge,
   currentUserId,
-  onDrill,
+  onOpen,
 }: {
   templateId: string;
-  level: TrackerDrillLevel;
-  parentId: string | undefined;
-  isLeafLevel: boolean;
+  level: PeopleLevel;
+  parentId?: string;
+  q?: string;
+  status: TaskState | "";
   canNudge: boolean;
   currentUserId: string;
-  onDrill: (row: TrackerBreakdownRow) => void;
+  onOpen?: (row: TrackerBreakdownRow) => void;
 }) {
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState<TaskState | "">("");
   const [page, setPage] = useState(1);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const { data, isLoading, error } = useTrackerTaskBreakdown(
     templateId, level, parentId, q, page, status || undefined,
   );
+  const nested = !!parentId;
 
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const limit = data?.limit ?? 50;
   const pages = Math.max(1, Math.ceil(total / limit));
-  const childNoun = CHILD_NOUN[level];
-  const isDoerLevel = level === "zm" || level === "fellow";
+
+  function toggle(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  if (isLoading) {
+    return <div className={`flex items-center justify-center ${nested ? "py-4" : "min-h-40"}`}><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>;
+  }
+  if (error) {
+    return <p className="flex items-center gap-2 px-5 py-4 text-sm text-red-700"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error instanceof Error ? error.message : "Failed to load."}</p>;
+  }
+  if (rows.length === 0) {
+    return nested ? (
+      <p className="px-5 py-3 text-sm text-gray-500">No {IN_CHARGE_PLURAL.toLowerCase()} here.</p>
+    ) : (
+      <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-5 text-center">
+        <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
+        <p className="text-sm text-gray-500">Nothing to show here.</p>
+      </div>
+    );
+  }
 
   return (
-    <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
-        <div>
-          <h3 className="text-base font-semibold text-gray-950">{LEVEL_LABEL[level]}</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={status}
-            aria-label="Status"
-            onChange={(e) => { setStatus(e.target.value as TaskState | ""); setPage(1); }}
-            className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm outline-none focus:border-teal-500"
-          >
-            <option value="">All statuses</option>
-            {TASK_STATE_ORDER.map((s) => <option key={s} value={s}>{TASK_STATE_META[s].label}</option>)}
-          </select>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
-            <input
-              value={q}
-              onChange={(e) => { setQ(e.target.value); setPage(1); }}
-              placeholder="Search…"
-              className="h-9 w-64 rounded-md border border-gray-300 bg-white pl-9 pr-3 text-sm outline-none transition-colors focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="flex min-h-40 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-teal-600" aria-hidden="true" /></div>
-      ) : error ? (
-        <p className="flex items-center gap-2 px-5 py-6 text-sm text-red-700"><AlertCircle className="h-4 w-4" aria-hidden="true" />{error instanceof Error ? error.message : "Failed to load."}</p>
-      ) : rows.length === 0 ? (
-        <div className="flex min-h-40 flex-col items-center justify-center gap-2 px-5 text-center">
-          <CheckCircle2 className="h-6 w-6 text-gray-400" aria-hidden="true" />
-          <p className="text-sm text-gray-500">Nothing to show here.</p>
-        </div>
-      ) : (
-        <ul className="divide-y divide-gray-100">
-          {rows.map((row) => {
-            const isSelf = row.id === currentUserId;
-            const showNudge = canNudge && isDoerLevel && !isSelf && row.rolled_state !== "done";
-            const drillable = !isLeafLevel;
-            return (
-              <li key={row.id} className="flex items-center gap-2 px-1">
+    <>
+      <ul className="divide-y divide-gray-100">
+        {rows.map((row) => {
+          const showNudge = canNudge && row.id !== currentUserId && row.rolled_state !== "done";
+          const opens = !!onOpen && (level === "fellow" || !!row.direct);
+          const expands = level === "zm" && !row.direct;
+          const isOpen = expanded.has(row.id);
+          const isOwnRow = row.id === parentId; // the ZM's own entries, sorted first by the backend
+          const own = row.own_total ?? 0;
+          const mixed = expands && own > 0;
+          return (
+            <li key={row.id}>
+              <div className="flex items-center gap-2 px-1">
                 <button
                   type="button"
-                  onClick={() => { if (drillable) onDrill(row); }}
-                  disabled={!drillable}
+                  onClick={() => { if (expands) toggle(row.id); else if (opens) onOpen!(row); }}
+                  disabled={!expands && !opens}
+                  aria-expanded={expands ? isOpen : undefined}
                   className={
                     "group flex w-full items-center justify-between gap-3 rounded-md px-4 py-3.5 text-left transition-colors " +
-                    (drillable ? "cursor-pointer hover:bg-teal-50" : "cursor-default")
+                    (expands || opens ? "cursor-pointer hover:bg-teal-50" : "cursor-default")
                   }
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-gray-950">{row.name}</p>
-                    <p className="mt-0.5 truncate text-xs text-gray-500">
-                      {!isLeafLevel && childNoun && (
-                        <>{row.child_count} {childNoun}{row.child_count === 1 ? "" : "s"} · </>
-                      )}
-                      {row.done}/{row.total} done
-                    </p>
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {expands && <ChevronRight className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${isOpen ? "rotate-90" : ""}`} aria-hidden="true" />}
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-950">{isOwnRow ? `Own entries · ${row.name}` : row.name}</p>
+                      <p className="mt-0.5 truncate text-xs text-gray-500">
+                        {mixed ? (
+                          <>Own: {row.own_done ?? 0}/{own} · {inCharges(row.child_count)}: {row.done - (row.own_done ?? 0)}/{row.total - own}</>
+                        ) : (
+                          <>
+                            {row.direct ? <>Fills this themself · </> : expands && <>{inCharges(row.child_count)} · </>}
+                            {row.done}/{row.total} done
+                          </>
+                        )}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <StatePill state={row.rolled_state} />
-                    {drillable && <ChevronRight className="h-4 w-4 text-gray-400" aria-hidden="true" />}
+                    {opens && <Table2 className="h-4 w-4 text-gray-400" aria-hidden="true" />}
                   </div>
                 </button>
                 {showNudge && <NudgeButton doerId={row.id} templateId={templateId} lastNudgedAt={null} />}
-              </li>
-            );
-          })}
-        </ul>
-      )}
+              </div>
+              {expands && isOpen && (
+                <div className="mb-2 ml-8 mr-3">
+                  <PeopleList
+                    templateId={templateId}
+                    level="fellow"
+                    parentId={row.id}
+                    status={status}
+                    canNudge={canNudge}
+                    currentUserId={currentUserId}
+                    onOpen={onOpen}
+                  />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       {pages > 1 && (
         <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-sm text-gray-600">
@@ -236,8 +232,12 @@ function LevelList({
           </div>
         </div>
       )}
-    </section>
+    </>
   );
+}
+
+function inCharges(n: number) {
+  return `${n} ${n === 1 ? IN_CHARGE_LOWER : IN_CHARGE_LOWER_PLURAL}`;
 }
 
 function StatePill({ state }: { state: TaskState }) {
