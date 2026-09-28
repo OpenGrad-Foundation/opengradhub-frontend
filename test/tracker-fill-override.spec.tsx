@@ -5,7 +5,7 @@ import type { TrackerGrid, TrackerGridRow, TrackerTemplate } from "@/lib/tracker
 /**
  * Filling in someone else's name: a deliberate mode behind a reason, not the default,
  * and strictly narrower than an ordinary fill — the doer-only surfaces (proofs, blockers,
- * student details, bulk upload) stay off while it is active.
+ * student details) stay off while it is active. Bulk upload works, routed to the override.
  */
 
 const saveMutate = vi.fn().mockResolvedValue({ saved: 1 });
@@ -33,6 +33,8 @@ vi.mock("@/lib/queries/tracker", () => ({
   useStudentDetails: () => empty,
   useSaveStudentDetails: () => idle,
 }));
+
+vi.mock("@/lib/mutations/invalidation", () => ({ useInvalidate: () => () => {} }));
 
 import { TrackerEditableGrid } from "@/app/dashboard/tracker/_components/tracker-grid";
 
@@ -215,11 +217,13 @@ describe("saving a session", () => {
 });
 
 describe("what the session does NOT unlock", () => {
-  it("no bulk upload — it posts to the ordinary batch route, which would be refused", async () => {
+  it("bulk upload is offered in the session, labelled as on behalf", async () => {
     renderGrid();
-    expect(screen.queryByRole("button", { name: /bulk upload/i })).toBeNull();
     await startSession();
-    expect(screen.queryByRole("button", { name: /bulk upload/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /bulk fill/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /upload filled file on behalf/i }));
+    expect(screen.getByRole("dialog", { name: /bulk upload/i })).toBeTruthy();
+    expect(screen.getByText(/recorded with your name and reason/i)).toBeTruthy();
   });
 
   it("no blocker raising — that stays the doer's own voice", async () => {
