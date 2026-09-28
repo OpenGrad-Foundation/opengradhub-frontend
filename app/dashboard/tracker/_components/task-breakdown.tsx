@@ -7,6 +7,7 @@ import type { TrackerBreakdownRow, TrackerTaskSummaryRow } from "@/lib/tracker-a
 import { TASK_STATE_META, TASK_STATE_ORDER, type TaskState } from "@/lib/tracker-status";
 import { IN_CHARGE_LOWER, IN_CHARGE_LOWER_PLURAL, IN_CHARGE_PLURAL } from "@/lib/labels";
 import { NudgeButton } from "./nudge-button";
+import { EndTaskButton } from "./end-task";
 
 type PeopleLevel = "zm" | "fellow";
 const LEVEL_LABEL: Record<PeopleLevel, string> = { zm: "Zonal Managers", fellow: IN_CHARGE_PLURAL };
@@ -19,6 +20,7 @@ export function TaskBreakdown({
   currentUserId,
   role,
   canNudge,
+  canEnd = false,
   onBack,
   onOpenTask,
 }: {
@@ -26,6 +28,8 @@ export function TaskBreakdown({
   currentUserId: string;
   role: string;
   canNudge: boolean;
+  /** May end (archive) the task — authors; the server still checks it is theirs to change. */
+  canEnd?: boolean;
   onBack: () => void;
   onOpenTask?: (templateId: string, owner?: string, ownerName?: string) => void;
 }) {
@@ -41,6 +45,7 @@ export function TaskBreakdown({
           <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to tasks
         </button>
         <div className="flex items-center gap-3">
+          {canEnd && <EndTaskButton templateId={task.template_id} name={task.name} onEnded={onBack} />}
           {onOpenTask && (
             <button
               type="button"

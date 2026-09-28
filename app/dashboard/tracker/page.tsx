@@ -43,6 +43,7 @@ import { TaskDetail } from "./_components/task-detail";
 import { MyTasksList } from "./_components/my-tasks";
 import { AllTasksPanel } from "./_components/all-tasks";
 import { TaskBreakdown } from "./_components/task-breakdown";
+import { TEMPLATE_STATUS_LABEL } from "./_components/end-task";
 import { useUrlFilters, useLocalFilters, type FilterControls } from "@/lib/filters/use-url-filters";
 import { applyFilters } from "@/lib/filters";
 import { taskStateFromLifecycle } from "@/lib/tracker-status";
@@ -319,6 +320,7 @@ export default function TrackerPage() {
               currentUserId={currentUser?.user.id ?? ""}
               role={roleCode}
               canNudge={canAuthor}
+              canEnd={canAuthor}
               onBack={() => openDrill(null)}
               onOpenTask={openTask}
             />
@@ -497,7 +499,7 @@ function TasksPanel({
                     <td className="px-4 py-3 text-gray-700">{c?.blocked ?? "—"}</td>
                     <td className="px-4 py-3 text-gray-700">{c?.overdue ?? "—"}</td>
                     <td className="px-4 py-3">
-                      <StatusPill label={template.status === "active" ? "Active" : template.status} tone={template.status === "active" ? "green" : "gray"} />
+                      <StatusPill label={TEMPLATE_STATUS_LABEL[template.status]} tone={template.status === "active" ? "green" : "gray"} />
                     </td>
                   </tr>
                 );
@@ -582,7 +584,7 @@ function ManageTasksPanel({ canAuthor, canShareExternally, canFill, canClear, ca
     <div className="flex flex-col gap-4">
       <div className="inline-flex self-start rounded-lg border border-gray-200 bg-white p-1">
         <button type="button" onClick={() => setListView("active")} className={tabCls(listView === "active")}>Active</button>
-        <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Archived</button>
+        <button type="button" onClick={() => setListView("archived")} className={tabCls(listView === "archived")}>Ended</button>
       </div>
       <TasksPanel templates={templates} loading={isLoading} selectedId={undefined} onSelect={onDetailChange} />
     </div>
