@@ -26,6 +26,8 @@ export type QuizDraft = {
   user_id?: string;
   answers: Record<string, string | null>;
   flagged: string[];
+  /** Palette visits on this device. Optional for drafts saved before the CBT UI. */
+  visited?: string[];
   current_idx: number;
   updated_at: number;
   /** Phase 3: the active section id for sectioned (non-sequential) attempts.

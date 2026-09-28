@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { ArrowLeft, ArrowRight, Calculator as CalculatorIcon, ChevronLeft, ChevronRight, Clock, Flag, Lock } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock } from "lucide-react";
 import { getBackHref, withFrom } from "@/lib/nav";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import { BackLink } from "@/components/back-link";
@@ -32,9 +32,11 @@ import {
 import { isTerminalSubmitError } from "@/lib/quiz-submit-recovery";
 import { ReportQuestionButton } from "@/components/report-question-modal";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
-import { QuestionView, type AnswerMap } from "@/components/question-view";
+import { type AnswerMap } from "@/components/question-view";
+import { QuizExam } from "@/components/quiz-exam";
+import examStyles from "@/components/quiz-exam.module.css";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
-import { computeSectionStats, type SectionStats } from "@/lib/section-stats";
+import { computeSectionStats } from "@/lib/section-stats";
 import { CalculatorWindow } from "@/components/calculator-window";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
@@ -63,12 +65,6 @@ const pageOuter: React.CSSProperties = {
   minHeight: "100vh",
   background: "var(--color-background)",
   color: "var(--color-text)",
-};
-
-const pageInner: React.CSSProperties = {
-  maxWidth: "1100px",
-  margin: "0 auto",
-  padding: "32px 20px",
 };
 
 const pageCentered: React.CSSProperties = {
@@ -242,6 +238,7 @@ export default function QuizTakingPage() {
   // Question-by-question navigation state
   const [currentIdx, setCurrentIdx] = useState(0);
   const [flagged, setFlagged] = useState<Set<string>>(new Set());
+  const [visited, setVisited] = useState<Set<string>>(new Set());
   const [reportedSnapshots, setReportedSnapshots] = useState<Set<string>>(new Set());
   const [timeElapsed, setTimeElapsed] = useState(0);
   const [showReloadWarning, setShowReloadWarning] = useState(false);
@@ -520,6 +517,7 @@ export default function QuizTakingPage() {
         user_id: clerkUserId ?? undefined,
         answers,
         flagged: [...flagged],
+        visited: [...visited],
         current_idx: currentIdx,
         updated_at: Date.now(),
         section_state: (quiz?.is_sectioned && !quiz?.sequential_sections && activeSectionMeta)
@@ -530,7 +528,7 @@ export default function QuizTakingPage() {
     return () => {
       if (draftTimerRef.current) clearTimeout(draftTimerRef.current);
     };
-  }, [answers, flagged, currentIdx, phase, attempt, sections, currentSectionIdx, quiz?.is_sectioned, quiz?.sequential_sections, clerkUserId]);
+  }, [answers, flagged, visited, currentIdx, phase, attempt, sections, currentSectionIdx, quiz?.is_sectioned, quiz?.sequential_sections, clerkUserId]);
 
   useEffect(() => {
     if (userLoading || !userData || hasLoadedRef.current) return;
@@ -606,7 +604,9 @@ export default function QuizTakingPage() {
       const serverAnswers = quiz?.sequential_sections ? {} : started.saved_answers ?? {};
       setAnswers({ ...serverAnswers, ...(draft?.answers ?? {}) });
       lastServerSaveRef.current = "";
-      setCurrentIdx(draft?.current_idx ?? 0);
+      const resumeIdx = Math.max(0, Math.min(draft?.current_idx ?? 0, started.questions.length - 1));
+      setCurrentIdx(resumeIdx);
+      setVisited(new Set([...(draft?.visited ?? []), ...(started.questions[resumeIdx] ? [started.questions[resumeIdx].snapshot_id] : [])]));
       setFlagged(new Set(draft?.flagged ?? []));
       setTimeElapsed(elapsedSeconds);
       timingsRef.current = {};
@@ -655,6 +655,7 @@ export default function QuizTakingPage() {
         user_id: clerkUserId ?? undefined,
         answers,
         flagged: Array.from(flagged),
+        visited: [...visited],
         current_idx: currentIdx,
         updated_at: Date.now(),
         submit_pending_at: Date.now(),
@@ -771,6 +772,7 @@ export default function QuizTakingPage() {
             user_id: clerkUserId ?? undefined,
             answers,
             flagged: Array.from(flagged),
+            visited: [...visited],
             current_idx: currentIdx,
             updated_at: Date.now(),
             submit_pending_at: Date.now(),
@@ -787,6 +789,7 @@ export default function QuizTakingPage() {
           sectionStartRef.current = Date.now();
           setCurrentIdx(0);
           setFlagged(new Set());
+          setVisited(new Set(res.snapshots[0] ? [res.snapshots[0].snapshot_id] : []));
           timingsRef.current = {};
           enterTimesRef.current = {};
         } else {
@@ -1028,20 +1031,7 @@ export default function QuizTakingPage() {
     const safeIdx = Math.min(currentIdx, total - 1);
     const q = questions[safeIdx];
     if (!q) return null;
-    const isFirst = safeIdx === 0;
     const isLast = safeIdx === total - 1;
-    const isFlagged = flagged.has(q.snapshot_id);
-
-    // Per-section + global stats (sectioned quizzes only).
-    const sectionStatsMap = new Map<string, SectionStats>();
-    if (quiz?.is_sectioned) {
-      for (const s of sections) {
-        const qs = attempt.questions.filter((q) => q.section_id === s.section_id);
-        sectionStatsMap.set(s.section_id, computeSectionStats(qs, answers, flagged));
-      }
-    }
-    const globalStats = computeSectionStats(attempt.questions, answers, flagged);
-
     // Section-aware navigation
     const currentSectionId = attempt.questions[safeIdx]?.section_id ?? null;
     const nextQuestion = attempt.questions[safeIdx + 1];
@@ -1060,14 +1050,6 @@ export default function QuizTakingPage() {
     const secs = displaySeconds % 60;
     const timerStr = `${mins}:${secs.toString().padStart(2, "0")}`;
     const timerIsLow = timeRemaining !== null && timeRemaining < 60;
-
-    function getQuestionStatus(i: number): "answered" | "unanswered" {
-      const qi = questions[i];
-      const answered =
-        answers[qi.snapshot_id] != null ||
-        (qi.question_type === "GROUP" && qi.children.some((c) => answers[c.snapshot_id] != null));
-      return answered ? "answered" : "unanswered";
-    }
 
     function buildFinalSubmitPrompt(): string {
       if (!attempt) return "Submit this quiz?";
@@ -1196,383 +1178,61 @@ export default function QuizTakingPage() {
             </div>
           </div>
         )}
-        <div style={pageInner}>
-          {/* Header */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-            <p style={{ fontSize: "15px", fontWeight: 700, color: "var(--color-text)", margin: 0 }}>{quiz?.title}</p>
-            <span style={{ ...pill, background: "var(--color-surface-sunken)", color: "var(--color-text)", margin: 0 }}>
-              Attempt #{attempt.attempt_number}
-            </span>
-          </div>
-
-          {/* Section tab header (when sectioned) */}
-          {quiz?.is_sectioned && sections.length > 0 && (
-            <div style={{
-              display: "flex",
-              gap: "4px",
-              marginBottom: "16px",
-              borderBottom: "2px solid var(--color-border)",
-              flexWrap: "wrap",
-            }}>
-              {sections.map((s, i) => {
-                const isActive = currentSectionIdx === i || (currentSectionIdx == null && i === 0);
-                const isLocked = quiz.sequential_sections && currentSectionIdx != null && i < currentSectionIdx;
-                const isPending = quiz.sequential_sections && currentSectionIdx != null && i > currentSectionIdx;
-                const clickable = !quiz.sequential_sections && !isLocked && !isPending;
-                const stats = sectionStatsMap.get(s.section_id);
-                return (
-                  <div
-                    key={s.section_id}
-                    onClick={() => {
-                      if (!clickable) return;
-                      const firstIdx = attempt.questions.findIndex((q) => q.section_id === s.section_id);
-                      if (firstIdx >= 0) setCurrentIdx(firstIdx);
-                    }}
-                    style={{
-                      padding: "10px 18px",
-                      fontSize: "14px",
-                      fontWeight: 600,
-                      background: isActive ? "var(--color-surface)" : "transparent",
-                      color: isActive ? "#08784a" : (isLocked || isPending) ? "var(--color-text-muted)" : "var(--color-text)",
-                      borderBottom: `3px solid ${isActive ? "var(--green)" : "transparent"}`,
-                      marginBottom: "-2px",
-                      cursor: clickable ? "pointer" : (isLocked || isPending) ? "not-allowed" : "default",
-                      opacity: (isLocked || isPending) ? 0.6 : 1,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span>{s.title}</span>
-                    {stats && (
-                      <span style={{ fontSize: "11px", fontWeight: 600, opacity: 0.75 }}>
-                        {stats.answered}/{stats.total}
-                        {stats.flagged > 0 && <> <Flag size={11} aria-hidden="true" style={{ verticalAlign: "-1px" }} />{stats.flagged}</>}
-                      </span>
-                    )}
-                    {isLocked && <Lock size={12} aria-hidden="true" />}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Two-column layout */}
-          <div className="flex flex-col-reverse lg:flex-row gap-5 items-start">
-            {/* Main question card */}
-            <div className="flex-1 min-w-0 w-full">
-              <div style={card}>
-                {/* Question header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "28px" }}>
-                  <p style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "var(--color-text)" }}>
-                    Question {currentIdx + 1} of {total}
-                  </p>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    {/* A GROUP parent is not answerable — its children carry their own buttons. */}
-                    {q.question_type !== "GROUP" && (
-                      <ReportQuestionButton
-                        snapshotId={q.snapshot_id}
-                        alreadyReported={reportedSnapshots.has(q.snapshot_id)}
-                        onReported={() => setReportedSnapshots((prev) => new Set(prev).add(q.snapshot_id))}
-                      />
-                    )}
-                    <button
-                      onClick={() => toggleFlag(q.snapshot_id)}
-                      style={{
-                        background: isFlagged ? "rgba(184,50,50,0.1)" : "var(--color-surface)",
-                        color: isFlagged ? "#b83232" : "var(--color-text-muted)",
-                        border: `1px solid ${isFlagged ? "rgba(184,50,50,0.3)" : "var(--color-border)"}`,
-                        borderRadius: "8px",
-                        minHeight: "36px",
-                        padding: "6px 12px",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                      }}
-                    >
-                      <Flag size={14} aria-hidden="true" />{isFlagged ? "Marked for Review" : "Mark for Review"}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Question body */}
-                <QuestionView
-                  q={q}
-                  answers={answers}
-                  setAnswer={setAnswer}
-                  renderReportButton={(snapshotId) => (
-                    <ReportQuestionButton
-                      snapshotId={snapshotId}
-                      alreadyReported={reportedSnapshots.has(snapshotId)}
-                      onReported={() => setReportedSnapshots((prev) => new Set(prev).add(snapshotId))}
-                    />
-                  )}
-                />
-
-                {/* Navigation */}
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: "32px",
-                  paddingTop: "20px",
-                  borderTop: "1px solid var(--color-border)",
-                }}>
-                  <button
-                    onClick={() => setCurrentIdx((i) => Math.max(0, i - 1))}
-                    disabled={isFirst}
-                    style={{
-                      ...secondaryBtn,
-                      opacity: isFirst ? 0.3 : 1,
-                      cursor: isFirst ? "default" : "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "6px",
-                    }}
-                  >
-                    <ChevronLeft size={16} aria-hidden="true" />Previous
-                  </button>
-                  {isLast ? (
-                    quiz?.sequential_sections ? (
-                      <button
-                        onClick={handleAdvanceSection}
-                        disabled={advancingSection}
-                        style={{ ...primaryBtn, opacity: advancingSection ? 0.6 : 1 }}
-                      >
-                        {advancingSection
-                          ? "Submitting…"
-                          : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
-                            ? "Submit Final Section"
-                            : <>Submit Section <ArrowRight size={16} aria-hidden="true" /></>}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          askConfirm({
-                            title: "Submit Quiz?",
-                            body: buildFinalSubmitPrompt(),
-                            confirmLabel: "Submit Quiz",
-                            onConfirm: () => { void handleSubmit(); },
-                          });
-                        }}
-                        disabled={submitting}
-                        style={{ ...primaryBtn, opacity: submitting ? 0.6 : 1 }}
-                      >
-                        {submitting ? "Submitting…" : "Submit Quiz"}
-                      </button>
-                    )
-                  ) : (
-                    <button
-                      onClick={() => {
-                        if (!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0) {
-                          setCurrentIdx(nextSectionFirstIdx);
-                        } else {
-                          setCurrentIdx((i) => Math.min(total - 1, i + 1));
-                        }
-                      }}
-                      disabled={isLast}
-                      style={{ ...primaryBtn, display: "flex", alignItems: "center", gap: "6px" }}
-                    >
-                      {!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0
-                        ? <>Next Section <ArrowRight size={16} aria-hidden="true" /></>
-                        : <>Next <ChevronRight size={16} aria-hidden="true" /></>}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Sidebar */}
-            <div className="w-full lg:w-[220px] shrink-0">
-              <div style={{ ...card, padding: "20px", marginBottom: "12px" }}>
-                {/* Timer */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  marginBottom: "20px",
-                  paddingBottom: "16px",
-                  borderBottom: "1px solid var(--color-border)",
-                }}>
-                  {quiz?.sequential_sections && sectionRemaining != null ? (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, color: sectionRemaining < 60 ? "#b83232" : "var(--color-text)" }}>
-                      <Clock size={16} aria-hidden="true" />Section: {Math.floor(sectionRemaining / 60)}:{(sectionRemaining % 60).toString().padStart(2, "0")}
-                    </span>
-                  ) : (
-                    <>
-                      <Clock size={18} aria-hidden="true" style={{ color: timerIsLow ? "#b83232" : "var(--color-text)" }} />
-                      <span style={{
-                        fontSize: "22px",
-                        fontWeight: 700,
-                        color: timerIsLow ? "#b83232" : "var(--color-text)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}>
-                        {timerStr}
-                      </span>
-                    </>
-                  )}
-                </div>
-
-                {/* Section stats block */}
-                {quiz?.is_sectioned && (() => {
-                  const showStats = quiz.sequential_sections
-                    ? (currentSectionId ? sectionStatsMap.get(currentSectionId) : undefined)
-                    : globalStats;
-                  const title = quiz.sequential_sections
-                    ? (currentSectionIdx != null ? sections[currentSectionIdx]?.title : sections[0]?.title) ?? "Section"
-                    : "Quiz Progress";
-                  if (!showStats) return null;
-                  return (
-                    <div style={{
-                      padding: "12px",
-                      background: "var(--color-surface-sunken)",
-                      borderRadius: "8px",
-                      marginBottom: "16px",
-                    }}>
-                      <p style={{
-                        margin: 0,
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: "var(--color-text-muted)",
-                      }}>{title}</p>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginTop: "10px" }}>
-                        {([
-                          ["Answered", showStats.answered],
-                          ["Unanswered", showStats.unanswered],
-                          ["Marked for Review", showStats.flagged],
-                          ["Marked + Answered", showStats.flaggedAndAnswered],
-                        ] as const).map(([label, value]) => (
-                          <div key={label} style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                            <span style={{ fontSize: "20px", fontWeight: 700, lineHeight: 1, color: "var(--color-text)" }}>{value}</span>
-                            <span style={{ fontSize: "12px", fontWeight: 500, color: "var(--color-text-muted)" }}>{label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Question navigator grid */}
-                <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", margin: "0 0 12px" }}>Questions</p>
-                <div className="grid grid-cols-6 sm:grid-cols-8 lg:grid-cols-4 gap-2">
-                  {questions.map((qi, i) => {
-                    const isCurrent = i === currentIdx;
-                    const status = getQuestionStatus(i);
-                    const isQFlagged = flagged.has(qi.snapshot_id);
-                    return (
-                      <button
-                        key={qi.snapshot_id}
-                        onClick={() => setCurrentIdx(i)}
-                        style={{
-                          width: "100%",
-                          height: "40px",
-                          borderRadius: "8px",
-                          border: "none",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          position: "relative",
-                          background: isCurrent
-                            ? "var(--dark-teal)"
-                            : status === "answered"
-                              ? "rgba(10,190,98,0.15)"
-                              : "var(--color-surface-sunken)",
-                          color: isCurrent
-                            ? "#fff"
-                            : status === "answered"
-                              ? "#08784a"
-                              : "var(--color-text-muted)",
-                          outline: isQFlagged ? "2px solid #b83232" : "none",
-                          outlineOffset: "2px",
-                        }}
-                      >
-                        {i + 1}
-                        {isQFlagged && (
-                          <Flag size={9} aria-hidden="true" style={{ position: "absolute", top: "3px", right: "3px", color: "#b83232" }} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Submit from sidebar */}
-                {quiz?.sequential_sections ? (
-                  <button
-                    onClick={handleAdvanceSection}
-                    disabled={advancingSection}
-                    style={{
-                      ...primaryBtn,
-                      width: "100%",
-                      marginTop: "20px",
-                      padding: "8px 16px",
-                      boxSizing: "border-box",
-                      opacity: advancingSection ? 0.6 : 1,
-                    }}
-                  >
-                    {advancingSection
-                      ? "Submitting…"
-                      : currentSectionIdx != null && currentSectionIdx >= sections.length - 1
-                        ? "Submit Final Section"
-                        : <>Submit Section <ArrowRight size={16} aria-hidden="true" /></>}
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      askConfirm({
-                        title: "Submit Quiz?",
-                        body: buildFinalSubmitPrompt(),
-                        confirmLabel: "Submit Quiz",
-                        onConfirm: () => { void handleSubmit(); },
-                      });
-                    }}
-                    disabled={submitting}
-                    style={{
-                      ...primaryBtn,
-                      width: "100%",
-                      marginTop: "20px",
-                      padding: "8px 16px",
-                      opacity: submitting ? 0.6 : 1,
-                      boxSizing: "border-box",
-                    }}
-                  >
-                    {submitting ? "Submitting…" : "Submit Quiz"}
-                  </button>
-                )}
-              </div>
-              {/* On-screen calculator */}
-              <div style={{ ...card, padding: "16px" }}>
-                <button
-                  type="button"
-                  onClick={() => setCalcOpen((o) => !o)}
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "8px",
-                    minHeight: "44px",
-                    padding: "8px 12px",
-                    borderRadius: "12px",
-                    border: `1px solid ${calcOpen ? "var(--dark-teal)" : "var(--color-border)"}`,
-                    background: calcOpen ? "var(--dark-teal)" : "var(--color-surface)",
-                    color: calcOpen ? "#fff" : "var(--color-text)",
-                    fontSize: "14px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    boxSizing: "border-box",
-                  }}
-                  aria-expanded={calcOpen}
-                  aria-label="Toggle calculator"
-                >
-                  <CalculatorIcon size={16} aria-hidden="true" />Calculator
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <QuizExam
+          title={quiz?.title ?? "Quiz"}
+          badge={`Attempt #${attempt.attempt_number}`}
+          timer={quiz?.sequential_sections && sectionRemaining != null
+            ? `${Math.floor(sectionRemaining / 60)}:${(sectionRemaining % 60).toString().padStart(2, "0")}`
+            : timerStr}
+          timerLabel={quiz?.sequential_sections && sectionRemaining != null ? "Section time left" : timeLimitSeconds ? "Time left" : "Time elapsed"}
+          timerIsLow={quiz?.sequential_sections && sectionRemaining != null ? sectionRemaining < 60 : timerIsLow}
+          questions={questions}
+          currentIdx={safeIdx}
+          answers={answers}
+          flagged={flagged}
+          visited={visited}
+          onNavigate={(index) => {
+            setCurrentIdx(index);
+            setVisited(prev => new Set(prev).add(questions[index].snapshot_id));
+          }}
+          onAnswer={setAnswer}
+          onToggleFlag={toggleFlag}
+          onMarkReview={(id) => setFlagged(prev => new Set(prev).add(id))}
+          onNext={() => {
+            const index = !quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0
+              ? nextSectionFirstIdx : Math.min(total - 1, safeIdx + 1);
+            setCurrentIdx(index);
+            setVisited(prev => new Set(prev).add(questions[index].snapshot_id));
+          }}
+          nextLabel={!quiz?.sequential_sections && isSectionLast && nextSectionFirstIdx >= 0 ? "Save & Next Section" : "Save & Next"}
+          onSubmit={() => {
+            if (quiz?.sequential_sections) { void handleAdvanceSection(); return; }
+            askConfirm({ title: "Submit Quiz?", body: buildFinalSubmitPrompt(), confirmLabel: "Submit Quiz", onConfirm: () => { void handleSubmit(); } });
+          }}
+          submitLabel={submitting || advancingSection ? "Submitting…" : quiz?.sequential_sections
+            ? currentSectionIdx != null && currentSectionIdx >= sections.length - 1 ? "Submit Final Section" : "Submit Section"
+            : "Submit Quiz"}
+          busy={submitting || advancingSection}
+          renderReportButton={(snapshotId) => <ReportQuestionButton snapshotId={snapshotId}
+            alreadyReported={reportedSnapshots.has(snapshotId)}
+            onReported={() => setReportedSnapshots(prev => new Set(prev).add(snapshotId))} />}
+          tools={<button type="button" className={examStyles.tool} onClick={() => setCalcOpen(open => !open)} aria-expanded={calcOpen} aria-label="Toggle calculator">Calculator</button>}
+          sections={quiz?.is_sectioned && sections.length > 0 ? sections.map((s, i) => {
+            const active = quiz.sequential_sections ? currentSectionIdx === i : currentSectionId === s.section_id;
+            const locked = !!quiz.sequential_sections && currentSectionIdx !== i;
+            const stats = computeSectionStats(questions.filter(item => item.section_id === s.section_id), answers, flagged);
+            return <button type="button" key={s.section_id} className={examStyles.sectionTab}
+              aria-current={active ? "true" : undefined} disabled={locked}
+              onClick={() => {
+                if (quiz.sequential_sections) return;
+                const index = questions.findIndex(item => item.section_id === s.section_id);
+                if (index >= 0) { setCurrentIdx(index); setVisited(prev => new Set(prev).add(questions[index].snapshot_id)); }
+              }}>
+              {s.title}{stats.total > 0 && <small>{stats.answered}/{stats.total}</small>}
+              {locked && <small>{currentSectionIdx != null && i < currentSectionIdx ? "Completed" : "Locked"}</small>}
+            </button>;
+          }) : undefined}
+        />
         {calcOpen && <CalculatorWindow onClose={() => setCalcOpen(false)} />}
       </div>
     );
