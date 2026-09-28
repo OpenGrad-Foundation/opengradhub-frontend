@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Calculator } from "@/components/calculator";
+import styles from "./calculator-window.module.css";
 
 const TEAL = "#034852";
 const WIDTH = 280;
@@ -50,6 +51,7 @@ export function CalculatorWindow({ onClose }: { onClose: () => void }) {
     <div
       role="dialog"
       aria-label="Calculator"
+      className={styles.window}
       style={{
         position: "fixed",
         left: pos.x,
