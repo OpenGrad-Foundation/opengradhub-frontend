@@ -173,7 +173,8 @@ describe("grid: view and export a past day of a repeating task", () => {
     expect(screen.queryByText(/Fill all/)).toBeNull();
     expect(pastGrid).toHaveBeenCalledWith("t1", undefined, "2026-09-27");
     fireEvent.click(screen.getByRole("button", { name: /export/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /^Records \(Excel\)/ }));
+    fireEvent.change(screen.getByRole("combobox", { name: /format/i }), { target: { value: "xlsx" } });
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Records/ }));
     await waitFor(() => expect(exportFile).toHaveBeenCalledWith("t1", { part: "records", format: "xlsx", ownerId: undefined, period: "2026-09-27" }));
   });
 });
