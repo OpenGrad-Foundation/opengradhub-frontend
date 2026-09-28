@@ -1,8 +1,12 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, X } from "lucide-react";
-import { saveTrackerBatch, type TrackerField, type TrackerGridRow, type TrackerTemplate } from "@/lib/tracker-api";
+import { AlertTriangle, CheckCircle2, Download, FileUp, Loader2, ShieldAlert, X } from "lucide-react";
+import {
+  saveTrackerBatch, saveTrackerBatchOnBehalf,
+  type TrackerField, type TrackerGridRow, type TrackerTemplate,
+} from "@/lib/tracker-api";
+import { groupEditsByAuthority } from "@/lib/tracker-authority";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import {
   CONTEXT_HEADERS, PROBLEM_HEADER, RECORD_ID_HEADER, editableFields, headersByFieldKey,
@@ -28,16 +32,23 @@ type Phase =
  * cannot be saved are shown with the reason, and only the rest go to the server. Saving happens
  * in chunks so one bad row cannot discard the whole upload, and whatever still fails server-side
  * comes back listed and downloadable.
+ *
+ * With `onBehalfReason` (a fill-on-behalf session) rows the viewer may only override go to the
+ * override route, one doer per request as that route requires, carrying the session's reason.
  */
 export function TrackerBulkUploadPanel({
   template,
   columns,
   rows,
+  onBehalfReason,
+  onBehalfLabel,
   onClose,
 }: {
   template: TrackerTemplate;
   columns: TrackerField[];
   rows: TrackerGridRow[];
+  onBehalfReason?: string;
+  onBehalfLabel?: string;
   onClose: () => void;
 }) {
   const invalidate = useInvalidate();
@@ -67,20 +78,40 @@ export function TrackerBulkUploadPanel({
     const edits = submittableEdits(sheet.rows);
     if (edits.length === 0) return;
     setError(null);
-    setPhase({ kind: "submitting", fileName, sheet, progress: { attempted: 0, total: edits.length } });
-    const result = await submitBulkEdits(
-      (batch) => saveTrackerBatch(batch),
-      edits,
-      (progress) => setPhase((p) => (p.kind === "submitting" ? { ...p, progress } : p)),
-    );
+    const total = edits.length;
+    setPhase({ kind: "submitting", fileName, sheet, progress: { attempted: 0, total } });
+
+    // Each run hits exactly one route (and, for overrides, one doer), so a failed chunk's
+    // bisection retry never re-sends a row another route already saved.
+    const runs: { edits: typeof edits; save: (batch: typeof edits) => Promise<unknown> }[] = [];
+    const failures = new Map<string, string>();
+    if (onBehalfReason) {
+      const { own, byDoer } = groupEditsByAuthority(edits, new Map(rows.map((r) => [r.record_id, r])), true);
+      runs.push({ edits: own, save: saveTrackerBatch });
+      for (const g of byDoer) runs.push({ edits: g.edits, save: (batch) => saveTrackerBatchOnBehalf(onBehalfReason, batch) });
+      const routed = new Set([...own, ...byDoer.flatMap((g) => g.edits)].map((e) => e.record_id));
+      for (const e of edits) if (!routed.has(e.record_id)) failures.set(e.record_id, "You cannot fill this row from here.");
+    } else {
+      runs.push({ edits, save: saveTrackerBatch });
+    }
+
+    let saved = 0;
+    let done = failures.size;
+    for (const run of runs) {
+      const base = done;
+      const result = await submitBulkEdits(
+        run.save,
+        run.edits,
+        ({ attempted }) => setPhase((p) => (p.kind === "submitting" ? { ...p, progress: { attempted: base + attempted, total } } : p)),
+      );
+      saved += result.savedRecordIds.length;
+      result.failures.forEach((msg, id) => failures.set(id, msg));
+      done = base + run.edits.length;
+    }
     // One refresh at the end: the chunks and any bisection retries would otherwise each
     // trigger their own refetch of the grid while the upload is still running.
     invalidate("tracker");
-    setPhase({
-      kind: "done", fileName, sheet,
-      saved: result.savedRecordIds.length,
-      failures: result.failures,
-    });
+    setPhase({ kind: "done", fileName, sheet, saved, failures });
   }
 
   async function onDownloadFailed(sheet: PreparedSheet, failures: Map<string, string>) {
@@ -113,6 +144,16 @@ export function TrackerBulkUploadPanel({
         </header>
 
         <div className="flex-1 overflow-auto px-5 py-4">
+          {onBehalfReason && (
+            <p className="mb-3 flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700" aria-hidden="true" />
+              <span>
+                <span className="font-semibold">Filling as {onBehalfLabel ?? "your team"}</span>
+                {" — every row saved from this file is recorded with your name and reason: "}
+                &ldquo;{onBehalfReason}&rdquo;
+              </span>
+            </p>
+          )}
           {error && (
             <p className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
           )}

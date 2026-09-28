@@ -40,6 +40,12 @@ function sameDraft(draft: RowDraft, sent: TrackerBatchEdit): boolean {
 const menuClass = "absolute right-0 top-full z-30 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg";
 const menuItemClass = "flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-xs hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
 
+/** Records and the event log are separate downloads; one format picker serves both. */
+const EXPORT_ITEMS = [
+  { part: "records", label: "Records" },
+  { part: "history", label: "History" },
+] as const;
+
 export function TrackerEditableGrid({
   template,
   grid: currentGrid,
@@ -213,6 +219,7 @@ export function TrackerEditableGrid({
   const [geoModal, setGeoModal] = useState<{ schoolId: string | null; blocking: boolean } | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [exporting, setExporting] = useState<"records" | "history" | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
   // One open menu at a time, and one wrapper to detect a click outside either of them.
   const [menu, setMenu] = useState<"export" | "bulk" | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -411,11 +418,11 @@ export function TrackerEditableGrid({
   // The server builds this file from the same scope that produced the grid, so what
   // lands on disk is exactly what is loaded here — including the rows the on-screen
   // filters are hiding, which is what a manager chasing stragglers actually wants.
-  async function onExport(history: boolean) {
+  async function onExport(part: "records" | "history", format: "csv" | "xlsx") {
     setError(null);
-    setExporting(history ? "history" : "records");
+    setExporting(part);
     try {
-      const { blob, filename } = await fetchTaskExport(template.id, { history, ownerId: owner?.id, period: viewPeriod || undefined });
+      const { blob, filename } = await fetchTaskExport(template.id, { part, format, ownerId: owner?.id, period: viewPeriod || undefined });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -734,24 +741,33 @@ export function TrackerEditableGrid({
               </button>
               {menu === "export" && (
                 <div role="menu" className={menuClass}>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setMenu(null); void onExport(false); }}
-                    className={menuItemClass}
-                  >
-                    <span className="font-medium text-gray-800">Records only (.csv)</span>
-                    <span className="text-[11px] text-gray-500">{viewingPast ? `All ${grid.rows.length} rows for ${viewPeriod}` : `All ${grid.rows.length} rows`} with status, evidence and last update</span>
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setMenu(null); void onExport(true); }}
-                    className={menuItemClass}
-                  >
-                    <span className="font-medium text-gray-800">Records + history (.zip)</span>
-                    <span className="text-[11px] text-gray-500">Adds the full event log, one row per change</span>
-                  </button>
+                  <label className="flex items-center justify-between gap-2 border-b border-gray-100 px-3 pb-2 pt-1 text-xs text-gray-600">
+                    Format
+                    <select
+                      value={exportFormat}
+                      onChange={(e) => setExportFormat(e.target.value as "csv" | "xlsx")}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-800"
+                    >
+                      <option value="csv">CSV (.csv)</option>
+                      <option value="xlsx">Excel (.xlsx)</option>
+                    </select>
+                  </label>
+                  {EXPORT_ITEMS.map(({ part, label }) => (
+                    <button
+                      key={part}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { setMenu(null); void onExport(part, exportFormat); }}
+                      className={menuItemClass}
+                    >
+                      <span className="font-medium text-gray-800">{label}</span>
+                      <span className="text-[11px] text-gray-500">
+                        {part === "records"
+                          ? `${viewingPast ? `All ${grid.rows.length} rows for ${viewPeriod}` : `All ${grid.rows.length} rows`} with status, evidence and last update`
+                          : "The full event log, one row per change"}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -794,7 +810,7 @@ export function TrackerEditableGrid({
                     <span className="font-medium text-gray-800">Download template (Excel)</span>
                     <span className="text-[11px] text-gray-500">Same rows as an .xlsx workbook</span>
                   </button>
-                  {anyOwnRow && (
+                  {(anyOwnRow || onBehalfMode) && (
                     <>
                       <span className="my-1 block h-px bg-gray-100" aria-hidden="true" />
                       <button
@@ -805,8 +821,8 @@ export function TrackerEditableGrid({
                         title={dirtyCount > 0 ? "Save your changes first" : undefined}
                         className={menuItemClass}
                       >
-                        <span className="font-medium text-gray-800">Upload filled file…</span>
-                        <span className="text-[11px] text-gray-500">Check it against these rows, then save</span>
+                        <span className="font-medium text-gray-800">{onBehalfMode ? "Upload filled file on behalf…" : "Upload filled file…"}</span>
+                        <span className="text-[11px] text-gray-500">{onBehalfMode ? "Saved in their name with your reason" : "Check it against these rows, then save"}</span>
                       </button>
                     </>
                   )}
@@ -867,7 +883,11 @@ export function TrackerEditableGrid({
         <TrackerBulkUploadPanel
           template={template}
           columns={grid.columns}
-          rows={visibleRows.filter((r) => authorityOf(r).evidence)}
+          // In a session the file may fill any row the session may edit; the panel routes each
+          // to the ordinary or the override endpoint, never an overridable row down the ordinary one.
+          rows={onBehalfMode ? visibleRows.filter(canEditRow) : visibleRows.filter((r) => authorityOf(r).evidence)}
+          onBehalfReason={onBehalf?.reason}
+          onBehalfLabel={sessionLabel}
           onClose={() => setBulkOpen(false)}
         />
       )}

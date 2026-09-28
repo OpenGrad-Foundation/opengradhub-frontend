@@ -91,19 +91,23 @@ describe("grid toolbar — bulk fill menu", () => {
     expect(screen.queryByRole("menuitem", { name: /CSV/i })).toBeNull();
   });
 
-  it("keeps the two export files inside their own menu", () => {
+  it("offers records and history as separate files in one picked format", () => {
     renderGrid({ canExport: true });
     expect(screen.queryByRole("menuitem", { name: /history/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
-    expect(screen.getByRole("menuitem", { name: /records only/i })).toBeTruthy();
-    expect(screen.getByRole("menuitem", { name: /records \+ history/i })).toBeTruthy();
+    expect(screen.getAllByRole("menuitem").map((b) => b.textContent)).toEqual([
+      expect.stringMatching(/^Records/), expect.stringMatching(/^History/),
+    ]);
+    const format = screen.getByRole("combobox", { name: /format/i }) as HTMLSelectElement;
+    expect(format.value).toBe("csv");
+    expect([...format.options].map((o) => o.value)).toEqual(["csv", "xlsx"]);
   });
 
   it("keeps the export and bulk fill menus independent", () => {
     renderGrid({ canExport: true });
     fireEvent.click(screen.getByRole("button", { name: /^export$/i }));
     fireEvent.click(screen.getByRole("button", { name: /bulk fill/i }));
-    expect(screen.queryByRole("menuitem", { name: /records only/i })).toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /^Records/ })).toBeNull();
     expect(screen.getByRole("menuitem", { name: /CSV/i })).toBeTruthy();
   });
 
