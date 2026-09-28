@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 const state = vi.hoisted(() => ({ grants: ['schools.view'], analytics: vi.fn(), roster: vi.fn() }));
 vi.mock('next/navigation', () => ({ useParams: () => ({ id: 'school' }), usePathname: () => '/dashboard/schools/school', useSearchParams: () => new URLSearchParams() }));
@@ -49,8 +49,9 @@ describe('merged school detail data and destination gates', () => {
     state.grants.push('students.view', 'students.view_contact', 'reports.view', 'batches.view');
     render(<SchoolDetailPage />);
     expect((await screen.findByRole('link', { name: 'Student name' })).getAttribute('href')).toBe('/dashboard/students/s1?from=%2Fdashboard%2Fschools%2Fschool');
-    expect(screen.getByRole('link', { name: /Batch name/ })).toBeTruthy();
     expect(screen.getByText('student@example.test')).toBeTruthy();
     expect(screen.queryByText('staff@example.test')).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: /Batches/ }));
+    expect(screen.getByRole('link', { name: /Batch name/ })).toBeTruthy();
   });
 });

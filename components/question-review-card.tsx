@@ -1,10 +1,11 @@
+"use client";
+
+import { useId, useState } from "react";
 import type { AttemptReviewQuestion } from "@/lib/api";
 import { MathContent } from "@/app/dashboard/_components/MathContent";
+import styles from "./question-review.module.css";
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-export const card: React.CSSProperties = { background: "rgba(255,255,255,0.85)", borderRadius: "16px", padding: "28px 32px", boxShadow: "0 2px 24px rgba(3,72,82,0.08)", marginBottom: "20px" };
-export const label: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", margin: "0 0 4px" };
+export const label: React.CSSProperties = { fontSize: "12px", fontWeight: 600, color: "#526761", margin: "0 0 6px" };
 
 export function getYouTubeEmbedUrl(url: string): string | null {
   try {
@@ -21,7 +22,6 @@ export function getYouTubeEmbedUrl(url: string): string | null {
   }
 }
 
-// ── Single question card ──────────────────────────────────────────────────────
 
 export function formatSeconds(s: number): string {
   if (s < 60) return `${s}s`;
@@ -29,265 +29,111 @@ export function formatSeconds(s: number): string {
 }
 
 export function QuestionAnalyticsPanel({ q }: { q: AttemptReviewQuestion }) {
-  const isManualGrading = q.question_type === "FILL" || q.question_type === "ESSAY";
-  const correctPct = !isManualGrading && q.batch_total_count > 0
-    ? Math.round((q.batch_correct_count / q.batch_total_count) * 100)
-    : null;
-
-  return (
-    <div 
-      className="w-full sm:w-[200px] shrink-0 flex flex-col gap-[14px] p-4 rounded-xl"
-      style={{
-        background: "rgba(3,72,82,0.03)",
-        border: "1.5px solid rgba(3,72,82,0.09)",
-      }}
-    >
-      <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)" }}>Analytics</p>
-
-      {/* My time */}
-      <div>
-        <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>My Time</p>
-        <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
-          {q.time_taken_seconds != null ? formatSeconds(q.time_taken_seconds) : "—"}
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div style={{ height: "1px", background: "rgba(3,72,82,0.08)" }} />
-
-      {/* Avg time */}
-      <div>
-        <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Avg Time (Batch)</p>
-        <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#034852" }}>
-          {q.avg_time_seconds != null ? formatSeconds(q.avg_time_seconds) : "—"}
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div style={{ height: "1px", background: "rgba(3,72,82,0.08)" }} />
-
-      {/* Batch correct — hidden for FILL (manual grading, is_correct never set) */}
-      {isManualGrading ? (
-        <div>
-          <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Correct in Batch</p>
-          <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.35)", fontStyle: "italic" }}>Manual grading</p>
-        </div>
-      ) : (
-        <div>
-          <p style={{ margin: "0 0 2px", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.45)" }}>Correct in Batch</p>
-          <p style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0abe62" }}>
-            {q.batch_total_count > 0 ? `${q.batch_correct_count}/${q.batch_total_count}` : "—"}
-          </p>
-          {correctPct !== null && (
-            <p style={{ margin: "2px 0 0", fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.4)" }}>{correctPct}% got it right</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const manual = q.question_type === "FILL" || q.question_type === "ESSAY";
+  return <dl className={styles.analytics} aria-label="Question statistics">
+    <div><dt>Your time</dt><dd>{q.time_taken_seconds != null ? formatSeconds(q.time_taken_seconds) : "—"}</dd></div>
+    <div><dt>Batch average</dt><dd>{q.avg_time_seconds != null ? formatSeconds(q.avg_time_seconds) : "—"}</dd></div>
+    <div><dt>Correct in batch</dt><dd>{manual ? "Manual grading" : q.batch_total_count > 0
+      ? `${q.batch_correct_count}/${q.batch_total_count} (${Math.round(q.batch_correct_count / q.batch_total_count * 100)}%)` : "—"}</dd></div>
+  </dl>;
 }
-
-/** Matches the instruction block <QuestionView/> renders during the attempt. */
-const instructionBox: React.CSSProperties = {
-  background: "rgba(3,72,82,0.04)",
-  border: "1px solid rgba(3,72,82,0.12)",
-  borderLeft: "3px solid #209379",
-  borderRadius: "8px",
-  padding: "12px 16px",
-  marginBottom: "14px",
-};
 
 export function PassageCard({ html, imageUrl, instructionHtml }: { html: string; imageUrl: string | null; instructionHtml: string | null }) {
-  return (
-    <div style={{
-      ...card,
-      background: "rgba(3,72,82,0.02)",
-      border: "1.5px solid rgba(3,72,82,0.1)",
-      marginBottom: "8px",
-    }}>
-      <p style={{ ...label, marginBottom: "10px" }}>Reading Passage</p>
-      {instructionHtml != null && instructionHtml.trim() !== "" && (
-        <div style={instructionBox}>
-          <MathContent html={instructionHtml} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
-        </div>
-      )}
-      <MathContent html={html} style={{ fontSize: "15px", lineHeight: 1.7, color: "#034852" }} />
-      {imageUrl && (
-        <img
-          src={imageUrl}
-          alt="Passage image"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-          style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)", display: "block", marginTop: "14px" }}
-        />
-      )}
-    </div>
-  );
+  return <section className={styles.passageCard} aria-label="Reading passage">
+    <h3>Reading passage</h3>
+    {instructionHtml?.trim() && <MathContent html={instructionHtml} className={styles.prose} />}
+    <MathContent html={html} className={styles.prose} />
+    {imageUrl && <img src={imageUrl} alt="Passage image" className={styles.image} />}
+  </section>;
 }
 
-export function QuestionReviewCard({ q, idx, revealed, questionLabel, reportButton }: {
-  q: AttemptReviewQuestion;
-  idx: number;
-  revealed: boolean;
-  questionLabel?: string;
-  /** Optional "report this question" control. Omitted where there is no real attempt behind the card. */
+export function QuestionReviewCard({ q, idx, revealed = false, questionLabel, reportButton, showAnalytics = true, allowRetry = false }: {
+  q: AttemptReviewQuestion; idx: number; revealed?: boolean; questionLabel?: string;
   reportButton?: React.ReactNode;
+  /** A preview has no real timing or cohort data. */
+  showAnalytics?: boolean;
+  allowRetry?: boolean;
 }) {
-  const borderColor =
-    q.is_correct === true  ? "#0abe62" :
-    q.is_correct === false ? "#e53e3e" :
-    "rgba(3,72,82,0.12)";
-
-  const statusLabel =
-    q.student_answer == null         ? "Skipped" :
-    q.is_correct === true            ? "Correct" :
-    q.is_correct === false           ? "Wrong"   :
-    "Pending";
-
-  const statusColor =
-    q.is_correct === true  ? "#0abe62" :
-    q.is_correct === false ? "#e53e3e" :
-    "rgba(3,72,82,0.4)";
-
-  const statusBg =
-    q.is_correct === true  ? "rgba(10,190,98,0.09)" :
-    q.is_correct === false ? "rgba(229,62,62,0.09)" :
-    "rgba(3,72,82,0.07)";
-
+  const [localRevealed, setLocalRevealed] = useState(false);
+  const [retryAnswer, setRetryAnswer] = useState<string | null>(null);
+  const answerId = useId();
+  const answerVisible = allowRetry ? localRevealed : revealed;
+  const retrying = allowRetry && !answerVisible;
+  const displayedAnswer = allowRetry ? retryAnswer : q.student_answer;
+  const status = q.student_answer == null ? "skipped" : q.is_correct === true ? "correct" : q.is_correct === false ? "wrong" : "pending";
+  const statusLabel = { skipped: "Skipped", correct: "Correct", wrong: "Incorrect", pending: "Pending review" }[status];
   const embedUrl = q.explanation_video_url ? getYouTubeEmbedUrl(q.explanation_video_url) : null;
-
-  return (
-    <div style={{ ...card, border: `2px solid ${borderColor}`, marginBottom: "16px", padding: "0" }}>
-      <div className="flex flex-col lg:flex-row items-stretch">
-        {/* Left: question content */}
-        <div className="flex-1 min-w-0 p-5 sm:p-6 lg:p-7">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px", gap: "8px" }}>
-            <p style={{ ...label, margin: 0 }}>{questionLabel ?? `Q${idx + 1}`}</p>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
-              {reportButton}
-              <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor, padding: "2px 8px", borderRadius: "100px", background: statusBg }}>
-                {statusLabel}
-              </span>
-            </div>
-          </div>
-
-          {q.instruction_html != null && q.instruction_html.trim() !== "" && (
-            <div style={instructionBox}>
-              <MathContent html={q.instruction_html} style={{ fontSize: "14px", lineHeight: 1.7, color: "#034852" }} />
-            </div>
-          )}
-
-          <MathContent html={q.content_html} style={{ fontSize: "15px", fontWeight: 600, lineHeight: 1.5, marginBottom: q.image_url ? "10px" : "14px" }} />
-
-          {q.image_url && (
-            <div style={{ marginBottom: "14px" }}>
-              <img
-                src={q.image_url}
-                alt="Question image"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                style={{ maxWidth: "100%", borderRadius: "8px", border: "1px solid rgba(3,72,82,0.1)", display: "block" }}
-              />
-            </div>
-          )}
-
-          {/* MCQ options */}
-          {q.question_type === "MCQ" && q.options.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "12px" }}>
-              {q.options.map((opt) => {
-                const isStudentAnswer = q.student_answer === opt.id;
-                const isCorrect = opt.is_correct;
-                // Correct answer only shows once revealed.
-                const showCorrect      = revealed && isCorrect;
-                const showStudentWrong = revealed && isStudentAnswer && !isCorrect;
-
-                const bg =
-                  showCorrect      ? "rgba(10,190,98,0.12)" :
-                  showStudentWrong ? "rgba(229,62,62,0.08)" :
-                  isStudentAnswer  ? "rgba(3,72,82,0.06)" :
-                  "rgba(3,72,82,0.03)";
-                const border =
-                  showCorrect      ? "#0abe62" :
-                  showStudentWrong ? "#e53e3e" :
-                  isStudentAnswer  ? "rgba(3,72,82,0.2)" :
-                  "rgba(3,72,82,0.08)";
-                const dot =
-                  showCorrect      ? "#0abe62" :
-                  showStudentWrong ? "#e53e3e" :
-                  isStudentAnswer  ? "#209379" :
-                  "rgba(3,72,82,0.25)";
-                const fillRadio = isStudentAnswer || showCorrect;
-
-                return (
-                  <div key={opt.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "9px 14px", borderRadius: "8px", background: bg, border: `1.5px solid ${border}` }}>
-                    <span style={{ width: "16px", height: "16px", borderRadius: "50%", flexShrink: 0, border: `2px solid ${dot}`, background: "#fff", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {fillRadio && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot }} />}
-                    </span>
-                    <MathContent inline html={opt.option_text} style={{ fontSize: "14px", color: "#034852" }} />
-                    <span style={{ marginLeft: "auto", display: "flex", gap: "8px", flexShrink: 0 }}>
-                      {isStudentAnswer && (
-                        <span style={{ fontSize: "11px", color: "rgba(3,72,82,0.5)" }}>Your answer</span>
-                      )}
-                      {showCorrect && (
-                        <span style={{ fontSize: "11px", color: "#0abe62" }}>Correct</span>
-                      )}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* FILL / NUMERICAL / ESSAY */}
-          {(q.question_type === "FILL" || q.question_type === "NUMERICAL" || q.question_type === "ESSAY") && (
-            <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginBottom: "12px" }}>
-              <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(3,72,82,0.04)", border: "1px solid rgba(3,72,82,0.1)", flex: 1, minWidth: "250px" }}>
-                <p style={{ margin: 0, fontSize: "11px", color: "rgba(3,72,82,0.5)", fontWeight: 600 }}>Your answer</p>
-                <p style={{ margin: "4px 0 0", fontSize: "14px", fontWeight: 700, color: q.is_correct === false ? "#e53e3e" : "#034852", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {q.student_answer ?? "—"}
-                </p>
-              </div>
-              {revealed && (
-                <div style={{ padding: "8px 14px", borderRadius: "8px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.2)" }}>
-                  <p style={{ margin: 0, fontSize: "11px", color: "#0abe62", fontWeight: 600 }}>Correct answer</p>
-                  <p style={{ margin: "2px 0 0", fontSize: "14px", fontWeight: 700, color: "#034852" }}>
-                    {q.correct_answer ? <MathContent inline html={q.correct_answer} /> : "—"}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Explanation video */}
-          {revealed && embedUrl && (
-            <div style={{ marginTop: "16px" }}>
-              <p style={{ ...label, color: "#034852", marginBottom: "8px" }}>Explanation</p>
-              <div style={{ position: "relative", paddingBottom: "56.25%", height: 0, borderRadius: "10px", overflow: "hidden" }}>
-                <iframe
-                  src={embedUrl}
-                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: "none" }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Solution Text */}
-          {revealed && q.solution_html && (
-            <div style={{ marginTop: "16px", padding: "12px 16px", background: "rgba(10,190,98,0.05)", borderRadius: "8px", border: "1px solid rgba(10,190,98,0.2)" }}>
-              <p style={{ ...label, color: "#0abe62", marginBottom: "8px" }}>Solution</p>
-              <MathContent html={q.solution_html} style={{ fontSize: "14px", lineHeight: 1.6, color: "#034852" }} />
-            </div>
-          )}
-        </div>
-
-        {/* Right: analytics panel */}
-        <div 
-          className="p-5 lg:p-6 flex items-start border-t-[1.5px] lg:border-t-0 lg:border-l-[1.5px]" 
-          style={{ borderColor: `${borderColor}30` }}
-        >
-          <QuestionAnalyticsPanel q={q} />
-        </div>
+  const hasPassage = !!q.instruction_html?.trim();
+  return <article className={styles.question}>
+    <header className={styles.header}>
+      <h3>{questionLabel ?? `Question ${idx + 1}`}</h3>
+      <div className={styles.statusTools}>
+        {reportButton}
+        {answerVisible && <span className={styles[status]}>{allowRetry ? `Submitted: ${statusLabel}` : statusLabel}</span>}
+      </div>
+    </header>
+    <div className={hasPassage ? styles.split : styles.body}>
+      {hasPassage && <section className={styles.passage} aria-label="Passage and instructions">
+        <MathContent html={q.instruction_html!} className={styles.prose} />
+      </section>}
+      <div className={styles.answerPane} id={answerId}>
+        <MathContent html={q.content_html} className={styles.prompt} />
+        {q.image_url && <img src={q.image_url} alt="Question image" className={styles.image} />}
+        {q.question_type === "MCQ" && q.options.length > 0 && <ol className={styles.options} role={retrying ? "radiogroup" : undefined} aria-label="Answer options">
+          {q.options.map((opt, optionIndex) => {
+            const selected = displayedAnswer === opt.id;
+            const correct = answerVisible && opt.is_correct;
+            const wrong = answerVisible && selected && !opt.is_correct;
+            const Option = retrying ? "button" : "div";
+            return <li key={opt.id} className={styles.optionItem}>
+              <Option className={styles.option} data-result={correct ? "correct" : wrong ? "wrong" : selected ? "selected" : undefined}
+                type={retrying ? "button" : undefined} role={retrying ? "radio" : undefined}
+                aria-checked={retrying ? selected : undefined}
+                tabIndex={retrying ? selected || (retryAnswer == null && optionIndex === 0) ? 0 : -1 : undefined}
+                onClick={retrying ? () => setRetryAnswer(opt.id) : undefined}
+                onKeyDown={retrying ? event => {
+                  if (!["ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft"].includes(event.key)) return;
+                  event.preventDefault();
+                  const index = (optionIndex + (["ArrowDown", "ArrowRight"].includes(event.key) ? 1 : -1) + q.options.length) % q.options.length;
+                  setRetryAnswer(q.options[index].id);
+                  event.currentTarget.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[index]?.focus();
+                } : undefined}>
+                <span className={styles.optionLetter} aria-hidden="true">{String.fromCharCode(65 + optionIndex)}.</span>
+                <span className={styles.optionContent}>
+                  <MathContent inline html={opt.option_text} />
+                  {(selected || correct) && <span className={styles.optionNote}>
+                    {selected && correct ? `${allowRetry ? "Your retry" : "Your answer"} · correct` : selected ? allowRetry ? "Your retry" : "Your answer" : "Correct answer"}
+                  </span>}
+                  {allowRetry && answerVisible && q.student_answer === opt.id && <span className={styles.optionNote}>Submitted answer</span>}
+                </span>
+              </Option>
+            </li>;
+          })}
+        </ol>}
+        {["FILL", "NUMERICAL", "ESSAY"].includes(q.question_type) && (retrying ? (
+          <label className={styles.retryField}>Try your answer
+            {q.question_type === "ESSAY" ? <textarea value={retryAnswer ?? ""} onChange={event => setRetryAnswer(event.target.value)} rows={5} />
+              : <input type={q.question_type === "NUMERICAL" ? "number" : "text"} value={retryAnswer ?? ""} onChange={event => setRetryAnswer(event.target.value)} />}
+          </label>
+        ) : <dl className={styles.writtenAnswer}>
+          {allowRetry && <div><dt>Your retry</dt><dd>{retryAnswer || "—"}</dd></div>}
+          <div><dt>{allowRetry ? "Submitted answer" : "Your answer"}</dt><dd>{q.student_answer ?? "—"}</dd></div>
+          {answerVisible && <div><dt>Correct answer</dt><dd>{q.correct_answer ? <MathContent html={q.correct_answer} /> : "—"}</dd></div>}
+        </dl>)}
+        {allowRetry && <div className={styles.retryActions}>
+          <button type="button" className={styles.answerToggle} aria-expanded={answerVisible} aria-controls={answerId}
+            onClick={() => setLocalRevealed(value => !value)}>{answerVisible ? "Hide answer" : "View answer"}</button>
+          <p className={styles.retryNote}>Practice only. Your submitted answer and score stay unchanged.</p>
+        </div>}
+        {answerVisible && q.solution_html && <section className={styles.solution}>
+          <h4>Solution</h4><MathContent html={q.solution_html} className={styles.prose} />
+        </section>}
+        {answerVisible && embedUrl && <section className={styles.solution}>
+          <h4>Explanation</h4><iframe className={styles.video} title={`Explanation for ${questionLabel ?? `question ${idx + 1}`}`} src={embedUrl}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+        </section>}
       </div>
     </div>
-  );
+    {showAnalytics && (!allowRetry || answerVisible) && <QuestionAnalyticsPanel q={q} />}
+  </article>;
 }
