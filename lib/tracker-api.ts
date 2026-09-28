@@ -1035,19 +1035,20 @@ export function grantExtension(recordId: string, extendedTo: string, reason: str
   );
 }
 
-// ── CSV export ────────────────────────────────────────────────────────────────
+// ── export ────────────────────────────────────────────────────────────────────
 // A manager's download of one task: every record they can see, its filled values, the
-// evidence attached to it and a rollup of its audit trail. `history` adds the full
-// event-by-event log, which arrives as a zip because that is a second file.
+// evidence attached to it and a rollup of its audit trail — or, as `part: "history"`, the
+// full event-by-event log on its own. Either comes as .csv or .xlsx.
 
 export type TaskExportFile = { blob: Blob; filename: string };
 
 export async function fetchTaskExport(
   templateId: string,
-  opts: { history?: boolean; ownerId?: string },
+  opts: { part?: "records" | "history"; format?: "csv" | "xlsx"; ownerId?: string },
 ): Promise<TaskExportFile> {
   const url = new URL(`${API_BASE_URL}/tracker/templates/${encodeURIComponent(templateId)}/export`);
-  if (opts.history) url.searchParams.set("history", "1");
+  if (opts.part === "history") url.searchParams.set("history", "only");
+  if (opts.format === "xlsx") url.searchParams.set("format", "xlsx");
   if (opts.ownerId) url.searchParams.set("ownerId", opts.ownerId);
 
   const r = await apiFetch(url.toString());
@@ -1057,7 +1058,7 @@ export async function fetchTaskExport(
   }
   const disposition = r.headers.get("content-disposition");
   const match = disposition ? /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition) : null;
-  const fallback = opts.history ? "tracker-task-export.zip" : "tracker-task-records.csv";
+  const fallback = `tracker-task-${opts.part ?? "records"}.${opts.format ?? "csv"}`;
   return { blob: await r.blob(), filename: match?.[1] ? decodeURIComponent(match[1]) : fallback };
 }
 
