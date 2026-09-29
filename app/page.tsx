@@ -370,10 +370,14 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
     setIsSubmitting(true);
     setError(null);
     try {
-      const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
-      if (verifyError) {
-        setError(verifyError.message ?? "Invalid code.");
-        return;
+      // A code already accepted on an earlier submit (e.g. the password was
+      // then rejected) can't be verified again — skip straight to the password.
+      if (signIn.status !== "needs_new_password") {
+        const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
+        if (verifyError) {
+          setError(verifyError.message ?? "Invalid code.");
+          return;
+        }
       }
       const { error: submitError } = await signIn.resetPasswordEmailCode.submitPassword({
         password,
