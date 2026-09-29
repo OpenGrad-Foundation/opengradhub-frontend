@@ -285,6 +285,10 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   // Roll-number path: only ask for DOB once we know no email code can be sent.
   const [needsDob, setNeedsDob] = useState(false);
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+  // Once Clerk accepts the code / saves the password, those fields are done;
+  // disabling them also keeps `required` from blocking a retry.
+  const passwordSaved = signIn?.status === "complete";
+  const codeAccepted = passwordSaved || signIn?.status === "needs_new_password";
 
   function handleIdentifierChange(value: string) {
     setIdentifier(value);
@@ -359,29 +363,37 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   async function handleEmailReset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!signIn) return;
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters long.");
-      return;
+    if (!passwordSaved) {
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+      if (password.length < 8) {
+        setError("Password must be at least 8 characters long.");
+        return;
+      }
     }
     setIsSubmitting(true);
     setError(null);
     try {
-      const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
-      if (verifyError) {
-        setError(verifyError.message ?? "Invalid code.");
-        return;
+      // Resume from wherever the last submit stopped: a code Clerk already
+      // accepted (or a password it already saved) can't be submitted again.
+      if (signIn.status === "needs_first_factor") {
+        const { error: verifyError } = await signIn.resetPasswordEmailCode.verifyCode({ code: code.trim() });
+        if (verifyError) {
+          setError(verifyError.message ?? "Invalid code.");
+          return;
+        }
       }
-      const { error: submitError } = await signIn.resetPasswordEmailCode.submitPassword({
-        password,
-        signOutOfOtherSessions: true,
-      });
-      if (submitError) {
-        setError(submitError.message ?? "Could not set the new password.");
-        return;
+      if (signIn.status === "needs_new_password") {
+        const { error: submitError } = await signIn.resetPasswordEmailCode.submitPassword({
+          password,
+          signOutOfOtherSessions: true,
+        });
+        if (submitError) {
+          setError(submitError.message ?? "Could not set the new password.");
+          return;
+        }
       }
       if (signIn.status === "complete") {
         const { error: finalizeError } = await signIn.finalize();
@@ -488,6 +500,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
               className={`${inputClass} px-4`}
               autoComplete="one-time-code"
               required
+              disabled={codeAccepted}
             />
           </div>
 
@@ -509,6 +522,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
                 className={`${inputClass} pl-11 pr-4`}
                 autoComplete="new-password"
                 required
+                disabled={passwordSaved}
               />
             </div>
           </div>
@@ -531,6 +545,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
                 className={`${inputClass} pl-11 pr-4`}
                 autoComplete="new-password"
                 required
+                disabled={passwordSaved}
               />
             </div>
           </div>
