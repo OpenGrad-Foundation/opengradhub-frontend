@@ -5,6 +5,7 @@ import type { Quiz, Question, QuizAttemptQuestion } from "@/lib/api";
 import type { AttemptReviewQuestion } from "@/lib/api";
 import { type AnswerMap } from "@/components/question-view";
 import { QuizExam } from "@/components/quiz-exam";
+import { flattenGroups } from "@/lib/flatten-groups";
 import { CalculatorWindow } from "@/components/calculator-window";
 import examStyles from "./quiz-exam.module.css";
 import reviewStyles from "./question-review.module.css";
@@ -85,7 +86,7 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
   const sections = buildSections(quiz);
 
   // Flatten all questions in order (same as real quiz: attempt.questions)
-  const allQuestions: QuizAttemptQuestion[] = sections.flatMap((s) => s.questions);
+  const allQuestions: QuizAttemptQuestion[] = flattenGroups(sections.flatMap((s) => s.questions));
   const total = allQuestions.length;
 
   const [currentIdx, setCurrentIdx] = useState(0);
