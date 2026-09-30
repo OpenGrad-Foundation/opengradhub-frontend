@@ -37,6 +37,7 @@ import { QuizExam } from "@/components/quiz-exam";
 import examStyles from "@/components/quiz-exam.module.css";
 import { loadDraft, saveDraft, clearDraft, type QuizDraft } from "@/lib/quiz-draft";
 import { computeSectionStats } from "@/lib/section-stats";
+import { flattenGroups } from "@/lib/flatten-groups";
 import { CalculatorWindow } from "@/components/calculator-window";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 
@@ -171,7 +172,7 @@ function TimingBreakdown({ questions, timings }: { questions: QuizAttemptQuestio
   const rows: { label: string; seconds: number }[] = [];
   questions.forEach((q, i) => {
     rows.push({
-      label: `Q${i + 1}${q.question_type === "GROUP" ? " (group)" : ""}`,
+      label: `Q${i + 1}${q.group ? ` (part ${q.group.part}/${q.group.count})` : ""}`,
       seconds: timings[q.snapshot_id] ?? 0,
     });
   });
@@ -586,7 +587,9 @@ export default function QuizTakingPage() {
       } catch {
         // IndexedDB unavailable — non-fatal, start with empty answers.
       }
-      setAttempt(started);
+      // Each GROUP child becomes its own palette slot; the passage repeats beside every part.
+      const questions = flattenGroups(started.questions);
+      setAttempt({ ...started, questions });
       setSections(started.sections);
       setCurrentSectionIdx(started.current_section_index ?? null);
       if (quiz?.sequential_sections) {
@@ -604,9 +607,9 @@ export default function QuizTakingPage() {
       const serverAnswers = quiz?.sequential_sections ? {} : started.saved_answers ?? {};
       setAnswers({ ...serverAnswers, ...(draft?.answers ?? {}) });
       lastServerSaveRef.current = "";
-      const resumeIdx = Math.max(0, Math.min(draft?.current_idx ?? 0, started.questions.length - 1));
+      const resumeIdx = Math.max(0, Math.min(draft?.current_idx ?? 0, questions.length - 1));
       setCurrentIdx(resumeIdx);
-      setVisited(new Set([...(draft?.visited ?? []), ...(started.questions[resumeIdx] ? [started.questions[resumeIdx].snapshot_id] : [])]));
+      setVisited(new Set([...(draft?.visited ?? []), ...(questions[resumeIdx] ? [questions[resumeIdx].snapshot_id] : [])]));
       setFlagged(new Set(draft?.flagged ?? []));
       setTimeElapsed(elapsedSeconds);
       timingsRef.current = {};
@@ -635,15 +638,7 @@ export default function QuizTakingPage() {
       }
       enterTimesRef.current = {};
 
-      const allSnapshotIds: string[] = [];
-      for (const q of attempt.questions) {
-        if (q.question_type === 'GROUP') {
-          for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
-        } else {
-          allSnapshotIds.push(q.snapshot_id);
-        }
-      }
-      const answerList = allSnapshotIds.map((snapshot_id) => ({
+      const answerList = attempt.questions.map(({ snapshot_id }) => ({
         snapshot_id,
         student_answer: answers[snapshot_id] ?? null,
         time_taken_seconds: timingsRef.current[snapshot_id] ?? null,
@@ -750,15 +745,7 @@ export default function QuizTakingPage() {
         enterTimesRef.current = {};
 
         // Build the answer list for the CURRENT section's questions only
-        const allSnapshotIds: string[] = [];
-        for (const q of attempt.questions) {
-          if (q.question_type === "GROUP") {
-            for (const child of q.children) allSnapshotIds.push(child.snapshot_id);
-          } else {
-            allSnapshotIds.push(q.snapshot_id);
-          }
-        }
-        const answerList = allSnapshotIds.map((sid) => ({
+        const answerList = attempt.questions.map(({ snapshot_id: sid }) => ({
           snapshot_id: sid,
           student_answer: answers[sid] ?? null,
           time_taken_seconds: timingsRef.current[sid] ?? null,
@@ -784,7 +771,7 @@ export default function QuizTakingPage() {
         const res = await advanceQuizSection(attempt.attempt_id, answerList);
         if (res.type === "next") {
           if (isFinalSection) setPhase("taking"); // recover: server returned next unexpectedly
-          setAttempt({ ...attempt, questions: res.snapshots });
+          setAttempt({ ...attempt, questions: flattenGroups(res.snapshots) });
           setCurrentSectionIdx(res.section_index);
           sectionStartRef.current = Date.now();
           setCurrentIdx(0);
@@ -870,6 +857,8 @@ export default function QuizTakingPage() {
   }
 
   if (phase === "intro" && quiz) {
+    // Matches the palette: every part of a GROUP counts as its own question.
+    const questionCount = quiz.questions.reduce((n, q) => n + (q.question_type === "GROUP" ? q.children.length : 1), 0);
     const exhausted = quiz.max_attempts != null && quiz.max_attempts > 0 && attemptsUsed >= quiz.max_attempts;
     // Device clock only (no server offset before Start) — good enough to pick the wording.
     const attemptTimeIsUp = !!incompleteAttempt && !!quiz.duration_minutes && !quiz.sequential_sections
@@ -894,7 +883,7 @@ export default function QuizTakingPage() {
             {quiz.pass_threshold_percent && (
               <span style={pill}>Pass: {quiz.pass_threshold_percent}%</span>
             )}
-            <span style={pill}>{quiz.questions.length} question{quiz.questions.length !== 1 ? "s" : ""}</span>
+            <span style={pill}>{questionCount} question{questionCount !== 1 ? "s" : ""}</span>
           </div>
 
           {quiz.description != null && quiz.description.trim() !== "" && (

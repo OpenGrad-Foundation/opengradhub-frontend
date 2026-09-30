@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { QuizAttemptQuestion } from '../lib/api';
 import { QuizExam } from '../components/quiz-exam';
+import { flattenGroups } from '../lib/flatten-groups';
 import { QuizStudentPreview } from '../components/quiz-student-preview';
 import type { Quiz } from '../lib/api';
 
@@ -70,15 +71,24 @@ it('opens the compact palette, returns to the chosen question, and can dismiss w
   expect(document.activeElement).toBe(toggle);
 });
 
-it('does not mark a partly answered question group complete and clears all its parts', () => {
+it('shows each part of a question group as its own question with the passage repeated', () => {
   const group = { ...questions[0], question_type: 'GROUP', content_html: 'Shared passage', options: [], children: questions.slice(1) };
-  render(<Exam items={[group]} />);
-  fireEvent.click(screen.getByRole('radio', { name: 'Answer 2' }));
+  render(<Exam items={flattenGroups([group])} />);
+  // Two palette slots, not one "group" slot.
   expect(screen.getByRole('button', { name: 'Question 1: Not answered' })).toBeTruthy();
-  fireEvent.click(screen.getByRole('radio', { name: 'Answer 3' }));
+  expect(screen.getByRole('button', { name: 'Question 2: Not visited' })).toBeTruthy();
+  expect(screen.getByText('Shared passage')).toBeTruthy();
+  expect(screen.getByText('Part 1 of 2')).toBeTruthy();
+  // Only this part's answer is on screen; answering it completes this question alone.
+  expect(screen.queryByRole('radio', { name: 'Answer 3' })).toBeNull();
+  fireEvent.click(screen.getByRole('radio', { name: 'Answer 2' }));
   expect(screen.getByRole('button', { name: 'Question 1: Answered' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Clear Response' }));
-  expect(screen.getAllByRole('radio').every(el => el.getAttribute('aria-checked') === 'false')).toBe(true);
+  expect(screen.getByRole('button', { name: 'Question 1: Not answered' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save & Next' }));
+  expect(screen.getByText('Shared passage')).toBeTruthy();
+  expect(screen.getByText('Part 2 of 2')).toBeTruthy();
+  expect(screen.getByRole('radio', { name: 'Answer 3' })).toBeTruthy();
 });
 
 it('does not count a skipped numerical preview answer as correct or invent timing statistics', () => {

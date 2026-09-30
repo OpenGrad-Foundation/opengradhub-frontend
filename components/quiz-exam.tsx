@@ -15,11 +15,10 @@ const statusLabels = {
 type Status = keyof typeof statusLabels;
 
 function questionStatus(q: QuizAttemptQuestion, answers: AnswerMap, flagged: Set<string>, visited: Set<string>): Status {
-  const items = q.question_type === "GROUP" ? q.children : [q];
-  const answered = items.length > 0 && items.every(item => (answers[item.snapshot_id] ?? "").trim() !== "");
+  const answered = (answers[q.snapshot_id] ?? "").trim() !== "";
   if (flagged.has(q.snapshot_id)) return answered ? "reviewedAnswer" : "review";
   if (answered) return "answered";
-  return visited.has(q.snapshot_id) || items.some(item => answers[item.snapshot_id] != null) ? "unanswered" : "unvisited";
+  return visited.has(q.snapshot_id) || answers[q.snapshot_id] != null ? "unanswered" : "unvisited";
 }
 
 export function QuizExam({
@@ -57,10 +56,7 @@ export function QuizExam({
   const statuses = questions.map(item => questionStatus(item, answers, flagged, seen));
   const last = currentIdx === questions.length - 1;
   const count = (status: Status) => statuses.filter(item => item === status).length;
-  const clear = () => {
-    if (q.question_type === "GROUP") q.children.forEach(child => onAnswer(child.snapshot_id, null));
-    else onAnswer(q.snapshot_id, null);
-  };
+  const clear = () => onAnswer(q.snapshot_id, null);
 
   return (
     <div className={styles.exam} data-palette-open={paletteOpen} onKeyDown={event => {
@@ -87,7 +83,7 @@ export function QuizExam({
           <div className={styles.questionHeader} ref={headingRef}>
             <h2>Question {currentIdx + 1} <span>of {questions.length}</span></h2>
             <div className={styles.questionTools}>
-              {q.question_type !== "GROUP" && renderReportButton?.(q.snapshot_id)}
+              {renderReportButton?.(q.snapshot_id)}
               <button type="button" className={styles.reviewToggle} aria-pressed={flagged.has(q.snapshot_id)} onClick={() => onToggleFlag(q.snapshot_id)}>
                 {flagged.has(q.snapshot_id) ? "Unmark review" : "Mark for review"}
               </button>
@@ -128,7 +124,6 @@ export function QuizExam({
                 </button>
               ))}
             </div>
-            {questions.some(item => item.question_type === "GROUP") && <p className={styles.hint}>A question set is answered when all its parts are complete.</p>}
           </div>
           <div className={styles.sidebarActions}>
             {tools}
