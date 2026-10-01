@@ -117,6 +117,18 @@ it('does not count a skipped numerical preview answer as correct or invent timin
   expect(screen.queryByLabelText('Question statistics')).toBeNull();
 });
 
+it('restarts review numbering under each section title in the preview', () => {
+  const q = (id: string) => ({ id, question_type: 'NUMERICAL', content_html: `Content ${id}`, options: [], children: [], correct_answer: null });
+  const quiz = { title: 'Sectioned preview', is_sectioned: true, questions: [],
+    sections: [{ id: 's1', title: 'Quant', questions: [q('a')] }, { id: 's2', title: 'Verbal', questions: [q('b')] }] } as unknown as Quiz;
+  render(<QuizStudentPreview quiz={quiz} onClose={() => {}} />);
+  fireEvent.click(screen.getAllByRole('button', { name: 'Submit Quiz' })[0]);
+  expect(screen.getByRole('heading', { name: 'Quant' })).toBeTruthy();
+  expect(screen.getByRole('heading', { name: 'Verbal' })).toBeTruthy();
+  expect(screen.getAllByText('Question 1')).toHaveLength(2);
+  expect(screen.queryByText('Question 2')).toBeNull();
+});
+
 it('dismisses the palette before closing the preview with Escape', () => {
   const quiz = { title: 'Preview', sections: [], questions: [{ id: 'n1', question_type: 'NUMERICAL', content_html: 'Enter the total', options: [], children: [] }] } as unknown as Quiz;
   const onClose = vi.fn();
