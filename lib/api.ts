@@ -2821,6 +2821,14 @@ export type QuizAttemptQuestion = {
     image_url?: string | null;
     options: { id: string; option_text: string }[];
   }[];
+  /** Set by flattenGroups on a GROUP child: the shared passage + this child's part number. */
+  group?: {
+    content_html: string;
+    instruction_html: string | null;
+    image_url: string | null;
+    part: number;
+    count: number;
+  };
 };
 
 export type StartedAttemptSection = {

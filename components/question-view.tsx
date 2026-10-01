@@ -38,26 +38,26 @@ export function QuestionView({
 }) {
   const current = answers[q.snapshot_id] ?? null;
 
-  if (exam && (q.question_type === "GROUP" || q.instruction_html?.trim())) {
+  // A GROUP child (flattened by flattenGroups) shows the shared passage on the
+  // left and just its own part on the right — each part is its own question.
+  if (exam && (q.group || q.instruction_html?.trim())) {
+    const group = q.group;
     return (
       <div className={examStyles.splitQuestion}>
         <section className={examStyles.passage} aria-label="Passage and instructions">
-          <h3>{q.question_type === "GROUP" ? "Passage / question set" : "Passage / instructions"}</h3>
-          {q.instruction_html?.trim() && <MathContent html={q.instruction_html} />}
-          {q.question_type === "GROUP" && <>
-            <MathContent html={q.content_html} />
-            {q.image_url && <img src={q.image_url} alt="Passage image" style={{ maxWidth: "100%" }} />}
+          <h3>{group ? "Passage / question set" : "Passage / instructions"}</h3>
+          {group?.instruction_html?.trim() && <MathContent html={group.instruction_html} />}
+          {group && <>
+            <MathContent html={group.content_html} />
+            {group.image_url && <img src={group.image_url} alt="Passage image" style={{ maxWidth: "100%" }} />}
           </>}
+          {q.instruction_html?.trim() && <MathContent html={q.instruction_html} />}
         </section>
         <div className={examStyles.answerPane}>
-          {q.question_type === "GROUP" ? q.children.map((child, i) => (
-            <section key={child.snapshot_id} style={{ marginBottom: 28 }} aria-label={`Part ${i + 1}`}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <strong>Part {i + 1}</strong>{renderReportButton?.(child.snapshot_id)}
-              </div>
-              <QuestionView q={{ ...child, children: [] }} answers={answers} setAnswer={setAnswer} exam />
-            </section>
-          )) : <QuestionView q={{ ...q, instruction_html: null }} answers={answers} setAnswer={setAnswer} exam />}
+          {group && <p style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Part {group.part} of {group.count}
+          </p>}
+          <QuestionView q={{ ...q, group: undefined, instruction_html: null }} answers={answers} setAnswer={setAnswer} exam />
         </div>
       </div>
     );
