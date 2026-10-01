@@ -129,16 +129,17 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
   if (!q) return null;
 
   if (mode === "REVIEW") {
-    const reviewQs: AttemptReviewQuestion[] = [];
-    const originalQuestions = isSectioned ? quiz.sections.flatMap(s => s.questions) : quiz.questions;
-    
-    originalQuestions.forEach(qItem => {
-      if (qItem.question_type === "GROUP") {
-        qItem.children?.forEach(child => reviewQs.push(toReviewQ(child, answers, qItem)));
-      } else {
-        reviewQs.push(toReviewQ(qItem, answers));
-      }
-    });
+    // Grouped by section so numbering restarts at 1 in each, like the real review page.
+    const source: { id: string; title: string; questions: Quiz["questions"] }[] =
+      isSectioned ? quiz.sections : [{ id: "__all__", title: "", questions: quiz.questions }];
+    const reviewSections = source.map(s => ({
+      id: s.id,
+      title: s.title,
+      questions: s.questions.flatMap(qItem => qItem.question_type === "GROUP"
+        ? (qItem.children ?? []).map(child => toReviewQ(child, answers, qItem))
+        : [toReviewQ(qItem, answers)]),
+    }));
+    const reviewQs: AttemptReviewQuestion[] = reviewSections.flatMap(s => s.questions);
 
     const correct = reviewQs.filter(rq => rq.is_correct === true).length;
     const totalQuestions = reviewQs.length;
@@ -155,20 +156,25 @@ export function QuizStudentPreview({ quiz, onClose }: { quiz: Quiz; onClose: () 
             <div><p>{quiz.title}</p><h1>Answer review</h1></div>
             <p><strong>{correct} / {totalQuestions}</strong> correct in this preview</p>
           </div>
-          {reviewQs.map((rq, idx) => {
-            const hasParent = rq.parent_snapshot_id != null;
-            const isFirstOfParent = hasParent && !seenParents.has(rq.parent_snapshot_id!);
-            if (isFirstOfParent) seenParents.add(rq.parent_snapshot_id!);
+          {reviewSections.map(section => (
+            <section key={section.id}>
+              {isSectioned && <h2 style={{ fontSize: "18px", fontWeight: 800, margin: "24px 0 12px" }}>{section.title}</h2>}
+              {section.questions.map((rq, idx) => {
+                const hasParent = rq.parent_snapshot_id != null;
+                const isFirstOfParent = hasParent && !seenParents.has(rq.parent_snapshot_id!);
+                if (isFirstOfParent) seenParents.add(rq.parent_snapshot_id!);
 
-            return (
-              <div key={rq.snapshot_id}>
-                {isFirstOfParent && (
-                  <PassageCard html={rq.parent_content_html ?? ""} imageUrl={rq.parent_image_url ?? null} instructionHtml={rq.parent_instruction_html ?? null} />
-                )}
-                <QuestionReviewCard q={rq} idx={idx} allowRetry questionLabel={`Question ${idx + 1}`} showAnalytics={false} />
-              </div>
-            );
-          })}
+                return (
+                  <div key={rq.snapshot_id}>
+                    {isFirstOfParent && (
+                      <PassageCard html={rq.parent_content_html ?? ""} imageUrl={rq.parent_image_url ?? null} instructionHtml={rq.parent_instruction_html ?? null} />
+                    )}
+                    <QuestionReviewCard q={rq} idx={idx} allowRetry questionLabel={`Question ${idx + 1}`} showAnalytics={false} />
+                  </div>
+                );
+              })}
+            </section>
+          ))}
         </main>
       </div>
     );

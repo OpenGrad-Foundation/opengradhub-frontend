@@ -91,6 +91,21 @@ it('shows each part of a question group as its own question with the passage rep
   expect(screen.getByRole('radio', { name: 'Answer 3' })).toBeTruthy();
 });
 
+it('restarts numbering, palette and counts in each section', () => {
+  const sectioned = questions.map((item, i) => ({ ...item, section_id: i < 2 ? 's1' : 's2' }));
+  render(<Exam items={sectioned} />);
+  expect(screen.getByRole('heading', { name: 'Question 1 of 2' })).toBeTruthy();
+  expect(screen.getByText('2 total')).toBeTruthy();
+  // Section 2's question is not in section 1's palette.
+  expect(screen.queryByRole('button', { name: /^Question 3:/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Save & Next' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save & Next' }));
+  expect(screen.getByRole('heading', { name: 'Question 1 of 1' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Question 1: Not answered' }).getAttribute('aria-current')).toBe('step');
+  expect(screen.queryByRole('button', { name: /^Question 2:/ })).toBeNull();
+  expect(screen.getByRole('radio', { name: 'Answer 3' })).toBeTruthy();
+});
+
 it('does not count a skipped numerical preview answer as correct or invent timing statistics', () => {
   const quiz = { title: 'Numerical preview', sections: [], questions: [{ id: 'n1', question_type: 'NUMERICAL', content_html: 'Enter the total', options: [], children: [], correct_answer: null }] } as unknown as Quiz;
   render(<QuizStudentPreview quiz={quiz} onClose={() => {}} />);
