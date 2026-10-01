@@ -15,11 +15,10 @@ const statusLabels = {
 type Status = keyof typeof statusLabels;
 
 function questionStatus(q: QuizAttemptQuestion, answers: AnswerMap, flagged: Set<string>, visited: Set<string>): Status {
-  const items = q.question_type === "GROUP" ? q.children : [q];
-  const answered = items.length > 0 && items.every(item => (answers[item.snapshot_id] ?? "").trim() !== "");
+  const answered = (answers[q.snapshot_id] ?? "").trim() !== "";
   if (flagged.has(q.snapshot_id)) return answered ? "reviewedAnswer" : "review";
   if (answered) return "answered";
-  return visited.has(q.snapshot_id) || items.some(item => answers[item.snapshot_id] != null) ? "unanswered" : "unvisited";
+  return visited.has(q.snapshot_id) || answers[q.snapshot_id] != null ? "unanswered" : "unvisited";
 }
 
 export function QuizExam({
@@ -56,11 +55,11 @@ export function QuizExam({
   const seen = new Set(visited).add(q.snapshot_id);
   const statuses = questions.map(item => questionStatus(item, answers, flagged, seen));
   const last = currentIdx === questions.length - 1;
-  const count = (status: Status) => statuses.filter(item => item === status).length;
-  const clear = () => {
-    if (q.question_type === "GROUP") q.children.forEach(child => onAnswer(child.snapshot_id, null));
-    else onAnswer(q.snapshot_id, null);
-  };
+  // Numbering, palette and counts cover the current section only, so every section starts at 1.
+  // Unsectioned quizzes (and sequential ones, which only hold one section) keep every question.
+  const sectionIdxs = questions.flatMap((item, i) => (item.section_id ?? null) === (q.section_id ?? null) ? [i] : []);
+  const count = (status: Status) => sectionIdxs.filter(i => statuses[i] === status).length;
+  const clear = () => onAnswer(q.snapshot_id, null);
 
   return (
     <div className={styles.exam} data-palette-open={paletteOpen} onKeyDown={event => {
@@ -85,9 +84,9 @@ export function QuizExam({
       <div className={styles.workspace}>
         <main className={styles.main}>
           <div className={styles.questionHeader} ref={headingRef}>
-            <h2>Question {currentIdx + 1} <span>of {questions.length}</span></h2>
+            <h2>Question {sectionIdxs.indexOf(currentIdx) + 1} <span>of {sectionIdxs.length}</span></h2>
             <div className={styles.questionTools}>
-              {q.question_type !== "GROUP" && renderReportButton?.(q.snapshot_id)}
+              {renderReportButton?.(q.snapshot_id)}
               <button type="button" className={styles.reviewToggle} aria-pressed={flagged.has(q.snapshot_id)} onClick={() => onToggleFlag(q.snapshot_id)}>
                 {flagged.has(q.snapshot_id) ? "Unmark review" : "Mark for review"}
               </button>
@@ -108,7 +107,7 @@ export function QuizExam({
           </footer>
         </main>
         <aside className={styles.sidebar} id={paletteId} aria-label="Question navigation">
-          <div className={styles.sidebarTitle}><h2>Question palette</h2><span>{questions.length} total</span></div>
+          <div className={styles.sidebarTitle}><h2>Question palette</h2><span>{sectionIdxs.length} total</span></div>
           <div className={styles.legend}>
             {(Object.entries(statusLabels) as [Status, string][]).map(([status, label]) => (
               <div key={status} className={styles.legendItem}>
@@ -120,15 +119,14 @@ export function QuizExam({
           <div className={styles.paletteArea}>
             <p>Choose a question</p>
             <div className={styles.palette}>
-              {questions.map((item, i) => (
-                <button type="button" key={item.snapshot_id} className={`${styles.marker} ${styles[statuses[i]]}`}
-                  aria-label={`Question ${i + 1}: ${statusLabels[statuses[i]]}`} aria-current={i === currentIdx ? "step" : undefined}
+              {sectionIdxs.map((i, n) => (
+                <button type="button" key={questions[i].snapshot_id} className={`${styles.marker} ${styles[statuses[i]]}`}
+                  aria-label={`Question ${n + 1}: ${statusLabels[statuses[i]]}`} aria-current={i === currentIdx ? "step" : undefined}
                   onClick={() => { onNavigate(i); if (paletteOpen) closePalette(); }} disabled={busy}>
-                  {i + 1}{statuses[i] === "reviewedAnswer" && <i aria-hidden="true">✓</i>}
+                  {n + 1}{statuses[i] === "reviewedAnswer" && <i aria-hidden="true">✓</i>}
                 </button>
               ))}
             </div>
-            {questions.some(item => item.question_type === "GROUP") && <p className={styles.hint}>A question set is answered when all its parts are complete.</p>}
           </div>
           <div className={styles.sidebarActions}>
             {tools}
