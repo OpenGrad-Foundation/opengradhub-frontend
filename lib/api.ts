@@ -1146,9 +1146,12 @@ export type QuestionFilters = {
   difficulty?: string;
   /** Return only questions attached to this quiz. */
   quiz_id?: string;
-  /** Full-text search on content_html. */
+  /** Search on content_html, subject and topic. */
   search?: string;
   tag?: string;
+  /** Page size (server caps at 200). Omit to load the whole bank. */
+  limit?: number;
+  offset?: number;
 };
 
 export async function getQuestions(filters: QuestionFilters = {}): Promise<Question[]> {
@@ -1161,6 +1164,8 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
   if (filters.search) url.searchParams.set("search", filters.search);
   if (filters.tag) url.searchParams.set("tag", filters.tag);
+  if (filters.limit) url.searchParams.set("limit", String(filters.limit));
+  if (filters.offset) url.searchParams.set("offset", String(filters.offset));
   const response = await apiFetch(url.toString());
   if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
   return (await response.json()) as Question[];

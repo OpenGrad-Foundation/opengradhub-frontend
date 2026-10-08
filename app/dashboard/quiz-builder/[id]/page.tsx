@@ -963,6 +963,8 @@ function QuizQuestionRow({
 
 // ── Bank Picker Modal ──────────────────────────────────────────
 
+const BANK_PICKER_LIMIT = 50;
+
 function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: string; sectionId?: string; onClose: () => void; onPicked: () => void }) {
   const [bankQs, setBankQs]             = useState<Question[]>([]);
   const [loadingBank, setLoadingBank]   = useState(true);
@@ -971,19 +973,20 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
   const [copying, setCopying]           = useState(false);
   const [err, setErr]                   = useState<string | null>(null);
 
+  // Search server-side and cap the page: the whole bank is ~18 MB of HTML and
+  // loading it here OOM-crashed the API and flooded /quizzes/images.
   useEffect(() => {
+    let cancelled = false;
     setLoadingBank(true);
-    getQuestions()
-      .then(setBankQs)
-      .catch(() => setBankQs([]))
-      .finally(() => setLoadingBank(false));
-  }, []);
+    const t = setTimeout(() => {
+      getQuestions({ search: search.trim() || undefined, limit: BANK_PICKER_LIMIT })
+        .then(qs => { if (!cancelled) setBankQs(qs); })
+        .catch(() => { if (!cancelled) setBankQs([]); })
+        .finally(() => { if (!cancelled) setLoadingBank(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [search]);
 
-  const filtered = bankQs.filter(q =>
-    stripHtml(q.content_html).toLowerCase().includes(search.toLowerCase()) ||
-    (q.subject ?? "").toLowerCase().includes(search.toLowerCase()) ||
-    (q.topic ?? "").toLowerCase().includes(search.toLowerCase())
-  );
 
   async function handleAttach() {
     if (selected.size === 0) return;
@@ -1042,11 +1045,11 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
         <div style={{ flex: 1, overflowY: "auto", border: "1px solid rgba(3,72,82,0.1)", borderRadius: "14px", minHeight: 0 }}>
           {loadingBank ? (
             <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>Loading bank…</p>
-          ) : filtered.length === 0 ? (
+          ) : bankQs.length === 0 ? (
             <p style={{ padding: "20px", textAlign: "center", color: "rgba(3,72,82,0.5)", fontSize: "13px" }}>
               {search ? "No questions match." : "Bank is empty."}
             </p>
-          ) : filtered.map((q, i) => {
+          ) : bankQs.map((q, i) => {
             const checked = selected.has(q.id);
             return (
               <div
@@ -1060,7 +1063,7 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
                 style={{
                   display: "flex", gap: "12px", alignItems: "flex-start",
                   padding: "12px 16px",
-                  borderBottom: i < filtered.length - 1 ? "1px solid rgba(3,72,82,0.05)" : "none",
+                  borderBottom: i < bankQs.length - 1 ? "1px solid rgba(3,72,82,0.05)" : "none",
                   background: checked ? "rgba(10,190,98,0.07)" : "transparent",
                   borderLeft: checked ? "3px solid #0abe62" : "3px solid transparent",
                   cursor: "pointer", transition: "all 150ms ease",
@@ -1081,6 +1084,11 @@ function BankPickerModal({ quizId, sectionId, onClose, onPicked }: { quizId: str
           })}
         </div>
 
+        {!loadingBank && bankQs.length === BANK_PICKER_LIMIT && (
+          <p style={{ fontSize: "12px", color: "rgba(3,72,82,0.5)", margin: "8px 0 0" }}>
+            Showing {BANK_PICKER_LIMIT} questions. Search to find more.
+          </p>
+        )}
         {err && <p style={{ fontSize: "13px", color: "#e53e3e", fontWeight: 600, margin: "10px 0 0" }}>{err}</p>}
 
         {/* Footer */}
