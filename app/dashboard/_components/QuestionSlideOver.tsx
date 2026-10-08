@@ -255,6 +255,10 @@ export function QuestionSlideOver({
     setChildren(p => p.map(c => c._key === ck
       ? { ...c, options: c.options.map(o => ({ ...o, is_correct: o._key === ok })) }
       : c));
+  const addChildOpt = (ck: number) =>
+    setChildren(p => p.map(c => c._key === ck ? { ...c, options: [...c.options, emptyOption()] } : c));
+  const removeChildOpt = (ck: number, ok: number) =>
+    setChildren(p => p.map(c => c._key === ck ? { ...c, options: c.options.filter(o => o._key !== ok) } : c));
   const addChild = () => setChildren(p => [...p, emptyChild()]);
   const removeChild = (key: number) => setChildren(p => p.filter(c => c._key !== key));
 
@@ -293,6 +297,14 @@ export function QuestionSlideOver({
       setFormError("Correct answer is required."); return;
     }
     if (qType === "GROUP" && children.length === 0) { setFormError("Add at least one child question."); return; }
+    if (qType === "GROUP") {
+      for (const [ci, c] of children.entries()) {
+        if (c.question_type !== "MCQ") continue;
+        const filled = c.options.filter(o => o.option_text.trim());
+        if (filled.length < 2) { setFormError(`Sub-question ${ci + 1}: provide at least 2 options.`); return; }
+        if (!filled.some(o => o.is_correct)) { setFormError(`Sub-question ${ci + 1}: mark a filled-in option as correct.`); return; }
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -771,8 +783,12 @@ export function QuestionSlideOver({
                             <div key={opt._key} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                               <input type="radio" name={`child-${child._key}-correct`} value={String(opt._key)} checked={opt.is_correct} onChange={() => setChildOptCorrect(child._key, opt._key)} onClick={() => setChildOptCorrect(child._key, opt._key)} style={{ accentColor: "#0abe62", width: "14px", height: "14px", flexShrink: 0, cursor: "pointer" }} />
                               <input value={opt.option_text} onChange={e => setChildOptText(child._key, opt._key, e.target.value)} style={{ ...S.input, fontSize: "13px" }} placeholder={`Option ${oi + 1}`} />
+                              {child.options.length > 2 && (
+                                <button type="button" onClick={() => removeChildOpt(child._key, opt._key)} style={{ background: "none", border: "none", color: "rgba(220,38,38,0.6)", cursor: "pointer", fontSize: "16px", padding: "0 4px" }}>✕</button>
+                              )}
                             </div>
                           ))}
+                          <button type="button" onClick={() => addChildOpt(child._key)} style={{ ...S.ghost, alignSelf: "flex-start" }}>+ Add option</button>
                         </div>
                       )}
                     </div>
@@ -780,7 +796,6 @@ export function QuestionSlideOver({
                 ))}
               </div>
               <button type="button" onClick={addChild} style={{ ...S.ghost, marginTop: "10px" }}>+ Add sub-question</button>
-              {isEdit && <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.45)", marginTop: "6px" }}>Sub-questions are read-only when editing a GROUP question.</p>}
             </div>
           )}
 
