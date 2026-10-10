@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { SchoolSearchPicker } from "@/components/SchoolSearchPicker";
 import { useInvalidate } from "@/lib/mutations/invalidation";
+import { useProgrammes, useProgrammeSchools } from "@/lib/queries/programmes";
 import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 
 export type BatchFormProps = {
@@ -32,7 +33,15 @@ export type BatchFormProps = {
 export function useBatchForm({ mode, batch, defaultSchoolId, autoFocusName, onSaved }: BatchFormProps) {
   const [name, setName] = useState(batch?.name ?? "");
   const [schoolId, setSchoolId] = useState<string>(batch?.school_id ?? defaultSchoolId ?? "");
-  const [programme, setProgramme] = useState<string>(batch?.programme_type ?? "");
+  // The owning programme, not the old UG/PG/CAT kind: the API scopes batch
+  // creation by programme_id and derives programme_type from it.
+  const [programmeId, setProgrammeId] = useState<string>(batch?.programme_id ?? "");
+  // Only programme-less (legacy / superadmin) batches carry their own kind.
+  const [kind, setKind] = useState<string>(batch?.programme_type ?? "");
+  const { data: programmes = [] } = useProgrammes();
+  // A programme's batches can only sit at schools it hosts
+  // (batches_programme_school_fk), so the picker offers only those.
+  const { data: programmeSchools } = useProgrammeSchools(programmeId || undefined);
   // No default: the product requires an explicit choice, and a pre-selected
   // value is not a choice. The API rejects a create without one too.
   const [deliveryMode, setDeliveryMode] = useState<string>(batch?.delivery_mode ?? "");
@@ -53,6 +62,23 @@ export function useBatchForm({ mode, batch, defaultSchoolId, autoFocusName, onSa
     return () => { cancelled = true; };
   }, []);
 
+  const hostSchools = programmeSchools
+    ? schools.filter((s) => programmeSchools.some((ps) => ps.school_id === s.id))
+    : schools;
+
+  // Switching programme can strand the chosen school outside it; the picker
+  // would then show a blank box while still sending the old id. Create only:
+  // on edit the programme is locked, and the list may be just the caller's
+  // slice of it, so clearing would silently detach the batch's school.
+  useEffect(() => {
+    if (mode === "create" && programmeSchools && schoolId && !programmeSchools.some((ps) => ps.school_id === schoolId)) setSchoolId("");
+  }, [mode, programmeSchools, schoolId]);
+
+  // One programme in reach is not a choice — pre-select it.
+  useEffect(() => {
+    if (mode === "create" && !programmeId && programmes.length === 1) setProgrammeId(programmes[0].id);
+  }, [mode, programmeId, programmes]);
+
   async function save() {
     if (!name.trim()) { setErr("Name is required."); return; }
     if (!deliveryMode) {
@@ -68,7 +94,9 @@ export function useBatchForm({ mode, batch, defaultSchoolId, autoFocusName, onSa
     const payload = {
       name,
       school_id: schoolId || null,
-      programme_type: programme || null,
+      // Ownership is fixed after create (the API ignores it on update) and the API derives programme_type from it.
+      ...(mode === "create" ? { programme_id: programmeId || null } : {}),
+      ...(programmeId ? {} : { programme_type: kind || null }),
       // Omitted on edit once frozen: sending the unchanged value is harmless,
       // but not sending it at all keeps the intent obvious.
       ...(modeLocked ? {} : { delivery_mode: deliveryMode as "ONLINE" | "SCHOOL_BASED" }),
@@ -97,9 +125,38 @@ export function useBatchForm({ mode, batch, defaultSchoolId, autoFocusName, onSa
         <input value={name} onChange={(e) => setName(e.target.value)} style={inputStyle} autoFocus={autoFocusName} placeholder="e.g. Grade 11 — 2026 or IPMAT 2026" />
       </div>
       <div>
+        <label style={formLabelStyle}>Programme</label>
+        <select
+          value={programmeId}
+          onChange={(e) => setProgrammeId(e.target.value)}
+          disabled={mode === "edit"}
+          style={{ ...inputStyle, opacity: mode === "edit" ? 0.6 : 1 }}
+          aria-label="Programme"
+        >
+          <option value="">{mode === "edit" ? "— (no programme)" : "Choose a programme…"}</option>
+          {programmes.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+      {!programmeId && (
+        <div>
+          <label style={formLabelStyle}>Kind (batches without a programme)</label>
+          <select value={kind} onChange={(e) => setKind(e.target.value)} style={inputStyle} aria-label="Kind">
+            <option value="">—</option>
+            {PROGRAMME_KINDS.map((k) => (
+              <option key={k.value} value={k.value}>{k.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
+      <div>
         <label style={formLabelStyle}>Host School (leave empty for an independent batch)</label>
+        {programmeSchools && !hostSchools.length && (
+          <p style={{ fontSize: "11px", color: "rgba(3,72,82,0.55)", margin: "0 0 4px" }}>This programme has no schools attached yet.</p>
+        )}
         <SchoolSearchPicker
-          schools={schools}
+          schools={hostSchools}
           value={schoolId}
           onChange={setSchoolId}
           inputStyle={inputStyle}
@@ -132,15 +189,6 @@ export function useBatchForm({ mode, batch, defaultSchoolId, autoFocusName, onSa
             ? "This batch already has attendance history, so this can no longer change."
             : "Decides which record counts as this batch's attendance. It cannot be changed once attendance exists."}
         </p>
-      </div>
-      <div>
-        <label style={formLabelStyle}>Programme</label>
-        <select value={programme} onChange={(e) => setProgramme(e.target.value)} style={inputStyle}>
-          <option value="">—</option>
-          {PROGRAMME_KINDS.map((k) => (
-            <option key={k.value} value={k.value}>{k.label}</option>
-          ))}
-        </select>
       </div>
       {mode === "edit" && (
         <div>
