@@ -4678,6 +4678,8 @@ export type BatchDetail = Batch & {
 
 export type BatchPayload = {
   name?: string;
+  /** Owning programme; create only — the API ignores it on update. */
+  programme_id?: string | null;
   school_id?: string | null;
   programme_type?: string | null;
   /** Required on create — the API rejects a batch without one. */
