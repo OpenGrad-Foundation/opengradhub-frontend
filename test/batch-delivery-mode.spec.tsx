@@ -14,13 +14,17 @@ const updateBatch = vi.fn();
 
 vi.mock("@/lib/api", async (orig) => ({
   ...(await orig<typeof import("@/lib/api")>()),
-  fetchSchools: async () => [],
+  fetchSchools: async () => [{ id: "s1", name: "Kerala High" }, { id: "s2", name: "Delhi Public" }],
   createBatch: (...a: unknown[]) => createBatch(...a),
   updateBatch: (...a: unknown[]) => updateBatch(...a),
 }));
+vi.mock("@/lib/queries/programmes", () => ({
+  useProgrammes: () => ({ data: [{ id: "p1", name: "UG Kerala", kind: "UG" }, { id: "p2", name: "PG Delhi", kind: "PG" }] }),
+  useProgrammeSchools: (id?: string) => ({ data: id === "p2" ? [{ school_id: "s2", name: "Delhi Public" }] : undefined }),
+}));
 vi.mock("@/lib/mutations/invalidation", () => ({ useInvalidate: () => vi.fn() }));
 vi.mock("@/components/SchoolSearchPicker", () => ({
-  SchoolSearchPicker: () => <div />,
+  SchoolSearchPicker: ({ schools }: { schools: { name: string }[] }) => <div data-testid="schools">{schools.map((s) => s.name).join(",")}</div>,
 }));
 
 import { BatchFormModal } from "@/app/dashboard/batches/BatchFormModal";
@@ -65,6 +69,53 @@ describe("creating a batch", () => {
     fireEvent.click(getByRole("button", { name: "Save" }));
     await waitFor(() => expect(createBatch).toHaveBeenCalled());
     expect(createBatch.mock.calls[0][0]).toMatchObject({ delivery_mode: "ONLINE" });
+  });
+
+  // The API scopes creation by programme_id; a bare UG/PG kind was a 403 for
+  // anyone holding more than one programme.
+  it("sends the chosen programme's id", async () => {
+    const { getByRole, getByLabelText } = render(
+      <BatchFormModal mode="create" onClose={() => {}} onSaved={() => {}} />,
+    );
+    fireEvent.change(getByRole("textbox"), { target: { value: "PG 2026" } });
+    fireEvent.change(getByLabelText("Attendance"), { target: { value: "ONLINE" } });
+    fireEvent.change(getByLabelText("Programme"), { target: { value: "p2" } });
+    fireEvent.click(getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(createBatch).toHaveBeenCalled());
+    expect(createBatch.mock.calls[0][0]).toMatchObject({ programme_id: "p2" });
+  });
+
+  it("offers only the schools the chosen programme hosts", async () => {
+    const { getByLabelText, findByTestId } = render(
+      <BatchFormModal mode="create" onClose={() => {}} onSaved={() => {}} />,
+    );
+    await waitFor(async () => expect((await findByTestId("schools")).textContent).toBe("Kerala High,Delhi Public"));
+    fireEvent.change(getByLabelText("Programme"), { target: { value: "p2" } });
+    expect((await findByTestId("schools")).textContent).toBe("Delhi Public");
+  });
+});
+
+describe("programme and kind on edit", () => {
+  // The edit list can be only the caller's slice of the programme; clearing a
+  // school missing from it would detach the batch on save.
+  it("keeps a school the programme list does not show, and sends no kind for a programme batch", async () => {
+    const { getByRole } = render(
+      <BatchFormModal mode="edit" batch={batch({ programme_id: "p2", school_id: "s1" })} onClose={() => {}} onSaved={() => {}} />,
+    );
+    fireEvent.click(getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateBatch).toHaveBeenCalled());
+    expect(updateBatch.mock.calls[0][1]).toMatchObject({ school_id: "s1" });
+    expect(updateBatch.mock.calls[0][1]).not.toHaveProperty("programme_type");
+  });
+
+  it("still lets a programme-less batch change its kind", async () => {
+    const { getByRole, getByLabelText } = render(
+      <BatchFormModal mode="edit" batch={batch()} onClose={() => {}} onSaved={() => {}} />,
+    );
+    fireEvent.change(getByLabelText("Kind"), { target: { value: "PG" } });
+    fireEvent.click(getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(updateBatch).toHaveBeenCalled());
+    expect(updateBatch.mock.calls[0][1]).toMatchObject({ programme_type: "PG" });
   });
 });
 

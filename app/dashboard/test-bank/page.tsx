@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -30,6 +30,9 @@ import { PROGRAMME_KINDS } from "@/lib/programme-kinds";
 // Stable empty fallback — a fresh Map() per render would change identity every
 // pass and retrigger anything keyed on it.
 const EMPTY_REPORT_COUNTS = new Map<string, number>();
+const EMPTY_SELECTION = new Set<string>();
+const PAGE_SIZE = 50;
+const QUIZ_PAGE_SIZE = 20;
 
 // ── Page ───────────────────────────────────────────────────────
 // Access (`test_bank.view`) is enforced by the backend and the dashboard
@@ -62,15 +65,38 @@ function TestBankPageContent() {
   const [filterTopic, setFilterTopic]     = useState("");
   const [filterDiff, setFilterDiff]       = useState("");
   const [filterTag, setFilterTag]         = useState("");
+  const [filterSearch, setFilterSearch]   = useState("");
+  const [filtersOpen, setFiltersOpen]     = useState(false);
+  // The page resets to 0 whenever any filter changes: it is stored with the
+  // filter set it belongs to, so a stale page number is simply ignored.
+  // The ?reports=open view counts as a filter too.
+  const filterKey = [filterType, filterProg, filterSubject, filterTopic, filterDiff, filterTag, filterSearch, searchParams.get("reports") ?? ""].join("|");
+  const [pageState, setPageState] = useState({ key: filterKey, page: 0 });
+  const page = pageState.key === filterKey ? pageState.page : 0;
+  const setPage = (n: number) => setPageState({ key: filterKey, page: n });
+  const [hasMore, setHasMore] = useState(false);
+  const requestId = useRef(0);
 
   const [panelOpen, setPanelOpen]     = useState(false);
   const [editTarget, setEditTarget]   = useState<Question | null>(null);
   const [bulkOpen, setBulkOpen]       = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Same trick for the selection: it belongs to one filter set and page, so ticked
+  // questions that scroll out of view are dropped instead of being bulk-deleted unseen.
+  const selectionKey = `${filterKey}|${page}`;
+  const [selection, setSelection] = useState({ key: selectionKey, ids: new Set<string>() });
+  const selectedIds = selection.key === selectionKey ? selection.ids : EMPTY_SELECTION;
+  const setSelectedIds = (ids: Set<string>) => setSelection({ key: selectionKey, ids });
 
   // Created Global/Program tests — entry point to re-open them in the builder.
   const [globalTests, setGlobalTests] = useState<Omit<Quiz, "questions">[]>([]);
-  const [globalTestsExpanded, setGlobalTestsExpanded] = useState<boolean>(!!searchParams.get("uploadJobId"));
+  // Program quizzes is the default tab. Links that are about a question (the Reported
+  // dashboard card, a QUESTION_REPORTED notification) open the Questions tab instead.
+  const [tab, setTab] = useState<"questions" | "quizzes">(
+    searchParams.get("tab") === "questions" || searchParams.get("reports") || searchParams.get("question") ? "questions" : "quizzes",
+  );
+  const [quizSearch, setQuizSearch] = useState("");
+  // Same trick as the question pager: a page number only counts for the search/archive view it was set in.
+  const [quizPageState, setQuizPageState] = useState({ key: "", page: 0 });
 
   const [quizToDelete, setQuizToDelete] = useState<{ id: string; title: string } | null>(null);
   const [quizToMove, setQuizToMove]     = useState<{ id: string; title: string } | null>(null);
@@ -137,26 +163,25 @@ function TestBankPageContent() {
   });
 
   // Deep-link from the dashboard "Reported Questions" card: show only questions
-  // that currently have open reports. The reportCounts map is already loaded for
-  // triagers, so this is a pure client-side narrowing — no extra fetch.
+  // that currently have open reports. The list is paged server-side, so the
+  // reported ids (already scoped to what this caller may see) go to the server.
   const reportCounts = canTriage ? cachedReportCounts : EMPTY_REPORT_COUNTS;
   const reportsOnly = canTriage && searchParams.get("reports") === "open";
-  const visibleQuestions = reportsOnly
-    ? questions.filter((q) => (reportCounts.get(q.id) ?? 0) > 0)
-    : questions;
+  const reportedIds = [...reportCounts].filter(([, n]) => n > 0).map(([id]) => id);
+  const reportedIdsKey = reportsOnly ? reportedIds.join(",") : null;
   // How many bank questions currently have open reports — drives the filter button badge.
-  const reportedQuestionCount = [...reportCounts.values()].filter((n) => n > 0).length;
+  const reportedQuestionCount = reportedIds.length;
 
   // Deep link from a QUESTION_REPORTED notification: /dashboard/test-bank?question=<id>.
   // Fetch by id rather than searching the loaded page — the active filters may exclude it,
-  // and the list is paginated in memory, so a lookup would silently no-op.
+  // and the list is paged server-side, so a lookup would silently no-op.
   const deepLinkQuestionId = searchParams.get("question");
   useEffect(() => {
     if (!deepLinkQuestionId) return;
     let cancelled = false;
     // Clear filters so the row is visible behind the panel once the user closes it.
     setFilterType(""); setFilterProg(""); setFilterSubject("");
-    setFilterTopic(""); setFilterDiff(""); setFilterTag("");
+    setFilterTopic(""); setFilterDiff(""); setFilterTag(""); setFilterSearch("");
     getQuestionById(deepLinkQuestionId)
       .then((q) => {
         if (cancelled) return;
@@ -184,26 +209,40 @@ function TestBankPageContent() {
   };
 
   const fetchQuestions = useCallback(async () => {
+    // Only the latest request may write state; a slow earlier one is dropped.
+    const id = ++requestId.current;
     setLoading(true);
     setError(null);
     try {
-      setQuestions(await getQuestions({
+      // One extra row tells us whether a next page exists without a count query.
+      const rows = await getQuestions({
         question_type:   filterType    || undefined,
         programme_type:  filterProg    || undefined,
         subject:         filterSubject || undefined,
         topic:           filterTopic   || undefined,
         difficulty:      filterDiff    || undefined,
         tag:             filterTag     || undefined,
-      }));
+        search:          filterSearch.trim() || undefined,
+        ids:             reportedIdsKey === null ? undefined : reportedIdsKey ? reportedIdsKey.split(",") : [],
+        limit:           PAGE_SIZE + 1,
+        offset:          page * PAGE_SIZE,
+      });
+      if (id !== requestId.current) return;
+      setQuestions(rows.slice(0, PAGE_SIZE));
+      setHasMore(rows.length > PAGE_SIZE);
     } catch (err) {
+      if (id !== requestId.current) return;
       setError(err instanceof Error ? err.message : "Failed to load questions.");
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [filterType, filterProg, filterSubject, filterTopic, filterDiff, filterTag]);
+  }, [filterType, filterProg, filterSubject, filterTopic, filterDiff, filterTag, filterSearch, reportedIdsKey, page]);
 
   useEffect(() => {
-    if (!userLoading) void fetchQuestions();
+    if (userLoading) return;
+    // Debounced so typing in the Subject/Topic/Tag boxes doesn't fire per keystroke.
+    const t = setTimeout(() => void fetchQuestions(), 300);
+    return () => clearTimeout(t);
   }, [userLoading, fetchQuestions]);
 
   const fetchGlobalTests = useCallback(async () => {
@@ -224,6 +263,44 @@ function TestBankPageContent() {
     cleanupUrl: "/dashboard/test-bank",
     onCompleted: fetchGlobalTests,
   });
+
+  const typeLabel = QUESTION_TYPES.find((t) => t.value === filterType)?.label;
+  const activeFilters = [
+    filterSearch.trim() && { label: `"${filterSearch.trim()}"`, clear: () => setFilterSearch("") },
+    filterType          && { label: typeLabel ? shortTypeLabel(typeLabel) : filterType, clear: () => setFilterType("") },
+    filterProg          && { label: filterProg, clear: () => setFilterProg("") },
+    filterDiff          && { label: filterDiff, clear: () => setFilterDiff("") },
+    filterTag           && { label: `Tag: ${filterTag}`, clear: () => setFilterTag("") },
+    filterSubject       && { label: `Subject: ${filterSubject}`, clear: () => setFilterSubject("") },
+    filterTopic         && { label: `Topic: ${filterTopic}`, clear: () => setFilterTopic("") },
+  ].filter((f): f is { label: string; clear: () => void } => !!f);
+  // Count of filters hidden behind the "Filters" toggle, shown on the button.
+  const moreFilterCount = [filterProg, filterDiff, filterTag, filterSubject, filterTopic].filter(Boolean).length;
+  const clearFilters = () => {
+    setFilterType(""); setFilterProg(""); setFilterSubject("");
+    setFilterTopic(""); setFilterDiff(""); setFilterTag(""); setFilterSearch("");
+  };
+
+  // The tab lives in the URL too, so refresh and back keep you where you were.
+  const switchTab = (t: "questions" | "quizzes") => {
+    setTab(t);
+    const params = new URLSearchParams(searchParams.toString());
+    if (t === "questions") params.set("tab", "questions"); else params.delete("tab");
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "/dashboard/test-bank", { scroll: false });
+  };
+
+  // The global quiz list is small and already fully loaded, so search it client-side.
+  const quizNeedle = quizSearch.trim().toLowerCase();
+  const matchingQuizzes = quizNeedle
+    ? globalTests.filter((t) => `${t.title} ${t.owner_programme_name ?? ""}`.toLowerCase().includes(quizNeedle))
+    : globalTests;
+  // Paged in the browser: the list is metadata-only and already loaded for the count and search.
+  // ponytail: client-side paging, move to server paging if a programme reaches thousands of quizzes.
+  const quizPageCount = Math.max(1, Math.ceil(matchingQuizzes.length / QUIZ_PAGE_SIZE));
+  const quizPage = quizPageState.key === `${quizNeedle}|${showArchived}` ? Math.min(quizPageState.page, quizPageCount - 1) : 0;
+  const setQuizPage = (n: number) => setQuizPageState({ key: `${quizNeedle}|${showArchived}`, page: n });
+  const visibleQuizzes = matchingQuizzes.slice(quizPage * QUIZ_PAGE_SIZE, (quizPage + 1) * QUIZ_PAGE_SIZE);
 
   if (userLoading) return <LoadingState />;
 
@@ -261,29 +338,36 @@ function TestBankPageContent() {
   return (
     <div style={{ position: "relative" }}>
       {/* ── Header ────────────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-7">
-        <div>
-          <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
-          <p style={{ ...mutedStyle, marginTop: "4px" }}>
-            {questions.length} question{questions.length !== 1 ? "s" : ""}
-          </p>
+      <div className="mb-5">
+        <h1 style={{ ...headingStyle, fontSize: "28px", margin: 0 }}>Question Bank</h1>
+        <p style={{ ...mutedStyle, marginTop: "4px" }}>Write, find and reuse questions, and manage the quizzes built from them.</p>
+      </div>
+
+      {/* ── Tabs + the actions for the open tab ───────────── */}
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-end sm:justify-between mb-5" style={{ borderBottom: "1px solid rgba(3,72,82,0.12)" }}>
+        <div role="tablist" aria-label="Question bank sections" style={{ display: "flex", gap: "4px" }}>
+          <TabButton active={tab === "quizzes"} onClick={() => switchTab("quizzes")} badge={!showArchived && globalTests.length > 0 ? globalTests.length : undefined}>
+            Program quizzes
+          </TabButton>
+          <TabButton active={tab === "questions"} onClick={() => switchTab("questions")}>Questions</TabButton>
         </div>
-        <div className="flex flex-wrap gap-2.5">
-          {canCreate && <Link href={withFrom("/dashboard/test-bank/duplicate", currentUrl)} style={outlineBtn}>Browse quizzes to duplicate</Link>}
-          <Link href="/dashboard/quiz-builder/new" style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)", textDecoration: "none" }}>
-            + New Global Quiz
-          </Link>
-          <button style={primaryBtn} onClick={openAdd}>+ Add Question</button>
-          <button style={{ ...primaryBtn, background: "linear-gradient(135deg, #006d6c 0%, #034852 100%)" }} onClick={() => setBulkOpen((v) => !v)}>
-            ⬆ Upload CSV
-          </button>
-          <Link href="/dashboard/quiz-builder/bulk-import" style={{ ...primaryBtn, background: "linear-gradient(135deg, #932079 0%, #4a0f3d 100%)", textDecoration: "none" }}>
-            ⬆ Upload Entire Quiz
-          </Link>
+        <div className="flex flex-wrap gap-2" style={{ paddingBottom: "10px" }}>
+          {tab === "questions" ? (
+            <>
+              <HeaderAction onClick={() => setBulkOpen(true)} icon="⬆" title="Add many questions at once from a CSV file">Upload CSV</HeaderAction>
+              <HeaderAction primary onClick={openAdd} icon="+" title="Write a single question">Add question</HeaderAction>
+            </>
+          ) : (
+            <>
+              {canCreate && <HeaderAction href={withFrom("/dashboard/test-bank/duplicate", currentUrl)} icon="⧉" title="Copy an existing quiz and edit it">Duplicate</HeaderAction>}
+              <HeaderAction href="/dashboard/quiz-builder/bulk-import" icon="⬆" title="Turn a PDF, Markdown or text file into a quiz">Import from file</HeaderAction>
+              <HeaderAction primary href="/dashboard/quiz-builder/new" icon="+" title="Start a blank global quiz">New quiz</HeaderAction>
+            </>
+          )}
         </div>
       </div>
 
-      {bulkOpen && (
+      {tab === "questions" && bulkOpen && (
         <QuestionBulkUploadPanel
           createdBy={userId}
           onClose={() => setBulkOpen(false)}
@@ -291,93 +375,100 @@ function TestBankPageContent() {
         />
       )}
 
-      {/* ── Program / Global tests ────────────────────────── */}
-      {/* showArchived keeps the card mounted when the archive is empty — otherwise the
-          toggle unmounts with it and there is no way back to the live list. */}
-      {(globalTests.length > 0 || uploadJobId || uploadExpired || showArchived) && (
-        <div style={{ ...glassCard, padding: 0, overflow: "hidden", marginBottom: "20px" }}>
-          <div 
-            onClick={() => setGlobalTestsExpanded(e => !e)}
-            style={{ padding: "18px 24px", borderBottom: globalTestsExpanded ? "1px solid rgba(3,72,82,0.06)" : "none", display: "flex", justifyContent: "space-between", alignItems: "flex-start", cursor: "pointer", background: globalTestsExpanded ? "linear-gradient(135deg, rgba(3,72,82,0.03) 0%, rgba(10,190,98,0.03) 100%)" : "transparent", transition: "background 150ms ease", gap: "12px" }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1 }}>
-              <p style={{ ...labelStyle, margin: 0 }}>Program Quizzes</p>
-              <p style={{ ...mutedStyle, fontSize: "13px", margin: 0 }}>
-                {showArchived
-                  ? `${globalTests.length} archived · restore to make assignable again`
-                  : `${globalTests.length} created · click Edit to manage questions & settings`}
-              </p>
+      {/* ── Program quizzes tab ───────────────────────────── */}
+      {tab === "quizzes" && (
+        <div role="tabpanel" aria-label="Program quizzes">
+          <div className="p-4 sm:px-6 sm:py-5" style={{ ...glassCard, padding: undefined, borderRadius: "20px", marginBottom: "16px" }}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="min-w-0 sm:flex-1" style={{ position: "relative" }}>
+                <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", pointerEvents: "none" }}>
+                  <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+                </svg>
+                <input
+                  type="search"
+                  value={quizSearch}
+                  onChange={(e) => setQuizSearch(e.target.value)}
+                  placeholder="Search quizzes by title or programme…"
+                  aria-label="Search quizzes"
+                  style={{ ...inputStyle, padding: "12px 14px 12px 40px", fontSize: "16px", background: "#fff", border: "1.5px solid rgba(3,72,82,0.15)" }}
+                />
+              </div>
+              {/* Active / Archived */}
+              <div role="group" aria-label="Quiz status" style={{ display: "inline-flex", padding: "4px", borderRadius: "999px", background: "rgba(3,72,82,0.06)", alignSelf: "flex-start" }}>
+                {([false, true] as const).map((archived) => (
+                  <button
+                    key={String(archived)}
+                    type="button"
+                    aria-pressed={showArchived === archived}
+                    onClick={() => setShowArchived(archived)}
+                    style={{
+                      padding: "8px 18px", borderRadius: "999px", border: "none", cursor: "pointer",
+                      fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 700,
+                      background: showArchived === archived ? "#fff" : "transparent",
+                      color: showArchived === archived ? "#034852" : "rgba(3,72,82,0.55)",
+                      boxShadow: showArchived === archived ? "0 1px 4px rgba(3,72,82,0.12)" : "none",
+                    }}
+                  >
+                    {archived ? "Archived" : "Active"}
+                  </button>
+                ))}
+              </div>
             </div>
-            {/* stopPropagation: the header row itself toggles expand/collapse. */}
-            <div
-              onClick={e => e.stopPropagation()}
-              style={{ display: "flex", flexShrink: 0, borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(3,72,82,0.12)", marginTop: "2px" }}
-            >
-              {([false, true] as const).map(archived => (
-                <button
-                  key={String(archived)}
-                  type="button"
-                  onClick={() => { setShowArchived(archived); setGlobalTestsExpanded(true); }}
-                  style={{
-                    padding: "6px 12px", border: "none", fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                    background: showArchived === archived ? "#209379" : "transparent",
-                    color: showArchived === archived ? "#fff" : "#6b7280",
-                  }}
-                >
-                  {archived ? "Archived" : "Active"}
-                </button>
+            {quizPageCount > 1 && (
+              <nav aria-label="Quiz pagination" className="flex items-center justify-between gap-2 sm:justify-end" style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)", marginRight: "4px" }}>
+                  Page {quizPage + 1} of {quizPageCount} · {quizPage * QUIZ_PAGE_SIZE + 1}–{quizPage * QUIZ_PAGE_SIZE + visibleQuizzes.length} of {matchingQuizzes.length}
+                </span>
+                <span style={{ display: "flex", gap: "8px" }}>
+                  <button type="button" aria-label="Previous page" disabled={quizPage === 0} onClick={() => setQuizPage(quizPage - 1)} style={pagerBtn(quizPage > 0)}>‹</button>
+                  <button type="button" aria-label="Next page" disabled={quizPage >= quizPageCount - 1} onClick={() => setQuizPage(quizPage + 1)} style={pagerBtn(quizPage < quizPageCount - 1)}>›</button>
+                </span>
+              </nav>
+            )}
+          </div>
+
+          {uploadJobId && (
+            <div style={{ ...glassCard, padding: "16px 20px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "12px", borderRadius: "16px" }}>
+              <span aria-hidden style={{ width: "16px", height: "16px", flexShrink: 0, border: "2px solid rgba(32,147,121,0.25)", borderTopColor: "#209379", borderRadius: "50%", animation: "og-spin 0.8s linear infinite" }} />
+              <div>
+                <p style={{ margin: 0, fontSize: "14px", fontWeight: 700, color: "#034852" }}>Importing your quiz…</p>
+                <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#209379" }}>{uploadStatus}</p>
+              </div>
+              <style>{`@keyframes og-spin { to { transform: rotate(360deg); } }`}</style>
+            </div>
+          )}
+          {uploadExpired && (
+            <div style={{ ...glassCard, padding: "16px 20px", marginBottom: "12px", fontSize: "13px", color: "rgba(3,72,82,0.7)", borderRadius: "16px" }}>
+              This upload’s progress is no longer being tracked. It may still have saved — reload the page to see the current quizzes.
+            </div>
+          )}
+
+          {visibleQuizzes.length > 0 ? (
+            <div style={{ display: "grid", gap: "12px" }}>
+              {visibleQuizzes.map((t) => (
+                <GlobalTestRow
+                  key={t.id}
+                  quiz={t}
+                  onDelete={() => handleDeleteQuiz(t)}
+                  onArchive={() => handleArchiveQuiz(t)}
+                  onUnarchive={() => handleUnarchiveQuiz(t)}
+                  busy={archiveBusy === t.id}
+                  onMove={() => setQuizToMove({ id: t.id, title: t.title })}
+                  onDuplicate={() => void handleDuplicateQuiz(t)}
+                />
               ))}
             </div>
-            <button
-                type="button"
-                style={{ flexShrink: 0, padding: "6px 12px", background: "rgba(32,147,121,0.08)", borderRadius: "6px", border: "none", fontSize: "12px", fontWeight: 700, color: "#209379", cursor: "pointer", marginTop: "2px" }}
-              >
-                {globalTestsExpanded ? "Collapse" : "Expand"}
-            </button>
-          </div>
-          {globalTestsExpanded && uploadJobId && (
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-                  <div style={{ width: "200px", height: "18px", background: "rgba(3,72,82,0.1)", borderRadius: "4px", animation: "og-pulse 1.5s infinite ease-in-out" }}></div>
-                </div>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <div style={{ width: "40px", height: "14px", background: "rgba(3,72,82,0.05)", borderRadius: "10px" }}></div>
-                  <div style={{ width: "80px", height: "14px", background: "rgba(3,72,82,0.05)", borderRadius: "10px" }}></div>
-                </div>
-              </div>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "#209379", display: "flex", alignItems: "center", gap: "8px" }}>
-                <span aria-hidden style={{ width: "14px", height: "14px", border: "2px solid rgba(32,147,121,0.25)", borderTopColor: "#209379", borderRadius: "50%", animation: "og-spin 0.8s linear infinite" }} />
-                {uploadStatus}
-              </div>
-              <style>{`@keyframes og-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } } @keyframes og-spin { to { transform: rotate(360deg); } }`}</style>
+          ) : !uploadJobId && (
+            <div style={{ ...glassCard, textAlign: "center", padding: "48px 24px" }}>
+              <p style={labelStyle}>{quizSearch.trim() ? "No matches" : showArchived ? "Archive is empty" : "No quizzes yet"}</p>
+              <p style={{ ...mutedStyle, marginTop: "10px" }}>
+                {quizSearch.trim()
+                  ? "No quiz title or programme matches your search."
+                  : showArchived
+                    ? "Archiving a quiz hides it from students and stops it being assigned."
+                    : "Create one with “New quiz”, or import a whole quiz from a file."}
+              </p>
             </div>
-          )}
-          {globalTestsExpanded && uploadExpired && (
-            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", fontSize: "13px", color: "rgba(3,72,82,0.6)" }}>
-              This upload’s progress is no longer being tracked. It may still have saved — reload the
-              page to see the current quizzes.
-            </div>
-          )}
-          {globalTestsExpanded && globalTests.map((t, i) => (
-            <GlobalTestRow
-              key={t.id}
-              quiz={t}
-              isLast={i === globalTests.length - 1}
-              onDelete={() => handleDeleteQuiz(t)}
-              onArchive={() => handleArchiveQuiz(t)}
-              onUnarchive={() => handleUnarchiveQuiz(t)}
-              busy={archiveBusy === t.id}
-              onMove={() => setQuizToMove({ id: t.id, title: t.title })}
-              onDuplicate={() => void handleDuplicateQuiz(t)}
-            />
-          ))}
-          {globalTestsExpanded && globalTests.length === 0 && !uploadJobId && (
-            <p style={{ ...mutedStyle, fontSize: "13px", margin: 0, padding: "18px 24px" }}>
-              {showArchived
-                ? "No archived quizzes. Archiving a quiz hides it from students and stops it being assigned."
-                : "No program quizzes yet."}
-            </p>
           )}
         </div>
       )}
@@ -417,89 +508,178 @@ function TestBankPageContent() {
         />
       )}
 
+      {/* ── Questions tab ─────────────────────────────────── */}
+      {tab === "questions" && (
+        <div role="tabpanel" aria-label="Questions">
       {/* ── Filter bar ────────────────────────────────────── */}
-      <div style={{ ...glassCard, padding: "18px 24px", marginBottom: "20px", display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-        {canTriage && (
-          <Link
-            href={reportsOnly ? "/dashboard/test-bank" : "/dashboard/test-bank?reports=open"}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "10px",
-              fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, textDecoration: "none",
-              background: reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.06)",
-              border: `1px solid ${reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.3)"}`,
-              color: reportsOnly ? "#fff" : "#e53e3e",
-            }}
-            title={reportsOnly ? "Show all questions" : "Show only questions with open reports"}
-          >
-            <span aria-hidden>⚠</span> Reported
-            {reportedQuestionCount > 0 && ` (${reportedQuestionCount})`}
-            {reportsOnly && <span aria-hidden>✕</span>}
-          </Link>
-        )}
-        <Sel value={filterType} onChange={setFilterType} placeholder="All Types">
-          {QUESTION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </Sel>
-        <Sel value={filterProg} onChange={setFilterProg} placeholder="All Programmes">
-          {PROGRAMME_KINDS.map((k) => (
-            <option key={k.value} value={k.value}>{k.label}</option>
-          ))}
-        </Sel>
-        <Inp value={filterSubject} onChange={setFilterSubject} placeholder="Subject…" />
-        <Inp value={filterTopic}   onChange={setFilterTopic}   placeholder="Topic…" />
-        <Inp value={filterTag}     onChange={setFilterTag}     placeholder="Tag…" />
-        <Sel value={filterDiff} onChange={setFilterDiff} placeholder="All Difficulties">
-          {DIFFICULTIES.map(d => <option key={d} value={d}>{d}</option>)}
-        </Sel>
-        {(filterType || filterProg || filterSubject || filterTopic || filterDiff || filterTag) && (
-          <button onClick={() => { setFilterType(""); setFilterProg(""); setFilterSubject(""); setFilterTopic(""); setFilterDiff(""); setFilterTag(""); }} style={{ background: "none", border: "none", fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, color: "#e53e3e", cursor: "pointer" }}>
-            Clear
-          </button>
-        )}
-        
-        {selectedIds.size > 0 && (
-          <div style={{ marginLeft: "auto", display: "flex", gap: "8px", alignItems: "center" }}>
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.6)" }}>
-              {selectedIds.size} selected
-            </span>
-            <button onClick={handleBulkDelete} style={{ ...outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }}>
-              Delete Selected
+      {/* Padding lives in className so it can shrink on phones (inline styles can't). */}
+      <div className="p-4 sm:px-6 sm:py-5" style={{ ...glassCard, padding: undefined, borderRadius: "20px", marginBottom: "20px", minWidth: 0 }}>
+        {/* Search + toggles */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="min-w-0 sm:flex-1" style={{ position: "relative" }}>
+            <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "rgba(3,72,82,0.45)", pointerEvents: "none" }}>
+              <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+            </svg>
+            <input
+              type="search"
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              placeholder="Search question text, subject or topic…"
+              aria-label="Search questions"
+              // 16px stops iOS Safari from zooming the page when the field is focused.
+              style={{ ...inputStyle, padding: "12px 14px 12px 40px", fontSize: "16px", background: "#fff", border: "1.5px solid rgba(3,72,82,0.15)" }}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:flex">
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((o) => !o)}
+              aria-expanded={filtersOpen}
+              className={canTriage ? undefined : "col-span-2"}
+              style={{ ...chipStyle(filtersOpen || moreFilterCount > 0), padding: "11px 16px" }}
+            >
+              Filters{moreFilterCount > 0 && ` · ${moreFilterCount}`} <span aria-hidden>{filtersOpen ? "▴" : "▾"}</span>
             </button>
+            {canTriage && (
+              <Link
+                href={reportsOnly ? "/dashboard/test-bank?tab=questions" : "/dashboard/test-bank?tab=questions&reports=open"}
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "11px 16px", borderRadius: "999px",
+                  fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap",
+                  background: reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.06)",
+                  border: `1px solid ${reportsOnly ? "#e53e3e" : "rgba(229,62,62,0.3)"}`,
+                  color: reportsOnly ? "#fff" : "#e53e3e",
+                }}
+                title={reportsOnly ? "Show all questions" : "Show only questions with open reports"}
+              >
+                <span aria-hidden>⚠</span> Reported
+                {reportedQuestionCount > 0 && ` (${reportedQuestionCount})`}
+                {reportsOnly && <span aria-hidden>✕</span>}
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {/* Question type quick filter */}
+        {/* Phones get a dropdown; six pills either scroll out of sight or stack into rows there. */}
+        <div className="sm:hidden" style={{ marginTop: "12px" }}>
+          <TypeMenu value={filterType} onChange={setFilterType} />
+        </div>
+        <div role="group" aria-label="Question type" className="hidden sm:flex sm:flex-wrap sm:gap-2" style={{ marginTop: "14px" }}>
+          <button type="button" onClick={() => setFilterType("")} aria-pressed={!filterType} style={chipStyle(!filterType)}>All types</button>
+          {QUESTION_TYPES.map((t) => (
+            <button key={t.value} type="button" onClick={() => setFilterType(filterType === t.value ? "" : t.value)} aria-pressed={filterType === t.value} style={chipStyle(filterType === t.value)}>
+              {shortTypeLabel(t.label)}
+            </button>
+          ))}
+        </div>
+
+        {/* More filters */}
+        {filtersOpen && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
+            <FilterField label="Programme">
+              <ChipGroup options={PROGRAMME_KINDS.map((k) => k.value)} value={filterProg} onChange={setFilterProg} />
+            </FilterField>
+            <FilterField label="Difficulty">
+              <ChipGroup options={[...DIFFICULTIES]} value={filterDiff} onChange={setFilterDiff} />
+            </FilterField>
+            <FilterField label="Tag"><Inp value={filterTag} onChange={setFilterTag} placeholder="Any tag" /></FilterField>
+            <FilterField label="Subject"><Inp value={filterSubject} onChange={setFilterSubject} placeholder="Any subject" /></FilterField>
+            <FilterField label="Topic"><Inp value={filterTopic} onChange={setFilterTopic} placeholder="Any topic" /></FilterField>
+          </div>
+        )}
+
+        {/* Active filters + pager */}
+        {(activeFilters.length > 0 || page > 0 || hasMore) && (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
+            {activeFilters.length > 0 && (
+              <div className="min-w-0" style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "rgba(3,72,82,0.55)" }}>Active:</span>
+                {activeFilters.map((f) => (
+                  <button key={f.label} type="button" onClick={f.clear} aria-label={`Remove filter ${f.label}`} style={{ ...chipStyle(true), padding: "4px 10px", fontSize: "12px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {f.label} <span aria-hidden>✕</span>
+                  </button>
+                ))}
+                <button type="button" onClick={clearFilters} style={{ background: "none", border: "none", fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 600, color: "#e53e3e", cursor: "pointer" }}>
+                  Clear all
+                </button>
+              </div>
+            )}
+            {(page > 0 || hasMore) && (
+              <nav aria-label="Pagination" className="flex w-full items-center justify-between gap-2 sm:ml-auto sm:w-auto sm:justify-end">
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)", marginRight: "4px" }}>
+                  Page {page + 1}{questions.length > 0 && ` · ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + questions.length}`}
+                </span>
+                <span style={{ display: "flex", gap: "8px" }}>
+                  <button type="button" aria-label="Previous page" disabled={page === 0 || loading} onClick={() => setPage(page - 1)} style={pagerBtn(page > 0 && !loading)}>‹</button>
+                  <button type="button" aria-label="Next page" disabled={!hasMore || loading} onClick={() => setPage(page + 1)} style={pagerBtn(hasMore && !loading)}>›</button>
+                </span>
+              </nav>
+            )}
           </div>
         )}
       </div>
 
+      {/* ── Bulk actions ──────────────────────────────────── */}
+      {selectedIds.size > 0 && (
+        <div className="px-4 py-3 sm:px-6" style={{ ...glassCard, padding: undefined, borderRadius: "16px", marginBottom: "12px", display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "space-between", alignItems: "center", background: "#f3f8f8" }}>
+          <span style={{ fontSize: "13px", fontWeight: 600, color: "#034852" }}>{selectedIds.size} selected</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button onClick={() => setSelectedIds(new Set())} style={outlineBtn}>Deselect</button>
+            <button onClick={handleBulkDelete} style={{ ...outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }}>Delete Selected</button>
+          </div>
+        </div>
+      )}
+
       {/* ── Question list ─────────────────────────────────── */}
       {loading ? (
-        <LoadingState />
+        <div style={{ display: "grid", gap: "12px" }} aria-busy="true" aria-label="Loading questions">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="animate-pulse" style={{ height: "112px", borderRadius: "16px", background: "rgba(3,72,82,0.06)" }} />
+          ))}
+        </div>
       ) : error ? (
         <div style={{ ...glassCard, textAlign: "center" }}>
           <p style={{ color: "#e53e3e", fontWeight: 600 }}>{error}</p>
+          <button type="button" onClick={() => void fetchQuestions()} style={{ ...outlineBtn, marginTop: "12px" }}>Try again</button>
         </div>
-      ) : visibleQuestions.length === 0 ? (
-        <div style={{ ...glassCard, textAlign: "center", padding: "48px" }}>
-          <p style={labelStyle}>Empty Bank</p>
-          <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions yet</p>
-          <p style={{ ...mutedStyle, marginTop: "8px" }}>Click &quot;+ Add Question&quot; to create the first one.</p>
-        </div>
-      ) : (
-        <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(3,72,82,0.06)", display: "flex", gap: "12px", alignItems: "center", background: "rgba(3,72,82,0.01)" }}>
-            <input
-              type="checkbox"
-              checked={visibleQuestions.length > 0 && selectedIds.size === visibleQuestions.length}
-              onChange={(e) => {
-                if (e.target.checked) setSelectedIds(new Set(visibleQuestions.map(q => q.id)));
-                else setSelectedIds(new Set());
-              }}
-              style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
-            />
-            <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>Select All ({visibleQuestions.length} questions)</span>
+      ) : questions.length === 0 ? (
+        activeFilters.length > 0 || reportsOnly ? (
+          <div style={{ ...glassCard, textAlign: "center", padding: "48px 24px" }}>
+            <p style={labelStyle}>No matches</p>
+            <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions match these filters</p>
+            <p style={{ ...mutedStyle, marginTop: "8px" }}>Try a different search, or remove a filter.</p>
+            {activeFilters.length > 0 && <button type="button" onClick={clearFilters} style={{ ...outlineBtn, marginTop: "16px" }}>Clear all filters</button>}
           </div>
-          {visibleQuestions.map((q, i) => (
-            <QuestionRow
+        ) : (
+          <div style={{ ...glassCard, textAlign: "center", padding: "48px 24px" }}>
+            <p style={labelStyle}>Empty Bank</p>
+            <p style={{ ...headingStyle, fontSize: "18px", marginTop: "12px" }}>No questions yet</p>
+            <p style={{ ...mutedStyle, marginTop: "8px" }}>Click &quot;+ Add Question&quot; to create the first one.</p>
+          </div>
+        )
+      ) : (
+        <div style={{ display: "grid", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center", justifyContent: "space-between", padding: "0 6px" }}>
+            <label style={{ display: "flex", gap: "10px", alignItems: "center", cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "rgba(3,72,82,0.7)" }}>
+              <input
+                type="checkbox"
+                checked={questions.length > 0 && selectedIds.size === questions.length}
+                onChange={(e) => {
+                  if (e.target.checked) setSelectedIds(new Set(questions.map(q => q.id)));
+                  else setSelectedIds(new Set());
+                }}
+                style={{ width: "18px", height: "18px", accentColor: "#006d6c", cursor: "pointer", margin: 0 }}
+              />
+              Select all on this page
+            </label>
+            <span className="hidden sm:inline" style={{ fontSize: "12px", color: "rgba(3,72,82,0.45)" }}>Click a card to edit</span>
+          </div>
+          {questions.map((q, i) => (
+            <QuestionCard
               key={q.id}
               question={q}
-              isLast={i === visibleQuestions.length - 1}
+              index={page * PAGE_SIZE + i + 1}
               openReports={reportCounts.get(q.id) ?? 0}
               selected={selectedIds.has(q.id)}
               onToggleSelect={() => {
@@ -512,6 +692,8 @@ function TestBankPageContent() {
               onDelete={() => void handleDelete(q.id, q.content_html)}
             />
           ))}
+        </div>
+      )}
         </div>
       )}
 
@@ -530,9 +712,8 @@ function TestBankPageContent() {
 
 // ── Global Test Row ────────────────────────────────────────────
 
-function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate }: {
+function GlobalTestRow({ quiz, onDelete, onArchive, onUnarchive, busy, onMove, onDuplicate }: {
   quiz: Omit<Quiz, "questions">;
-  isLast: boolean;
   onDelete: () => void;
   onArchive: () => void;
   onUnarchive: () => void;
@@ -542,174 +723,337 @@ function GlobalTestRow({ quiz, isLast, onDelete, onArchive, onUnarchive, busy, o
 }) {
   const canCreate = usePermission(PERM.test_bank.create);
   const fmt = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
-  const created = fmt(quiz.created_at);
   const isArchived = quiz.archived_at != null;
+  const status = isArchived
+    ? { label: "Archived", bg: "rgba(229,62,62,0.1)", color: "#e53e3e" }
+    : quiz.published
+      ? { label: "Published", bg: "rgba(10,190,98,0.12)", color: "#079a4f" }
+      : { label: "Draft", bg: "rgba(3,72,82,0.07)", color: "rgba(3,72,82,0.6)" };
+  // Which programme owns this quiz. "Shared" means it is deliberately platform-wide;
+  // "Unassigned" means nobody has placed it yet, and only its author can see it until somebody does.
+  const scope = quiz.effective_scope_mode === "GLOBAL"
+    ? { label: "Shared with all programmes", bg: "rgba(59,130,246,0.1)", color: "#2563eb" }
+    : quiz.owner_programme_name
+      ? { label: quiz.owner_programme_name, bg: "rgba(32,147,121,0.1)", color: "#209379" }
+      : { label: "Unassigned", bg: "rgba(234,179,8,0.14)", color: "#a16207" };
+  const pill = (p: { label: string; bg: string; color: string }) => (
+    <span style={{ fontSize: "11px", fontWeight: 700, padding: "3px 9px", borderRadius: "999px", background: p.bg, color: p.color }}>{p.label}</span>
+  );
+  const facts = [
+    quiz.duration_minutes != null ? `${quiz.duration_minutes} min` : null,
+    quiz.due_at != null ? `Due ${fmt(quiz.due_at)}` : null,
+    `Created ${fmt(quiz.created_at)}`,
+  ].filter(Boolean).join(" · ");
+  const quietBtn: React.CSSProperties = { ...outlineBtn, padding: "8px 12px", borderRadius: "10px", fontSize: "13px", background: "#fff" };
+
   return (
-    <div
-      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3.5 px-6 py-4"
-      style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)", opacity: isArchived ? 0.75 : 1 }}
+    <article
+      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5"
+      style={{ background: "#fff", borderRadius: "16px", border: "1.5px solid rgba(3,72,82,0.08)", boxShadow: "0 2px 8px rgba(3,72,82,0.05)", opacity: isArchived ? 0.8 : 1 }}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }}>{quiz.title}</p>
-        <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap", alignItems: "center" }}>
-          {isArchived ? (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-              background: "rgba(229,62,62,0.1)", color: "#e53e3e",
-            }}>
-              Archived
-            </span>
-          ) : (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-              background: quiz.published ? "rgba(10,190,98,0.1)" : "rgba(3,72,82,0.06)",
-              color: quiz.published ? "#0abe62" : "rgba(3,72,82,0.55)",
-            }}>
-              {quiz.published ? "Published" : "Draft"}
-            </span>
-          )}
-          {/* Which programme owns this quiz. "Shared" means it is deliberately
-              platform-wide; "Unassigned" means nobody has placed it yet, and it
-              is visible only to its author until somebody does. */}
-          {quiz.effective_scope_mode === "GLOBAL" ? (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-              background: "rgba(59,130,246,0.1)", color: "#3b82f6",
-            }}>
-              Shared with all programmes
-            </span>
-          ) : quiz.owner_programme_name ? (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-              background: "rgba(32,147,121,0.1)", color: "#209379",
-            }}>
-              {quiz.owner_programme_name}
-            </span>
-          ) : (
-            <span style={{
-              fontSize: "10px", fontWeight: 700, padding: "2px 8px", borderRadius: "100px",
-              background: "rgba(234,179,8,0.12)", color: "#a16207",
-            }}>
-              Unassigned
-            </span>
-          )}
-          {quiz.duration_minutes != null && <Tag>{quiz.duration_minutes} min</Tag>}
-          {quiz.due_at != null && <Tag>Due {fmt(quiz.due_at)}</Tag>}
-          <Tag>Created {created}</Tag>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "6px" }}>
+          {pill(status)}
+          {pill(scope)}
         </div>
-      </div>
-      <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto">
-        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...outlineBtn, textDecoration: "none", display: "inline-block" }}>
-          Edit →
+        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ fontSize: "16px", fontWeight: 700, color: "#034852", textDecoration: "none", lineHeight: 1.35 }} className="hover:underline">
+          {quiz.title}
         </Link>
-        {/* Moving an archived quiz would resurrect it into a live curriculum,
-            so the destination action is offered only while it is active. */}
-        {!isArchived && (
-          <button onClick={onMove} style={outlineBtn}>
-            Move to Module
-          </button>
-        )}
-        {/* The sanctioned way to use another programme's quiz: take a copy.
-            The copy reuses the same questions and starts as an unpublished
-            draft in your programme. */}
-        {!isArchived && canCreate && (
-          <button onClick={onDuplicate} style={outlineBtn}>
-            Duplicate
-          </button>
-        )}
+        <p style={{ margin: "4px 0 0", fontSize: "12px", color: "rgba(3,72,82,0.55)" }}>{facts}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Link href={`/dashboard/quiz-builder/${quiz.id}`} style={{ ...primaryBtn, padding: "8px 16px", fontSize: "13px", borderRadius: "10px", textDecoration: "none" }}>
+          Open
+        </Link>
+        {/* Moving an archived quiz would resurrect it into a live curriculum, so it's offered only while active. */}
+        {!isArchived && <button type="button" onClick={onMove} style={quietBtn} title="Attach this quiz to a course module">Move to module</button>}
+        {/* The sanctioned way to use another programme's quiz: take a copy, which starts as an unpublished draft. */}
+        {!isArchived && canCreate && <button type="button" onClick={onDuplicate} style={quietBtn} title="Make an editable copy">Duplicate</button>}
         {isArchived ? (
-          <button onClick={onUnarchive} disabled={busy} style={{ ...outlineBtn, color: "#209379", borderColor: "rgba(32,147,121,0.3)", opacity: busy ? 0.5 : 1 }}>
-            {busy ? "…" : "Restore"}
+          <button type="button" onClick={onUnarchive} disabled={busy} style={{ ...quietBtn, color: "#209379", borderColor: "rgba(32,147,121,0.35)", opacity: busy ? 0.5 : 1 }}>
+            {busy ? "Restoring…" : "Restore"}
           </button>
         ) : (
-          <button onClick={onArchive} disabled={busy} style={{ ...outlineBtn, opacity: busy ? 0.5 : 1 }}>
-            {busy ? "…" : "Archive"}
+          <button type="button" onClick={onArchive} disabled={busy} style={{ ...quietBtn, opacity: busy ? 0.5 : 1 }} title="Hide from students without deleting">
+            {busy ? "Archiving…" : "Archive"}
           </button>
         )}
-        <button onClick={onDelete} style={{ ...outlineBtn, color: "#e53e3e", borderColor: "rgba(229,62,62,0.2)" }}>
-          Delete
+        <button type="button" onClick={onDelete} aria-label="Delete quiz" title="Delete quiz" style={iconBtn("#dc2626")}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
         </button>
       </div>
+    </article>
+  );
+}
+
+function TabButton({ active, onClick, badge, children }: { active: boolean; onClick: () => void; badge?: number; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      style={{
+        position: "relative", display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 16px", marginBottom: "-1px",
+        background: "none", border: "none", borderBottom: `3px solid ${active ? "#006d6c" : "transparent"}`, cursor: "pointer",
+        fontFamily: "var(--font-heading)", fontSize: "15px", fontWeight: 700, color: active ? "#034852" : "rgba(3,72,82,0.5)",
+        transition: "color 150ms ease, border-color 150ms ease",
+      }}
+    >
+      {children}
+      {badge !== undefined && (
+        <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: "999px", background: active ? "#006d6c" : "rgba(3,72,82,0.08)", color: active ? "#fff" : "rgba(3,72,82,0.6)" }}>{badge}</span>
+      )}
+    </button>
+  );
+}
+
+// ── Question Card ──────────────────────────────────────────────
+
+const TYPE_NAMES: Record<string, string> = Object.fromEntries(QUESTION_TYPES.map((t) => [t.value, shortTypeLabel(t.label)]));
+
+function QuestionCard({ question, index, selected, onToggleSelect, onEdit, onDelete, openReports = 0 }: { question: Question; index: number; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void; openReports?: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasChildren = question.question_type === "GROUP" && question.children.length > 0;
+  const accent = typeBadge(question.question_type).color as string;
+  const meta = [question.subject, question.topic, question.programme_type, question.tag].filter(Boolean) as string[];
+
+  return (
+    <article
+      onClick={onEdit}
+      style={{
+        position: "relative", background: "#fff", borderRadius: "16px", cursor: "pointer", overflow: "hidden",
+        border: `1.5px solid ${selected ? "#006d6c" : "rgba(3,72,82,0.08)"}`,
+        boxShadow: selected ? "0 0 0 3px rgba(0,109,108,0.12)" : "0 2px 8px rgba(3,72,82,0.05)",
+        transition: "box-shadow 150ms ease, border-color 150ms ease",
+      }}
+    >
+      {/* Type colour stripe */}
+      <span aria-hidden style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: "4px", background: accent }} />
+
+      <div className="px-4 py-3.5 sm:px-5" style={{ paddingLeft: "20px" }}>
+        {/* Top line: select · number · type · reports · marks · actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelect}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Select question"
+            style={{ width: "18px", height: "18px", accentColor: "#006d6c", cursor: "pointer", margin: 0 }}
+          />
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", minWidth: "24px" }}>#{index}</span>
+          <span style={{ ...typeBadge(question.question_type), letterSpacing: "0.02em", fontSize: "11px" }}>{TYPE_NAMES[question.question_type] ?? question.question_type}</span>
+          {question.difficulty && <Tag variant={question.difficulty}>{question.difficulty}</Tag>}
+          {openReports > 0 && (
+            <span
+              title={`${openReports} open student ${openReports === 1 ? "report" : "reports"}`}
+              style={{ padding: "3px 9px", borderRadius: "999px", background: "rgba(229,62,62,0.1)", color: "#e53e3e", fontSize: "11px", fontWeight: 700 }}
+            >
+              ⚠ {openReports} {openReports === 1 ? "report" : "reports"}
+            </span>
+          )}
+          <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
+            {question.marks != null && (
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#034852", marginRight: "6px", whiteSpace: "nowrap" }}>
+                +{question.marks}
+                {question.negative_marks ? <span style={{ color: "#dc2626" }}> / −{Math.abs(question.negative_marks)}</span> : null}
+              </span>
+            )}
+            <button type="button" onClick={onEdit} aria-label="Edit question" style={textBtn("#034852")}>Edit</button>
+            <button type="button" onClick={onDelete} aria-label="Delete question" style={textBtn("#dc2626")}>Delete</button>
+          </span>
+        </div>
+
+        {/* Question text */}
+        <MathSnippet html={question.content_html} lines={3} style={{ marginTop: "10px", fontSize: "15px", fontWeight: 500, color: "#034852", lineHeight: 1.5 }} />
+
+        {/* Meta line */}
+        {(meta.length > 0 || question.question_type === "MCQ" || question.image_url || hasChildren) && (
+          <div style={{ display: "flex", gap: "6px", marginTop: "10px", flexWrap: "wrap", alignItems: "center" }}>
+            {meta.map((m) => <Tag key={m}>{m}</Tag>)}
+            {question.question_type === "MCQ" && <Tag>{question.options.length} options</Tag>}
+            {question.image_url && <Tag>🖼 Image</Tag>}
+            {hasChildren && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setExpanded((x) => !x); }}
+                aria-expanded={expanded}
+                style={{ marginLeft: "auto", background: "none", border: "none", padding: "2px 0", cursor: "pointer", fontFamily: "var(--font-body)", fontSize: "12px", fontWeight: 700, color: "#006d6c" }}
+              >
+                {expanded ? "Hide" : "Show"} {question.children.length} sub-questions {expanded ? "▴" : "▾"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {expanded && hasChildren && (
+        <ol onClick={(e) => e.stopPropagation()} style={{ listStyle: "none", margin: 0, padding: "4px 16px 12px 20px", background: "rgba(3,72,82,0.025)", borderTop: "1px solid rgba(3,72,82,0.06)", cursor: "default" }}>
+          {question.children.map((child, ci) => (
+            <li key={child.id} style={{ display: "flex", gap: "10px", padding: "10px 0", borderBottom: ci < question.children.length - 1 ? "1px solid rgba(3,72,82,0.06)" : "none" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "rgba(3,72,82,0.4)", flexShrink: 0, minWidth: "28px" }}>{index}.{ci + 1}</span>
+              <span style={{ ...typeBadge(child.question_type), fontSize: "9px", flexShrink: 0, alignSelf: "flex-start" }}>{child.question_type}</span>
+              <MathSnippet html={child.content_html} lines={2} style={{ fontSize: "13px", color: "rgba(3,72,82,0.8)" }} />
+            </li>
+          ))}
+        </ol>
+      )}
+    </article>
+  );
+}
+
+function iconBtn(color: string): React.CSSProperties {
+  return {
+    width: "34px", height: "34px", display: "inline-flex", alignItems: "center", justifyContent: "center",
+    borderRadius: "10px", border: "1px solid rgba(3,72,82,0.1)", background: "#fff", color, cursor: "pointer",
+  };
+}
+
+function textBtn(color: string): React.CSSProperties {
+  return { ...iconBtn(color), width: "auto", padding: "0 12px", fontSize: "13px", fontWeight: 600 };
+}
+
+// ── Utility components ─────────────────────────────────────────
+
+function Inp({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+  return <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ ...inputStyle, fontSize: "16px" }} />;
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(3,72,82,0.55)", margin: "0 0 6px" }}>{label}</p>
+      {children}
     </div>
   );
 }
 
-// ── Question Row ───────────────────────────────────────────────
+/** Single-select pill group; clicking the active pill clears it. */
+function ChipGroup({ options, value, onChange }: { options: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+      {options.map((o) => (
+        <button key={o} type="button" onClick={() => onChange(value === o ? "" : o)} aria-pressed={value === o} style={chipStyle(value === o)}>{o}</button>
+      ))}
+    </div>
+  );
+}
 
-function QuestionRow({ question, isLast, selected, onToggleSelect, onEdit, onDelete, openReports = 0 }: { question: Question; isLast: boolean; selected: boolean; onToggleSelect: () => void; onEdit: () => void; onDelete: () => void; openReports?: number }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasChildren = question.question_type === "GROUP" && question.children.length > 0;
+/** Styled question-type dropdown for phones (a native <select> renders an unstyled OS list). */
+/** Open/close state for a popover that closes on outside click or Escape. */
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
+const popoverPanel: React.CSSProperties = {
+  position: "absolute", top: "calc(100% + 6px)", zIndex: 30, listStyle: "none", margin: 0, padding: "6px",
+  background: "#fff", borderRadius: "14px", border: "1px solid rgba(3,72,82,0.1)", boxShadow: "0 12px 32px rgba(3,72,82,0.16)",
+};
+
+/** Header button: filled when primary, quiet outline otherwise. Renders a Link when given href. */
+function HeaderAction({ children, icon, title, primary, href, onClick }: { children: React.ReactNode; icon: string; title: string; primary?: boolean; href?: string; onClick?: () => void }) {
+  const style: React.CSSProperties = primary
+    ? { ...primaryBtn, padding: "10px 18px", display: "inline-flex", alignItems: "center", gap: "8px", textDecoration: "none" }
+    : {
+        padding: "10px 16px", borderRadius: "12px", display: "inline-flex", alignItems: "center", gap: "8px", whiteSpace: "nowrap",
+        fontFamily: "var(--font-heading)", fontWeight: 700, fontSize: "14px", color: "#034852", textDecoration: "none", cursor: "pointer",
+        background: "#fff", border: "1.5px solid rgba(3,72,82,0.15)",
+      };
+  const content = <><span aria-hidden style={{ fontSize: "15px", lineHeight: 1 }}>{icon}</span>{children}</>;
+  return href
+    ? <Link href={href} title={title} style={style}>{content}</Link>
+    : <button type="button" onClick={onClick} title={title} style={style}>{content}</button>;
+}
+
+function TypeMenu({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { open, setOpen, ref } = usePopover();
+
+  const options = [{ value: "", label: "All types" }, ...QUESTION_TYPES.map((t) => ({ value: t.value, label: shortTypeLabel(t.label) }))];
+  const current = options.find((o) => o.value === value) ?? options[0];
 
   return (
-    <div style={{ borderBottom: isLast ? "none" : "1px solid rgba(3,72,82,0.06)", background: selected ? "rgba(3,72,82,0.02)" : "transparent" }}>
-      <div
-        className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3.5 px-6 py-4"
-        style={{ cursor: hasChildren ? "pointer" : "default" }}
-        onClick={() => hasChildren && setExpanded(e => !e)}
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{
+          ...inputStyle, display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", textAlign: "left",
+          padding: "12px 14px", fontWeight: 600,
+          background: value ? "rgba(0,109,108,0.08)" : "#fff",
+          border: `1.5px solid ${value || open ? "#006d6c" : "rgba(3,72,82,0.15)"}`,
+        }}
       >
-        <div style={{ paddingTop: "2px", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-          <input 
-            type="checkbox" 
-            checked={selected} 
-            onChange={onToggleSelect} 
-            style={{ width: "16px", height: "16px", accentColor: "#006d6c", cursor: "pointer" }}
-          />
-        </div>
-        <span style={{ ...typeBadge(question.question_type), flexShrink: 0, marginTop: "2px" }}>{question.question_type}</span>
-        {openReports > 0 && (
-          <span
-            title={`${openReports} open student ${openReports === 1 ? "report" : "reports"}`}
-            style={{
-              flexShrink: 0, marginTop: "2px", padding: "2px 8px", borderRadius: "999px",
-              background: "rgba(229,62,62,0.1)", color: "#e53e3e", fontSize: "11px", fontWeight: 700,
-            }}
-          >
-            ⚠ {openReports}
-          </span>
-        )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <MathSnippet html={question.content_html} lines={2} style={{ fontSize: "14px", fontWeight: 600, color: "#034852", lineHeight: 1.4 }} />
-          <div style={{ display: "flex", gap: "6px", marginTop: "6px", flexWrap: "wrap" }}>
-            {question.programme_type && <Tag>{question.programme_type}</Tag>}
-            {question.subject && <Tag>{question.subject}</Tag>}
-            {question.topic && <Tag>{question.topic}</Tag>}
-            {question.difficulty && <Tag variant={question.difficulty}>{question.difficulty}</Tag>}
-            {question.question_type === "MCQ" && <Tag>{question.options.length} options</Tag>}
-            {hasChildren && <Tag>{question.children.length} sub-questions {expanded ? "▲" : "▼"}</Tag>}
-          </div>
-        </div>
-        <div className="flex gap-1.5 flex-shrink-0 self-start sm:self-auto" onClick={e => e.stopPropagation()}>
-          <button style={outlineBtn} onClick={onEdit}>Edit</button>
-          <button style={{ ...outlineBtn, borderColor: "rgba(220,38,38,0.3)", color: "#dc2626" }} onClick={onDelete}>Delete</button>
-        </div>
-      </div>
-      {expanded && hasChildren && (
-        <div style={{ background: "rgba(3,72,82,0.02)", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
-          {question.children.map((child, ci) => (
-            <div key={child.id} style={{ display: "flex", gap: "12px", padding: "10px 24px 10px 48px", borderBottom: ci < question.children.length - 1 ? "1px solid rgba(3,72,82,0.04)" : "none" }}>
-              <span style={{ ...typeBadge(child.question_type), fontSize: "9px", flexShrink: 0, marginTop: "2px" }}>{child.question_type}</span>
-              <MathSnippet html={child.content_html} lines={2} style={{ fontSize: "13px", color: "rgba(3,72,82,0.75)" }} />
-            </div>
-          ))}
-        </div>
+        <span style={{ fontSize: "13px", color: "rgba(3,72,82,0.55)" }}>Type</span>
+        <span style={{ flex: 1 }}>{current.label}</span>
+        <span aria-hidden style={{ transition: "transform 150ms ease", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label="Question type"
+          style={{ ...popoverPanel, left: 0, right: 0 }}
+        >
+          {options.map((o) => {
+            const selected = o.value === value;
+            return (
+              <li key={o.value} role="option" aria-selected={selected}>
+                <button
+                  type="button"
+                  onClick={() => { onChange(o.value); setOpen(false); }}
+                  style={{
+                    width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
+                    padding: "11px 12px", border: "none", borderRadius: "10px", cursor: "pointer", textAlign: "left",
+                    fontFamily: "var(--font-body)", fontSize: "15px", fontWeight: selected ? 700 : 500,
+                    background: selected ? "rgba(0,109,108,0.08)" : "transparent", color: "#034852",
+                  }}
+                >
+                  {o.label}
+                  {selected && <span aria-hidden style={{ color: "#006d6c" }}>✓</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );
 }
 
-// ── Utility components ─────────────────────────────────────────
-
-function Sel({ value, onChange, placeholder, children }: { value: string; onChange: (v: string) => void; placeholder: string; children: React.ReactNode }) {
-  return (
-    <select value={value} onChange={e => onChange(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: "140px" }}>
-      <option value="">{placeholder}</option>
-      {children}
-    </select>
-  );
+/** "Multiple Choice (MCQ)" → "Multiple Choice": the chips don't need the parenthetical. */
+function shortTypeLabel(label: string): string {
+  return label.replace(/ \(.*\)$/, "");
 }
 
-function Inp({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  return <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ ...inputStyle, width: "130px" }} />;
+function pagerBtn(enabled: boolean): React.CSSProperties {
+  return {
+    width: "36px", height: "36px", borderRadius: "999px", fontSize: "18px", lineHeight: 1,
+    border: "1px solid rgba(3,72,82,0.15)", background: "#fff", color: "#034852",
+    cursor: enabled ? "pointer" : "not-allowed", opacity: enabled ? 1 : 0.4,
+  };
+}
+
+function chipStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "7px 14px", borderRadius: "999px", cursor: "pointer", whiteSpace: "nowrap",
+    fontFamily: "var(--font-body)", fontSize: "13px", fontWeight: 600,
+    border: `1px solid ${active ? "#006d6c" : "rgba(3,72,82,0.15)"}`,
+    background: active ? "#006d6c" : "#fff",
+    color: active ? "#fff" : "#034852",
+    transition: "background 150ms ease, color 150ms ease",
+  };
 }
 
 function LoadingState() {

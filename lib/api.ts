@@ -1149,7 +1149,9 @@ export type QuestionFilters = {
   /** Search on content_html, subject and topic. */
   search?: string;
   tag?: string;
-  /** Page size (server caps at 200). Omit to load the whole bank. */
+  /** Only these question ids (server caps at 200). */
+  ids?: string[];
+  /** Page size (server default 50, cap 200). */
   limit?: number;
   offset?: number;
 };
@@ -1164,6 +1166,7 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.quiz_id) url.searchParams.set("quiz_id", filters.quiz_id);
   if (filters.search) url.searchParams.set("search", filters.search);
   if (filters.tag) url.searchParams.set("tag", filters.tag);
+  if (filters.ids) url.searchParams.set("ids", filters.ids.join(","));
   if (filters.limit) url.searchParams.set("limit", String(filters.limit));
   if (filters.offset) url.searchParams.set("offset", String(filters.offset));
   const response = await apiFetch(url.toString());
@@ -4675,6 +4678,8 @@ export type BatchDetail = Batch & {
 
 export type BatchPayload = {
   name?: string;
+  /** Owning programme; create only — the API ignores it on update. */
+  programme_id?: string | null;
   school_id?: string | null;
   programme_type?: string | null;
   /** Required on create — the API rejects a batch without one. */
