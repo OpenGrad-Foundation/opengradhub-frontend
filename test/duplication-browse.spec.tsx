@@ -48,8 +48,9 @@ describe('duplication browse', () => {
   it('pages through the catalogue', async () => {
     mount();
     await screen.findByRole('link', { name: 'Open Source material' });
-    expect((screen.getByRole('button', { name: 'Previous' }) as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByRole('button', { name: 'Next' }) as HTMLButtonElement).disabled).toBe(true);
+    // A single page has nothing to page through, so the pager stays hidden.
+    expect(screen.queryByRole('button', { name: 'Previous' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
     fireEvent.change(screen.getByRole('textbox', { name: 'Search material' }), { target: { value: 'algebra' } });
     expect(state.sources).toHaveBeenCalledWith('courses', 'algebra', 1);
   });
