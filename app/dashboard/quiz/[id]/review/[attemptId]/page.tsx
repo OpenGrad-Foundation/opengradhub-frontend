@@ -121,7 +121,7 @@ export default function AttemptReviewPage() {
 
   const pct = review.max_score > 0 ? Math.round((review.score / review.max_score) * 100) : null;
   const correct  = review.questions.filter((q) => q.is_correct === true).length;
-  const wrong    = review.questions.filter((q) => q.is_correct === false).length;
+  const wrong    = review.questions.filter((q) => q.is_correct === false && q.student_answer != null).length;
   const skipped  = review.questions.filter((q) => q.student_answer == null).length;
   const totalTime = review.questions.reduce((s, q) => s + (q.time_taken_seconds ?? 0), 0);
 
