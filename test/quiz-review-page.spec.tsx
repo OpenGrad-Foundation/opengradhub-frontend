@@ -55,3 +55,25 @@ it('uses independent hidden-answer retries for standalone and grouped questions 
   expect(within(childCard).getByRole('radio', { name: /Choice A child/ }).getAttribute('aria-checked')).toBe('true');
   expect(screen.queryByText('Solution child')).toBeNull();
 });
+
+it('does not count skipped questions as wrong in the summary', async () => {
+  const mk = (id: string, student_answer: string | null, is_correct: boolean) => ({
+    snapshot_id: id, question_type: 'MCQ', content_html: `Prompt ${id}`, student_answer, is_correct,
+    parent_snapshot_id: null, parent_content_html: null,
+    options: [{ id: 'a', option_text: 'A', is_correct: true }, { id: 'b', option_text: 'B', is_correct: false }],
+    solution_html: null, batch_total_count: 0, batch_correct_count: 0,
+  });
+  const questions = [
+    ...Array.from({ length: 4 }, (_, i) => mk(`c${i}`, 'a', true)),
+    ...Array.from({ length: 2 }, (_, i) => mk(`w${i}`, 'b', false)),
+    ...Array.from({ length: 10 }, (_, i) => mk(`s${i}`, null, false)),
+  ];
+  api.review.mockResolvedValue({ score: 4, max_score: 16, sections: [], questions });
+  api.reports.mockResolvedValue([]);
+  render(<AttemptReviewPage />);
+
+  const stat = async (label: string) => (await screen.findByText(label, { selector: 'p' })).parentElement!.textContent;
+  expect(await stat('Correct')).toBe('4Correct');
+  expect(await stat('Wrong')).toBe('2Wrong');
+  expect(await stat('Skipped')).toBe('10Skipped');
+});
