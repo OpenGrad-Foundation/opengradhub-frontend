@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import {
-  getUsers,
+  getUsersPage,
   createUser,
   bulkDeleteUsers,
   bulkUploadUsers,
@@ -52,6 +52,10 @@ const ALL_ROLES: { code: string; label: string }[] = [
   { code: "FUNDING_PARTNER", label: "Funding Partner" },
 ];
 
+const PAGE_SIZE = 50;
+/** Rows the bulk-upload editor accepts in one file. */
+const CSV_ROW_CAP = 500;
+
 export default function UserManagementPage() {
   const { data, isLoading: userLoading } = useCurrentUser();
   const { has } = usePermissions();
@@ -61,6 +65,10 @@ export default function UserManagementPage() {
   const invalidate = useInvalidate();
 
   const [users, setUsers] = useState<SafeUser[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const latestRequest = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
@@ -73,46 +81,62 @@ export default function UserManagementPage() {
   const currentUserId = data?.user?.id ?? "";
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
   const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
 
-  const filteredUsers = useMemo(() => {
-    let result = users;
-    if (roleFilter) {
-      result = result.filter(u => u.role === roleFilter);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter((u) => 
-        u.name?.toLowerCase().includes(q) ||
-        u.email?.toLowerCase().includes(q) ||
-        u.role?.toLowerCase().includes(q) ||
-        u.programme_type?.toLowerCase().includes(q)
-      );
-    }
-    return result;
-  }, [users, searchQuery, roleFilter]);
+  // Search waits for a typing pause so each keystroke is not a request.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  // Clear selection whenever the visible set changes (filter/search applied)
-  useEffect(() => { setSelectedIds(new Set()); }, [searchQuery, roleFilter]);
+  // A new filter starts from page one; an old page number may not exist any more.
+  useEffect(() => { setPage(0); }, [debouncedSearch, roleFilter, statusFilter]);
+
+  // Clear selection whenever the visible set changes, so a delete never hits
+  // rows the admin can no longer see.
+  useEffect(() => { setSelectedIds(new Set()); }, [debouncedSearch, roleFilter, statusFilter, page]);
 
   const fetchUsers = useCallback(async () => {
+    const requestId = ++latestRequest.current;
     setLoading(true);
     setError(null);
     try {
-      setUsers(await getUsers());
+      const result = await getUsersPage({
+        search: debouncedSearch,
+        role: roleFilter,
+        status: statusFilter,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      });
+      // A slower, older response must not overwrite a newer filter's results.
+      if (requestId !== latestRequest.current) return;
+      // Deleting the last rows of the last page leaves it empty: step back.
+      if (result.items.length === 0 && result.total > 0 && page > 0) {
+        setPage(Math.ceil(result.total / PAGE_SIZE) - 1);
+        return;
+      }
+      setUsers(result.items);
+      setTotal(result.total);
+      setLoaded(true);
     } catch (err) {
+      if (requestId !== latestRequest.current) return;
       setError(err instanceof Error ? err.message : "Failed to load users.");
     } finally {
-      setLoading(false);
+      if (requestId === latestRequest.current) setLoading(false);
     }
-  }, []);
+  }, [debouncedSearch, roleFilter, statusFilter, page]);
 
   useEffect(() => {
     if (!userLoading) void fetchUsers();
   }, [userLoading, fetchUsers]);
+
+  const hasFilters = Boolean(debouncedSearch || roleFilter || statusFilter);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (userLoading) return <LoadingState />;
 
@@ -123,7 +147,9 @@ export default function UserManagementPage() {
         <div>
           <h1 style={{ ...titleStyle, fontSize: "28px", margin: 0 }}>User Management</h1>
           <p style={{ ...subtitleStyle, marginTop: "4px" }}>
-            {users.length} user{users.length !== 1 ? "s" : ""} registered
+            {hasFilters
+              ? `${total} user${total !== 1 ? "s" : ""} match`
+              : `${total} user${total !== 1 ? "s" : ""} registered`}
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 w-full sm:w-auto">
@@ -315,7 +341,9 @@ export default function UserManagementPage() {
                     } else {
                       setShowBulkDeleteConfirm(false);
                     }
-                    setSelectedIds(new Set());
+                    // Keep only the failures selected, so the still-open dialog
+                    // names them and a retry targets exactly those.
+                    setSelectedIds(new Set(result.failed.map((f) => f.id)));
                     void fetchUsers();
                     // fetchUsers() only refreshes this page's list; invalidate so
                     // deleted users also drop from other cached views (managers
@@ -342,12 +370,19 @@ export default function UserManagementPage() {
       )}
 
       {/* ── Users Table ───────────────────────────────────── */}
-      {loading ? (
+      {/* Only the first load blanks the page; later fetches keep the filters
+          mounted and the current rows on screen until the next page arrives. */}
+      {!loaded && loading ? (
         <LoadingState />
-      ) : error ? (
-        <div style={glassCard}><p style={{ ...titleStyle, color: "#e53e3e" }}>{error}</p></div>
+      ) : !loaded && error ? (
+        <div style={glassCard}>
+          <p style={{ ...titleStyle, color: "#e53e3e" }}>{error}</p>
+          <button type="button" onClick={() => void fetchUsers()} style={{ ...inputStyle, width: "auto", cursor: "pointer" }}>
+            Retry
+          </button>
+        </div>
       ) : (
-        <div style={{ ...glassCard, padding: 0, overflow: "hidden" }}>
+        <div style={{ ...glassCard, padding: 0, overflow: "hidden", opacity: loading ? 0.6 : 1, transition: "opacity 150ms" }}>
           <div style={{ padding: "16px", borderBottom: "1px solid rgba(3,72,82,0.08)", display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <input
               type="text"
@@ -366,7 +401,25 @@ export default function UserManagementPage() {
                 <option key={r.code} value={r.code}>{r.label}</option>
               ))}
             </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter by status"
+              style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: "140px" }}
+            >
+              <option value="">All Statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Archived</option>
+            </select>
           </div>
+          {loaded && error && (
+            <p role="alert" style={{ margin: 0, padding: "10px 16px", fontSize: "13px", color: "#c53030", background: "rgba(229,62,62,0.06)" }}>
+              {error}{" "}
+              <button type="button" onClick={() => void fetchUsers()} style={{ background: "none", border: "none", color: "#034852", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
+                Retry
+              </button>
+            </p>
+          )}
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--font-body)", fontSize: "13px" }}>
               <thead>
@@ -375,14 +428,14 @@ export default function UserManagementPage() {
                     <th style={{ ...thStyle, width: "40px", paddingRight: 0 }}>
                       <input
                         type="checkbox"
-                        aria-label="Select all visible users"
-                        checked={filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.has(u.id))}
+                        aria-label="Select all users on this page"
+                        checked={users.length > 0 && users.every((u) => selectedIds.has(u.id))}
                         ref={(el) => {
-                          if (el) el.indeterminate = selectedIds.size > 0 && !filteredUsers.every((u) => selectedIds.has(u.id));
+                          if (el) el.indeterminate = selectedIds.size > 0 && !users.every((u) => selectedIds.has(u.id));
                         }}
                         onChange={(e) => {
                           if (e.target.checked) {
-                            setSelectedIds(new Set(filteredUsers.map((u) => u.id)));
+                            setSelectedIds(new Set(users.map((u) => u.id)));
                           } else {
                             setSelectedIds(new Set());
                           }
@@ -397,13 +450,13 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.length === 0 ? (
+                {users.length === 0 ? (
                   <tr>
                     <td colSpan={canDelete ? 8 : 7} style={{ padding: "24px", textAlign: "center", color: "rgba(3,72,82,0.6)", fontSize: "13px" }}>
-                      No users match your search.
+                      {hasFilters ? "No users match your filters." : "No users yet."}
                     </td>
                   </tr>
-                ) : filteredUsers.map((u) => {
+                ) : users.map((u) => {
                   const isSelected = selectedUser?.id === u.id;
                   const isChecked = selectedIds.has(u.id);
                   return (
@@ -476,6 +529,35 @@ export default function UserManagementPage() {
               </tbody>
             </table>
           </div>
+          {total > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", flexWrap: "wrap",
+              padding: "12px 16px", borderTop: "1px solid rgba(3,72,82,0.08)", fontSize: "13px", color: "rgba(3,72,82,0.7)",
+            }}>
+              <span>
+                Showing {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + users.length} of {total}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  disabled={page === 0 || loading}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  style={{ ...inputStyle, marginBottom: 0, width: "auto", cursor: page === 0 ? "not-allowed" : "pointer" }}
+                >
+                  ‹ Previous
+                </button>
+                <span>Page {page + 1} of {pageCount}</span>
+                <button
+                  type="button"
+                  disabled={page + 1 >= pageCount || loading}
+                  onClick={() => setPage((p) => p + 1)}
+                  style={{ ...inputStyle, marginBottom: 0, width: "auto", cursor: page + 1 >= pageCount ? "not-allowed" : "pointer" }}
+                >
+                  Next ›
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -2047,7 +2129,8 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
       try {
         const parsed = Papa.parse<Record<string, string>>(text, {
           header: true,
-          preview: 500,
+          // One past the cap, so an oversized file is refused instead of cut off.
+          preview: CSV_ROW_CAP + 1,
           skipEmptyLines: true,
           transform: (v) => (typeof v === "string" ? v.trim() : String(v ?? "")),
         });
@@ -2064,6 +2147,10 @@ function BulkUploadPanel({ onClose, onDone }: { onClose: () => void; onDone: () 
           .map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [canonicalCsvHeader(k), v])));
         if (!hdrs.length) {
           setParseError("Could not detect CSV headers. Please use the downloaded template.");
+          return;
+        }
+        if (rows.length > CSV_ROW_CAP) {
+          setParseError(`This file has more than ${CSV_ROW_CAP} rows. Split it into files of ${CSV_ROW_CAP} rows or fewer and upload each one.`);
           return;
         }
         setCsvHeaders(hdrs);
