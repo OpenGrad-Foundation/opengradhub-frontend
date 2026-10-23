@@ -195,6 +195,38 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
   return (await response.json()) as SafeUser[];
 }
 
+export type UserListPage = {
+  items: SafeUser[];
+  /** Every match, not just this page. */
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
+};
+
+/** One page of the user-management list; search/role/status run on the server. */
+export async function getUsersPage(params: {
+  search?: string;
+  role?: string;
+  status?: string;
+  limit: number;
+  offset: number;
+}): Promise<UserListPage> {
+  const url = new URL(`${API_BASE_URL}/users`);
+  if (params.search) url.searchParams.set("search", params.search);
+  if (params.role) url.searchParams.set("role", params.role);
+  if (params.status) url.searchParams.set("status", params.status);
+  url.searchParams.set("limit", String(params.limit));
+  url.searchParams.set("offset", String(params.offset));
+
+  const response = await apiFetch(url.toString(), { cache: "no-store" });
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to fetch users.", response.status);
+  }
+  return (await response.json()) as UserListPage;
+}
+
 export type FellowOption = { id: string; name: string; email: string | null };
 
 /**
