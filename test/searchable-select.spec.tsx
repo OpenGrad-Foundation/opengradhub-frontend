@@ -154,5 +154,23 @@ describe("SearchableSelect dropdown", () => {
     expect(screen.getByRole("button", { name: "TESTEPMPROGRAMME" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "TESTPROG1" })).toBeTruthy();
   });
+
+  it("picks with arrow keys and Enter", () => {
+    const onChange = vi.fn();
+    render(<SearchableSelect value="" onChange={onChange} options={options} placeholder="All programmes" ariaLabel="Programme" />);
+
+    fireEvent.keyDown(screen.getByLabelText("Programme: All programmes"), { key: "ArrowDown" });
+    const search = screen.getByPlaceholderText("Search…");
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith("p2");
+
+    // Typing jumps to the first match.
+    fireEvent.keyDown(screen.getByLabelText("Programme: All programmes"), { key: "ArrowDown" });
+    fireEvent.change(screen.getByPlaceholderText("Search…"), { target: { value: "mentor" } });
+    fireEvent.keyDown(screen.getByPlaceholderText("Search…"), { key: "Enter" });
+    expect(onChange).toHaveBeenLastCalledWith("p3");
+  });
 });
 

@@ -17,6 +17,7 @@ const getBulkParseJobStatus = vi.fn();
 // here, not attempt real network calls from jsdom.
 const bulkValidateQuiz = vi.fn().mockResolvedValue([]);
 const getQuestionFacets = vi.fn().mockResolvedValue({ subjects: [], topics: [], tags: [] });
+const getProgrammes = vi.fn();
 vi.mock('@/lib/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api')>()),
   bulkParseQuiz: (...args: unknown[]) => bulkParseQuiz(...args),
@@ -24,6 +25,7 @@ vi.mock('@/lib/api', async (importOriginal) => ({
   getBulkParseJobStatus: (...args: unknown[]) => getBulkParseJobStatus(...args),
   bulkValidateQuiz: (...args: unknown[]) => bulkValidateQuiz(...args),
   getQuestionFacets: (...args: unknown[]) => getQuestionFacets(...args),
+  getProgrammes: (...args: unknown[]) => getProgrammes(...args),
 }));
 
 import BulkImportQuizPage from '@/app/dashboard/quiz-builder/bulk-import/page';
@@ -54,7 +56,7 @@ async function parseThenSave() {
   render(<BulkImportQuizPage />);
 
   const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-  const file = new File(['q1'], 'quiz.csv', { type: 'text/csv' });
+  const file = new File(['q1'], 'quiz.md', { type: 'text/markdown' });
   Object.defineProperty(input, 'files', { value: [file] });
   fireEvent.change(input);
 
@@ -80,6 +82,7 @@ beforeEach(() => {
   push.mockClear();
   bulkParseQuiz.mockResolvedValue(QUIZ);
   bulkSaveQuiz.mockResolvedValue({ jobId: 'job-1' });
+  getProgrammes.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -134,5 +137,67 @@ describe('bulk import save', () => {
 
     expect(push).not.toHaveBeenCalled();
     expect(screen.getByText('Save exploded')).toBeTruthy();
+  });
+});
+
+describe('bulk import programme', () => {
+  const P1 = { id: 'p1', name: 'Alpha', is_member: true };
+  const P2 = { id: 'p2', name: 'Beta', is_member: true };
+
+  async function renderAndPickFile() {
+    render(<BulkImportQuizPage />);
+    await act(async () => {}); // let getProgrammes resolve
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { value: [new File(['q1'], 'quiz.md', { type: 'text/markdown' })] });
+    fireEvent.change(input);
+  }
+
+  async function parseAndSave() {
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Parse File/ })); });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Confirm & Save Quiz/ })); });
+  }
+
+  it('makes a multi-programme author choose, and saves to the chosen programme', async () => {
+    getProgrammes.mockResolvedValue([P1, P2, { id: 'p3', name: 'Reach only', is_member: false }]);
+    await renderAndPickFile();
+
+    fireEvent.click(screen.getByLabelText(/^Programme:/));
+    // Only member programmes: creating into one you merely reach is refused.
+    expect(screen.queryByRole('button', { name: 'Reach only' })).toBeNull();
+    expect((screen.getByRole('button', { name: /Parse File/ }) as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Beta' }));
+    await parseAndSave();
+
+    expect(bulkSaveQuiz).toHaveBeenCalledWith(expect.anything(), { kind: 'GLOBAL', programmeId: 'p2' }, expect.anything());
+  });
+
+  it('shows and preselects the only programme', async () => {
+    getProgrammes.mockResolvedValue([P1]);
+    await renderAndPickFile();
+
+    expect(screen.getByLabelText('Programme: Alpha')).toBeTruthy();
+    await parseAndSave();
+
+    expect(bulkSaveQuiz).toHaveBeenCalledWith(expect.anything(), { kind: 'GLOBAL', programmeId: 'p1' }, expect.anything());
+  });
+
+  it('does not ask for a module quiz', async () => {
+    searchParams = 'module_id=m1';
+    getProgrammes.mockResolvedValue([P1, P2]);
+    await renderAndPickFile();
+
+    expect(getProgrammes).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText(/^Programme/)).toBeNull();
+  });
+
+  it('refuses a dropped file of the wrong type', async () => {
+    render(<BulkImportQuizPage />);
+    await act(async () => {});
+    const zone = document.querySelector('.qbi-drop') as HTMLElement;
+    fireEvent.drop(zone, { dataTransfer: { files: [new File(['x'], 'quiz.csv', { type: 'text/csv' })] } });
+
+    expect(screen.getByRole('alert').textContent).toMatch(/\.md, \.txt or \.pdf/);
+    expect((screen.getByRole('button', { name: /Parse File/ }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
