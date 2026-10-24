@@ -2173,7 +2173,8 @@ export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
  * cannot silently become a global test-bank import.
  */
 export type QuizDestination =
-  | { kind: "GLOBAL" }
+  // programmeId: the owning programme. Omit when you belong to exactly one.
+  | { kind: "GLOBAL"; programmeId?: string }
   | { kind: "MODULE"; moduleId: string };
 
 export type QuizMovePreflight = {
