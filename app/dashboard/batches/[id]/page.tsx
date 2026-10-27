@@ -10,6 +10,8 @@ import { useCurrentUrl } from "@/lib/useCurrentUrl";
 import {
   deleteBatch,
   addBatchMembers,
+  resolveBatchRollNumbers,
+  type RollResolution,
   removeBatchMember,
   setBatchMembersFellow,
   getFellows,
@@ -57,6 +59,7 @@ export default function BatchDetailPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [addMembersOpen, setAddMembersOpen] = useState(false);
+  const [bulkRollOpen, setBulkRollOpen] = useState(false);
   const [addCourseOpen, setAddCourseOpen] = useState(false);
   const [addBundleOpen, setAddBundleOpen] = useState(false);
   const [addTestOpen, setAddTestOpen] = useState(false);
@@ -65,6 +68,16 @@ export default function BatchDetailPage() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // The modal stays open ("Adding…") until the batch has re-read, so it never
+  // closes onto the old list. invalidate() already refetches this batch;
+  // cancelRefetch:false joins that request instead of firing a second one.
+  const afterAdd = (close: () => void, ...domains: Parameters<typeof invalidate>) => async (msg: string) => {
+    invalidate(...domains);
+    await refetch({ cancelRefetch: false });
+    close();
+    showToast(msg);
   };
 
   const canEnrol = has(PERM.batches.enrol);
@@ -125,7 +138,10 @@ export default function BatchDetailPage() {
         <Section
           title="Students in this Batch"
           action={canEnrol && !archived ? (
-            <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button onClick={() => setBulkRollOpen(true)} style={primaryBtn}>Bulk Upload</button>
+              <button onClick={() => setAddMembersOpen(true)} style={primaryBtn}>+ Add Students</button>
+            </div>
           ) : undefined}
         >
           <MemberTable
@@ -307,7 +323,14 @@ export default function BatchDetailPage() {
         <AddMembersModal
           batchId={batchId}
           onClose={() => setAddMembersOpen(false)}
-          onAdded={(msg) => { setAddMembersOpen(false); invalidate('batches', 'enrolment'); void refetch(); showToast(msg); }}
+          onAdded={afterAdd(() => setAddMembersOpen(false), 'batches', 'enrolment')}
+        />
+      )}
+      {bulkRollOpen && (
+        <BulkRollModal
+          batchId={batchId}
+          onClose={() => setBulkRollOpen(false)}
+          onAdded={afterAdd(() => setBulkRollOpen(false), 'batches', 'enrolment')}
         />
       )}
       {addCourseOpen && (
@@ -316,7 +339,7 @@ export default function BatchDetailPage() {
           existingCourseIds={batch.courses.filter((c) => c.is_direct).map((c) => c.id)}
           memberCount={batch.members.length}
           onClose={() => setAddCourseOpen(false)}
-          onAdded={(msg) => { setAddCourseOpen(false); invalidate('batches', 'enrolment'); void refetch(); showToast(msg); }}
+          onAdded={afterAdd(() => setAddCourseOpen(false), 'batches', 'enrolment')}
         />
       )}
       {addBundleOpen && (
@@ -325,7 +348,7 @@ export default function BatchDetailPage() {
           existingBundleIds={batch.bundles.map((b) => b.id)}
           memberCount={batch.members.length}
           onClose={() => setAddBundleOpen(false)}
-          onAdded={(msg) => { setAddBundleOpen(false); invalidate('batches', 'bundles', 'enrolment'); void refetch(); showToast(msg); }}
+          onAdded={afterAdd(() => setAddBundleOpen(false), 'batches', 'bundles', 'enrolment')}
         />
       )}
       {addTestOpen && (
@@ -333,7 +356,7 @@ export default function BatchDetailPage() {
           batchId={batchId}
           existingTestIds={batch.tests.map((t) => t.id)}
           onClose={() => setAddTestOpen(false)}
-          onAdded={(msg) => { setAddTestOpen(false); invalidate('batches'); void refetch(); showToast(msg); }}
+          onAdded={afterAdd(() => setAddTestOpen(false), 'batches')}
         />
       )}
 
@@ -697,7 +720,7 @@ function AddMembersModal({
 }: {
   batchId: string;
   onClose: () => void;
-  onAdded: (msg: string) => void;
+  onAdded: (msg: string) => Promise<void>;
 }) {
   const [students, setStudents] = useState<StudentRosterItem[]>([]);
   const [rosterTotal, setRosterTotal] = useState(0);
@@ -842,7 +865,7 @@ function AddMembersModal({
         const result = await addBatchMembers(batchId, ids.slice(i, i + ADD_MEMBERS_CHUNK));
         added += result.enrolled;
       }
-      onAdded(`${added} student${added !== 1 ? "s" : ""} added to batch.`);
+      await onAdded(`${added} student${added !== 1 ? "s" : ""} added to batch.`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to add students.";
       if (added > 0) {
@@ -850,7 +873,7 @@ function AddMembersModal({
         // refetches the batch — leaving the modal open on an error would show a
         // roster that no longer matches the database, and the picker excludes
         // members server-side so its own list would be stale too.
-        onAdded(`${added} student${added !== 1 ? "s" : ""} added, then failed: ${msg}`);
+        await onAdded(`${added} student${added !== 1 ? "s" : ""} added, then failed: ${msg}`);
         return;
       }
       setError(msg);
@@ -980,6 +1003,350 @@ function AddMembersModal({
   );
 }
 
+// ── Bulk Roll-Number Modal ────────────────────────────────────────────────────
+
+const ROLL_PROBLEM: Record<Exclude<RollResolution["status"], "ready">, string> = {
+  already_enrolled: "Already in batch",
+  inactive:         "Inactive account",
+  other_programme:  "Other programme",
+  not_found:        "Not found",
+  duplicate:        "Duplicate",
+};
+
+const ROLL_TEMPLATE_HREF = "data:text/csv;charset=utf-8,Roll%20Number%0A";
+
+/** Roll numbers from a .csv/.xlsx: the column headed "roll…" if there is one, else column A. */
+async function rollsFromFile(file: File): Promise<string[]> {
+  if (file.size > 5 * 1024 * 1024) throw new Error("That file is over 5 MB.");
+  const XLSX = await import("xlsx");
+  const book = XLSX.read(await file.arrayBuffer(), { type: "array", raw: false });
+  const sheet = book.Sheets[book.SheetNames[0]];
+  if (!sheet) throw new Error("That file has no sheets in it.");
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, raw: false, defval: "" });
+  const headerCol = (grid[0] ?? []).findIndex((c) => /roll/i.test(String(c)));
+  const col = headerCol === -1 ? 0 : headerCol;
+  return grid.slice(headerCol === -1 ? 0 : 1).map((r) => String(r[col] ?? "").trim()).filter(Boolean);
+}
+
+function BulkRollModal({
+  batchId, onClose, onAdded,
+}: {
+  batchId: string;
+  onClose: () => void;
+  onAdded: (msg: string) => Promise<void>;
+}) {
+  const [rows, setRows] = useState<RollResolution[]>([]);
+  /** Rows appended by the latest upload/paste onto an existing list, badged "New". */
+  const [fresh, setFresh] = useState<Set<number>>(new Set());
+  const [paste, setPaste] = useState("");
+  const [phase, setPhase] = useState<"idle" | "checking" | "adding">("idle");
+  const [dragging, setDragging] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [error, setError] = useState<string | null>(null);
+  const busy = phase !== "idle";
+
+  function setList(next: RollResolution[], nextFresh: Set<number> = new Set()) {
+    setRows(next);
+    setFresh(nextFresh);
+    if (!next.length) setStep(1);
+  }
+
+  // New roll numbers are checked together with the existing list, so
+  // "Duplicate" and "Already in batch" describe the combined list.
+  async function append(rolls: string[]) {
+    setPhase("checking");
+    setError(null);
+    try {
+      const before = rows.length;
+      const next = await resolveBatchRollNumbers(batchId, [...rows.map((r) => r.roll_number), ...rolls]);
+      setList(next, before ? new Set(next.map((_, i) => i).filter((i) => i >= before)) : new Set());
+      setStep(2);
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to check roll numbers.");
+      return false;
+    } finally {
+      setPhase("idle");
+    }
+  }
+
+  async function onFile(file: File | undefined) {
+    if (!file || busy) return;
+    try {
+      const rolls = await rollsFromFile(file);
+      if (!rolls.length) { setError(`No roll numbers found in ${file.name}.`); return; }
+      await append(rolls);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That file could not be read.");
+    }
+  }
+
+  async function onPaste() {
+    const rolls = paste.split(/[\s,;]+/).filter(Boolean);
+    if (rolls.length && await append(rolls)) setPaste("");
+  }
+
+  // Just-added rows lead each group, so "Add more" shows its result without scrolling.
+  const indexed = rows.map((r, i) => ({ r, i })).sort((a, b) => Number(fresh.has(b.i)) - Number(fresh.has(a.i)));
+  const ready = indexed.filter(({ r }) => r.status === "ready" && r.student);
+  const problems = indexed.filter(({ r }) => r.status !== "ready");
+
+  // Removal is local: no other row's status can change, except that dropping
+  // the first copy of a duplicated roll promotes a copy — which is the same
+  // as dropping that copy instead.
+  function removeAt(i: number) {
+    const dup = rows.findIndex((x, j) => j !== i && x.status === "duplicate" && x.roll_number === rows[i].roll_number);
+    const drop = rows[i].status !== "duplicate" && dup !== -1 ? dup : i;
+    setList(rows.filter((_, j) => j !== drop), new Set([...fresh].filter((f) => f !== drop).map((f) => (f > drop ? f - 1 : f))));
+  }
+
+  // Problem rows are left out, never sent: one bad roll number must not sink the rest.
+  async function handleAdd() {
+    setPhase("adding");
+    setError(null);
+    const ids = ready.map(({ r }) => r.student!.id);
+    const skipped = problems.length ? ` ${problems.length} skipped.` : "";
+    let added = 0;
+    try {
+      for (let i = 0; i < ids.length; i += ADD_MEMBERS_CHUNK) {
+        added += (await addBatchMembers(batchId, ids.slice(i, i + ADD_MEMBERS_CHUNK))).enrolled;
+      }
+      await onAdded(`${added} student${added !== 1 ? "s" : ""} added to batch.${skipped}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to add students.";
+      if (added > 0) { await onAdded(`${added} student${added !== 1 ? "s" : ""} added, then failed: ${msg}`); return; }
+      setError(`${msg} Try again.`);
+    } finally {
+      setPhase("idle");
+    }
+  }
+
+  return (
+    <Modal onClose={!busy ? onClose : undefined} title="Bulk Upload Students" width="min(680px, 94vw)">
+      <Stepper
+        steps={["Add roll numbers", "Review & add"]}
+        current={step}
+        onStep={(s) => { if (!busy && (s === 1 || rows.length)) setStep(s); }}
+      />
+
+      {step === 1 ? (
+        <>
+          {rows.length > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", marginBottom: "12px",
+              borderRadius: "12px", background: "rgba(10,190,98,0.07)", border: "1px solid rgba(10,190,98,0.25)",
+            }}>
+              <span style={countPill}>{rows.length}</span>
+              <span style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: "#034852" }}>
+                in your list · new ones are added to it
+              </span>
+              <button onClick={() => setStep(2)} style={linkBtn}>View list</button>
+            </div>
+          )}
+          <label
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => { e.preventDefault(); setDragging(false); void onFile(e.dataTransfer.files[0]); }}
+            style={{
+              display: "block", padding: "30px 16px", textAlign: "center", cursor: busy ? "default" : "pointer",
+              border: `2px dashed ${dragging ? "#0abe62" : "rgba(3,72,82,0.2)"}`, borderRadius: "14px",
+              background: dragging ? "rgba(10,190,98,0.06)" : "rgba(3,72,82,0.02)", marginBottom: "12px",
+            }}
+          >
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              disabled={busy}
+              onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }}
+              style={{ display: "none" }}
+            />
+            <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: "#034852" }}>
+              {phase === "checking" ? "Checking…" : rows.length ? "Upload another file" : "Upload a .csv or .xlsx"}
+            </span>
+            <span style={{ display: "block", fontSize: "12px", color: "rgba(3,72,82,0.5)", marginTop: "4px" }}>
+              Drop it here or click · &quot;Roll Number&quot; column
+            </span>
+          </label>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "14px" }}>
+            <input
+              type="text"
+              placeholder="or paste roll numbers"
+              value={paste}
+              onChange={(e) => setPaste(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && paste.trim() && !busy) void onPaste(); }}
+              style={inputSt}
+            />
+            <button
+              onClick={() => void onPaste()}
+              disabled={busy || !paste.trim()}
+              style={{ ...ghostBtnSm, flex: "0 0 auto", opacity: busy || !paste.trim() ? 0.45 : 1 }}
+            >
+              Add
+            </button>
+          </div>
+          {/* Kept apart from the upload box: it's a separate, optional action. */}
+          <p style={{ margin: 0, fontSize: "12px", color: "rgba(3,72,82,0.5)" }}>
+            Don&apos;t have a file?{" "}
+            <a href={ROLL_TEMPLATE_HREF} download="batch-roll-numbers.csv" style={{ color: "#209379", fontWeight: 600 }}>
+              Download a blank template
+            </a>
+          </p>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={countPill}>{rows.length}</span>
+            <span style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: "#034852" }}>
+              in list{fresh.size ? ` · ${fresh.size} new` : ""}
+            </span>
+            <button onClick={() => setStep(1)} disabled={busy} style={{ ...ghostBtnSm, flex: "0 0 auto", padding: "6px 12px", fontSize: "12px" }}>
+              + Add more
+            </button>
+            <button onClick={() => setList([])} disabled={busy} style={linkBtn}>Clear</button>
+          </div>
+
+          {problems.length > 0 && (
+            <RollGroup
+              title={`${problems.length} will be skipped`}
+              tone="problem"
+              action={<button onClick={() => setList(ready.map(({ r }) => r))} disabled={busy} style={{ ...linkBtn, color: "#c53030" }}>Remove all</button>}
+            >
+              {problems.map(({ r, i }) => (
+                <RollRow key={`${r.roll_number}-${i}`} roll={r.roll_number} name={r.student?.name} isNew={fresh.has(i)}
+                  detail={ROLL_PROBLEM[r.status as keyof typeof ROLL_PROBLEM]} problem disabled={busy} onRemove={() => removeAt(i)} />
+              ))}
+            </RollGroup>
+          )}
+          {ready.length > 0 && (
+            <RollGroup title={`${ready.length} ready`} tone="ok">
+              {ready.map(({ r, i }) => (
+                <RollRow key={`${r.roll_number}-${i}`} roll={r.roll_number} name={r.student?.name} isNew={fresh.has(i)}
+                  detail={r.student?.school_name ?? "No school"} disabled={busy} onRemove={() => removeAt(i)} />
+              ))}
+            </RollGroup>
+          )}
+        </>
+      )}
+
+      {error && <div style={{ ...errorBox, marginTop: "12px" }}>{error}</div>}
+      {/* Pinned, so a long review list never pushes the action out of sight. */}
+      <div style={{ display: "flex", gap: "10px", position: "sticky", bottom: "-32px", margin: "16px -32px -32px", padding: "14px 32px 32px", background: "#ffffff", borderTop: "1px solid rgba(3,72,82,0.08)" }}>
+        {step === 1 ? (
+          <>
+            <button onClick={onClose} style={ghostBtnSm} disabled={busy}>Cancel</button>
+            <button
+              onClick={() => setStep(2)}
+              disabled={rows.length === 0 || busy}
+              style={{ ...primaryBtnSm, opacity: (rows.length === 0 || busy) ? 0.45 : 1 }}
+            >
+              Review →
+            </button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setStep(1)} style={ghostBtnSm} disabled={busy}>← Back</button>
+            <button
+              onClick={() => void handleAdd()}
+              disabled={ready.length === 0 || busy}
+              style={{ ...primaryBtnSm, opacity: (ready.length === 0 || busy) ? 0.45 : 1 }}
+            >
+              {phase === "adding" ? "Adding…" : `Add ${ready.length} student${ready.length !== 1 ? "s" : ""}`}
+            </button>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Stepper({ steps, current, onStep }: { steps: string[]; current: number; onStep: (step: 1 | 2) => void }) {
+  return (
+    <ol style={{ display: "flex", alignItems: "center", gap: "10px", listStyle: "none", padding: 0, margin: "0 0 20px" }}>
+      {steps.map((label, idx) => {
+        const n = idx + 1;
+        const active = n === current;
+        const done = n < current;
+        return (
+          <li key={label} style={{ display: "flex", alignItems: "center", gap: "10px", flex: n < steps.length ? 1 : "0 0 auto" }}>
+            <button
+              onClick={() => onStep(n as 1 | 2)}
+              aria-current={active ? "step" : undefined}
+              style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", padding: 0, cursor: "pointer" }}
+            >
+              <span style={{
+                width: "26px", height: "26px", borderRadius: "50%", display: "grid", placeItems: "center",
+                fontSize: "12px", fontWeight: 700,
+                background: active || done ? "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)" : "rgba(3,72,82,0.08)",
+                color: active || done ? "#fff" : "rgba(3,72,82,0.5)",
+              }}>
+                {done ? "✓" : n}
+              </span>
+              <span style={{ fontSize: "13px", fontWeight: active ? 700 : 600, color: active ? "#034852" : "rgba(3,72,82,0.5)", whiteSpace: "nowrap" }}>
+                {label}
+              </span>
+            </button>
+            {n < steps.length && <span style={{ flex: 1, height: "2px", background: done ? "#0abe62" : "rgba(3,72,82,0.1)" }} />}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function RollGroup({ title, tone, action, children }: {
+  title: string; tone: "ok" | "problem"; action?: React.ReactNode; children: React.ReactNode;
+}) {
+  const problem = tone === "problem";
+  return (
+    <div style={{ border: `1px solid ${problem ? "rgba(229,62,62,0.25)" : "rgba(10,190,98,0.3)"}`, borderRadius: "12px", marginBottom: "12px", overflow: "hidden" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 14px", background: problem ? "rgba(229,62,62,0.07)" : "rgba(10,190,98,0.07)" }}>
+        <span style={{ fontSize: "13px", fontWeight: 700, color: problem ? "#c53030" : "#067a45" }}>
+          {problem ? "⚠" : "✓"} {title}
+        </span>
+        {action}
+      </div>
+      <div style={{ maxHeight: "200px", overflowY: "auto" }}>{children}</div>
+    </div>
+  );
+}
+
+function RollRow({ roll, name, detail, problem, isNew, disabled, onRemove }: {
+  roll: string; name?: string; detail: string; problem?: boolean; isNew?: boolean; disabled: boolean; onRemove: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "8px 14px", borderTop: "1px solid rgba(3,72,82,0.06)" }}>
+      <span style={{ flex: "0 0 150px", fontSize: "13px", fontWeight: 700, color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={roll}>
+        {roll}
+      </span>
+      <span style={{ flex: 1, minWidth: 0, fontSize: "13px", color: "#034852", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {name ?? "—"}
+      </span>
+      {isNew && (
+        <span style={{ flexShrink: 0, padding: "2px 8px", borderRadius: "100px", background: "rgba(32,147,121,0.12)", color: "#209379", fontSize: "11px", fontWeight: 700 }}>
+          New
+        </span>
+      )}
+      <span style={{ flex: "0 0 auto", maxWidth: "160px", fontSize: "12px", fontWeight: problem ? 600 : 400, color: problem ? "#c53030" : "rgba(3,72,82,0.55)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {detail}
+      </span>
+      <button onClick={onRemove} disabled={disabled} title="Remove" aria-label={`Remove ${roll}`}
+        style={{ background: "none", border: "none", fontSize: "14px", color: "rgba(3,72,82,0.4)", cursor: "pointer", padding: "4px 6px" }}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
+const linkBtn: React.CSSProperties = {
+  background: "none", border: "none", padding: 0, color: "#209379",
+  fontWeight: 600, fontSize: "12px", cursor: "pointer",
+};
+
+const countPill: React.CSSProperties = {
+  minWidth: "28px", padding: "2px 9px", borderRadius: "100px", textAlign: "center",
+  background: "#034852", color: "#fff", fontSize: "12px", fontWeight: 700,
+};
+
 // ── Add Course Modal ──────────────────────────────────────────────────────────
 
 function AddCourseModal({
@@ -989,7 +1356,7 @@ function AddCourseModal({
   existingCourseIds: string[];
   memberCount: number;
   onClose: () => void;
-  onAdded: (msg: string) => void;
+  onAdded: (msg: string) => Promise<void>;
 }) {
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1013,7 +1380,7 @@ function AddCourseModal({
     setError(null);
     try {
       const result = await addCourseToBatch(batchId, selected.id);
-      onAdded(`"${selected.title}" assigned — ${result.students_enrolled} of ${memberCount} member${memberCount !== 1 ? "s" : ""} newly enrolled.`);
+      await onAdded(`"${selected.title}" assigned — ${result.students_enrolled} of ${memberCount} member${memberCount !== 1 ? "s" : ""} newly enrolled.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add course.");
     } finally {
@@ -1048,7 +1415,7 @@ function AddBundleModal({
   existingBundleIds: string[];
   memberCount: number;
   onClose: () => void;
-  onAdded: (msg: string) => void;
+  onAdded: (msg: string) => Promise<void>;
 }) {
   const [bundles, setBundles] = useState<Bundle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1072,7 +1439,7 @@ function AddBundleModal({
     setError(null);
     try {
       const result = await addBundleToBatch(batchId, selected.id);
-      onAdded(`Bundle "${selected.name}" assigned — ${result.students_enrolled} of ${memberCount} member${memberCount !== 1 ? "s" : ""} newly enrolled.`);
+      await onAdded(`Bundle "${selected.name}" assigned — ${result.students_enrolled} of ${memberCount} member${memberCount !== 1 ? "s" : ""} newly enrolled.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add bundle.");
     } finally {
@@ -1106,7 +1473,7 @@ function AddTestModal({
   batchId: string;
   existingTestIds: string[];
   onClose: () => void;
-  onAdded: (msg: string) => void;
+  onAdded: (msg: string) => Promise<void>;
 }) {
   const [quizzes, setQuizzes] = useState<Omit<Quiz, "questions">[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1136,7 +1503,7 @@ function AddTestModal({
         available_from: from ? new Date(from).toISOString() : null,
         due_at: due ? new Date(due).toISOString() : null,
       });
-      onAdded(`"${selected.title}" assigned to batch.`);
+      await onAdded(`"${selected.title}" assigned to batch.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add quiz.");
     } finally {
@@ -1311,11 +1678,11 @@ function Section({ title, action, children }: {
   );
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose?: () => void; children: React.ReactNode }) {
+function Modal({ title, onClose, width, children }: { title: string; onClose?: () => void; width?: string; children: React.ReactNode }) {
   return (
     <>
       <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(3,20,30,0.3)", backdropFilter: "blur(4px)", zIndex: 50 }} />
-      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(500px, 92vw)", maxHeight: "90vh", zIndex: 51 }}>
+      <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: width ?? "min(500px, 92vw)", maxHeight: "90vh", zIndex: 51 }}>
         <div style={{
           background: "#ffffff",
           borderRadius: "24px", padding: "32px",
