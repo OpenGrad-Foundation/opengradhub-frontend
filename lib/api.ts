@@ -4796,6 +4796,30 @@ export async function addBatchMembers(
   return (await r.json()) as { enrolled: number; already_enrolled: number };
 }
 
+export type RollResolution = {
+  roll_number: string;
+  status: "ready" | "already_enrolled" | "inactive" | "other_programme" | "not_found" | "duplicate";
+  student: { id: string; name: string; school_name: string | null } | null;
+};
+
+/** Preview for a roll-number upload: one row per input, in order. Enrols nobody. */
+export async function resolveBatchRollNumbers(
+  batchId: string,
+  rollNumbers: string[],
+): Promise<RollResolution[]> {
+  const r = await apiFetch(`${API_BASE_URL}/batches/${batchId}/members/resolve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roll_numbers: rollNumbers }),
+    cache: "no-store",
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => null)) as { message?: string } | null;
+    throw new ApiError(err?.message ?? "Failed to check roll numbers.", r.status);
+  }
+  return ((await r.json()) as { rows: RollResolution[] }).rows;
+}
+
 export async function removeBatchMember(
   batchId: string,
   userId: string,
