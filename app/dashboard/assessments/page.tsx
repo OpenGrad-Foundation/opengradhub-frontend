@@ -661,12 +661,7 @@ function MonitorView() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <SegBtn label="All"     active={!type}              onClick={() => setParam('type', null)} />
           <SegBtn label="Module"  active={type === 'MODULE'}  onClick={() => setParam('type', 'MODULE')} />
-          {/* A programme reaches quizzes through the courses it owns, and a
-              course quiz is always a MODULE_TEST — so in programme mode this
-              filter can only ever return nothing. Hidden rather than dead. */}
-          {!inProgrammeMode && (
-            <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
-          )}
+          <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
 
           <input
             value={q}
@@ -735,7 +730,7 @@ function MonitorView() {
         <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
           <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>
             {inProgrammeMode
-              ? 'No quizzes yet — none of this programme\u2019s courses have published quizzes.'
+              ? 'No published programme quizzes match your filters.'
               : 'No assessments match your filters.'}
           </p>
           {inProgrammeMode && has(PERM.programmes.view) && (

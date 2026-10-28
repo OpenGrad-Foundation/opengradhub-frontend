@@ -45,10 +45,9 @@ describe('the monitor view uses effective scope and backend programme reach', ()
     expect(page).toMatch(/programme_id: programmeId \|\| undefined/);
   });
 
-  it('hides the Program type filter in programme mode', () => {
-    // A programme reaches quizzes only through the courses it owns, and a course
-    // quiz is always MODULE_TEST — the segment could only ever return nothing.
-    expect(page).toMatch(/!inProgrammeMode && \(\s*\n\s*<SegBtn label="Program"/);
+  it('offers the Program type filter in programme mode', () => {
+    expect(page).toMatch(/<SegBtn label="Program" active=\{type === 'PROGRAM'\}/);
+    expect(page).not.toMatch(/!inProgrammeMode && \(\s*<SegBtn label="Program"/);
   });
 
   it('offers an all-programmes option that sends no filter', () => {
@@ -56,7 +55,7 @@ describe('the monitor view uses effective scope and backend programme reach', ()
   });
 
   it('points an empty programme list at the content tab instead of falling back', () => {
-    expect(page).toMatch(/none of this programme/);
+    expect(page).toContain('No published programme quizzes match your filters.');
     expect(page).toMatch(/dashboard\/programmes\/\$\{programmeId \|\| myProgrammes\[0\]\?\.id/);
   });
 });
