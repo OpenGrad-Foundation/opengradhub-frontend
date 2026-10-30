@@ -21,6 +21,8 @@ import { useProgrammes } from "@/lib/queries/programmes";
 import { useQuestionStats, useAllQuizAttempts, useDeleteQuizAttempt } from "@/lib/queries/quizzes";
 import type { QuizAttemptWithStudent } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
+import { downloadCsv } from "@/lib/attendance-csv";
+import { quizResultsToCsv, quizResultsFilename } from "@/lib/quiz-results-csv";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -761,7 +763,7 @@ function MonitorView() {
         </>
       )}
 
-      {drawerId && <TestDrawer quizId={drawerId} onClose={() => setParam('drawer', null)} />}
+      {drawerId && <TestDrawer quizId={drawerId} title={data?.items.find((i) => i.quiz_id === drawerId)?.title} onClose={() => setParam('drawer', null)} />}
     </div>
   );
 }
@@ -845,7 +847,7 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
   };
 }
 
-function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
+function TestDrawer({ quizId, title, onClose }: { quizId: string; title?: string; onClose: () => void }) {
   const [tab, setTab] = useState<'leaderboard' | 'questions' | 'attempts'>('leaderboard');
   const { has } = usePermissions();
   const router = useRouter();
@@ -929,7 +931,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {tab === 'leaderboard' && <DrawerLeaderboard quizId={quizId} />}
           {tab === 'questions'   && <DrawerQuestionStats quizId={quizId} />}
-          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
+          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} title={title} />}
         </div>
       </div>
       {previewQuiz && <QuizStudentPreview quiz={previewQuiz} onClose={() => setPreviewQuiz(null)} />}
@@ -1046,7 +1048,7 @@ type StudentAttemptGroup = {
   attempts: QuizAttemptWithStudent[];
 };
 
-function DrawerAttempts({ quizId }: { quizId: string }) {
+function DrawerAttempts({ quizId, title }: { quizId: string; title?: string }) {
   const { data: attempts, isPending, isError, error: queryError } = useAllQuizAttempts(quizId);
   const { has } = usePermissions();
   const deleteAttempt = useDeleteQuizAttempt();
@@ -1070,6 +1072,15 @@ function DrawerAttempts({ quizId }: { quizId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <button
+        onClick={() => downloadCsv(quizResultsFilename(title), quizResultsToCsv(attempts))}
+        style={{
+          alignSelf: 'flex-end', padding: '6px 12px', border: '1px solid rgba(32,147,121,0.3)', borderRadius: '8px',
+          background: 'rgba(32,147,121,0.08)', color: '#209379', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Download results (CSV)
+      </button>
       {groups.map((group) => (
         <DrawerAttemptsGroup
           key={group.student_id}
