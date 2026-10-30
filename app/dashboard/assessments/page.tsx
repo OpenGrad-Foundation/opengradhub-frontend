@@ -21,6 +21,8 @@ import { useProgrammes } from "@/lib/queries/programmes";
 import { useQuestionStats, useAllQuizAttempts, useDeleteQuizAttempt } from "@/lib/queries/quizzes";
 import type { QuizAttemptWithStudent } from "@/lib/api";
 import { withFrom } from "@/lib/nav";
+import { downloadCsv } from "@/lib/attendance-csv";
+import { quizResultsToCsv, quizResultsFilename } from "@/lib/quiz-results-csv";
 import { useCurrentUrl } from "@/lib/useCurrentUrl";
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -661,12 +663,7 @@ function MonitorView() {
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
           <SegBtn label="All"     active={!type}              onClick={() => setParam('type', null)} />
           <SegBtn label="Module"  active={type === 'MODULE'}  onClick={() => setParam('type', 'MODULE')} />
-          {/* A programme reaches quizzes through the courses it owns, and a
-              course quiz is always a MODULE_TEST — so in programme mode this
-              filter can only ever return nothing. Hidden rather than dead. */}
-          {!inProgrammeMode && (
-            <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
-          )}
+          <SegBtn label="Program" active={type === 'PROGRAM'} onClick={() => setParam('type', 'PROGRAM')} />
 
           <input
             value={q}
@@ -735,7 +732,7 @@ function MonitorView() {
         <div style={{ ...glassCard, textAlign: 'center', padding: '48px' }}>
           <p style={{ fontSize: '16px', fontWeight: 700, color: '#034852' }}>
             {inProgrammeMode
-              ? 'No quizzes yet — none of this programme\u2019s courses have published quizzes.'
+              ? 'No published programme quizzes match your filters.'
               : 'No assessments match your filters.'}
           </p>
           {inProgrammeMode && has(PERM.programmes.view) && (
@@ -766,7 +763,7 @@ function MonitorView() {
         </>
       )}
 
-      {drawerId && <TestDrawer quizId={drawerId} onClose={() => setParam('drawer', null)} />}
+      {drawerId && <TestDrawer quizId={drawerId} title={data?.items.find((i) => i.quiz_id === drawerId)?.title} onClose={() => setParam('drawer', null)} />}
     </div>
   );
 }
@@ -850,7 +847,7 @@ function pageBtnStyle(enabled: boolean): React.CSSProperties {
   };
 }
 
-function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }) {
+function TestDrawer({ quizId, title, onClose }: { quizId: string; title?: string; onClose: () => void }) {
   const [tab, setTab] = useState<'leaderboard' | 'questions' | 'attempts'>('leaderboard');
   const { has } = usePermissions();
   const router = useRouter();
@@ -934,7 +931,7 @@ function TestDrawer({ quizId, onClose }: { quizId: string; onClose: () => void }
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {tab === 'leaderboard' && <DrawerLeaderboard quizId={quizId} />}
           {tab === 'questions'   && <DrawerQuestionStats quizId={quizId} />}
-          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} />}
+          {tab === 'attempts'    && <DrawerAttempts quizId={quizId} title={title} />}
         </div>
       </div>
       {previewQuiz && <QuizStudentPreview quiz={previewQuiz} onClose={() => setPreviewQuiz(null)} />}
@@ -1051,7 +1048,7 @@ type StudentAttemptGroup = {
   attempts: QuizAttemptWithStudent[];
 };
 
-function DrawerAttempts({ quizId }: { quizId: string }) {
+function DrawerAttempts({ quizId, title }: { quizId: string; title?: string }) {
   const { data: attempts, isPending, isError, error: queryError } = useAllQuizAttempts(quizId);
   const { has } = usePermissions();
   const deleteAttempt = useDeleteQuizAttempt();
@@ -1075,6 +1072,15 @@ function DrawerAttempts({ quizId }: { quizId: string }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <button
+        onClick={() => downloadCsv(quizResultsFilename(title), quizResultsToCsv(attempts))}
+        style={{
+          alignSelf: 'flex-end', padding: '6px 12px', border: '1px solid rgba(32,147,121,0.3)', borderRadius: '8px',
+          background: 'rgba(32,147,121,0.08)', color: '#209379', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
+        }}
+      >
+        Download results (CSV)
+      </button>
       {groups.map((group) => (
         <DrawerAttemptsGroup
           key={group.student_id}
