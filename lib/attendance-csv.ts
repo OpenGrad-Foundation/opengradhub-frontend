@@ -4,9 +4,13 @@ import { STATUS_LABEL } from "./attendance-status";
 /**
  * RFC 4180 quoting. Names contain commas, schools contain quotes, and a class
  * title can contain a newline — any of which silently corrupts a naive join.
+ *
+ * Text starting with = + - @ is prefixed with ' so Excel shows it instead of
+ * running it as a formula. Numbers are left alone: -2 is a score, not an attack.
  */
-function cell(v: string | number): string {
-  const s = String(v ?? "");
+export function cell(v: string | number): string {
+  let s = String(v ?? "");
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

@@ -2821,6 +2821,9 @@ export async function getMyQuizAttempts(studentId?: string): Promise<QuizAttempt
 export type QuizAttemptWithStudent = QuizAttempt & {
   student_name: string;
   roll_number: string | null;
+  school_name: string | null;
+  answered_count: number;
+  correct_count: number;
 };
 
 /** Every student's attempts for one quiz, for the Quiz Details "Attempts" tab. */
