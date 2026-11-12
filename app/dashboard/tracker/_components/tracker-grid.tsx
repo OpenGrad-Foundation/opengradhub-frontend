@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, Clock, Download, ExternalLink, FileUp, Loader2, Save, ShieldAlert, UserCog, X } from "lucide-react";
 import {
@@ -624,12 +624,13 @@ export function TrackerEditableGrid({
     if (!authorityOf(row).blocker) return <span className="text-gray-400">—</span>;
     return (
       <div className="flex items-center gap-1">
-        <input
+        <TextCell
+          label="Blocker"
           value={blockerText[row.record_id] ?? ""}
-          onChange={(e) => setBlockerText((b) => ({ ...b, [row.record_id]: e.target.value }))}
-          onKeyDown={(e) => { if (e.key === "Enter") onRaise(row.record_id); }}
+          onChange={(v) => setBlockerText((b) => ({ ...b, [row.record_id]: String(v) }))}
+          onEnter={() => onRaise(row.record_id)}
           placeholder="What's stuck?"
-          className="h-9 w-full min-w-0 rounded border border-gray-300 px-2 text-sm outline-none focus:border-teal-500"
+          inputClass={inputClass}
         />
         <button
           type="button"
@@ -1231,6 +1232,8 @@ function EditableCell({
           inputClass={inputClass}
         />
       );
+    case "text":
+      return <TextCell label={col.label} value={value == null ? "" : String(value)} onChange={onChange} inputClass={inputClass} />;
     default: {
       const href = trackerLinkHref(value);
       return <div className="flex items-center gap-1">
@@ -1241,6 +1244,70 @@ function EditableCell({
       </div>;
     }
   }
+}
+
+/**
+ * A multi-line text cell. At rest it shows at most two wrapped lines, with "…" when there is
+ * more; on focus it grows in place to fit the text, up to six lines, then scrolls. Text wraps
+ * at the column width, so it never scrolls sideways, and nothing floats over the grid.
+ */
+function TextCell({
+  label,
+  value,
+  onChange,
+  inputClass,
+  placeholder,
+  onEnter,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: unknown) => void;
+  inputClass: string;
+  placeholder?: string;
+  /** When set, Enter submits (Shift+Enter still adds a line) instead of adding a line. */
+  onEnter?: () => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement | null>(null);
+  const [focused, setFocused] = useState(false);
+  const [clipped, setClipped] = useState(false);
+
+  // ponytail: re-measured on value/focus only, not on column resize; add a ResizeObserver if
+  // rows end up the wrong height after the grid's columns change width.
+  useLayoutEffect(() => {
+    const ta = ref.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const content = ta.scrollHeight + (ta.offsetHeight - ta.clientHeight);
+    const max = (focused ? 6 : 2) * 20 + 16; // leading-5 lines + py-[7px] + 1px borders
+    ta.style.height = `${Math.min(content, max)}px`;
+    ta.style.overflowY = focused && content > max ? "auto" : "hidden";
+    if (!focused) ta.scrollTop = 0;
+    setClipped(!focused && content > max);
+  }, [value, focused]);
+
+  return (
+    <div className="relative w-full min-w-[10rem]">
+      <textarea
+        ref={ref}
+        aria-label={label}
+        rows={1}
+        value={value}
+        placeholder={placeholder ?? "—"}
+        title={value || undefined}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") e.currentTarget.blur();
+          else if (e.key === "Enter" && !e.shiftKey && onEnter) { e.preventDefault(); onEnter(); }
+        }}
+        className={inputClass + " block resize-none py-[7px] leading-5"}
+      />
+      {clipped && (
+        <span aria-hidden="true" className="pointer-events-none absolute bottom-[4px] right-[3px] rounded bg-white pl-1 pr-1 text-sm leading-5 text-gray-500">…</span>
+      )}
+    </div>
+  );
 }
 
 /**
