@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { VideoIcon } from "@/components/icons/ClassIcons";
 import { joinLiveClass } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
@@ -8,7 +9,6 @@ import { openMeetingTab } from "@/lib/meeting-tab";
 import { useNextLiveClass } from "@/lib/queries/live-classes";
 import { retryAfterAt } from "@/lib/queries/retry";
 import { useRetryCountdown } from "@/hooks/use-retry-countdown";
-import WidgetError from "@/components/dashboard/primitives/WidgetError";
 
 export default function NextLiveClassHero({ studentId }: { studentId: string }) {
   const nextClass = useNextLiveClass(studentId);
@@ -27,21 +27,21 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  const loadError = nextClass.failureReason ?? nextClass.error;
-  if (loadError) {
+  // Data first: a failed background refresh must never hide a loaded class or
+  // its Join button. Only when there is nothing to show AND retries are over do
+  // we say so, quietly, with a way to check the full schedule.
+  const liveClass = nextClass.data;
+  if (!liveClass) {
+    if (!nextClass.isError || nextClass.fetchStatus !== "idle") return null;
     return (
-      <div className="mb-6">
-        <WidgetError
-          message="Couldn't load your next live class."
-          onRetry={() => void nextClass.refetch({ cancelRefetch: false })}
-          retryAt={retryAfterAt(loadError)}
-          isFetching={nextClass.isFetching}
-        />
-      </div>
+      <p className="mb-6 text-sm text-zinc-500">
+        Couldn&apos;t check for your next class.{" "}
+        <Link href="/dashboard/live-classes" className="font-semibold text-[var(--teal)] underline">
+          Open Live Classes
+        </Link>
+      </p>
     );
   }
-  const liveClass = nextClass.data;
-  if (!liveClass) return null;
   const joined = joinedClassId === liveClass.id;
 
   const scheduledMs = new Date(liveClass.scheduled_at).getTime();
