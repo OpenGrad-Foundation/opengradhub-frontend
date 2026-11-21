@@ -1414,8 +1414,9 @@ export async function getNextLiveClass(studentId: string): Promise<LiveClass | n
   url.searchParams.set("studentId", studentId);
   const r = await apiFetch(url.toString());
   if (!r.ok) throw new ApiError("Failed to load the next live class.", r);
-  const data = await r.json() as LiveClass | null;
-  return data ?? null;
+  // No upcoming class: Nest sends the handler's `null` as a 200 with an empty body.
+  const body = await r.text();
+  return body ? (JSON.parse(body) as LiveClass | null) : null;
 }
 
 export async function joinLiveClass(
