@@ -2,6 +2,8 @@
 
 import { useState, FormEvent } from "react";
 import { useAuth } from "@clerk/nextjs";
+import { API_BASE_URL, ApiError } from "@/lib/api";
+import { useRetryCountdown } from "@/hooks/use-retry-countdown";
 
 function RequirementItem({ met, label }: { met: boolean; label: string }) {
   return (
@@ -29,9 +31,12 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [retryAt, setRetryAt] = useState<number>();
+  const retrySeconds = useRetryCountdown(retryAt);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (isSubmitting || (retryAt ?? 0) > Date.now()) return;
 
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
@@ -49,9 +54,7 @@ export default function ResetPasswordPage() {
       const token = await getToken();
       if (!token) throw new Error("No session found. Please sign in again.");
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
-
-      const res = await fetch(`${apiUrl}/auth/reset-password`, {
+      const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
@@ -60,6 +63,11 @@ export default function ResetPasswordPage() {
         body: JSON.stringify({ newPassword: password.trim() }),
       });
 
+      if (res.status === 429) {
+        setRetryAt(new ApiError("Server is busy.", res).retryAfterAt);
+        setError("Server is busy. Please try again.");
+        return;
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { message?: string };
         throw new Error(body.message ?? "Failed to update password. Please try again.");
@@ -150,15 +158,15 @@ export default function ResetPasswordPage() {
             )}
           </div>
 
-          {error && (
-            <p className="rounded-xl border border-red-400/50 bg-red-50 px-4 py-3 text-[14px] leading-relaxed text-red-700">
-              {error}
+          {(retrySeconds > 0 || error) && (
+            <p role="alert" className="rounded-xl border border-red-400/50 bg-red-50 px-4 py-3 text-[14px] leading-relaxed text-red-700">
+              {retrySeconds > 0 ? `Server is busy. Try again in ${retrySeconds} s.` : error}
             </p>
           )}
 
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || retrySeconds > 0}
             className="w-full min-h-[48px] rounded-xl text-white font-bold text-base cursor-pointer border-none transition-all mt-4 disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, #0abe62 0%, #006d6c 100%)",

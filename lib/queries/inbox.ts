@@ -1,8 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
+import type { UseQueryResult } from '@tanstack/react-query';
 import { useAnnouncements, useAnnouncementUnreadCount } from './announcements';
 import { useNotifications, useUnreadCount as useNotificationUnreadCount } from './notifications';
+import { retryAfterAt } from './retry';
 
 export type InboxItem =
   | {
@@ -23,6 +25,16 @@ export type InboxItem =
       is_read: boolean;
       link: string | null;
     };
+
+function getInboxRetry(queries: UseQueryResult<unknown>[]) {
+  const failed = queries.filter((query) => query.failureReason || query.error);
+  return {
+    isError: failed.length > 0,
+    isFetching: failed.some((query) => query.isFetching),
+    retryAt: Math.max(0, ...failed.map((query) => retryAfterAt(query.failureReason ?? query.error) ?? 0)),
+    refetch: () => Promise.all(failed.map((query) => query.refetch({ cancelRefetch: false }))),
+  };
+}
 
 /**
  * Unified inbox feed — merges announcements (role-scoped) and in-app notifications
@@ -56,10 +68,10 @@ export function useInboxFeed(opts: { role: string }) {
 
   return {
     items,
-    isLoading: a.isLoading || n.isLoading,
-    isError: a.isError || n.isError,
+    isLoading: (!!opts.role && a.isPending) || n.isPending,
+    ...getInboxRetry([a, n]),
     /**
-     * Both halves of the feed have resolved at least once. The toast baseline MUST NOT be taken before this: the two
+     * Both halves of the feed succeeded. The toast baseline MUST NOT be taken before this: the two
      * queries settle at different times, and a baseline captured from whichever
      * arrived first makes the other one's backlog look brand new.
      *
@@ -67,7 +79,7 @@ export function useInboxFeed(opts: { role: string }) {
      * user's role is known — deliberately. A disabled query has fetched nothing,
      * and treating "disabled" as "settled" reintroduces the exact race.
      */
-    isSettled: a.isFetched && n.isFetched,
+    isSettled: a.isSuccess && n.isSuccess,
   };
 }
 
@@ -79,7 +91,8 @@ export function useInboxUnreadCount() {
   const n = useNotificationUnreadCount();
   const a = useAnnouncementUnreadCount();
   return {
-    data: { count: (n.data ?? 0) + (a.data?.count ?? 0) },
+    data: n.data !== undefined && a.data !== undefined ? { count: n.data + a.data.count } : undefined,
     isLoading: n.isLoading || a.isLoading,
+    ...getInboxRetry([n, a]),
   };
 }

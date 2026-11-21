@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { roleCodeBySlug } from "@/lib/role-dashboard";
+import ProfileError from "@/components/dashboard/ProfileError";
 
 type RoleDashboardPageProps = {
   roleSlug: keyof typeof roleCodeBySlug;
@@ -11,10 +12,12 @@ type RoleDashboardPageProps = {
 
 export function RoleDashboardPage({ roleSlug }: RoleDashboardPageProps) {
   const router = useRouter();
-  const { data, error, isLoading } = useCurrentUser();
+  const profile = useCurrentUser();
+  const { data, error, errorKind, isLoading } = profile;
+  const canOpenDashboard = !!data && errorKind !== 'session' && errorKind !== 'not-provisioned' && errorKind !== 'forbidden';
 
   useEffect(() => {
-    if (!data) {
+    if (!data || !canOpenDashboard) {
       return;
     }
 
@@ -25,9 +28,9 @@ export function RoleDashboardPage({ roleSlug }: RoleDashboardPageProps) {
         : data.role.dashboardPath;
 
     router.replace(targetPath);
-  }, [data, roleSlug, router]);
+  }, [canOpenDashboard, data, roleSlug, router]);
 
-  if (isLoading) {
+  if (isLoading && !error) {
     return (
       <div className="grid min-h-screen place-items-center bg-[var(--color-ink)] px-6 text-white">
         <div className="w-full max-w-xl rounded-[2rem] border border-white/12 bg-white/6 p-8 text-center">
@@ -45,27 +48,10 @@ export function RoleDashboardPage({ roleSlug }: RoleDashboardPageProps) {
     );
   }
 
-  if (error || !data) {
+  if (!canOpenDashboard) {
     return (
-      <div className="grid min-h-screen place-items-center bg-[var(--color-ink)] px-6 text-white">
-        <div className="w-full max-w-xl rounded-[2rem] border border-[var(--color-sun)]/30 bg-[var(--color-deep-teal)] p-8 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--color-sun)]">
-            Dashboard unavailable
-          </p>
-          <h1 className="font-display mt-4 text-3xl font-semibold">
-            We could not load this workspace
-          </h1>
-          <p className="mt-3 text-sm text-white/75">
-            {error ?? "Your OpenGradHub profile could not be resolved."}
-          </p>
-          <button
-            type="button"
-            onClick={() => router.replace("/")}
-            className="mt-6 rounded-2xl bg-[var(--color-sun)] px-5 py-3 text-sm font-semibold text-[var(--color-deep-teal)]"
-          >
-            Back to login
-          </button>
-        </div>
+      <div className="grid min-h-screen place-items-center bg-[var(--color-ink)] px-6">
+        <ProfileError profile={profile} />
       </div>
     );
   }

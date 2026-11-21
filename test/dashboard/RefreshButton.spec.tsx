@@ -14,7 +14,17 @@ describe('RefreshButton', () => {
     fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
     expect(invalidateMock).toHaveBeenCalledWith({
       queryKey: ['og', 'dashboard', 'STUDENT', 'overview'],
-    });
+    }, { cancelRefetch: false });
+  });
+
+  it('invalidates without fetching when the widget supplies its own refetch', async () => {
+    invalidateMock.mockClear();
+    const refetch = vi.fn();
+    const queryKey = ['og', 'dashboard', 'STUDENT', 'overview'];
+    render(<RefreshButton queryKey={queryKey} onRefresh={refetch} />);
+    fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+    expect(invalidateMock).toHaveBeenCalledExactlyOnceWith({ queryKey, refetchType: 'none' });
+    await waitFor(() => expect(refetch).toHaveBeenCalledOnce());
   });
 
   it('shows a busy state while refreshing, then re-enables', async () => {

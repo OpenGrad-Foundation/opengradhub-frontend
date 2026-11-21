@@ -22,9 +22,11 @@ export default function RefreshButton({ queryKey, onRefresh }: RefreshButtonProp
     try {
       // Hold the busy state for at least 500ms — widget refetches often
       // resolve instantly (same data), which made the button look dead.
+      const refresh = onRefresh
+        ? qc.invalidateQueries({ queryKey, refetchType: 'none' }).then(onRefresh)
+        : qc.invalidateQueries({ queryKey }, { cancelRefetch: false });
       await Promise.all([
-        qc.invalidateQueries({ queryKey: [...queryKey] }),
-        onRefresh?.(),
+        refresh,
         new Promise((resolve) => setTimeout(resolve, 500)),
       ]);
     } finally {

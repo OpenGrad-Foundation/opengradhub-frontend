@@ -22,7 +22,7 @@ async function read<T>(path: string): Promise<T> {
   const response = await apiFetch(`${API_BASE_URL}${path}`, { cache: 'no-store' });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(body?.message ?? 'Could not load duplication material.', response.status);
+    throw new ApiError(body?.message ?? 'Could not load duplication material.', response);
   }
   return response.json();
 }
