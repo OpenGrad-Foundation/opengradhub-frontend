@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
-import { apiFetch } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiFetch } from "@/lib/api";
+import { retryAfterAt } from "@/lib/queries/retry";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const FIVE_MIN = 5 * 60_000;
 
 export type StudentOverviewWidgets = {
@@ -26,6 +26,12 @@ const EMPTY: StudentOverviewWidgets = {
   recentScores: { labels: [], datasets: [] },
 };
 
+async function loadWidgetData<T>(path: string): Promise<T> {
+  const response = await apiFetch(`${API_BASE_URL}${path}`);
+  if (!response.ok) throw new ApiError("Failed to load the student overview.", response);
+  return response.json() as Promise<T>;
+}
+
 export function useStudentOverview(userId: string) {
   const query = useQuery<StudentOverviewWidgets, Error>({
     queryKey: qk.dashboardWidget("STUDENT", "overview", userId),
@@ -33,14 +39,26 @@ export function useStudentOverview(userId: string) {
     staleTime: FIVE_MIN,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const [enrolmentsRes, doubtsRes, overviewRes] = await Promise.all([
-        apiFetch(`${API_BASE}/users/${userId}/enrolments`),
-        apiFetch(`${API_BASE}/doubts?mine=1&status=open`),
-        apiFetch(`${API_BASE}/analytics/dashboard/student/overview`),
+      const [enrolmentsResult, doubtsResult, overviewResult] = await Promise.allSettled([
+        loadWidgetData<unknown>(`/users/${userId}/enrolments`),
+        loadWidgetData<unknown>("/doubts?mine=1&status=open"),
+        loadWidgetData<Pick<StudentOverviewWidgets, "avgScore" | "attendancePct" | "recentScores">>(
+          "/analytics/dashboard/student/overview",
+        ),
       ]);
 
-      const enrolments: unknown = enrolmentsRes.ok ? await enrolmentsRes.json() : [];
-      const doubts: unknown = doubtsRes.ok ? await doubtsRes.json() : [];
+      if (enrolmentsResult.status === "rejected" || doubtsResult.status === "rejected" || overviewResult.status === "rejected") {
+        // A retry reissues all three requests, so it must wait for the longest cooldown.
+        const failures = [enrolmentsResult, doubtsResult, overviewResult]
+          .filter((result) => result.status === "rejected")
+          .map((result) => result.reason as Error);
+        throw failures.reduce((longest, error) =>
+          (retryAfterAt(error) ?? 0) > (retryAfterAt(longest) ?? 0) ? error : longest);
+      }
+
+      const enrolments = enrolmentsResult.value;
+      const doubts = doubtsResult.value;
+      const overview = overviewResult.value;
 
       const myCourses = Array.isArray(enrolments)
         ? enrolments.length
@@ -54,16 +72,6 @@ export function useStudentOverview(userId: string) {
           ? (doubts as { items: unknown[] }).items.length
           : 0;
 
-      // Score + attendance KPIs are server-computed (quiz_attempts +
-      // live_class_attendees).
-      const overview = overviewRes.ok
-        ? ((await overviewRes.json()) as {
-            avgScore: number;
-            attendancePct: number;
-            recentScores: StudentOverviewWidgets["recentScores"];
-          })
-        : null;
-
       return {
         myCourses,
         avgScore: overview?.avgScore ?? 0,
@@ -76,8 +84,9 @@ export function useStudentOverview(userId: string) {
 
   return {
     widgets: query.data ?? EMPTY,
-    isLoading: query.isLoading,
-    error: query.error?.message ?? null,
-    refetch: () => query.refetch(),
+    isLoading: query.isPending,
+    error: query.failureReason ?? query.error,
+    isFetching: query.isFetching,
+    refetch: () => query.refetch({ cancelRefetch: false }),
   };
 }

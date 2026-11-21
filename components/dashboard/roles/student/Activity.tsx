@@ -7,12 +7,13 @@ import RefreshButton from "@/components/dashboard/primitives/RefreshButton";
 import WidgetError from "@/components/dashboard/primitives/WidgetError";
 import { qk } from "@/lib/queries/keys";
 import { useStudentActivity } from "@/lib/queries/dashboard/student/use-activity";
+import { retryAfterAt } from "@/lib/queries/retry";
 
 export default function StudentActivity({ userId }: { userId: string }) {
-  const { items, isLoading, error, refetch } = useStudentActivity(userId);
+  const { items, isLoading, error, isFetching, refetch } = useStudentActivity(userId);
 
   if (error) {
-    return <WidgetError message={error} onRetry={refetch} />;
+    return <WidgetError message="Couldn't load recent activity." onRetry={refetch} retryAt={retryAfterAt(error)} isFetching={isFetching} />;
   }
 
   return (

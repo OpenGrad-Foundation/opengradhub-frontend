@@ -2,9 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/queries/keys";
-import { apiFetch } from "@/lib/api";
+import { API_BASE_URL, ApiError, apiFetch } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
 const FIVE_MIN = 5 * 60_000;
 
 export type ActivityItem = {
@@ -23,8 +22,8 @@ export function useStudentActivity(userId: string) {
     queryFn: async () => {
       // Server merges quiz results, doubt replies, and student-targeted
       // announcements into one reverse-chronological feed (capped at 20).
-      const res = await apiFetch(`${API_BASE}/analytics/dashboard/student/feed`);
-      if (!res.ok) return { items: [] };
+      const res = await apiFetch(`${API_BASE_URL}/analytics/dashboard/student/feed`);
+      if (!res.ok) throw new ApiError("Failed to load student activity.", res);
       const raw: unknown = await res.json();
       const items =
         raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)
@@ -36,8 +35,9 @@ export function useStudentActivity(userId: string) {
 
   return {
     items: query.data?.items ?? [],
-    isLoading: query.isLoading,
-    error: query.error?.message ?? null,
-    refetch: () => query.refetch(),
+    isLoading: query.isPending,
+    error: query.failureReason ?? query.error,
+    isFetching: query.isFetching,
+    refetch: () => query.refetch({ cancelRefetch: false }),
   };
 }

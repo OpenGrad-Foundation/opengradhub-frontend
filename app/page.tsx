@@ -4,7 +4,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useSignIn } from "@clerk/nextjs";
-import { signIn, signUp, requestUgPasswordReset } from "@/lib/api";
+import { ApiError, signIn, signUp, requestUgPasswordReset } from "@/lib/api";
+import { useRetryCountdown } from "@/hooks/use-retry-countdown";
 import {
   getStoredAuthToken,
   isClerkMode,
@@ -269,7 +270,11 @@ function ClerkSignInForm({
 // Track B: roll-number identifier → roll number + DOB → fellow approval queue.
 // ---------------------------------------------------------------------------
 
-function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
+function ForgotPasswordFlow({ onBack, retryAt, setRetryAt }: {
+  onBack: () => void;
+  retryAt: number | undefined;
+  setRetryAt: (retryAt: number | undefined) => void;
+}) {
   const { signIn } = useSignIn();
   const [identifier, setIdentifier] = useState("");
   const [dob, setDob] = useState("");
@@ -280,6 +285,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const retrySeconds = useRetryCountdown(retryAt);
 
   const isEmail = identifier.includes("@");
   // Roll-number path: only ask for DOB once we know no email code can be sent.
@@ -330,7 +336,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
 
   async function handleStart(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!signIn) return;
+    if (!signIn || isSubmitting || (!isEmail && (retryAt ?? 0) > Date.now())) return;
     setIsSubmitting(true);
     setError(null);
     try {
@@ -353,6 +359,11 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
       setInfo(message);
       setStep("ugDone");
     } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 429) {
+        setRetryAt(err.retryAfterAt);
+        setError("Server is busy. Please try again.");
+        return;
+      }
       const clerkErrors = (err as { errors?: Array<{ message: string }> })?.errors;
       setError(clerkErrors?.[0]?.message ?? "Something went wrong. Please try again.");
     } finally {
@@ -462,17 +473,18 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
             </div>
           ) : null}
 
-          {error ? (
+          {(!isEmail && retrySeconds > 0) || error ? (
             <p
               role="alert"
               className="rounded-xl border border-red-400/50 bg-red-50 px-4 py-3 text-sm text-red-700"
             >
-              {error}
+              {!isEmail && retrySeconds > 0 ? `Server is busy. Try again in ${retrySeconds} s.` : error}
             </p>
           ) : null}
 
           <SubmitButton
             isSubmitting={isSubmitting}
+            disabled={!isEmail && retrySeconds > 0}
             label={isEmail || !needsDob ? "Send reset code" : "Request password reset"}
             loadingLabel="Submitting…"
           />
@@ -592,17 +604,19 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
 
 function SubmitButton({
   isSubmitting,
+  disabled = false,
   label,
   loadingLabel,
 }: {
   isSubmitting: boolean;
+  disabled?: boolean;
   label: string;
   loadingLabel: string;
 }) {
   return (
     <button
       type="submit"
-      disabled={isSubmitting}
+      disabled={isSubmitting || disabled}
       className={`w-full min-h-[48px] rounded-xl text-white font-bold text-base cursor-pointer border-none transition-all hover:-translate-y-0.5 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 mt-1 ${focusRing}`}
       style={{
         background: "linear-gradient(135deg, var(--green) 0%, var(--teal) 100%)",
@@ -662,6 +676,7 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  const [forgotRetryAt, setForgotRetryAt] = useState<number>();
   const isStudentSignUp = useMemo(
     () => signUpForm.roleCode === "STUDENT",
     [signUpForm.roleCode],
@@ -880,7 +895,7 @@ export default function LoginPage() {
           {mode === "sign-in" ? (
             clerkMode ? (
               showForgot ? (
-                <ForgotPasswordFlow onBack={() => setShowForgot(false)} />
+                <ForgotPasswordFlow onBack={() => setShowForgot(false)} retryAt={forgotRetryAt} setRetryAt={setForgotRetryAt} />
               ) : (
                 <>
                   <ClerkSignInForm

@@ -40,6 +40,7 @@ vi.mock("@/lib/queries/batches", () => ({ useBatches: () => ({ data: [], isError
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 import LiveClassesPage from "@/app/dashboard/live-classes/page";
+import { ApiError } from "@/lib/api";
 
 const SOON = new Date(Date.now() + 5 * 60_000).toISOString();
 
@@ -82,6 +83,21 @@ describe("joining must not mark a student present into a blocked window", () => 
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/marked present/i);
     expect(alert.querySelector("a")?.getAttribute("href")).toBe("https://meet.example/real");
+  });
+
+  it("shows the rate-limit wait when joining fails and disables join during it", async () => {
+    const fakeTab = { closed: false, location: { href: "" }, close: vi.fn() };
+    vi.stubGlobal("open", vi.fn(() => fakeTab));
+    joinLiveClass.mockRejectedValue(new ApiError("Busy", new Response(null, {
+      status: 429, headers: { "Retry-After": "30" },
+    })));
+
+    render(<LiveClassesPage />);
+    const join = await screen.findByRole<HTMLButtonElement>("button", { name: /Join/ });
+    fireEvent.click(join);
+    expect((await screen.findByRole("alert")).textContent).toContain("Try again in 30 s");
+    expect(join.disabled).toBe(true);
+    expect(fakeTab.close).toHaveBeenCalledOnce();
   });
 });
 

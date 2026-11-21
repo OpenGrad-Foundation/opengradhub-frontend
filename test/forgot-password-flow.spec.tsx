@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi, type Mock } from 'vitest';
 
 type Result = { error: { message: string } | null };
@@ -73,7 +73,33 @@ beforeEach(() => {
   replace.mockReset();
   Object.defineProperty(window, 'location', { value: { ...window.location, replace }, writable: true });
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it('shows the server wait and blocks roll-number reset requests until it expires', async () => {
+  state.signIn!.create.mockResolvedValue(ok);
+  const fetchMock = vi.fn(async () => new Response(null, { status: 429, headers: { 'Retry-After': '9' } }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(<LoginPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Forgot password?' }));
+  fireEvent.change(screen.getByLabelText('Email or roll number'), { target: { value: 'ROLL-128' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send reset code' }));
+  fireEvent.change(await screen.findByLabelText('Date of birth'), { target: { value: '2008-01-15' } });
+
+  vi.useFakeTimers();
+  const button = screen.getByRole<HTMLButtonElement>('button', { name: 'Request password reset' });
+  await act(async () => { fireEvent.click(button); });
+  expect(screen.getByRole('alert').textContent).toContain('9 s');
+  expect(button.disabled).toBe(true);
+  fireEvent.submit(button.form!);
+  expect(fetchMock).toHaveBeenCalledOnce();
+
+  act(() => { vi.advanceTimersByTime(9_000); });
+  expect(button.disabled).toBe(false);
+});
 
 async function openCodeStep() {
   render(<LoginPage />);

@@ -17,6 +17,7 @@ import { markAllAnnouncementsRead, markAllNotificationsRead } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { notificationRoute } from "@/lib/notification-routes";
 import { ComposeMessageModal } from "@/components/ComposeMessageModal";
+import WidgetError from "@/components/dashboard/primitives/WidgetError";
 
 type Filter = "all" | "unread" | "notifications" | "announcements";
 
@@ -44,7 +45,8 @@ export default function InboxPage() {
   const canCreateAnn = usePermission(PERM.announcements.create);
   const showCompose = canCompose || canCreateAnn;
 
-  const { items, isLoading } = useInboxFeed({ role: roleCode });
+  const feed = useInboxFeed({ role: roleCode });
+  const { items, isLoading } = feed;
   const markAnnRead   = useMarkAnnouncementRead();
   const markNotifRead = useMarkNotificationRead();
   const archiveNotif  = useArchiveNotification();
@@ -178,7 +180,9 @@ export default function InboxPage() {
       </div>
 
       {/* ── Feed ───────────────────────────────────────────────── */}
-      {isLoading ? (
+      {feed.isError ? (
+        <WidgetError message="Couldn't load your inbox." onRetry={feed.refetch} retryAt={feed.retryAt} isFetching={feed.isFetching} />
+      ) : isLoading ? (
         <LoadingState message="Fetching messages…" />
       ) : filtered.length === 0 ? (
         <div style={{ ...S.glassCard, textAlign: "center", padding: "48px 32px" }}>

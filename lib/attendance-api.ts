@@ -291,7 +291,7 @@ async function json<T>(res: Response): Promise<T> {
       const body = (await res.json()) as { message?: string | string[] };
       if (body?.message) message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
     } catch { /* keep default */ }
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res);
   }
   return res.json() as Promise<T>;
 }

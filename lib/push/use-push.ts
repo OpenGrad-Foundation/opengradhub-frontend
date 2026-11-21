@@ -4,6 +4,20 @@ import { useCallback, useEffect, useState } from 'react';
 import { getPushPublicKey, savePushSubscription, deletePushSubscription } from '@/lib/api';
 import { registerServiceWorker } from './register-sw';
 
+let publicKey: string | null | undefined;
+let publicKeyRequest: Promise<string | null> | undefined;
+
+function loadPushPublicKey() {
+  if (publicKey !== undefined) return Promise.resolve(publicKey);
+  publicKeyRequest ??= getPushPublicKey().then((key) => {
+    publicKey = key;
+    return key;
+  }).finally(() => {
+    publicKeyRequest = undefined;
+  });
+  return publicKeyRequest;
+}
+
 /** Convert a URL-safe base64 VAPID key into the Uint8Array applicationServerKey wants.
  *  Backed by an explicit ArrayBuffer so the type is the BufferSource pushManager expects. */
 export function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
@@ -58,7 +72,7 @@ export function usePush() {
   }, []);
 
   const enable = useCallback(async () => {
-    const key = await getPushPublicKey();
+    const key = await loadPushPublicKey();
     if (!key) throw new Error('Push is not configured on the server');
     const reg = (await registerServiceWorker()) ?? (await navigator.serviceWorker.ready);
     const sub = await reg.pushManager.subscribe({
