@@ -35,6 +35,17 @@ vi.mock('@clerk/nextjs', () => ({
 }));
 
 import { useCurrentUser } from '@/lib/queries/current-user';
+import { ApiError, clearApiAuth } from '@/lib/api';
+
+function getCapturedQueryFn() {
+  const entry = {};
+  const context = {
+    client: { getQueryCache: () => ({ find: () => entry }) },
+    queryKey: capturedOptions!.queryKey,
+  };
+  const queryFn = capturedOptions!.queryFn as (context: unknown) => Promise<unknown>;
+  return () => queryFn(context);
+}
 
 describe('useCurrentUser query configuration', () => {
   beforeEach(() => {
@@ -49,6 +60,8 @@ describe('useCurrentUser query configuration', () => {
 
   afterEach(() => {
     delete process.env.NEXT_PUBLIC_AUTH_PROVIDER;
+    clearApiAuth();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -87,14 +100,14 @@ describe('useCurrentUser query configuration', () => {
     expect(result.current.error).toBeNull();
   });
 
-  it('runs the query once Clerk has loaded, even when signed out', () => {
+  it('leaves a known signed-out session to the route middleware on reload', () => {
     process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'clerk';
     clerkAuth = { ...clerkAuth, isLoaded: true, isSignedIn: false, userId: null };
 
-    renderHook(() => useCurrentUser());
-
-    // A genuine signed-out state must still reach the error path.
-    expect(capturedOptions!.enabled).toBe(true);
+    const { result } = renderHook(() => useCurrentUser());
+    expect(capturedOptions!.enabled).toBe(false);
+    expect(result.current.errorKind).toBe('signed-out');
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('reports a bootstrap failure rather than spinning forever', () => {
@@ -158,5 +171,67 @@ describe('useCurrentUser query configuration', () => {
     unmount();
 
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('fetches once with a fresh Clerk token after a 401 and then surfaces a second 401', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'clerk';
+    const getToken = vi.fn().mockResolvedValueOnce('old-token').mockResolvedValueOnce('fresh-token');
+    clerkAuth.getToken = getToken;
+    const fetchMock = vi.fn(async () => new Response(null, { status: 401 }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderHook(() => useCurrentUser());
+
+    const queryFn = getCapturedQueryFn();
+    const retry = capturedOptions!.retry as (count: number, error: Error) => boolean;
+    await expect(queryFn()).rejects.toMatchObject({ status: 401 });
+    expect(getToken.mock.calls).toEqual([[{ skipCache: false }], [{ skipCache: true }]]);
+    expect(fetchMock).toHaveBeenLastCalledWith(expect.stringMatching(/\/users\/me$/), {
+      headers: { Authorization: 'Bearer fresh-token' },
+    });
+    expect(retry(0, new ApiError('Unauthorized', 401))).toBe(false);
+  });
+
+  it('treats Clerk token exceptions on signed-in sessions as transient', async () => {
+    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'clerk';
+    const tokenError = new Error('Please sign in');
+    clerkAuth.getToken = vi.fn().mockRejectedValue(tokenError);
+    renderHook(() => useCurrentUser());
+
+    const queryFn = getCapturedQueryFn();
+    const retry = capturedOptions!.retry as (count: number, error: Error) => boolean;
+    await expect(queryFn()).rejects.toMatchObject({
+      message: 'Could not reach the sign-in service. Please try again.',
+      cause: tokenError,
+    });
+    expect(retry(0, tokenError)).toBe(true);
+    expect(retry(1, tokenError)).toBe(true);
+    expect(retry(2, tokenError)).toBe(false);
+  });
+
+  it('defers a focus refetch until the profile cooldown expires', () => {
+    vi.useFakeTimers();
+    renderHook(() => useCurrentUser());
+    const onFocus = capturedOptions!.refetchOnWindowFocus as (query: { state: { error: Error } }) => boolean;
+    const error = new ApiError('Busy', new Response(null, { status: 429, headers: { 'Retry-After': '12' } }));
+    expect(onFocus({ state: { error } })).toBe(false);
+    vi.advanceTimersByTime(12_000);
+    expect(onFocus({ state: { error } })).toBe(true);
+  });
+
+  it('skips network requests when an invalidation restarts a rate-limited fetch', async () => {
+    vi.useFakeTimers();
+    process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'clerk';
+    const fetchMock = vi.fn(async () => new Response(null, { status: 429, headers: { 'Retry-After': '12' } }));
+    vi.stubGlobal('fetch', fetchMock);
+    renderHook(() => useCurrentUser());
+    const queryFn = getCapturedQueryFn();
+
+    await expect(queryFn()).rejects.toMatchObject({ status: 429, retryAfterMs: 12_000 });
+    vi.advanceTimersByTime(11_999);
+    await expect(queryFn()).rejects.toMatchObject({ status: 429 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    vi.advanceTimersByTime(1);
+    await expect(queryFn()).rejects.toMatchObject({ status: 429 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

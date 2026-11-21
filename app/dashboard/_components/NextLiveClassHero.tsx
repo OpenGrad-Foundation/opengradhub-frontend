@@ -2,23 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { VideoIcon } from "@/components/icons/ClassIcons";
-import { getNextLiveClass, joinLiveClass, type LiveClass } from "@/lib/api";
+import { joinLiveClass } from "@/lib/api";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { openMeetingTab } from "@/lib/meeting-tab";
+import { useNextLiveClass } from "@/lib/queries/live-classes";
+import { retryAfterAt } from "@/lib/queries/retry";
+import { useRetryCountdown } from "@/hooks/use-retry-countdown";
+import WidgetError from "@/components/dashboard/primitives/WidgetError";
 
 export default function NextLiveClassHero({ studentId }: { studentId: string }) {
-  const [cls,       setCls]       = useState<LiveClass | null | "loading">("loading");
+  const nextClass = useNextLiveClass(studentId);
   const [now,       setNow]       = useState(0);
   const [joining,   setJoining]   = useState(false);
-  const [joined,    setJoined]    = useState(false);
+  const [joinedClassId, setJoinedClassId] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<Error | null>(null);
+  const joinWait = useRetryCountdown(retryAfterAt(joinError));
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const invalidate = useInvalidate();
-
-  useEffect(() => {
-    getNextLiveClass(studentId)
-      .then(c => setCls(c))
-      .catch(() => setCls(null));
-  }, [studentId]);
 
   // Countdown tick
   useEffect(() => {
@@ -27,9 +27,22 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, []);
 
-  if (cls === "loading" || cls === null) return null;
-
-  const liveClass = cls;
+  const loadError = nextClass.failureReason ?? nextClass.error;
+  if (loadError) {
+    return (
+      <div className="mb-6">
+        <WidgetError
+          message="Couldn't load your next live class."
+          onRetry={() => void nextClass.refetch({ cancelRefetch: false })}
+          retryAt={retryAfterAt(loadError)}
+          isFetching={nextClass.isFetching}
+        />
+      </div>
+    );
+  }
+  const liveClass = nextClass.data;
+  if (!liveClass) return null;
+  const joined = joinedClassId === liveClass.id;
 
   const scheduledMs = new Date(liveClass.scheduled_at).getTime();
   const endsMs      = scheduledMs + liveClass.duration_minutes * 60_000;
@@ -52,21 +65,25 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
     return `${d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })} at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   }
 
-  async function handleJoin() {
+  async function handleJoin(liveClassId: string) {
+    if (joining || joinWait > 0) return;
     setJoining(true);
+    setJoinError(null);
     try {
       let url = "";
       const opened = await openMeetingTab(async () => {
-        url = (await joinLiveClass(liveClass.id, studentId)).meeting_url;
+        url = (await joinLiveClass(liveClassId, studentId)).meeting_url;
         return url;
       });
-      setJoined(true);
+      setJoinedClassId(liveClassId);
       // Popup blocked anyway: same-tab navigation needs no gesture.
       if (!opened) window.location.href = url;
       // For an online class this click IS the attendance mark, so the cached
       // attendance card sitting next to this one is now wrong.
       invalidate("liveClassAttendance");
-    } catch { /* ignore */ } finally {
+    } catch (error) {
+      setJoinError(error instanceof Error ? error : new Error("Could not join the live class."));
+    } finally {
       setJoining(false);
     }
   }
@@ -114,8 +131,8 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
       <div style={{ flexShrink: 0, textAlign: "right" }}>
         {canJoin ? (
           <button
-            onClick={() => void handleJoin()}
-            disabled={joining || joined}
+            onClick={() => void handleJoin(liveClass.id)}
+            disabled={joining || joined || joinWait > 0}
             style={{
               padding: "10px 22px", border: "none", borderRadius: "10px",
               background: isLive ? "#0abe62" : "rgba(255,255,255,0.18)",
@@ -136,6 +153,11 @@ export default function NextLiveClassHero({ studentId }: { studentId: string }) 
           </div>
         )}
       </div>
+      {joinError && (
+        <p role="alert" className="w-full text-sm">
+          {joinWait ? `Could not join yet. Try again in ${joinWait} s.` : joinError.message}
+        </p>
+      )}
     </div>
   );
 }

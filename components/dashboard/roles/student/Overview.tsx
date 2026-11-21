@@ -8,9 +8,10 @@ import WidgetError from "@/components/dashboard/primitives/WidgetError";
 import { qk } from "@/lib/queries/keys";
 import { useStudentOverview } from "@/lib/queries/dashboard/student/use-overview";
 import { useMyAttendance } from "@/lib/queries/attendance";
+import { retryAfterAt } from "@/lib/queries/retry";
 
 export default function StudentOverview({ userId }: { userId: string }) {
-  const { widgets, isLoading, error, refetch } = useStudentOverview(userId);
+  const { widgets, isLoading, error, isFetching, refetch } = useStudentOverview(userId);
 
   /**
    * ONE attendance number, from the canonical API — whichever store is
@@ -26,7 +27,7 @@ export default function StudentOverview({ userId }: { userId: string }) {
   const attendancePct = totals.marked === 0 ? null : Math.round((totals.present / totals.marked) * 100);
 
   if (error) {
-    return <WidgetError message={error} onRetry={refetch} />;
+    return <WidgetError message="Couldn't load your overview." onRetry={refetch} retryAt={retryAfterAt(error)} isFetching={isFetching} />;
   }
 
   return (
@@ -56,18 +57,21 @@ export default function StudentOverview({ userId }: { userId: string }) {
         {/* One number, not two: whichever store is authoritative for this
             student answers it. Two side-by-side percentages read as one figure
             contradicting itself, which is what this consolidation removed. */}
-        <StatCard
-          label="Attendance"
-          value={attendancePct ?? 0}
-          isLoading={myAttendance.isLoading}
-          helperText={
-            myAttendance.isError
-              ? "Couldn't load attendance"
-              : attendancePct === null
-                ? "No attendance recorded yet"
-                : undefined
-          }
-        />
+        {myAttendance.isError || myAttendance.failureReason ? (
+          <WidgetError
+            message="Couldn't load attendance."
+            onRetry={() => void myAttendance.refetch({ cancelRefetch: false })}
+            retryAt={retryAfterAt(myAttendance.failureReason ?? myAttendance.error)}
+            isFetching={myAttendance.isFetching}
+          />
+        ) : (
+          <StatCard
+            label="Attendance"
+            value={attendancePct}
+            isLoading={myAttendance.isPending}
+            helperText={attendancePct === null ? "No attendance recorded yet" : undefined}
+          />
+        )}
       </div>
       <ChartCard
         title="Recent quiz scores"

@@ -2,6 +2,7 @@ import { QueryCache, QueryClient } from '@tanstack/react-query';
 import { ApiError } from '../api';
 import { PERSISTER_KEY_PREFIX } from '@tanstack/query-persist-client-core';
 import { idbDel } from './persister';
+import { canRetryQuery, queryRetryDelay } from './retry';
 
 /**
  * Layer 4 of caching strategy v2 — QueryClient factory.
@@ -16,7 +17,7 @@ import { idbDel } from './persister';
  *    (useRealtime), which invalidates the affected keys on a server change.
  *    Queries that genuinely need focus-refresh (e.g. current-user identity/role)
  *    opt back in per-hook with `refetchOnWindowFocus: true`.
- *  - retry 1: a down backend fails fast instead of hammering it 3x.
+ *  - one transient retry, respecting the server's Retry-After deadline.
  *
  * A fresh client is created per browser session (or per server request in
  * the unlikely event this runs server-side) — never a module-level singleton.
@@ -39,7 +40,8 @@ export function makeQueryClient(): QueryClient {
       queries: {
         staleTime: 60_000,
         refetchOnWindowFocus: false,
-        retry: 1,
+        retry: canRetryQuery,
+        retryDelay: queryRetryDelay,
       },
     },
   });

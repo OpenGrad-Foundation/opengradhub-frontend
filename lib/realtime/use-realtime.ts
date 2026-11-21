@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { API_BASE_URL } from '../api';
+import { API_BASE_URL, ApiError } from '../api';
 import { isClerkMode, getStoredAuthToken } from '../auth-session';
 import { useInvalidate } from '../mutations/invalidation';
 import { createRealtimeRouter } from './router';
@@ -93,7 +93,7 @@ export function useRealtime(enabled: boolean): void {
               if (res.status >= 400 && res.status < 500 && res.status !== 429) {
                 throw new FatalError(`SSE auth failed: ${res.status}`);
               }
-              throw new Error(`SSE open failed: ${res.status}`);
+              throw new ApiError(`SSE open failed: ${res.status}`, res);
             },
             onmessage(ev) {
               router.handle(ev.event);
@@ -113,7 +113,8 @@ export function useRealtime(enabled: boolean): void {
         } catch (err) {
           if (stopped || ctrl.signal.aborted) return;
           if (err instanceof FatalError) return; // 401/403 → don't hammer
-          await sleep(backoff);
+          const retryAfterAt = err instanceof ApiError ? err.retryAfterAt : undefined;
+          await sleep(Math.max(backoff, (retryAfterAt ?? 0) - Date.now()));
           backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
         }
       }

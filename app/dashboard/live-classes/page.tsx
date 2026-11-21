@@ -17,6 +17,8 @@ import { useClassFilters } from "./_components/useClassFilters";
 import { STATUS_LABEL, chipStyle, MUTED } from "@/lib/attendance-status";
 import { VideoIcon, RecordedIcon, LiveDot, CalendarIcon } from "@/components/icons/ClassIcons";
 import type { AttendanceStatus } from "@/lib/attendance-api";
+import { retryAfterAt } from "@/lib/queries/retry";
+import { useRetryCountdown } from "@/hooks/use-retry-countdown";
 
 /**
  * One class list.
@@ -64,6 +66,8 @@ function LiveClassesInner() {
   }), [classes, state.sort]);
 
   const [joining, setJoining] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState<Error | null>(null);
+  const joinWait = useRetryCountdown(retryAfterAt(joinError));
   const [deleting, setDeleting] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [rosterClass, setRosterClass] = useState<string | null>(null);
@@ -108,7 +112,9 @@ function LiveClassesInner() {
   }
 
   async function handleJoin(cls: LiveClass) {
+    if (joining || joinWait > 0) return;
     setJoining(cls.id);
+    setJoinError(null);
     let url = "";
     try {
       const opened = await openMeetingTab(async () => {
@@ -120,7 +126,7 @@ function LiveClassesInner() {
       // status has to be refetched rather than left showing the old answer.
       invalidate("liveClassAttendance");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not join.");
+      setJoinError(e instanceof Error ? e : new Error("Could not join the live class."));
     } finally {
       setJoining(null);
     }
@@ -182,6 +188,11 @@ function LiveClassesInner() {
         </div>
       )}
 
+      {joinError && (
+        <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {joinWait ? `Could not join yet. Try again in ${joinWait} s.` : joinError.message}
+        </p>
+      )}
       {loading ? (
         <LoadingState />
       ) : error ? (
@@ -201,6 +212,7 @@ function LiveClassesInner() {
               now={now}
               onJoin={() => void handleJoin(cls)}
               joining={joining === cls.id}
+              joinDisabled={joining !== null || joinWait > 0}
               onViewAttendance={canAttendance ? () => setRosterClass(cls.id) : undefined}
               onEdit={canEdit ? () => router.push(`/dashboard/live-classes/${cls.id}/edit`) : undefined}
               onDelete={canDelete ? () => void handleDelete(cls) : undefined}
@@ -252,7 +264,7 @@ function EmptyState({ isPast, canCreate, isStaff }: { isPast: boolean; canCreate
 
 
 function ClassCard({
-  cls, isStaff, mayJoin, now, onJoin, joining, onViewAttendance, onEdit, onDelete, deleting,
+  cls, isStaff, mayJoin, now, onJoin, joining, joinDisabled, onViewAttendance, onEdit, onDelete, deleting,
 }: {
   cls: LiveClass;
   isStaff: boolean;
@@ -260,6 +272,7 @@ function ClassCard({
   now: number;
   onJoin: () => void;
   joining: boolean;
+  joinDisabled: boolean;
   onViewAttendance?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -348,7 +361,7 @@ function ClassCard({
       {mayJoin && !ended && (
         <div className="sm:shrink-0 sm:text-right">
           {canJoinNow ? (
-            <button onClick={onJoin} disabled={joining} className={PRIMARY_BTN + " w-full sm:w-auto disabled:opacity-70"}>
+            <button onClick={onJoin} disabled={joinDisabled} className={PRIMARY_BTN + " w-full sm:w-auto disabled:opacity-70"}>
               {joining ? "Joining…" : isLive ? "Join Now" : "Join (opens soon)"}
             </button>
           ) : (

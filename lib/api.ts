@@ -19,7 +19,7 @@ export const API_BASE_URL =
 // For custom auth mode: setApiAuthToken is called with the stored JWT.
 let _apiToken: string | null = null;
 let _tokenGetter: (() => Promise<string | null>) | null = null;
-// Last header resolveAuthHeader() produced. Unload-time flushes (pagehide /
+// Last auth header apiFetch used. Unload-time flushes (pagehide /
 // visibilitychange) cannot await _tokenGetter — the page can be frozen before
 // the promise settles — so they read this synchronously instead. A token that
 // has since expired just 401s, and the caller keeps its buffered payload for
@@ -53,7 +53,6 @@ async function resolveAuthHeader(): Promise<Record<string, string>> {
   } else if (_apiToken) {
     header = { Authorization: `Bearer ${_apiToken}` };
   }
-  _lastAuthHeader = header;
   return header;
 }
 
@@ -71,10 +70,14 @@ export function getCachedAuthHeaderSync(): Record<string, string> {
  * Explicit `Authorization` headers in `init` take precedence over the stored token.
  */
 export async function apiFetch(input: string | URL, init?: RequestInit): Promise<Response> {
-  const authHdr = await resolveAuthHeader();
+  const explicitHeaders = init?.headers as Record<string, string> | undefined;
+  const authHdr = explicitHeaders?.Authorization
+    ? { Authorization: explicitHeaders.Authorization }
+    : await resolveAuthHeader();
+  _lastAuthHeader = authHdr;
   const headers: Record<string, string> = {
     ...authHdr,
-    ...(init?.headers as Record<string, string> | undefined ?? {}),
+    ...explicitHeaders,
   };
   return fetch(typeof input === "string" ? input : input.toString(), {
     ...init,
@@ -82,13 +85,23 @@ export async function apiFetch(input: string | URL, init?: RequestInit): Promise
   });
 }
 
+const DEFAULT_RATE_LIMIT_WAIT_MS = 5_000;
+
 export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
+  readonly status: number;
+  readonly retryAfterMs: number | undefined;
+  readonly retryAfterAt: number | undefined;
+
+  constructor(message: string, response: Response | number) {
     super(message);
     this.name = "ApiError";
+    this.status = typeof response === "number" ? response : response.status;
+    const header = typeof response === "number" ? undefined : response.headers?.get?.("Retry-After")?.trim();
+    const seconds = header && /^\d+$/.test(header) ? Number(header) : NaN;
+    const milliseconds = seconds * 1_000;
+    this.retryAfterMs = Number.isSafeInteger(milliseconds) ? milliseconds : undefined;
+    const wait = this.retryAfterMs ?? (this.status === 429 ? DEFAULT_RATE_LIMIT_WAIT_MS : undefined);
+    this.retryAfterAt = wait === undefined ? undefined : Date.now() + wait;
   }
 }
 
@@ -110,13 +123,13 @@ export async function fetchCurrentUser(token: string) {
       .json()
       .catch(() => null)) as { message?: string } | null;
 
-  const errorMessage =
+    const errorMessage =
       errorBody?.message ??
       (response.status === 401
         ? "Your session is not valid anymore. Please sign in again."
         : "We could not load your local OpenGradHub profile.");
 
-    throw new ApiError(errorMessage, response.status);
+    throw new ApiError(errorMessage, response);
   }
 
   return (await response.json()) as CurrentUserResponse;
@@ -151,7 +164,7 @@ async function postJson<TResponse>(
       ? errorBody.message[0]
       : errorBody?.message ?? "The request could not be completed.";
 
-    throw new ApiError(message, response.status);
+    throw new ApiError(message, response);
   }
 
   return (await response.json()) as TResponse;
@@ -189,7 +202,7 @@ export async function getUsers(role?: string): Promise<SafeUser[]> {
   const response = await apiFetch(url.toString());
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch users.", response.status);
+    throw new ApiError("Failed to fetch users.", response);
   }
 
   return (await response.json()) as SafeUser[];
@@ -222,7 +235,7 @@ export async function getUsersPage(params: {
   const response = await apiFetch(url.toString(), { cache: "no-store" });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch users.", response.status);
+    throw new ApiError(err?.message ?? "Failed to fetch users.", response);
   }
   return (await response.json()) as UserListPage;
 }
@@ -237,7 +250,7 @@ export async function getFellows(): Promise<FellowOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/users/fellows`);
 
   if (!response.ok) {
-    throw new ApiError(`Failed to fetch ${IN_CHARGE_LOWER_PLURAL}.`, response.status);
+    throw new ApiError(`Failed to fetch ${IN_CHARGE_LOWER_PLURAL}.`, response);
   }
 
   return (await response.json()) as FellowOption[];
@@ -309,7 +322,7 @@ export async function getStudentRoster(q: StudentRosterQuery = {}): Promise<Stud
   const response = await apiFetch(rosterUrl(q), { cache: "no-store" });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch students.", response.status);
+    throw new ApiError(err?.message ?? "Failed to fetch students.", response);
   }
   return toRosterPage(await response.json());
 }
@@ -357,7 +370,7 @@ export async function getMe(id: string): Promise<SafeUser> {
 
     throw new ApiError(
       errorBody?.message ?? "Failed to fetch user.",
-      response.status,
+      response,
     );
   }
 
@@ -422,7 +435,7 @@ export async function getAnalyticsSchools(): Promise<AnalyticsSchool[]> {
   const response = await apiFetch(`${API_BASE_URL}/analytics/schools`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch schools.", response.status);
+    throw new ApiError("Failed to fetch schools.", response);
   }
 
   return (await response.json()) as AnalyticsSchool[];
@@ -444,7 +457,7 @@ export async function getAnalyticsStudents(
 
     throw new ApiError(
       errorBody?.message ?? "Failed to fetch students.",
-      response.status,
+      response,
     );
   }
 
@@ -476,7 +489,7 @@ export async function getAnalyticsStudentsPaged(
   );
   if (!response.ok) {
     const e = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch students.", response.status);
+    throw new ApiError(e?.message ?? "Failed to fetch students.", response);
   }
   return (await response.json()) as AnalyticsStudentsPage;
 }
@@ -503,7 +516,7 @@ export async function downloadAnalyticsStudentsCsv(
 
     throw new ApiError(
       errorBody?.message ?? "Failed to export students.",
-      response.status,
+      response,
     );
   }
 
@@ -553,7 +566,7 @@ export async function getManagerAnalytics(
 }> {
   const url = `${API_BASE_URL}/analytics/manager?course_id=${encodeURIComponent(courseId)}`;
   const res = await apiFetch(url);
-  if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch manager analytics.", res);
   return res.json() as Promise<{
     view: "students";
     students: ManagerStudentRow[];
@@ -619,20 +632,20 @@ export async function getProgrammeInsights(
   if (filters.schoolId)  qs.set("school_id", filters.schoolId);
   const path = qs.toString() ? `?${qs}` : "";
   const res = await apiFetch(`${API_BASE_URL}/analytics/insights${path}`);
-  if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch programme insights.", res);
   return (await res.json()) as InsightsResponse;
 }
 
 export async function getAnalyticsFilterProgrammes(): Promise<Array<{ id: string; name: string }>> {
   const res = await apiFetch(`${API_BASE_URL}/analytics/filters/programmes`);
-  if (!res.ok) throw new ApiError("Failed to fetch programmes.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch programmes.", res);
   return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
 export async function getAnalyticsFilterStates(programmeId?: string): Promise<string[]> {
   const qs = programmeId ? `?programme_id=${encodeURIComponent(programmeId)}` : "";
   const res = await apiFetch(`${API_BASE_URL}/analytics/filters/states${qs}`);
-  if (!res.ok) throw new ApiError("Failed to fetch states.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch states.", res);
   return (await res.json()) as string[];
 }
 
@@ -641,7 +654,7 @@ export async function getAnalyticsFilterDistricts(state?: string, programmeId?: 
   if (state) qs.set("state", state);
   if (programmeId) qs.set("programme_id", programmeId);
   const res = await apiFetch(`${API_BASE_URL}/analytics/filters/districts${qs.size ? `?${qs}` : ""}`);
-  if (!res.ok) throw new ApiError("Failed to fetch districts.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch districts.", res);
   return (await res.json()) as string[];
 }
 
@@ -656,7 +669,7 @@ export async function getAnalyticsFilterSchools(
   if (programmeId) qs.set("programme_id", programmeId);
   const path = qs.toString() ? `?${qs}` : "";
   const res = await apiFetch(`${API_BASE_URL}/analytics/filters/schools${path}`);
-  if (!res.ok) throw new ApiError("Failed to fetch schools.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch schools.", res);
   return (await res.json()) as Array<{ id: string; name: string }>;
 }
 
@@ -667,7 +680,7 @@ export async function getSchoolDetail(
   const params = new URLSearchParams({ school_id: schoolId });
   if (courseId) params.set("course_id", courseId);
   const res = await apiFetch(`${API_BASE_URL}/analytics/fellow/school?${params.toString()}`);
-  if (!res.ok) throw new ApiError("Failed to fetch school detail.", res.status);
+  if (!res.ok) throw new ApiError("Failed to fetch school detail.", res);
   return (await res.json()) as SchoolDetail;
 }
 
@@ -764,7 +777,7 @@ export async function getCourses(
   const response = await apiFetch(url.toString());
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch courses.", response.status);
+    throw new ApiError("Failed to fetch courses.", response);
   }
 
   return (await response.json()) as Course[];
@@ -780,7 +793,7 @@ export async function getCoursesPage(
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to fetch course catalogue.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to fetch course catalogue.", response);
   }
 
   return (await response.json()) as PaginatedCoursesResponse;
@@ -802,7 +815,7 @@ export async function assignCourse(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to assign course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to assign course.", response);
   }
   return (await response.json()) as { id: string; student_id: string; course_id: string; enrolled_at: string };
 }
@@ -822,7 +835,7 @@ export async function unassignCourse(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to remove student from course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to remove student from course.", response);
   }
   return (await response.json()) as { removed: true; student_id: string; course_id: string };
 }
@@ -833,7 +846,7 @@ export async function unassignCourse(
 export async function getStudentEnrolments(studentId: string): Promise<Course[]> {
   const response = await apiFetch(`${API_BASE_URL}/users/${studentId}/enrolments`);
   if (!response.ok) {
-    throw new ApiError("Failed to fetch enrolments.", response.status);
+    throw new ApiError("Failed to fetch enrolments.", response);
   }
   return (await response.json()) as Course[];
 }
@@ -910,7 +923,7 @@ export type CourseManagementAnalytics = {
 
 export async function getStudentCourses(studentId: string): Promise<StudentCourse[]> {
   const r = await apiFetch(`${API_BASE_URL}/students/${studentId}/courses`);
-  if (!r.ok) throw new ApiError("Failed to fetch student courses.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch student courses.", r);
   return (await r.json()) as StudentCourse[];
 }
 
@@ -921,7 +934,7 @@ export async function getCourseManagementSummary(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch course management summary.", r.status);
+    throw new ApiError(e?.message ?? "Failed to fetch course management summary.", r);
   }
   return (await r.json()) as CourseManagementSummary;
 }
@@ -947,7 +960,7 @@ export async function getCourseManagementStudents(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch course management students.", r.status);
+    throw new ApiError(e?.message ?? "Failed to fetch course management students.", r);
   }
   return (await r.json()) as CourseManagementStudentsResponse;
 }
@@ -960,7 +973,7 @@ export async function getCourseManagementStudentDetail(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch student detail.", r.status);
+    throw new ApiError(e?.message ?? "Failed to fetch student detail.", r);
   }
   return (await r.json()) as CourseManagementStudentDetail;
 }
@@ -972,7 +985,7 @@ export async function getCourseManagementCurriculum(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch course management curriculum.", r.status);
+    throw new ApiError(e?.message ?? "Failed to fetch course management curriculum.", r);
   }
   return (await r.json()) as CourseManagementModuleSummary[];
 }
@@ -984,7 +997,7 @@ export async function getCourseManagementAnalytics(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch course management analytics.", r.status);
+    throw new ApiError(e?.message ?? "Failed to fetch course management analytics.", r);
   }
   return (await r.json()) as CourseManagementAnalytics;
 }
@@ -1015,7 +1028,7 @@ export async function getCourseOverview(courseId: string, studentId?: string): P
   const url = new URL(`${API_BASE_URL}/courses/${courseId}/overview`);
   if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch course overview.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch course overview.", r);
   return (await r.json()) as ModuleWithProgress[];
 }
 
@@ -1026,7 +1039,7 @@ export async function getCourseById(id: string): Promise<Course> {
   const response = await apiFetch(`${API_BASE_URL}/courses/${id}`);
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to fetch course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to fetch course.", response);
   }
   return (await response.json()) as Course;
 }
@@ -1052,7 +1065,7 @@ export async function createCourse(payload: {
     const errorBody = (await response
       .json()
       .catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to create course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to create course.", response);
   }
 
   return (await response.json()) as Course;
@@ -1082,7 +1095,7 @@ export async function updateCourse(
 
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to update course.", response);
   }
 
   return (await response.json()) as Course;
@@ -1202,7 +1215,7 @@ export async function getQuestions(filters: QuestionFilters = {}): Promise<Quest
   if (filters.limit) url.searchParams.set("limit", String(filters.limit));
   if (filters.offset) url.searchParams.set("offset", String(filters.offset));
   const response = await apiFetch(url.toString());
-  if (!response.ok) throw new ApiError("Failed to fetch questions.", response.status);
+  if (!response.ok) throw new ApiError("Failed to fetch questions.", response);
   return (await response.json()) as Question[];
 }
 
@@ -1215,7 +1228,7 @@ export async function createQuestion(payload: CreateQuestionPayload): Promise<Qu
   });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create question.", response.status);
+    throw new ApiError(err?.message ?? "Failed to create question.", response);
   }
   return (await response.json()) as Question;
 }
@@ -1230,7 +1243,7 @@ export async function uploadQuestionImage(file: File): Promise<{ key: string }> 
   });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to upload image.", response.status);
+    throw new ApiError(err?.message ?? "Failed to upload image.", response);
   }
   return (await response.json()) as { key: string };
 }
@@ -1257,7 +1270,7 @@ export async function updateQuestion(
   });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update question.", response.status);
+    throw new ApiError(err?.message ?? "Failed to update question.", response);
   }
   return (await response.json()) as Question;
 }
@@ -1269,7 +1282,7 @@ export async function deleteQuestion(id: string): Promise<void> {
   });
   if (!response.ok) {
     const err = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete question.", response.status);
+    throw new ApiError(err?.message ?? "Failed to delete question.", response);
   }
 }
 
@@ -1304,7 +1317,7 @@ export async function bulkUploadQuestions(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to upload questions.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to upload questions.", response);
   }
   return (await response.json()) as BulkQuestionResult;
 }
@@ -1369,7 +1382,7 @@ export async function getLiveClasses(filters?: LiveClassFilters): Promise<LiveCl
   }
   const qs = params.toString();
   const r = await apiFetch(`${API_BASE_URL}/live-classes${qs ? `?${qs}` : ""}`);
-  if (!r.ok) throw new ApiError("Failed to fetch live classes.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch live classes.", r);
   return (await r.json()) as LiveClass[];
 }
 
@@ -1392,7 +1405,7 @@ export async function getAudiencePreview(t: {
   if (t.course_id) params.set("course_id", t.course_id);
   if (t.batch_ids?.length) params.set("batch_ids", t.batch_ids.join(","));
   const r = await apiFetch(`${API_BASE_URL}/live-classes/audience-preview?${params.toString()}`);
-  if (!r.ok) throw new ApiError("Failed to preview the audience.", r.status);
+  if (!r.ok) throw new ApiError("Failed to preview the audience.", r);
   return (await r.json()) as AudiencePreview;
 }
 
@@ -1400,7 +1413,7 @@ export async function getNextLiveClass(studentId: string): Promise<LiveClass | n
   const url = new URL(`${API_BASE_URL}/live-classes/next`);
   url.searchParams.set("studentId", studentId);
   const r = await apiFetch(url.toString());
-  if (!r.ok) return null;
+  if (!r.ok) throw new ApiError("Failed to load the next live class.", r);
   const data = await r.json() as LiveClass | null;
   return data ?? null;
 }
@@ -1417,7 +1430,7 @@ export async function joinLiveClass(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to join live class.", r.status);
+    throw new ApiError(err?.message ?? "Failed to join live class.", r);
   }
   const data = (await r.json()) as { meeting_url: string; live_class_id: string };
   // Links are stored as typed ("meet.google.com/x"). Without a scheme the
@@ -1443,7 +1456,7 @@ export async function createLiveClass(payload: {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create live class.", r.status);
+    throw new ApiError(err?.message ?? "Failed to create live class.", r);
   }
   return (await r.json()) as LiveClass;
 }
@@ -1473,7 +1486,7 @@ export async function updateLiveClass(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update live class.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update live class.", r);
   }
   return (await r.json()) as LiveClass;
 }
@@ -1485,7 +1498,7 @@ export async function deleteLiveClass(id: string): Promise<void> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete live class.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete live class.", r);
   }
 }
 
@@ -1507,13 +1520,13 @@ export type Notification = {
 
 export async function getNotifications(): Promise<Notification[]> {
   const r = await apiFetch(`${API_BASE_URL}/notifications`);
-  if (!r.ok) return [];
+  if (!r.ok) throw new ApiError("Failed to load notifications.", r);
   return (await r.json()) as Notification[];
 }
 
 export async function getUnreadCount(): Promise<number> {
   const r = await apiFetch(`${API_BASE_URL}/notifications/unread-count`);
-  if (!r.ok) return 0;
+  if (!r.ok) throw new ApiError("Failed to load the unread notification count.", r);
   const data = await r.json() as { count: number };
   return data.count;
 }
@@ -1523,7 +1536,7 @@ export async function getUnreadCount(): Promise<number> {
 /** The server's VAPID public key (public value); null when push is unconfigured. */
 export async function getPushPublicKey(): Promise<string | null> {
   const r = await apiFetch(`${API_BASE_URL}/push/public-key`, { cache: "no-store" });
-  if (!r.ok) return null;
+  if (!r.ok) throw new ApiError("Could not load push notification settings.", r);
   const data = (await r.json()) as { publicKey: string | null };
   return data.publicKey;
 }
@@ -1588,7 +1601,7 @@ export async function clearAllNotifications(): Promise<{ archived: number }> {
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new ApiError("Failed to clear notifications.", response.status);
+    throw new ApiError("Failed to clear notifications.", response);
   }
   return (await response.json()) as { archived: number };
 }
@@ -1651,7 +1664,7 @@ export type Submission = {
 
 export async function getAssignments(): Promise<Assignment[]> {
   const r = await apiFetch(`${API_BASE_URL}/assignments`);
-  if (!r.ok) throw new ApiError("Failed to fetch assignments.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch assignments.", r);
   return (await r.json()) as Assignment[];
 }
 
@@ -1661,7 +1674,7 @@ export async function getAssignmentById(id: string, studentId?: string): Promise
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch assignment.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch assignment.", r);
   }
   return (await r.json()) as Assignment;
 }
@@ -1683,7 +1696,7 @@ export async function createAssignment(payload: {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create assignment.", r.status);
+    throw new ApiError(err?.message ?? "Failed to create assignment.", r);
   }
   return (await r.json()) as Assignment;
 }
@@ -1709,7 +1722,7 @@ export async function updateAssignment(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update assignment.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update assignment.", r);
   }
   return (await r.json()) as Assignment;
 }
@@ -1721,7 +1734,7 @@ export async function deleteAssignment(id: string): Promise<void> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete assignment.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete assignment.", r);
   }
 }
 
@@ -1745,14 +1758,14 @@ export async function submitAssignment(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to submit assignment.", r.status);
+    throw new ApiError(err?.message ?? "Failed to submit assignment.", r);
   }
   return (await r.json()) as Submission;
 }
 
 export async function getSubmissions(assignmentId: string): Promise<Submission[]> {
   const r = await apiFetch(`${API_BASE_URL}/assignments/${assignmentId}/submissions`);
-  if (!r.ok) throw new ApiError("Failed to fetch submissions.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch submissions.", r);
   return (await r.json()) as Submission[];
 }
 
@@ -1760,7 +1773,7 @@ export async function getSubmissionDownloadUrl(key: string): Promise<string> {
   const r = await apiFetch(`${API_BASE_URL}/assignments/submissions/download?key=${encodeURIComponent(key)}`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to get download URL.", r.status);
+    throw new ApiError(err?.message ?? "Failed to get download URL.", r);
   }
   const { url } = (await r.json()) as { url: string };
   return url;
@@ -1779,7 +1792,7 @@ export async function patchSubmission(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update submission.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update submission.", r);
   }
   return (await r.json()) as Submission;
 }
@@ -1823,7 +1836,7 @@ export async function getSubmissionQueue(filters: {
   if (filters.status)   url.searchParams.set("status", filters.status);
   if (filters.q)        url.searchParams.set("q", filters.q);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch submission queue.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch submission queue.", r);
   return (await r.json()) as SubmissionQueueResult;
 }
 
@@ -1922,7 +1935,7 @@ export async function duplicateQuiz(
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
     // The server's message is the useful one here — it names why the copy was
     // refused (not a member of that programme, quiz not visible).
-    throw new ApiError(e?.message ?? "Failed to duplicate quiz.", r.status);
+    throw new ApiError(e?.message ?? "Failed to duplicate quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -1942,7 +1955,7 @@ export async function assignQuizProgramme(
   });
   if (!r.ok) {
     const e = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to assign quiz.", r.status);
+    throw new ApiError(e?.message ?? "Failed to assign quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -1958,28 +1971,28 @@ export async function getQuizzes(
   // scope=all is the browse-to-duplicate window: every programme's quizzes.
   if (params.scope) url.searchParams.set("scope", params.scope);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch quizzes.", r);
   return (await r.json()) as Omit<Quiz, "questions">[];
 }
 
 /** Hard-close a quiz: hidden from students, unassignable, in-flight attempts voided. */
 export async function archiveQuiz(id: string): Promise<{ archived: true; voided_attempts: number }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/archive`, { method: "POST" });
-  if (!r.ok) throw new ApiError("Failed to archive quiz.", r.status);
+  if (!r.ok) throw new ApiError("Failed to archive quiz.", r);
   return (await r.json()) as { archived: true; voided_attempts: number };
 }
 
 /** Restore an archived quiz. Attempts voided by the archive stay voided. */
 export async function unarchiveQuiz(id: string): Promise<{ archived: false }> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/unarchive`, { method: "POST" });
-  if (!r.ok) throw new ApiError("Failed to restore quiz.", r.status);
+  if (!r.ok) throw new ApiError("Failed to restore quiz.", r);
   return (await r.json()) as { archived: false };
 }
 
 /** Live attempt count — powers the archive confirm dialog's warning. */
 export async function getInFlightCount(id: string): Promise<number> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/in-flight-count`);
-  if (!r.ok) throw new ApiError("Failed to check in-flight attempts.", r.status);
+  if (!r.ok) throw new ApiError("Failed to check in-flight attempts.", r);
   return ((await r.json()) as { count: number }).count;
 }
 
@@ -2043,7 +2056,7 @@ export async function getCalendar(from?: string, to?: string): Promise<CalendarI
   if (from) url.searchParams.set("from", from);
   if (to)   url.searchParams.set("to", to);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch calendar.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch calendar.", r);
   return (await r.json()) as CalendarItem[];
 }
 
@@ -2053,13 +2066,13 @@ export async function createCalendarEvent(payload: CreateCalendarEventPayload): 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) throw new ApiError("Failed to create event.", r.status);
+  if (!r.ok) throw new ApiError("Failed to create event.", r);
   return (await r.json()) as { id: string };
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
   const r = await apiFetch(`${API_BASE_URL}/calendar/${id}`, { method: "DELETE" });
-  if (!r.ok) throw new ApiError("Failed to delete event.", r.status);
+  if (!r.ok) throw new ApiError("Failed to delete event.", r);
 }
 
 export type UpdateCalendarEventPayload = {
@@ -2083,7 +2096,7 @@ export async function updateCalendarEvent(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) throw new ApiError("Failed to update event.", r.status);
+  if (!r.ok) throw new ApiError("Failed to update event.", r);
 }
 
 
@@ -2095,7 +2108,7 @@ export async function deleteQuestions(ids: string[]): Promise<{ deleted: number;
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete questions.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete questions.", r);
   }
   return (await r.json()) as { deleted: number; skipped: number };
 }
@@ -2106,19 +2119,19 @@ export async function cleanupOrphanedImages(): Promise<{ checked: number; delete
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to run garbage collection.", r.status);
+    throw new ApiError(err?.message ?? "Failed to run garbage collection.", r);
   }
   return (await r.json()) as { checked: number; deleted: number };
 }
 export async function getBatchComparison(studentId: string, courseId: string): Promise<BatchComparison> {
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/batch-comparison?course_id=${courseId}`);
-  if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch batch comparison.", r);
   return (await r.json()) as BatchComparison;
 }
 
 export async function getModuleQuizzes(): Promise<ModuleQuiz[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/module-tests`);
-  if (!r.ok) throw new ApiError("Failed to fetch module quizzes.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch module quizzes.", r);
   return (await r.json()) as ModuleQuiz[];
 }
 
@@ -2126,7 +2139,7 @@ export async function getQuizById(id: string): Promise<Quiz> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -2137,7 +2150,7 @@ export async function deleteQuiz(id: string): Promise<{ success: boolean }> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete quiz.", r);
   }
   return (await r.json()) as { success: boolean };
 }
@@ -2148,7 +2161,7 @@ export async function getUniqueQuestionsForQuiz(id: string): Promise<{ id: strin
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch unique questions.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch unique questions.", r);
   }
   return (await r.json()) as { id: string; content_html: string; question_type: string }[];
 }
@@ -2162,7 +2175,7 @@ export async function createQuiz(payload: CreateQuizPayload): Promise<Quiz> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to create quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -2199,7 +2212,7 @@ export async function getQuizMovePreflight(id: string): Promise<QuizMovePrefligh
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${id}/move-preflight`, { cache: "no-store" });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to check whether this quiz can be moved.", r.status);
+    throw new ApiError(err?.message ?? "Failed to check whether this quiz can be moved.", r);
   }
   return (await r.json()) as QuizMovePreflight;
 }
@@ -2214,7 +2227,7 @@ export async function moveQuiz(id: string, destination: QuizDestination): Promis
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to move quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to move quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -2231,7 +2244,7 @@ export async function bulkImportQuiz(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to import quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to import quiz.", r);
   }
   return (await r.json()) as { quiz_id: string; sections: number; questions: number };
 }
@@ -2257,7 +2270,7 @@ export async function bulkImportQuizFromPdf(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to import quiz from PDF.", r.status);
+    throw new ApiError(err?.message ?? "Failed to import quiz from PDF.", r);
   }
   return (await r.json()) as BulkPdfJobHandle;
 }
@@ -2356,7 +2369,7 @@ export async function bulkValidateQuiz(quiz: ParsedBulkQuiz): Promise<ParseDiagn
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to validate quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to validate quiz.", r);
   }
   return ((await r.json()) as { diagnostics: ParseDiagnostic[] }).diagnostics ?? [];
 }
@@ -2372,7 +2385,7 @@ export interface QuestionFacets {
 /** Distinct subject/topic/tag values already in the question bank. */
 export async function getQuestionFacets(): Promise<QuestionFacets> {
   const r = await apiFetch(`${API_BASE_URL}/questions/facets`, { cache: "no-store" });
-  if (!r.ok) throw new ApiError("Failed to load suggestions.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load suggestions.", r);
   return (await r.json()) as QuestionFacets;
 }
 
@@ -2385,7 +2398,7 @@ export async function bulkParseQuiz(fileContent: string): Promise<ParsedBulkQuiz
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to parse quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to parse quiz.", r);
   }
   return (await r.json()) as ParsedBulkQuiz;
 }
@@ -2431,7 +2444,7 @@ export async function bulkParseQuizFromPdf(file: File): Promise<BulkPdfJobHandle
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to parse PDF.", r.status);
+    throw new ApiError(err?.message ?? "Failed to parse PDF.", r);
   }
   return (await r.json()) as BulkPdfJobHandle;
 }
@@ -2444,7 +2457,7 @@ export async function getBulkParseJobStatus(jobId: string): Promise<BulkParseJob
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch job status.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch job status.", r);
   }
   return (await r.json()) as BulkParseJobStatus;
 }
@@ -2462,7 +2475,7 @@ export async function bulkParseCancel(imageKeys: string[]): Promise<void> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to clean up uploaded images.", r.status);
+    throw new ApiError(err?.message ?? "Failed to clean up uploaded images.", r);
   }
 }
 
@@ -2491,7 +2504,7 @@ export async function bulkSaveQuiz(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to save quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to save quiz.", r);
   }
   return (await r.json()) as { jobId: string };
 }
@@ -2525,7 +2538,7 @@ export async function updateQuiz(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -2542,7 +2555,7 @@ export async function addQuizQuestion(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add question.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add question.", r);
   }
   return (await r.json()) as Question;
 }
@@ -2559,7 +2572,7 @@ export async function attachQuizQuestion(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to attach question.", r.status);
+    throw new ApiError(err?.message ?? "Failed to attach question.", r);
   }
   return (await r.json()) as Question;
 }
@@ -2571,7 +2584,7 @@ export async function reorderQuizQuestions(quizId: string, ids: string[]): Promi
     body: JSON.stringify({ ids }),
     cache: "no-store",
   });
-  if (!r.ok) throw new ApiError("Failed to reorder questions.", r.status);
+  if (!r.ok) throw new ApiError("Failed to reorder questions.", r);
 }
 
 export async function removeQuizQuestion(quizId: string, questionId: string): Promise<void> {
@@ -2579,7 +2592,7 @@ export async function removeQuizQuestion(quizId: string, questionId: string): Pr
     method: "DELETE",
     cache: "no-store",
   });
-  if (!r.ok) throw new ApiError("Failed to remove question.", r.status);
+  if (!r.ok) throw new ApiError("Failed to remove question.", r);
 }
 
 // ── Sectioning ──────────────────────────────────────────────
@@ -2593,7 +2606,7 @@ export async function createQuizSection(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) throw new ApiError("Failed to create section.", r.status);
+  if (!r.ok) throw new ApiError("Failed to create section.", r);
   return (await r.json()) as QuizSection;
 }
 
@@ -2607,12 +2620,12 @@ export async function updateQuizSection(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!r.ok) throw new ApiError("Failed to update section.", r.status);
+  if (!r.ok) throw new ApiError("Failed to update section.", r);
 }
 
 export async function deleteQuizSection(quizId: string, sectionId: string): Promise<void> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}`, { method: "DELETE" });
-  if (!r.ok) throw new ApiError("Failed to delete section.", r.status);
+  if (!r.ok) throw new ApiError("Failed to delete section.", r);
 }
 
 export async function reorderQuizSections(quizId: string, ids: string[]): Promise<void> {
@@ -2621,7 +2634,7 @@ export async function reorderQuizSections(quizId: string, ids: string[]): Promis
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
   });
-  if (!r.ok) throw new ApiError("Failed to reorder sections.", r.status);
+  if (!r.ok) throw new ApiError("Failed to reorder sections.", r);
 }
 
 export async function attachQuestionToSection(
@@ -2634,7 +2647,7 @@ export async function attachQuestionToSection(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question_id: questionId }),
   });
-  if (!r.ok) throw new ApiError("Failed to attach question.", r.status);
+  if (!r.ok) throw new ApiError("Failed to attach question.", r);
 }
 
 export async function removeQuestionFromSection(
@@ -2645,7 +2658,7 @@ export async function removeQuestionFromSection(
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/sections/${sectionId}/questions/${questionId}`, {
     method: "DELETE",
   });
-  if (!r.ok) throw new ApiError("Failed to remove question.", r.status);
+  if (!r.ok) throw new ApiError("Failed to remove question.", r);
 }
 
 export async function reorderSectionQuestions(
@@ -2658,7 +2671,7 @@ export async function reorderSectionQuestions(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }),
   });
-  if (!r.ok) throw new ApiError("Failed to reorder questions.", r.status);
+  if (!r.ok) throw new ApiError("Failed to reorder questions.", r);
 }
 
 export type SectionAdvanceResult =
@@ -2676,7 +2689,7 @@ export async function advanceQuizSection(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to advance section.", r.status);
+    throw new ApiError(err?.message ?? "Failed to advance section.", r);
   }
   return (await r.json()) as SectionAdvanceResult;
 }
@@ -2688,7 +2701,7 @@ export async function publishQuiz(quizId: string): Promise<Quiz> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to publish quiz.", r.status);
+    throw new ApiError(err?.message ?? "Failed to publish quiz.", r);
   }
   return (await r.json()) as Quiz;
 }
@@ -2726,7 +2739,7 @@ export async function getLessonById(lessonId: string): Promise<LessonDetail> {
   const r = await apiFetch(`${API_BASE_URL}/lessons/${lessonId}`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch lesson.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch lesson.", r);
   }
   return (await r.json()) as LessonDetail;
 }
@@ -2751,7 +2764,7 @@ export async function patchLessonProgress(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update progress.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update progress.", r);
   }
   return (await r.json()) as { id: string; is_complete: boolean; watched_percent: number };
 }
@@ -2801,7 +2814,7 @@ export async function getQuizAttempts(quizId: string, studentId?: string): Promi
   url.searchParams.set("quiz_id", quizId);
   if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r);
   return (await r.json()) as QuizAttempt[];
 }
 
@@ -2814,7 +2827,7 @@ export async function getMyQuizAttempts(studentId?: string): Promise<QuizAttempt
   const url = new URL(`${API_BASE_URL}/quiz-attempts`);
   if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r);
   return (await r.json()) as QuizAttempt[];
 }
 
@@ -2829,7 +2842,7 @@ export type QuizAttemptWithStudent = QuizAttempt & {
 /** Every student's attempts for one quiz, for the Quiz Details "Attempts" tab. */
 export async function getAllQuizAttempts(quizId: string): Promise<QuizAttemptWithStudent[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/all-attempts`);
-  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch quiz attempts.", r);
   return (await r.json()) as QuizAttemptWithStudent[];
 }
 
@@ -2839,7 +2852,7 @@ export async function deleteQuizAttempt(attemptId: string): Promise<{ success: b
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete quiz attempt.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete quiz attempt.", r);
   }
   return (await r.json()) as { success: boolean };
 }
@@ -2906,7 +2919,7 @@ export async function startQuizAttempt(quizId: string): Promise<StartedAttempt> 
   });
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to start quiz attempt.", r.status);
+    throw new ApiError(err?.message ?? "Failed to start quiz attempt.", r);
   }
   return (await r.json()) as StartedAttempt;
 }
@@ -2922,7 +2935,7 @@ export async function submitQuizAttempt(
   });
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to submit quiz attempt.", r.status);
+    throw new ApiError(err?.message ?? "Failed to submit quiz attempt.", r);
   }
   return await r.json() as { attempt_id: string; score: number; max_score: number; passed: boolean | null; submitted_at: string };
 }
@@ -2937,7 +2950,7 @@ export async function saveQuizAnswers(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ answers }),
   });
-  if (!r.ok) throw new ApiError("Failed to save answers.", r.status);
+  if (!r.ok) throw new ApiError("Failed to save answers.", r);
 }
 
 // ── Analytics — new endpoints ──────────────────────────────────
@@ -2992,7 +3005,7 @@ export async function getAttemptReview(attemptId: string): Promise<AttemptReview
   const r = await apiFetch(`${API_BASE_URL}/quiz-attempts/${attemptId}/review`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load review.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load review.", r);
   }
   return (await r.json()) as AttemptReview;
 }
@@ -3016,7 +3029,7 @@ export async function logProctorEvent(attemptId: string, eventType: string): Pro
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event_type: eventType }),
   });
-  if (!r.ok) throw new ApiError("Failed to log proctor event.", r.status);
+  if (!r.ok) throw new ApiError("Failed to log proctor event.", r);
 }
 
 export type LeaderboardEntry = {
@@ -3038,7 +3051,7 @@ export async function getQuizLeaderboard(quizId: string): Promise<QuizLeaderboar
   const r = await apiFetch(`${API_BASE_URL}/analytics/quizzes/${quizId}/leaderboard`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load leaderboard.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load leaderboard.", r);
   }
   return (await r.json()) as QuizLeaderboard;
 }
@@ -3090,7 +3103,7 @@ export async function getStudentProfile(studentId: string): Promise<StudentProfi
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/profile`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load student profile.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load student profile.", r);
   }
   return (await r.json()) as StudentProfile;
 }
@@ -3142,7 +3155,7 @@ export async function getStaffProfile(id: string): Promise<StaffProfile> {
   const r = await apiFetch(`${API_BASE_URL}/users/${id}/profile`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load profile.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load profile.", r);
   }
   return r.json();
 }
@@ -3186,7 +3199,7 @@ export async function getStudentsDirectory(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load students.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load students.", r);
   }
   return (await r.json()) as { total: number; rows: DirectoryStudent[] };
 }
@@ -3197,7 +3210,7 @@ export async function getStudentFacets(): Promise<StudentFacets> {
   const r = await apiFetch(`${API_BASE_URL}/students/facets`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load student filters.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load student filters.", r);
   }
   return (await r.json()) as StudentFacets;
 }
@@ -3206,7 +3219,7 @@ export async function getTopicStrength(studentId: string): Promise<TopicStrength
   const r = await apiFetch(`${API_BASE_URL}/analytics/students/${studentId}/topic-strength`);
   if (!r.ok) {
     const err = await r.json().catch(() => null) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load topic strength.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load topic strength.", r);
   }
   return (await r.json()) as TopicStrengthRow[];
 }
@@ -3234,7 +3247,7 @@ export type CourseModule = {
 
 export async function getCourseModules(courseId: string): Promise<CourseModule[]> {
   const r = await apiFetch(`${API_BASE_URL}/courses/${courseId}/modules`);
-  if (!r.ok) throw new ApiError("Failed to load modules.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load modules.", r);
   return (await r.json()) as CourseModule[];
 }
 
@@ -3243,7 +3256,7 @@ export async function createModule(courseId: string, title: string): Promise<Cou
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create module.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create module.", r); }
   return (await r.json()) as CourseModule;
 }
 
@@ -3252,7 +3265,7 @@ export async function reorderModules(courseId: string, ids: string[]): Promise<v
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ids }), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder modules.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder modules.", r); }
 }
 
 export async function updateModule(moduleId: string, title: string): Promise<CourseModule> {
@@ -3260,13 +3273,13 @@ export async function updateModule(moduleId: string, title: string): Promise<Cou
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ title }), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update module.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update module.", r); }
   return (await r.json()) as CourseModule;
 }
 
 export async function deleteModule(moduleId: string): Promise<void> {
   const r = await apiFetch(`${API_BASE_URL}/modules/${moduleId}`, { method: "DELETE", cache: "no-store" });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete module.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete module.", r); }
 }
 
 export async function createLesson(
@@ -3277,7 +3290,7 @@ export async function createLesson(
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create lesson.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to create lesson.", r); }
   return (await r.json()) as CourseLesson;
 }
 
@@ -3286,7 +3299,7 @@ export async function reorderModuleItems(moduleId: string, items: { id: string, 
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ items }), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder items.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to reorder items.", r); }
 }
 
 export async function updateLesson(
@@ -3297,13 +3310,13 @@ export async function updateLesson(
     method: "PATCH", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload), cache: "no-store",
   });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update lesson.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to update lesson.", r); }
   return (await r.json()) as CourseLesson;
 }
 
 export async function deleteLesson(lessonId: string): Promise<void> {
   const r = await apiFetch(`${API_BASE_URL}/lessons/${lessonId}`, { method: "DELETE", cache: "no-store" });
-  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete lesson.", r.status); }
+  if (!r.ok) { const e = await r.json().catch(() => null) as { message?: string } | null; throw new ApiError(e?.message ?? "Failed to delete lesson.", r); }
 }
 
 // ── Resources API ──────────────────────────────────────────────
@@ -3339,7 +3352,7 @@ export async function getResources(programmeType?: string): Promise<Resource[]> 
   const response = await apiFetch(url.toString());
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch resources.", response.status);
+    throw new ApiError("Failed to fetch resources.", response);
   }
 
   return (await response.json()) as Resource[];
@@ -3373,7 +3386,7 @@ export async function createResource(payload: {
 
     throw new ApiError(
       errorBody?.message ?? "Failed to create resource.",
-      response.status,
+      response,
     );
   }
 
@@ -3409,7 +3422,7 @@ export async function updateResource(
 
     throw new ApiError(
       errorBody?.message ?? "Failed to update resource.",
-      response.status,
+      response,
     );
   }
 
@@ -3432,7 +3445,7 @@ export async function deleteResource(id: string): Promise<void> {
 
     throw new ApiError(
       errorBody?.message ?? "Failed to delete resource.",
-      response.status,
+      response,
     );
   }
 }
@@ -3473,7 +3486,7 @@ export async function fetchSchools(): Promise<SchoolOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/schools`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch schools.", response.status);
+    throw new ApiError("Failed to fetch schools.", response);
   }
 
   return (await response.json()) as SchoolOption[];
@@ -3492,7 +3505,7 @@ export async function fetchTargetableSchools(): Promise<SchoolOption[]> {
   const response = await apiFetch(`${API_BASE_URL}/schools?scope=targeting`);
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch schools.", response.status);
+    throw new ApiError("Failed to fetch schools.", response);
   }
 
   return (await response.json()) as SchoolOption[];
@@ -3513,7 +3526,7 @@ export async function createSchool(payload: {
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to create school.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to create school.", response);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -3531,7 +3544,7 @@ export async function updateSchool(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update school.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to update school.", response);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -3553,7 +3566,7 @@ export async function bulkUploadSchools(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to upload schools.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to upload schools.", response);
   }
   return (await response.json()) as { created: number; skipped: number; errors: string[]; corrections: string[]; skippedRows: Array<Record<string, string>> };
 }
@@ -3576,7 +3589,7 @@ export async function setSchoolFellow(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? `Failed to update ${IN_CHARGE_LOWER}.`, response.status);
+    throw new ApiError(errorBody?.message ?? `Failed to update ${IN_CHARGE_LOWER}.`, response);
   }
   return (await response.json()) as SchoolOption;
 }
@@ -3611,7 +3624,7 @@ export async function fetchSchoolRosterDetail(schoolId: string): Promise<SchoolR
   const response = await apiFetch(`${API_BASE_URL}/schools/${schoolId}`, { cache: "no-store" });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to fetch school.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to fetch school.", response);
   }
   return (await response.json()) as SchoolRosterDetail;
 }
@@ -3626,7 +3639,7 @@ export type StudentCreationDestinations = {
 };
 export async function getStudentCreationDestinations(): Promise<StudentCreationDestinations> {
   const response = await apiFetch(`${API_BASE_URL}/users/create-destinations`, { cache: "no-store" });
-  if (!response.ok) throw new ApiError("Could not load student destinations.", response.status);
+  if (!response.ok) throw new ApiError("Could not load student destinations.", response);
   return response.json() as Promise<StudentCreationDestinations>;
 }
 
@@ -3661,7 +3674,7 @@ export async function createUser(payload: {
 
     throw new ApiError(
       errorBody?.message ?? "Failed to create user.",
-      response.status,
+      response,
     );
   }
 
@@ -3692,7 +3705,7 @@ export async function updateUser(
   });
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to update user.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to update user.", response);
   }
   return (await response.json()) as SafeUser;
 }
@@ -3705,7 +3718,7 @@ export async function deleteUser(userId: string): Promise<void> {
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to delete user.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to delete user.", response);
   }
 }
 
@@ -3725,7 +3738,7 @@ export async function bulkDeleteUsers(ids: string[]): Promise<{
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to bulk delete users.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to bulk delete users.", response);
   }
   return response.json() as Promise<{ deleted: string[]; failed: { id: string; reason: string }[] }>;
 }
@@ -3738,7 +3751,7 @@ export async function archiveUser(userId: string): Promise<void> {
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to archive user.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to archive user.", response);
   }
 }
 
@@ -3761,7 +3774,7 @@ export async function getManagers(
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? `getManagers failed: ${response.status}`, response.status);
+    throw new ApiError(errorBody?.message ?? `getManagers failed: ${response.status}`, response);
   }
   return (await response.json()) as ManagerOption[];
 }
@@ -3782,7 +3795,7 @@ export async function getSchoolAssignments(userId: string): Promise<FellowSchool
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to load school assignments.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to load school assignments.", response);
   }
   return (await response.json()) as FellowSchoolAssignment[];
 }
@@ -3800,7 +3813,7 @@ export async function assignFellowSchool(userId: string, schoolId: string): Prom
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to assign school.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to assign school.", response);
   }
 }
 
@@ -3812,7 +3825,7 @@ export async function unassignFellowSchool(userId: string, schoolId: string): Pr
   );
   if (!response.ok) {
     const errorBody = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to remove school assignment.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to remove school assignment.", response);
   }
 }
 
@@ -3838,7 +3851,7 @@ export async function bulkUploadUsers(
 
     throw new ApiError(
       errorBody?.message ?? "Failed to upload users.",
-      response.status,
+      response,
     );
   }
 
@@ -3887,7 +3900,7 @@ export async function getAnnouncements(role?: string): Promise<Announcement[]> {
   });
 
   if (!response.ok) {
-    throw new ApiError("Failed to fetch announcements.", response.status);
+    throw new ApiError("Failed to fetch announcements.", response);
   }
 
   return (await response.json()) as Announcement[];
@@ -3915,7 +3928,7 @@ export async function createAnnouncement(payload: {
       .catch(() => null)) as { message?: string } | null;
     throw new ApiError(
       errorBody?.message ?? "Failed to create announcement.",
-      response.status,
+      response,
     );
   }
 
@@ -3947,7 +3960,7 @@ export async function sendNotification(
       .catch(() => null)) as { message?: string } | null;
     throw new ApiError(
       errorBody?.message ?? "Failed to send notification.",
-      response.status,
+      response,
     );
   }
 
@@ -3966,7 +3979,7 @@ export async function getAnnouncementUnreadCount(): Promise<{ count: number }> {
   if (!response.ok) {
     throw new ApiError(
       "Failed to fetch announcement unread count.",
-      response.status,
+      response,
     );
   }
 
@@ -4016,7 +4029,7 @@ export async function getDoubts(_role?: string, _studentId?: string): Promise<Do
   const r = await apiFetch(`${API_BASE_URL}/doubts`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load doubts.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load doubts.", r);
   }
   return r.json();
 }
@@ -4033,7 +4046,7 @@ export async function answerDoubt(id: string, answer: string): Promise<Doubt> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to answer doubt.", r.status);
+    throw new ApiError(err?.message ?? "Failed to answer doubt.", r);
   }
   return r.json();
 }
@@ -4045,7 +4058,7 @@ export async function deleteDoubt(id: string): Promise<void> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete doubt.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete doubt.", r);
   }
 }
 
@@ -4071,7 +4084,7 @@ export async function submitDoubt(payload: {
       .catch(() => null)) as { message?: string } | null;
     throw new ApiError(
       errorBody?.message ?? "Failed to submit doubt.",
-      response.status,
+      response,
     );
   }
 
@@ -4134,7 +4147,7 @@ export async function getBundles(studentId?: string): Promise<Bundle[]> {
   const url = new URL(`${API_BASE_URL}/bundles`);
   if (studentId) url.searchParams.set("student_id", studentId);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch bundles.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch bundles.", r);
   return (await r.json()) as Bundle[];
 }
 
@@ -4142,7 +4155,7 @@ export async function getBundleById(id: string): Promise<BundleDetail> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${id}`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch bundle.", r);
   }
   return (await r.json()) as BundleDetail;
 }
@@ -4159,7 +4172,7 @@ export async function createBundle(payload: {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to create bundle.", r);
   }
   return (await r.json()) as Bundle;
 }
@@ -4171,7 +4184,7 @@ export async function deleteBundle(id: string): Promise<{ deleted: boolean }> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete bundle.", r);
   }
   return (await r.json()) as { deleted: boolean };
 }
@@ -4188,7 +4201,7 @@ export async function addCourseToBundle(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add course to bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add course to bundle.", r);
   }
   return (await r.json()) as { added: boolean; students_enrolled: number };
 }
@@ -4203,7 +4216,7 @@ export async function removeCourseFromBundle(
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove course from bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove course from bundle.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4220,7 +4233,7 @@ export async function reorderBundleCourses(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to reorder courses.", r.status);
+    throw new ApiError(err?.message ?? "Failed to reorder courses.", r);
   }
 }
 
@@ -4236,14 +4249,14 @@ export async function enrolStudentInBundle(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to enrol student in bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to enrol student in bundle.", r);
   }
   return (await r.json()) as { enrolled: boolean; courses_enrolled: number };
 }
 
 export async function getBundleEnrolledStudents(bundleId: string): Promise<BundleEnrolledStudent[]> {
   const r = await apiFetch(`${API_BASE_URL}/bundles/${bundleId}/enrol`);
-  if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch bundle students.", r);
   return (await r.json()) as BundleEnrolledStudent[];
 }
 
@@ -4257,7 +4270,7 @@ export async function removeStudentFromBundle(
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove student from bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove student from bundle.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4274,7 +4287,7 @@ export async function addTestToBundle(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add quiz to bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add quiz to bundle.", r);
   }
   return (await r.json()) as { added: boolean };
 }
@@ -4289,7 +4302,7 @@ export async function removeTestFromBundle(
   );
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove quiz from bundle.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove quiz from bundle.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4309,7 +4322,7 @@ export type AvailableQuiz = Omit<Quiz, "questions"> & {
 
 export async function getAvailableQuizzes(): Promise<AvailableQuiz[]> {
   const r = await apiFetch(`${API_BASE_URL}/quizzes/available`);
-  if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch available quizzes.", r);
   return (await r.json()) as AvailableQuiz[];
 }
 
@@ -4371,7 +4384,7 @@ export async function bulkEnrol(payload: {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to bulk enrol.", r.status);
+    throw new ApiError(err?.message ?? "Failed to bulk enrol.", r);
   }
   return (await r.json()) as { enrolled_courses: number; enrolled_bundles: number; skipped: number };
 }
@@ -4409,7 +4422,7 @@ export async function downloadStudentCourseReportPdf(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download course report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download course report.", r);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "course-report.pdf") };
 }
@@ -4428,7 +4441,7 @@ export async function downloadStudentTestReportPdf(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download quiz report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download quiz report.", r);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "test-report.pdf") };
 }
@@ -4455,7 +4468,7 @@ export async function downloadStudentMonthlyReportPdf(
   const r = await apiFetch(url.toString());
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download monthly report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download monthly report.", r);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "monthly-report.pdf") };
 }
@@ -4471,7 +4484,7 @@ export async function downloadStudentFullReportPdf(
   const r = await apiFetch(url);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to download full report.", r.status);
+    throw new ApiError(err?.message ?? "Failed to download full report.", r);
   }
   return { blob: await r.blob(), filename: extractFilename(r, "full-report.pdf") };
 }
@@ -4501,7 +4514,7 @@ export async function getStudentPerformanceHistory(studentId: string): Promise<P
   const r = await apiFetch(`${API_BASE_URL}/reports/students/${studentId}/history`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to load performance history.", r.status);
+    throw new ApiError(err?.message ?? "Failed to load performance history.", r);
   }
   return (await r.json()) as PerformanceHistoryResponse;
 }
@@ -4514,7 +4527,7 @@ export async function getPracticePayload(quizId: string): Promise<PracticePayloa
   const r = await apiFetch(`${API_BASE_URL}/quizzes/${quizId}/practice-payload`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Practice is not available for this quiz.", r.status);
+    throw new ApiError(err?.message ?? "Practice is not available for this quiz.", r);
   }
   return (await r.json()) as PracticePayload;
 }
@@ -4544,7 +4557,7 @@ export async function startBulkReport(body: {
   });
   if (!response.ok) {
     const e = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to start bulk download.", response.status);
+    throw new ApiError(e?.message ?? "Failed to start bulk download.", response);
   }
   return (await response.json()) as { jobId: string };
 }
@@ -4553,7 +4566,7 @@ export async function getBulkReportStatus(jobId: string): Promise<BulkReportStat
   const response = await apiFetch(`${API_BASE_URL}/reports/bulk/${jobId}`);
   if (!response.ok) {
     const e = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to fetch bulk status.", response.status);
+    throw new ApiError(e?.message ?? "Failed to fetch bulk status.", response);
   }
   return (await response.json()) as BulkReportStatus;
 }
@@ -4562,7 +4575,7 @@ export async function downloadBulkReport(jobId: string): Promise<StudentReportPd
   const response = await apiFetch(`${API_BASE_URL}/reports/bulk/${jobId}/download`);
   if (!response.ok) {
     const e = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(e?.message ?? "Failed to download ZIP.", response.status);
+    throw new ApiError(e?.message ?? "Failed to download ZIP.", response);
   }
   const blob = await response.blob();
   return { blob, filename: `OpenGrad-Reports-${jobId}.zip` };
@@ -4617,7 +4630,7 @@ export async function getAssessmentsOverview(
   const r = await apiFetch(`${API_BASE_URL}/analytics/assessments-overview?${qs.toString()}`, { cache: 'no-store' });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? 'Failed to load quizzes overview.', r.status);
+    throw new ApiError(err?.message ?? 'Failed to load quizzes overview.', r);
   }
   return r.json();
 }
@@ -4640,7 +4653,7 @@ export async function getQuestionStats(quizId: string): Promise<QuestionStat[]> 
   const r = await apiFetch(`${API_BASE_URL}/analytics/quizzes/${quizId}/question-stats`, { cache: 'no-store' });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? 'Failed to load question stats.', r.status);
+    throw new ApiError(err?.message ?? 'Failed to load question stats.', r);
   }
   return r.json();
 }
@@ -4729,7 +4742,7 @@ export async function getBatches(status?: "ACTIVE" | "ARCHIVED" | "all"): Promis
   const url = new URL(`${API_BASE_URL}/batches`);
   if (status) url.searchParams.set("status", status);
   const r = await apiFetch(url.toString());
-  if (!r.ok) throw new ApiError("Failed to fetch batches.", r.status);
+  if (!r.ok) throw new ApiError("Failed to fetch batches.", r);
   return (await r.json()) as Batch[];
 }
 
@@ -4737,7 +4750,7 @@ export async function getBatchById(id: string): Promise<BatchDetail> {
   const r = await apiFetch(`${API_BASE_URL}/batches/${id}`);
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to fetch batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to fetch batch.", r);
   }
   return (await r.json()) as BatchDetail;
 }
@@ -4751,7 +4764,7 @@ export async function createBatch(payload: BatchPayload): Promise<Batch> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to create batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to create batch.", r);
   }
   return (await r.json()) as Batch;
 }
@@ -4765,7 +4778,7 @@ export async function updateBatch(id: string, payload: BatchPayload): Promise<Ba
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update batch.", r);
   }
   return (await r.json()) as Batch;
 }
@@ -4777,7 +4790,7 @@ export async function deleteBatch(id: string): Promise<{ deleted: boolean }> {
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to delete batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to delete batch.", r);
   }
   return (await r.json()) as { deleted: boolean };
 }
@@ -4794,7 +4807,7 @@ export async function addBatchMembers(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add students to batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add students to batch.", r);
   }
   return (await r.json()) as { enrolled: number; already_enrolled: number };
 }
@@ -4818,7 +4831,7 @@ export async function resolveBatchRollNumbers(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to check roll numbers.", r.status);
+    throw new ApiError(err?.message ?? "Failed to check roll numbers.", r);
   }
   return ((await r.json()) as { rows: RollResolution[] }).rows;
 }
@@ -4833,7 +4846,7 @@ export async function removeBatchMember(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove student from batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove student from batch.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4852,7 +4865,7 @@ export async function setBatchMembersFellow(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? `Failed to set batch ${IN_CHARGE_LOWER}.`, r.status);
+    throw new ApiError(err?.message ?? `Failed to set batch ${IN_CHARGE_LOWER}.`, r);
   }
   return (await r.json()) as { updated: number; reassigned: number };
 }
@@ -4869,7 +4882,7 @@ export async function addCourseToBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add course to batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add course to batch.", r);
   }
   return (await r.json()) as { added: boolean; students_enrolled: number };
 }
@@ -4884,7 +4897,7 @@ export async function removeCourseFromBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove course from batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove course from batch.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4901,7 +4914,7 @@ export async function addBundleToBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add bundle to batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add bundle to batch.", r);
   }
   return (await r.json()) as { added: boolean; students_enrolled: number };
 }
@@ -4916,7 +4929,7 @@ export async function removeBundleFromBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove bundle from batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove bundle from batch.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4934,7 +4947,7 @@ export async function addTestToBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to add quiz to batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to add quiz to batch.", r);
   }
   return (await r.json()) as { added: boolean };
 }
@@ -4952,7 +4965,7 @@ export async function updateBatchTest(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to update quiz window.", r.status);
+    throw new ApiError(err?.message ?? "Failed to update quiz window.", r);
   }
   return (await r.json()) as { updated: boolean };
 }
@@ -4967,7 +4980,7 @@ export async function removeTestFromBatch(
   });
   if (!r.ok) {
     const err = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(err?.message ?? "Failed to remove quiz from batch.", r.status);
+    throw new ApiError(err?.message ?? "Failed to remove quiz from batch.", r);
   }
   return (await r.json()) as { removed: boolean };
 }
@@ -4996,7 +5009,7 @@ export async function requestUgPasswordReset(
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new ApiError("Could not submit the request. Please try again later.", response.status);
+    throw new ApiError("Could not submit the request. Please try again later.", response);
   }
   return (await response.json()) as { message: string };
 }
@@ -5006,7 +5019,7 @@ export async function getPasswordResetRequests(): Promise<PasswordResetRequest[]
     cache: "no-store",
   });
   if (!response.ok) {
-    throw new ApiError("Failed to fetch password reset requests.", response.status);
+    throw new ApiError("Failed to fetch password reset requests.", response);
   }
   return (await response.json()) as PasswordResetRequest[];
 }
@@ -5023,7 +5036,7 @@ export async function approvePasswordResetRequest(id: string, password: string):
   );
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(body?.message ?? "Failed to approve request.", response.status);
+    throw new ApiError(body?.message ?? "Failed to approve request.", response);
   }
 }
 
@@ -5034,7 +5047,7 @@ export async function rejectPasswordResetRequest(id: string): Promise<void> {
   );
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(body?.message ?? "Failed to reject request.", response.status);
+    throw new ApiError(body?.message ?? "Failed to reject request.", response);
   }
 }
 
@@ -5093,13 +5106,13 @@ export async function reportQuestion(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ snapshot_id: snapshotId, category, note: note ?? null }),
   });
-  if (!r.ok) throw new ApiError("Failed to submit report.", r.status);
+  if (!r.ok) throw new ApiError("Failed to submit report.", r);
   return r.json();
 }
 
 export async function getMyQuestionReports(attemptId: string): Promise<MyQuestionReport[]> {
   const r = await apiFetch(`${API_BASE_URL}/question-reports/mine?attempt_id=${attemptId}`);
-  if (!r.ok) throw new ApiError("Failed to load your reports.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load your reports.", r);
   return r.json();
 }
 
@@ -5110,7 +5123,7 @@ export async function getQuestionReports(
     Object.entries(params).filter(([, v]) => v) as [string, string][],
   ).toString();
   const r = await apiFetch(`${API_BASE_URL}/question-reports${qs ? `?${qs}` : ""}`);
-  if (!r.ok) throw new ApiError("Failed to load reports.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load reports.", r);
   return r.json();
 }
 
@@ -5120,13 +5133,13 @@ export async function getQuestionReportCounts(
   const r = await apiFetch(
     `${API_BASE_URL}/question-reports/counts${quizId ? `?quiz_id=${quizId}` : ""}`,
   );
-  if (!r.ok) throw new ApiError("Failed to load report counts.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load report counts.", r);
   return r.json();
 }
 
 export async function getOpenReportedCount(): Promise<number> {
   const r = await apiFetch(`${API_BASE_URL}/question-reports/open-count`);
-  if (!r.ok) throw new ApiError("Failed to load reported-question count.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load reported-question count.", r);
   const body = (await r.json()) as { count: number };
   return body.count;
 }
@@ -5141,13 +5154,13 @@ export async function resolveQuestionReport(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status, resolution_note: resolutionNote ?? null }),
   });
-  if (!r.ok) throw new ApiError("Failed to update report.", r.status);
+  if (!r.ok) throw new ApiError("Failed to update report.", r);
   return r.json();
 }
 
 export async function getQuestionById(id: string): Promise<Question> {
   const r = await apiFetch(`${API_BASE_URL}/questions/${id}`);
-  if (!r.ok) throw new ApiError("Failed to load question.", r.status);
+  if (!r.ok) throw new ApiError("Failed to load question.", r);
   return r.json();
 }
 
@@ -5276,7 +5289,7 @@ export interface ProgrammeSchool {
 async function programmeJson<T>(r: Response, fallback: string): Promise<T> {
   if (!r.ok) {
     const body = (await r.json().catch(() => null)) as { message?: string } | null;
-    throw new ApiError(body?.message ?? fallback, r.status);
+    throw new ApiError(body?.message ?? fallback, r);
   }
   return (await r.json()) as T;
 }
@@ -5584,7 +5597,7 @@ export async function duplicateCourse(id: string, programmeId?: string | null): 
     const errorBody = (await response
       .json()
       .catch(() => null)) as { message?: string } | null;
-    throw new ApiError(errorBody?.message ?? "Failed to duplicate course.", response.status);
+    throw new ApiError(errorBody?.message ?? "Failed to duplicate course.", response);
   }
 
   return (await response.json()) as Course;

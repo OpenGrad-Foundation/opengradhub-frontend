@@ -5,6 +5,8 @@ import Link from "next/link";
 import ListCard from "@/components/dashboard/primitives/ListCard";
 import FeedItem from "@/components/dashboard/primitives/FeedItem";
 import { useAnnouncements } from "@/lib/queries/announcements";
+import { retryAfterAt } from "@/lib/queries/retry";
+import WidgetError from "@/components/dashboard/primitives/WidgetError";
 
 const MAX_VISIBLE = 2;
 
@@ -15,7 +17,20 @@ const MAX_VISIBLE = 2;
  * stamps is_read per user, so we only slice the client side.
  */
 export default function UnreadAnnouncements({ role }: { role: string }) {
-  const { data, isLoading } = useAnnouncements(role);
+  const { data, isLoading, error, failureReason, isFetching, refetch } = useAnnouncements(role);
+
+  if (failureReason || error) {
+    return (
+      <ListCard title="Unread announcements">
+        <WidgetError
+          message="Couldn't load announcements."
+          onRetry={() => void refetch({ cancelRefetch: false })}
+          retryAt={retryAfterAt(failureReason ?? error)}
+          isFetching={isFetching}
+        />
+      </ListCard>
+    );
+  }
 
   const unread = (data ?? []).filter((a) => !a.is_read);
   const visible = unread.slice(0, MAX_VISIBLE);

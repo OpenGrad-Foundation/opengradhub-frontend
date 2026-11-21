@@ -220,7 +220,7 @@ async function trackerJson<T>(path: string, init?: RequestInit): Promise<T> {
     const message = Array.isArray(body?.message)
       ? body.message[0]
       : body?.message ?? "Tracker request failed.";
-    throw new ApiError(message, res.status);
+    throw new ApiError(message, res);
   }
   if (res.status === 204) return undefined as T;
   // Void endpoints (clear blocker, add/update/delete field, update template) return an

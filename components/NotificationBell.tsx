@@ -17,6 +17,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { computeInboxToasts, latestTimestamp, DROPDOWN_CAP } from "@/lib/inbox-toast";
 import { notificationRoute } from "@/lib/notification-routes";
 import { usePush } from "@/lib/push/use-push";
+import WidgetError from "@/components/dashboard/primitives/WidgetError";
 
 // ── Type icon map ──────────────────────────────────────────────
 
@@ -71,8 +72,8 @@ function writeBaseline(key: string | null, value: string): void {
 // ── Component ──────────────────────────────────────────────────
 
 export default function NotificationBell() {
-  const { data: unreadData } = useInboxUnreadCount();
-  const count = unreadData?.count ?? 0;
+  const unread = useInboxUnreadCount();
+  const count = unread.data?.count ?? 0;
   const invalidate = useInvalidate();
   const router = useRouter();
 
@@ -81,7 +82,8 @@ export default function NotificationBell() {
   // produced "ghost" badges — a non-zero count with nothing unread to click.
   const { data: currentUser } = useCurrentUser();
   const roleCode = currentUser?.role?.code ?? "";
-  const { items, isLoading, isSettled } = useInboxFeed({ role: roleCode });
+  const feed = useInboxFeed({ role: roleCode });
+  const { items, isLoading, isSettled } = feed;
   const markAnnRead   = useMarkAnnouncementRead();
   const markNotifRead = useMarkNotificationRead();
   const clearAll      = useClearAll();
@@ -169,7 +171,7 @@ export default function NotificationBell() {
   function handleOpen() {
     setOpen(prev => {
       const next = !prev;
-      if (next && count > 0) {
+      if (next && !unread.isError && count > 0) {
         void handleMarkAll();
       }
       return next;
@@ -228,11 +230,11 @@ export default function NotificationBell() {
         type="button"
         onClick={handleOpen}
         className="relative flex items-center rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors cursor-pointer select-none"
-        title="Notifications"
+        title={unread.isError ? "Couldn't load the unread count" : "Notifications"}
         aria-label="Notifications"
       >
         <Bell size={18} aria-hidden="true" />
-        {count > 0 && (
+        {(unread.isError || count > 0) && (
           <span style={{
             position: "absolute", top: "2px", right: "2px",
             minWidth: "16px", height: "16px", borderRadius: "8px",
@@ -241,7 +243,7 @@ export default function NotificationBell() {
             textAlign: "center", padding: "0 3px",
             boxShadow: "0 0 0 2px #fff",
           }}>
-            {count > 99 ? "99+" : count}
+            {unread.isError ? "!" : count > 99 ? "99+" : count}
           </span>
         )}
       </button>
@@ -259,10 +261,10 @@ export default function NotificationBell() {
           {/* Dropdown header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px 10px" }}>
             <p style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#034852" }}>
-              Notifications {count > 0 && <span style={{ fontSize: "11px", color: "#e53e3e", marginLeft: "4px" }}>({count} unread)</span>}
+              Notifications {!unread.isError && count > 0 && <span style={{ fontSize: "11px", color: "#e53e3e", marginLeft: "4px" }}>({count} unread)</span>}
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              {count > 0 && (
+              {!unread.isError && count > 0 && (
                 <button
                   onClick={() => void handleMarkAll()}
                   style={{ background: "none", border: "none", fontSize: "11px", color: "#209379", fontWeight: 700, cursor: "pointer", padding: 0 }}
@@ -289,7 +291,12 @@ export default function NotificationBell() {
 
           {/* List */}
           <div style={{ maxHeight: "360px", overflowY: "auto" }}>
-            {isLoading ? (
+            {unread.isError && (
+              <WidgetError message="Couldn't load the unread count." onRetry={unread.refetch} retryAt={unread.retryAt} isFetching={unread.isFetching} />
+            )}
+            {feed.isError ? (
+              <WidgetError message="Couldn't load notifications." onRetry={feed.refetch} retryAt={feed.retryAt} isFetching={feed.isFetching} />
+            ) : isLoading ? (
               <p style={{ textAlign: "center", padding: "20px", fontSize: "13px", color: "rgba(3,72,82,0.5)" }}>Loading…</p>
             ) : items.length === 0 ? (
               <p style={{ textAlign: "center", padding: "24px", fontSize: "13px", color: "rgba(3,72,82,0.4)" }}>No notifications yet</p>
@@ -342,7 +349,9 @@ export default function NotificationBell() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void (push.subscribed ? push.disable() : push.enable())}
+                  onClick={() => void (push.subscribed ? push.disable() : push.enable()).catch((error: unknown) => {
+                    toast.error(error instanceof Error ? error.message : "Could not update push notifications.");
+                  })}
                   style={{ fontSize: "11px", fontWeight: 700, color: "#209379", background: "none", border: "1px solid #209379", borderRadius: "999px", padding: "3px 10px", cursor: "pointer" }}
                 >
                   {push.subscribed ? "On" : "Enable"}
