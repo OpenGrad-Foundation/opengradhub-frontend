@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { isClerkMode } from '@/lib/auth-session';
 
 const CAREER_MAP_SSO = 'https://careermap.opengrad.in/auth/hub';
 
-// Signs the user in to Career Map. A fresh Clerk session token goes in a hidden form field of a
+// Signs the user in to Career Map. A fresh Clerk session token is sent as a form field of a
 // top-level POST (never in a URL); Career Map verifies it, uses it once and opens its own session.
 export default function CareerMapButton() {
   const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
+
+  // Coming Back from Career Map can restore this page from the back-forward cache mid-"busy".
+  useEffect(() => {
+    const reset = () => setBusy(false);
+    window.addEventListener('pageshow', reset);
+    return () => window.removeEventListener('pageshow', reset);
+  }, []);
+
   if (!isClerkMode()) return null;
 
   async function open() {
@@ -21,13 +29,13 @@ export default function CareerMapButton() {
     const form = document.createElement('form');
     form.method = 'POST';
     form.action = CAREER_MAP_SSO;
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'token';
-    input.value = token;
-    form.appendChild(input);
+    // The token is added only to the outgoing form data, never to the DOM, so session replay
+    // (Sentry) can't record it.
+    form.setAttribute('data-sentry-block', '');
+    form.addEventListener('formdata', (e) => e.formData.set('token', token));
     document.body.appendChild(form);
-    form.submit();
+    form.requestSubmit();
+    form.remove();
   }
 
   return (
