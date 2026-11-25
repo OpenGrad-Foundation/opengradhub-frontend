@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { Compass, Loader2 } from 'lucide-react';
 import { isClerkMode } from '@/lib/auth-session';
 
 const CAREER_MAP_SSO = 'https://careermap.opengrad.in/auth/hub';
 
-// Signs the user in to Career Map. A fresh Clerk session token is sent as a form field of a
-// top-level POST (never in a URL); Career Map verifies it, uses it once and opens its own session.
-export default function CareerMapButton() {
+// Sidebar item that signs the user in to Career Map. A fresh Clerk session token is sent as a form
+// field of a top-level POST (never in a URL); Career Map verifies it, uses it once and opens its own
+// session. Styled like the other sidebar links (components/sidebar.tsx renderLeaf).
+export default function CareerMapButton({ collapsed = false }: { collapsed?: boolean }) {
   const { getToken } = useAuth();
   const [busy, setBusy] = useState(false);
 
@@ -38,14 +40,22 @@ export default function CareerMapButton() {
     form.remove();
   }
 
+  const Icon = busy ? Loader2 : Compass;
   return (
-    <button
-      type="button"
-      onClick={open}
-      disabled={busy}
-      className="rounded-xl bg-[#006d6c] px-5 py-2 text-sm font-bold text-white disabled:opacity-60"
-    >
-      {busy ? 'Opening Career Map…' : 'Career Map'}
-    </button>
+    <li>
+      <button
+        type="button"
+        onClick={open}
+        disabled={busy}
+        title={collapsed ? 'Career Map' : undefined}
+        className={
+          'relative flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-[var(--dark-teal)] disabled:opacity-60 ' +
+          (collapsed ? 'lg:gap-0 lg:px-0 lg:justify-center' : '')
+        }
+      >
+        <Icon size={18} className={'text-gray-400' + (busy ? ' animate-spin' : '')} aria-hidden="true" />
+        <span className={collapsed ? 'lg:hidden' : ''}>{busy ? 'Opening…' : 'Career Map'}</span>
+      </button>
+    </li>
   );
 }
