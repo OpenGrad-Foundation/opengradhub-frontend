@@ -5,7 +5,6 @@ import DashboardTabs from './DashboardTabs';
 import EmptyState from '@/components/dashboard/primitives/EmptyState';
 import UnreadAnnouncements from '@/components/dashboard/UnreadAnnouncements';
 import RegisterGaps from '@/components/dashboard/RegisterGaps';
-import CareerMapButton from '@/components/dashboard/CareerMapButton';
 
 import StudentOverview from '@/components/dashboard/roles/student/Overview';
 import StudentActivity from '@/components/dashboard/roles/student/Activity';
@@ -51,7 +50,6 @@ export default function RoleDashboard({
   // Prepend the unread-announcements widget to every role's Overview tab.
   const overview = (node: React.ReactNode) => (
     <div className="space-y-6">
-      {(role === 'STUDENT' || role === 'ZONAL_MANAGER') && <CareerMapButton />}
       <UnreadAnnouncements role={role} />
       <RegisterGaps />
       {node}
