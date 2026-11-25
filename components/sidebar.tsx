@@ -37,6 +37,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import CareerMapButton from "@/components/dashboard/CareerMapButton";
 import {
   MODULE_META,
   NAV_GROUPS,
@@ -348,6 +349,11 @@ export default function Sidebar({
           <ul className="space-y-0.5">
             {/* Pinned: Dashboard */}
             {topModules.map((module) => renderLeaf(module))}
+
+            {/* Career Map (separate app, signed in via Hub): students and zonal managers */}
+            {(data?.role?.code === "STUDENT" || data?.role?.code === "ZONAL_MANAGER") && (
+              <CareerMapButton collapsed={collapsed} />
+            )}
 
             {/* Collapsible groups (expanded sidebar only) */}
             {!collapsed &&
