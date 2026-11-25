@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Montserrat } from "next/font/google";
+import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 import { QueryProvider } from "./_components/QueryProvider";
@@ -7,12 +7,11 @@ import { QuizSubmitRecovery } from "./_components/QuizSubmitRecovery";
 import "./globals.css";
 import "katex/dist/katex.min.css";
 
-// Self-hosted via next/font: no render-blocking Google Fonts request, automatic
-// size-adjust fallback (cuts CLS), display:swap. Weights match real usage in the
-// codebase, including 800/900 which the old <link> never loaded (faux-bold before).
-const montserrat = Montserrat({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
+// Self-hosted from the repo (Montserrat variable font, latin, weights 100-900; licence in
+// app/fonts/OFL.txt). No Google Fonts download at build time, which broke Netlify builds.
+const montserrat = localFont({
+  src: "./fonts/montserrat-latin-wght.woff2",
+  weight: "100 900",
   display: "swap",
   variable: "--font-montserrat",
 });
