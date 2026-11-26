@@ -8,6 +8,7 @@ import { useInvalidate } from "@/lib/mutations/invalidation";
 import { AudiencePicker } from "./audience-picker";
 import { EndTaskButton, TEMPLATE_STATUS_LABEL } from "./end-task";
 import { IN_CHARGE, IN_CHARGE_LOWER } from "@/lib/labels";
+import { fieldKey } from "@/lib/tracker-key";
 
 const TARGET_LABEL: Record<string, string> = {
   student: `One entry per student, filled in by their ${IN_CHARGE_LOWER}`,
@@ -22,13 +23,6 @@ const pathsFor = (t: TrackerTargetType): string[] => (t === "fellow" ? FELLOW_PA
 const sourcesFor = (t: TrackerTargetType): TrackerFieldSource[] => (pathsFor(t).length ? ["input", "profile"] : ["input"]);
 const FIELD_TYPES: TrackerFieldType[] = ["text", "number", "date", "select", "multiselect", "boolean", "url"];
 
-function slugKey(label: string, used: Set<string>): string {
-  const base = label.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
-  let key = base;
-  let n = 2;
-  while (used.has(key)) key = `${base}_${n++}`;
-  return key;
-}
 
 export function TaskDetail({
   template,
@@ -260,7 +254,7 @@ function EditFieldForm({ templateId, field: f, onDone }: { templateId: string; f
   return (
     <div className="rounded-md border border-teal-200 bg-teal-50/40 p-3">
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-center">
-        <input value={label} onChange={(e) => setLabel(e.target.value)} aria-label="Field label" className={inputClass} />
+        <input value={label} maxLength={200} onChange={(e) => setLabel(e.target.value)} aria-label="Field label" className={inputClass} />
         {hasOptions ? (
           <input value={optionsText} onChange={(e) => setOptionsText(e.target.value)} aria-label="Choices" placeholder="choices: a, b" className={inputClass} />
         ) : (
@@ -429,7 +423,7 @@ function AddFieldForm({
     if (isSelect && (!options || options.length === 0)) { setErr("Add at least one choice."); return; }
     if (source === "profile" && !sourcePath) { setErr("Pick where it's filled from."); return; }
     const field: TrackerField = {
-      field_key: slugKey(label, new Set(usedKeys)),
+      field_key: fieldKey(label, new Set(usedKeys)),
       label: label.trim(),
       field_type: fieldType,
       options,
@@ -460,7 +454,7 @@ function AddFieldForm({
   return (
     <div className="border-t border-gray-100 bg-gray-50/60 px-4 py-3">
       <div className="grid items-end gap-2 md:grid-cols-5">
-        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Field label" className={inputClass} />
+        <input value={label} maxLength={200} onChange={(e) => setLabel(e.target.value)} placeholder="Field label" className={inputClass} />
         <select value={fieldType} onChange={(e) => setFieldType(e.target.value as TrackerFieldType)} className={inputClass}>
           {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
@@ -550,7 +544,7 @@ function EditTemplate({
     <div className="grid gap-4 rounded-lg border border-teal-200 bg-teal-50/40 p-5 sm:grid-cols-2">
       <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
         Task name
-        <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input value={name} maxLength={200} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
         Description

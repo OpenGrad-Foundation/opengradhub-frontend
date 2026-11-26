@@ -18,6 +18,7 @@ import {
   profilePathLabel,
 } from "@/lib/tracker-api";
 import { useTrackerAssignable, useTrackerMyProgrammes } from "@/lib/queries/tracker";
+import { fieldKey, slugify } from "@/lib/tracker-key";
 import { useInvalidate } from "@/lib/mutations/invalidation";
 import { useProfilePaths } from "@/lib/queries/tracker";
 import { useBatches } from "@/lib/queries/batches";
@@ -56,9 +57,6 @@ const emptyColumn = (defaultPath: string): DraftColumn => ({
   required: false,
 });
 
-function slug(s: string): string {
-  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
-}
 function prettyState(s: string | null): string {
   if (!s) return "";
   return s.split("_").map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
@@ -277,9 +275,7 @@ export function TrackerBuilder({
       const fields: TrackerField[] = columns
         .filter((c) => c.label.trim())
         .map((c, idx) => {
-          let key = slug(c.label);
-          let n = 2;
-          while (used.has(key)) key = `${slug(c.label)}_${n++}`;
+          const key = fieldKey(c.label, used);
           used.add(key);
           return {
             field_key: key,
@@ -312,7 +308,8 @@ export function TrackerBuilder({
         throw new Error("The end date must be on or after the start date.");
 
       // Code is an internal unique key — auto-derived from the name so authors only type a name.
-      const autoCode = `${slug(name)}-${Date.now().toString(36)}`.toUpperCase();
+      // `code` is varchar(120): 100 + "-" + an 8-char timestamp fits.
+      const autoCode = `${slugify(name).slice(0, 100) || "field"}-${Date.now().toString(36)}`.toUpperCase();
       const { id } = await createTrackerTemplate({
         code: autoCode,
         name: name.trim(),
@@ -451,7 +448,7 @@ export function TrackerBuilder({
       <section className="grid gap-4 rounded-lg border border-gray-200 bg-white p-5 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
           Task name
-          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Monthly Report" className={inputClass} />
+          <input required value={name} maxLength={200} onChange={(e) => setName(e.target.value)} placeholder="Monthly Report" className={inputClass} />
         </label>
         <label className="flex flex-col gap-1 text-sm font-medium text-gray-700 sm:col-span-2">
           Description
@@ -597,7 +594,7 @@ export function TrackerBuilder({
         <div className="flex flex-col gap-3">
           {columns.map((col, i) => (
             <div key={i} className="grid items-end gap-2 rounded-md border border-gray-100 bg-gray-50/60 p-3 md:grid-cols-5">
-              <input value={col.label} onChange={(e) => setColumn(i, { label: e.target.value })} placeholder="Field label" className={inputClass} />
+              <input value={col.label} maxLength={200} onChange={(e) => setColumn(i, { label: e.target.value })} placeholder="Field label" className={inputClass} />
               <select value={col.field_type} onChange={(e) => setColumn(i, { field_type: e.target.value as TrackerFieldType })} className={inputClass}>
                 {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
